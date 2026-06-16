@@ -1,0 +1,15 @@
+cmd/cp/docs/
+cmd/gateway/docs/
+.env
+tmp/
+*.pem
+*.key
+*.crt
+*.exe
+*.out
+*.prof
+.vscode/
+docs/
+*.db
+*.sqlite
+*.sqlite3

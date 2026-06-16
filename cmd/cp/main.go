@@ -1,0 +1,115 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	_ "github.com/JohnnyAsh-U/ashrix-api/cmd/cp/docs"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/server"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/logger"
+	"github.com/joho/godotenv"
+)
+
+// @title Ashrix Access API
+// @version 1.0
+// @description Secure Application Access
+// @host localhost:8001
+// @BasePath /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+func main() {
+	// Today — dev / early prod
+	_ = godotenv.Load() // load .env in dev; in prod, env vars are set by the environment (e.g. Vault Agent)
+
+	//Load Config Variable from env
+	cfg, errs := config.Load()
+	if errs != nil {
+		fmt.Println("Error loading config:", errs)
+		os.Exit(1)
+	}
+
+	// Structured logger — JSON in production, text in dev
+	log := logger.New(cfg.ENV)
+
+	// Connect to Postgres
+	db, err := database.Connect(context.Background(), cfg, log)
+	if err != nil {
+		log.Error("failed to connect to database", slog.String("err", err.Error()))
+		os.Exit(1)
+	}
+
+	defer db.Close()
+	log.Info("Database connected")
+
+	// Initializing PKI Root CA and Intermediate CA
+	signer, err := pki.NewSigner(cfg.PKIConfig)
+	if err != nil {
+		log.Error("Failed to Initialized PKI", slog.String("err", err.Error()))
+	}
+
+	//Initialzing CP Key and Cert
+	cppki, cperr:= crypto.ControlPlanePKIIntializer(
+		cfg.PKIConfig.BasePath,
+		cfg.PKIConfig.PKIUnlockSecret,
+		signer,
+	)
+
+	if cperr != nil {
+		log.Error("Failed to inintialize CP PKI")
+	}
+
+	//Runing gRPC and Http concurrently
+	quit := make(chan os.Signal, 2)
+
+	// Build and start HTTP server
+	httpServer := server.InitializeHttpServer(cfg, db, log)
+
+	// Build and start gRPC server
+	grpcServer := server.InitializeGRPCServer(cfg, cppki, log)
+
+	// Graceful shutdown on SIGINT / SIGTERM
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		log.Info("Control Plane Http Server Starting..", slog.String("addr", cfg.HTTPAddr))
+		if err := httpServer.Start(); err != nil {
+			log.Error("server error", slog.String("err", err.Error()))
+			os.Exit(1)
+		}
+	}()
+
+	go func() {
+		log.Info("Control Plane gRPC Server Starting..", slog.String("addr", cfg.GRPCAddr))
+		if err := grpcServer.Start(); err != nil {
+			log.Error("gRPC server error", slog.String("err", err.Error()))
+			os.Exit(1)
+		}
+	}()
+
+	<-quit
+	log.Info("Shutting Down...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Error("shutdown error", slog.String("err", err.Error()))
+	}
+
+	log.Info("Stopping gRPC server...")
+	grpcServer.Stop()
+
+	log.Info("shutdown complete")
+
+	fmt.Println("Welcome to Ashrix Access")
+}
