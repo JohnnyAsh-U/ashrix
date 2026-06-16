@@ -134,7 +134,7 @@ func Load() (*Config, []error) {
 		SMTPFrom:         optional("SMTP_FROM", "noreply@ashrix.io"),
 		SMTPPort:         int(mustInt(optional("SMTP_PORT", "587"))),
 		JwtAccessSecret:  require("JWT_ACCESS_SECRET"),
-		JwtAccessTTL:     mustDuration(optional("JWT_ACCESS_TTL", "10m")),
+		JwtAccessTTL:     mustDuration(optional("JWT_ACCESS_TTL", "100m")),
 		JwtRefreshSecret: require("JWT_REFRESH_SECRET"),
 		JwtRefreshTTL:    mustDuration(optional("JWT_REFRESH_TTL", "720h")),
 		ResetTokenDuration: mustDuration(optional("RESET_TOKEN_DURATION", "1h")),

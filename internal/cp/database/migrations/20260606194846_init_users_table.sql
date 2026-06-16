@@ -134,6 +134,7 @@ CREATE TABLE gateways (
     last_heartbeat  TIMESTAMPTZ,
     status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'healthy', 'degraded', 'offline')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    enrolled_at TIMESTAMPTZ,
     revoked_at      TIMESTAMPTZ,
     
     UNIQUE (org_id, name)
@@ -155,6 +156,7 @@ CREATE TABLE connectors (
     last_seen     TIMESTAMPTZ,
     status        TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'connected', 'disconnected')),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    enrolled_at TIMESTAMPTZ,
     revoked_at    TIMESTAMPTZ,
 
     UNIQUE (org_id, name)

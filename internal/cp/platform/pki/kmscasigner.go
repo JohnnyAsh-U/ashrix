@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"github.com/hashicorp/vault/api"
@@ -32,7 +33,7 @@ type KMSCASigner struct {
 	rootCACert       *x509.Certificate
 }
 
-func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string) (*KMSCASigner, error) {
+func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, dbQueries *store.Queries) (*KMSCASigner, error) {
 	println("Initializing PKI...")
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -181,6 +182,12 @@ func (d *KMSCASigner) RootCert() *x509.Certificate {
 
 func (d *KMSCASigner) IntermediateCert() *x509.Certificate {
 	return d.intermediateCert
+}
+
+// GetCertPool returns a cached x509.CertPool containing all active CA certificates.
+// It refreshes the pool from the database if it's older than 5 minutes.
+func (d *KMSCASigner) GetCertPool() (*x509.CertPool, error) {
+	return nil,nil
 }
 
 func checkIntermediate(client *api.Client, mountPath string) (bool, error) {

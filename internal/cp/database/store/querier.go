@@ -100,6 +100,7 @@ type Querier interface {
 	CreateRevocation(ctx context.Context, arg CreateRevocationParams) (Revocation, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AdminSession, error)
 	CreateSetupToken(ctx context.Context, arg CreateSetupTokenParams) (AdminSetupToken, error)
+	DeactivateCACert(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Called before rebuilding a policy's rules on full update.
 	DeleteAllRulesForPolicy(ctx context.Context, policyID uuid.UUID) error
 	// Soft delete. Policies referencing this app remain for audit history.
@@ -114,6 +115,8 @@ type Querier interface {
 	// Soft delete. Rules are cascade-orphaned but retained for audit.
 	DeletePolicy(ctx context.Context, arg DeletePolicyParams) (Policy, error)
 	DeletePolicyRule(ctx context.Context, arg DeletePolicyRuleParams) (PolicyRule, error)
+	EnrollGateway(ctx context.Context, tokenHash string) (Gateway, error)
+	GetActiveCACert(ctx context.Context, arg GetActiveCACertParams) (GetActiveCACertRow, error)
 	// Returns the active (non-revoked) CA cert of a given type.
 	GetActiveCACertByType(ctx context.Context, type_ string) (CaCertificate, error)
 	// Returns the current valid cert for a gateway or connector.
@@ -159,8 +162,11 @@ type Querier interface {
 	GetPolicyByIDAndOrg(ctx context.Context, arg GetPolicyByIDAndOrgParams) (Policy, error)
 	GetPolicyRuleByID(ctx context.Context, id uuid.UUID) (PolicyRule, error)
 	GetSetupToken(ctx context.Context, tokenHash string) (AdminSetupToken, error)
+	GetValidCompCert(ctx context.Context, arg GetValidCompCertParams) (GetValidCompCertRow, error)
+	InsertCACert(ctx context.Context, arg InsertCACertParams) (uuid.UUID, error)
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
+	ListActiveCACerts(ctx context.Context) ([]ListActiveCACertsRow, error)
 	// Used by Gateway during OIDC flow to find valid providers.
 	ListActiveIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error)
 	ListAdminsByOrg(ctx context.Context, orgID pgtype.UUID) ([]Admin, error)
@@ -209,6 +215,11 @@ type Querier interface {
 	PurgeExpiredRevocations(ctx context.Context) error
 	// Retention policy. Default 90 days. Run via background job.
 	PurgeOldAccessLogs(ctx context.Context, dollar_1 pgtype.Text) error
+	ReCreateGateway(ctx context.Context, arg ReCreateGatewayParams) (Gateway, error)
+	// =================================================================
+	// Cert Components
+	// =================================================================
+	RegisterCompCert(ctx context.Context, arg RegisterCompCertParams) (ComponentCertificate, error)
 	RevokeAdmin(ctx context.Context, id uuid.UUID) (Admin, error)
 	// Single session revocation (logout).
 	RevokeAdminSession(ctx context.Context, id uuid.UUID) error
@@ -216,6 +227,7 @@ type Querier interface {
 	RevokeAllAdminSessionsForAdmin(ctx context.Context, adminID uuid.UUID) error
 	// Nuclear option — used when org SSO config changes.
 	RevokeAllAdminSessionsForOrg(ctx context.Context, orgID uuid.UUID) error
+	RevokeCompCert(ctx context.Context, arg RevokeCompCertParams) (ComponentCertificate, error)
 	RevokeComponentCertificate(ctx context.Context, arg RevokeComponentCertificateParams) (ComponentCertificate, error)
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (Connector, error)
 	// Called when a gateway is revoked — cascade revoke all its connectors.
@@ -233,8 +245,6 @@ type Querier interface {
 	UpdateConnectorLastSeen(ctx context.Context, arg UpdateConnectorLastSeenParams) (Connector, error)
 	// Called every 30s by Gateway. Updates last_heartbeat and version.
 	UpdateGatewayHeartbeat(ctx context.Context, arg UpdateGatewayHeartbeatParams) (Gateway, error)
-	// Called by CP when heartbeat times out.
-	UpdateGatewayStatus(ctx context.Context, arg UpdateGatewayStatusParams) (Gateway, error)
 	// Updating secrets rotates the encrypted value.
 	UpdateIDPConfig(ctx context.Context, arg UpdateIDPConfigParams) (IdpConfig, error)
 	UpdateOrgName(ctx context.Context, arg UpdateOrgNameParams) (Org, error)

@@ -16,6 +16,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 )
 
@@ -33,23 +35,23 @@ type CASigner interface {
 	IssueCert(csr *x509.CertificateRequest, validity time.Duration) (*x509.Certificate, error)
 	RootCert() *x509.Certificate
 	IntermediateCert() *x509.Certificate
+	// GetCertPool returns a cached x509.CertPool containing all active CA certificates.
+	// It refreshes the pool from the database if it's older than 5 minutes.
+	GetCertPool() (*x509.CertPool, error)
 }
-
-
 
 // New constructs the CASigner for the configured backend.
 // This is the only line that changes when you switch backends.
-func NewSigner(cfg *config.PKIConfig) (CASigner, error) {
+func NewSigner(cfg *config.PKIConfig, dbQueries *store.Queries) (CASigner, error) {
 	switch cfg.Backend {
 	case config.BackendDisk:
-		return NewDiskCASigner(cfg.BasePath, cfg.PKIUnlockSecret)
+		return NewDiskCASigner(cfg.BasePath, cfg.PKIUnlockSecret, dbQueries)
 	case config.BackendKMS:
-		return NewKMSCASigner(cfg.KMSToken, cfg.KMSUrl, cfg.BasePath, cfg.PKIUnlockSecret)
+		return NewKMSCASigner(cfg.KMSToken, cfg.KMSUrl, cfg.BasePath, cfg.PKIUnlockSecret, dbQueries) // KMSCASigner also needs dbQueries
 	default:
 		return nil, fmt.Errorf("unknown backend: %q", cfg.Backend)
 	}
 }
-
 
 // Compile-time interface checks.
 // If a backend is missing a method, this fails the build immediately.
@@ -57,4 +59,3 @@ var (
 	_ CASigner = (*DiskCASigner)(nil)
 	_ CASigner = (*KMSCASigner)(nil)
 )
-

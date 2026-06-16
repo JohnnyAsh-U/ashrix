@@ -120,15 +120,16 @@ type ComponentCertificate struct {
 }
 
 type Connector struct {
-	ID        uuid.UUID          `json:"id"`
-	OrgID     uuid.UUID          `json:"org_id"`
-	GatewayID uuid.UUID          `json:"gateway_id"`
-	Name      string             `json:"name"`
-	TokenHash string             `json:"token_hash"`
-	LastSeen  pgtype.Timestamptz `json:"last_seen"`
-	Status    string             `json:"status"`
-	CreatedAt time.Time          `json:"created_at"`
-	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+	ID         uuid.UUID          `json:"id"`
+	OrgID      uuid.UUID          `json:"org_id"`
+	GatewayID  uuid.UUID          `json:"gateway_id"`
+	Name       string             `json:"name"`
+	TokenHash  string             `json:"token_hash"`
+	LastSeen   pgtype.Timestamptz `json:"last_seen"`
+	Status     string             `json:"status"`
+	CreatedAt  time.Time          `json:"created_at"`
+	EnrolledAt pgtype.Timestamptz `json:"enrolled_at"`
+	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 }
 
 type CrlEntry struct {
@@ -160,6 +161,7 @@ type Gateway struct {
 	LastHeartbeat pgtype.Timestamptz `json:"last_heartbeat"`
 	Status        string             `json:"status"`
 	CreatedAt     time.Time          `json:"created_at"`
+	EnrolledAt    pgtype.Timestamptz `json:"enrolled_at"`
 	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
 }
 

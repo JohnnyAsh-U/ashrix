@@ -50,6 +50,14 @@ func LoadKeyAndCert(keyPath, certPath, secret, context string) (*ecdsa.PrivateKe
 	return key, cert, nil
 }
 
+func LoadKey(keyPath, secret, context string) (*ecdsa.PrivateKey, error) {
+	key, err := decryptAndLoadKey(keyPath, secret, context)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
 func LoadCert(certPath string) (*x509.Certificate, error) {
 	cert, err := loadCert(certPath)
 	if err != nil {
@@ -57,6 +65,15 @@ func LoadCert(certPath string) (*x509.Certificate, error) {
 	}
 	return cert, nil
 }
+
+func ParseCSR(csrPEM []byte) (*x509.CertificateRequest, error) {
+	block, _ := pem.Decode(csrPEM)
+	if block == nil || block.Type != "CERTIFICATE REQUEST" {
+		return nil, fmt.Errorf("failed to decode PEM block containing CSR")
+	}
+	return x509.ParseCertificateRequest(block.Bytes)
+}
+
 func MarshalCert(cert *x509.Certificate) []byte {
 	return pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
@@ -102,12 +119,11 @@ func VerifyKeyAndCert(cert *x509.Certificate, key *ecdsa.PrivateKey) error {
 	}
 
 	//Verify if key and public matches
-	if certPub.Equal(key.PublicKey) {
+	if !certPub.Equal(&key.PublicKey) {
 		return errors.New("Key and Cert doesn't match")
 	}
 	return nil
 }
-
 
 // =============================================================================
 // ENCRYPTION — AES-256-GCM with HKDF key derivation (stdlib only)

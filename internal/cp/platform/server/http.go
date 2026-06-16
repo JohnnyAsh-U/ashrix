@@ -2,20 +2,20 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/auth"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/utils"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
-	"github.com/jackc/pgx/v5/pgxpool"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
@@ -23,13 +23,12 @@ import (
 type Server struct {
 	http *http.Server
 	log  *slog.Logger
+	signer pki.CASigner
 }
 
 // New wires together all dependencies and builds the router.
-func InitializeHttpServer(cfg *config.Config, db *pgxpool.Pool, log *slog.Logger) *Server {
+func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries, log *slog.Logger, signer pki.CASigner) *Server {
 
-	// Store layer — sqlc generated queries
-	queries := store.New(db)
 	//Mailer config
 	mailer := utils.NewMailerService(cfg)
 	//Jwt Utils
@@ -39,8 +38,6 @@ func InitializeHttpServer(cfg *config.Config, db *pgxpool.Pool, log *slog.Logger
 		cfg.JwtAccessTTL,
 		cfg.JwtRefreshTTL,
 	)
-	fmt.Println(cfg.JwtAccessSecret, cfg.JwtRefreshSecret)
-
 	// Router
 	r := chi.NewRouter()
 
@@ -52,12 +49,12 @@ func InitializeHttpServer(cfg *config.Config, db *pgxpool.Pool, log *slog.Logger
 	r.Use(middleware.SecurityHeaders)
 
 	//Org routes
-	orgRepo := org.NewPostgresRepository(queries)
+	orgRepo := org.NewPostgresRepository(dbQueries)
 	orgService := org.NewService(orgRepo)
 	orgHandler := org.NewOrgHandler(orgService)
 
 	//Auth routes
-	authRepo := auth.NewPostgresRepository(queries)
+	authRepo := auth.NewPostgresRepository(dbQueries)
 	authService := auth.NewService(
 		authRepo,
 		orgService,
@@ -71,22 +68,31 @@ func InitializeHttpServer(cfg *config.Config, db *pgxpool.Pool, log *slog.Logger
 		cfg.JwtAccessSecret,
 	)
 
-	r.Get("/healthz", handleHealth)
+	//Gateway routes
+	gatewayRepo := gateway.NewPostgresRepository(dbQueries)
+	gatewayService := gateway.NewService(gatewayRepo)
+	gatewayHandler := gateway.NewGatewayHandler(gatewayService, signer)
 
 	//Docs - date this in prod
 	r.Get("/docs/*", httpSwagger.Handler(
 		httpSwagger.URL("/docs/doc.json"),
 	))
 
-	// Auth routes
-	r.Route("/api/v1/auth", authHandler.Routes)
-
-	//Orgs
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(middleware.AuthMiddleware([]byte(cfg.JwtAccessSecret)))
 
-		r.Route("/orgs", orgHandler.Routes)
+		r.Group(func(r chi.Router) {
+			r.Route("/auth", authHandler.Routes)
+			r.Route("/internal/gateways", gatewayHandler.WithoutAuthRoutes)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.AuthMiddleware([]byte(cfg.JwtAccessSecret)))
+			r.Route("/gateways", gatewayHandler.WithAuthRoutes)
+			r.Route("/orgs", orgHandler.Routes)
+		})
 	})
+
+	r.Get("/healthz", handleHealth)
 
 	httpSrv := &http.Server{
 		Addr:         cfg.HTTPAddr,

@@ -10,11 +10,12 @@ import (
 	"time"
 
 	_ "github.com/JohnnyAsh-U/ashrix-api/cmd/cp/docs"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/server"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/logger"
 	"github.com/joho/godotenv"
 )
@@ -51,14 +52,19 @@ func main() {
 	defer db.Close()
 	log.Info("Database connected")
 
+	//Initializing the dbQueries
+	dbQueries := store.New(db)
+
 	// Initializing PKI Root CA and Intermediate CA
-	signer, err := pki.NewSigner(cfg.PKIConfig)
+	// Pass db.Queries to the PKI signer for database-backed CA certificate management
+	signer, err := pki.NewSigner(cfg.PKIConfig, dbQueries)
 	if err != nil {
 		log.Error("Failed to Initialized PKI", slog.String("err", err.Error()))
+		os.Exit(1) // Fail hard if PKI initialization fails
 	}
 
 	//Initialzing CP Key and Cert
-	cppki, cperr:= crypto.ControlPlanePKIIntializer(
+	cppki, cperr := crypto.ControlPlanePKIIntializer(
 		cfg.PKIConfig.BasePath,
 		cfg.PKIConfig.PKIUnlockSecret,
 		signer,
@@ -72,7 +78,7 @@ func main() {
 	quit := make(chan os.Signal, 2)
 
 	// Build and start HTTP server
-	httpServer := server.InitializeHttpServer(cfg, db, log)
+	httpServer := server.InitializeHttpServer(cfg, dbQueries, log, signer)
 
 	// Build and start gRPC server
 	grpcServer := server.InitializeGRPCServer(cfg, cppki, log)
