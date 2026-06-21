@@ -285,7 +285,6 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, 204, nil)
 }
 
-
 // @Summary Refresh Token
 // @Description Refresh Token
 // @Tags Auth
@@ -331,8 +330,6 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, http.StatusOK, tokens)
 }
 
-
-
 // @Summary Logout
 // @Description Logout
 // @Tags Auth
@@ -351,7 +348,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.svc.Logout(r.Context(), cookie.Value)
-	
+
 	// Clear the cookie.
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
@@ -365,8 +362,6 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	dto.SendSuccess(w, 204, nil)
 }
-
-
 
 func (h *AuthHandler) Routes(r chi.Router) {
 	// Public — no auth middleware

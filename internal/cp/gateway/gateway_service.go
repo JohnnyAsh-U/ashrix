@@ -2,7 +2,8 @@ package gateway
 
 import (
 	"context"
-	"encoding/pem"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,8 +11,8 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
-	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/utils"
+	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -50,8 +51,8 @@ func mapToGatewayResponse(g store.Gateway) GatewayResponse {
 func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name string) (GatewayResponse, *dto.AppError) {
 
 	//Check if the Org is same as the Admin
-	AdminOrgId :=  middleware.OrgIDFromCtx(ctx)
-	if AdminOrgId != orgID.String(){
+	AdminOrgId := middleware.OrgIDFromCtx(ctx)
+	if AdminOrgId != orgID.String() {
 		return GatewayResponse{}, dto.NewUnauthorizedError("OrgID Error")
 	}
 
@@ -60,8 +61,8 @@ func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name strin
 	fmt.Println(token)
 
 	params := store.CreateGatewayParams{
-		OrgID: orgID,
-		Name:  name,
+		OrgID:     orgID,
+		Name:      name,
 		TokenHash: utils.HashToken(token),
 	}
 	gateway, err := s.repo.CreateGateway(ctx, params)
@@ -70,7 +71,6 @@ func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name strin
 	}
 	return mapToGatewayResponse(gateway), nil
 }
-
 
 // ListGatewaysByOrg lists all gateways for a given organization.
 func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]GatewayResponse, *dto.AppError) {
@@ -86,19 +86,18 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 	return responses, nil
 }
 
-
 // ReEnrollGateway re-create a gateway.
 func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name string) (GatewayResponse, *dto.AppError) {
 
-	gatewayRes, err := s.repo.GetGatewayByID(ctx,id)
+	gatewayRes, err := s.repo.GetGatewayByID(ctx, id)
 
 	if err != nil {
 		return GatewayResponse{}, dto.NewNotFoundError("Not Found")
 	}
 
 	//Check if the Org is same as the Admin
-	AdminOrgId :=  middleware.OrgIDFromCtx(ctx)
-	if AdminOrgId != gatewayRes.OrgID.String(){
+	AdminOrgId := middleware.OrgIDFromCtx(ctx)
+	if AdminOrgId != gatewayRes.OrgID.String() {
 		return GatewayResponse{}, dto.NewUnauthorizedError("OrgID Error")
 	}
 
@@ -107,8 +106,8 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name string
 	fmt.Println(token)
 
 	params := store.ReCreateGatewayParams{
-		ID:   id,
-		Name: name, // Assuming name can be updated during re-enrollment
+		ID:        id,
+		Name:      name, // Assuming name can be updated during re-enrollment
 		TokenHash: utils.HashToken(token),
 	}
 	gateway, err := s.repo.ReCreateGateway(ctx, params)
@@ -118,106 +117,310 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name string
 	return mapToGatewayResponse(gateway), nil
 }
 
-
-
 // EnrollGateway enrolls a gateway using a token hash and CSR.
 func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer pki.CASigner) (EnrollResponse, *dto.AppError) {
-	// In a real scenario, this would involve a Certificate Authority (CA) client
-	// to sign the CSR and issue a certificate. For this implementation,
-	// we'll simulate the certificate generation and return dummy data.
-	// Get the Gatewayby using the token
+	// Get the Gateway by using the token
 	gateway, err := s.repo.GetGatewayByTokenHash(ctx, utils.HashToken(token))
 	if err != nil {
-		// TODO: Handle specific errors like token not found, already enrolled, etc.
 		return EnrollResponse{}, dto.NewNotFoundError("Gateway Not Found")
 	}
 
-
-	//Sign the cert and register the comp cert
-	block, _ := pem.Decode([]byte(csr))
-	if block == nil {
-		return EnrollResponse{}, dto.NewBadRequestError("Not Valid CSR")
-	}
-
-	if block.Type != "CERTIFICATE REQUEST" {
-		return EnrollResponse{}, dto.NewBadRequestError("Not Valid CSR")
-	}
-
-	// gatewayCRT, err := signer.IssueCert(block.Bytes, 90 * 24 * time.Hour)
-
+	// Parse CSR
+	certReq, err := pki_utils.ParseCSR([]byte(csr))
 	if err != nil {
-		return EnrollResponse{}, dto.NewBadRequestError("Error in signing CSR")
+		return EnrollResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
 	}
 
-	// gatewayCert, err := s.repo.CreateGatewayCert(ctx, store.RegisterCompCertParams{
-	// 	OrgID: gateway.OrgID,
-	// 	ComponentType: "gateway",
-	// 	// CaID: signer,
-	// 	CertPem: string(pki_utils.MarshalCert(gatewayCRT)),
-	// 	SerialNumber: gatewayCRT.SerialNumber.String(),
-	// 	Subject: gatewayCRT.Subject.CommonName,
-
-	// })
-
-	// })
-
-	// gateway, err := s.repo.EnrollGatewayUsingTokenHash(ctx, token)
-
-
-
+	// Sign the cert
+	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour)
 	if err != nil {
-		// TODO: Handle specific errors like token not found, already enrolled, etc.
+		return EnrollResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
+	}
+
+	// Get active intermediate CA certificate from DB to retrieve its ID
+	caCertRecord, err := s.repo.GetActiveCACert(ctx, store.GetActiveCACertParams{
+		Name: "Ashrix Intermediate CA",
+		Type: "intermediate",
+	})
+	if err != nil {
+		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active Intermediate CA", err.Error())
+	}
+
+	// Register component cert
+	_, err = s.repo.CreateGatewayCert(ctx, store.RegisterCompCertParams{
+		OrgID:         gateway.OrgID,
+		ComponentType: "gateway",
+		ComponentID:   gateway.ID,
+		CaID:          caCertRecord.ID,
+		CertPem:       string(pki_utils.MarshalCert(gatewayCRT)),
+		SerialNumber:  gatewayCRT.SerialNumber.String(),
+		Subject:       gatewayCRT.Subject.CommonName,
+		San:           gatewayCRT.DNSNames,
+		IssuedAt:      gatewayCRT.NotBefore,
+		ExpiresAt:     gatewayCRT.NotAfter,
+		RotationOf:    pgtype.UUID{Valid: false},
+	})
+	if err != nil {
+		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to register gateway certificate", err.Error())
+	}
+
+	// Update gateway status to healthy/enrolled
+	_, err = s.repo.EnrollGatewayUsingTokenHash(ctx, utils.HashToken(token))
+	if err != nil {
 		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to enroll gateway", err.Error())
 	}
 
-	// Placeholder for certificate generation/signing
-	dummyCert := "---BEGIN CERTIFICATE---\n...dummy gateway cert...\n---END CERTIFICATE---"
-	dummyCACert := "---BEGIN CERTIFICATE---\n...dummy CA cert...\n---END CERTIFICATE---"
-	expiresAt := time.Now().Add(365 * 24 * time.Hour) // Example: 1 year expiry
-
-	// _ = gateway // Use gateway to avoid unused variable error, though its fields aren't used for the EnrollResponse return.
-
 	return EnrollResponse{
-		Certificate: dummyCert,
-		CACert:      dummyCACert,
-		ExpiresAt:   expiresAt,
+		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
+		CACert:      string(pki_utils.MarshalCert(signer.IntermediateCert())),
+		TrustBundle: string(signer.TrustBundle()),
+		ExpiresAt:   gatewayCRT.NotAfter,
 	}, nil
 }
 
+func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, signature string, csr string, signer pki.CASigner) (EnrollResponse, *dto.AppError) {
+	// get gateway
+	gateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return EnrollResponse{}, dto.NewNotFoundError("Gateway Not Found")
+		}
+		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+	}
+
+	// get active cert
+	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+		ComponentType: "gateway",
+		ComponentID:   gatewayID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return EnrollResponse{}, dto.NewNotFoundError("Active Component Certificate Not Found")
+		}
+		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
+	}
+
+	certPem := []byte(activeCert.CertPem)
+	pubkey, err := pki_utils.ParsePublicKey(certPem)
+	if err != nil {
+		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to parse active component certificate", err.Error())
+	}
+
+	// verify signature
+	verified := pki_utils.VerifySignature(pubkey, []byte(gatewayID.String()), []byte(signature))
+	if !verified {
+		return EnrollResponse{}, dto.NewUnauthorizedError("Signature verification failed")
+	}
+
+	// Issue new cert
+	// get active intermediate CA
+	caCertRecord, err := s.repo.GetActiveCACert(ctx, store.GetActiveCACertParams{
+		Name: "Ashrix Intermediate CA",
+		Type: "intermediate",
+	})
+	if err != nil {
+		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active Intermediate CA", err.Error())
+	}
+
+	//Revoke the current cert of the gateway
+	_, err = s.repo.RevokeGatewayCert(ctx, store.RevokeCompCertParams{
+		ComponentID:   gatewayID,
+		ComponentType: "gateway",
+		RevokeReason:  pgtype.Text{String: "superseded", Valid: true},
+	})
+
+	if err != nil {
+		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke gateway certificate", err.Error())
+	}
+
+	//Parse CSR
+	certReq, err := pki_utils.ParseCSR([]byte(csr))
+	if err != nil {
+		return EnrollResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
+	}
+
+	// Issue new cert
+	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour)
+	if err != nil {
+		return EnrollResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
+	}
+
+	//Register the cert
+	_, err = s.repo.CreateGatewayCert(ctx, store.RegisterCompCertParams{
+		OrgID:         gateway.OrgID,
+		ComponentID:   gatewayID,
+		ComponentType: "gateway",
+		CaID:          caCertRecord.ID,
+		CertPem:       string(pki_utils.MarshalCert(gatewayCRT)),
+		SerialNumber:  gatewayCRT.SerialNumber.String(),
+		Subject:       gatewayCRT.Subject.CommonName,
+		San:           gatewayCRT.DNSNames,
+		IssuedAt:      gatewayCRT.NotBefore,
+		ExpiresAt:     gatewayCRT.NotAfter,
+		RotationOf:    pgtype.UUID{Valid: false},
+	})
+	if err != nil {
+		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to register gateway certificate", err.Error())
+	}
+
+	return EnrollResponse{
+		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
+		CACert:      string(pki_utils.MarshalCert(signer.IntermediateCert())),
+		TrustBundle: string(signer.TrustBundle()),
+		ExpiresAt:   gatewayCRT.NotAfter,
+	}, nil
+
+}
 
 // RevokeGatewayCert revokes a gateway certificate.
 // It assumes componentID is the gateway's ID.
 func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, componentType, revokeReason string) (GatewayResponse, *dto.AppError) {
+	// Retrieve the admin's OrgID from context
+	adminOrgIDStr := middleware.OrgIDFromCtx(ctx)
+
+	// Validate the revocation reason against DB check constraints
+	switch revokeReason {
+	case "keyCompromise", "superseded", "cessationOfOperation", "affiliationChanged":
+		// valid reason
+	default:
+		return GatewayResponse{}, dto.NewBadRequestError("Invalid revocation reason")
+	}
+
+	// Fetch the gateway first to verify it exists
+	gateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GatewayResponse{}, dto.NewNotFoundError("Gateway Not Found")
+		}
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+	}
+
+	// Verify that the gateway belongs to the admin's organization
+	if adminOrgIDStr != gateway.OrgID.String() {
+		return GatewayResponse{}, dto.NewUnauthorizedError("OrgID Error")
+	}
+
+	// Fetch active component certificate
+	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+		ComponentType: componentType,
+		ComponentID:   gatewayID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// No active cert to revoke, but we can return the gateway response as success
+			return mapToGatewayResponse(gateway), nil
+		}
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
+	}
+
+	// Revoke component cert
 	params := store.RevokeCompCertParams{
-		ComponentID:   gatewayID, // Assuming ComponentID is the Gateway ID
+		ComponentID:   gatewayID,
 		ComponentType: componentType,
 		RevokeReason:  pgtype.Text{String: revokeReason, Valid: true},
 	}
-	compCert, err := s.repo.RevokeGatewayCert(ctx, params)
+	_, err = s.repo.RevokeGatewayCert(ctx, params)
 	if err != nil {
-		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke gateway certificate", err.Error())
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke component certificate", err.Error())
 	}
 
-	// After revoking the certificate, fetch the updated gateway status.
-	gateway, err := s.repo.GetGatewayByID(ctx, compCert.ComponentID) // Assuming compCert.ComponentID is the gateway ID
+	// Create CRL Entry
+	_, err = s.repo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
+		CertID:       activeCert.ID,
+		SerialNumber: activeCert.SerialNumber,
+		Reason:       revokeReason,
+	})
 	if err != nil {
-		// This case might indicate an inconsistency or a different expected flow.
-		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway after certificate revocation", err.Error())
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
 	}
 
-	return mapToGatewayResponse(gateway), nil
+	// Create Revocation record
+	_, err = s.repo.CreateRevocation(ctx, store.CreateRevocationParams{
+		OrgID:     gateway.OrgID,
+		Type:      componentType,
+		TargetID:  gatewayID.String(),
+		Reason:    pgtype.Text{String: revokeReason, Valid: true},
+		ExpiresAt: time.Now().Add(365 * 24 * time.Hour), // 1 year expiry
+	})
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to write revocation event", err.Error())
+	}
+
+	// Fetch updated gateway status
+	updatedGateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+	}
+
+	return mapToGatewayResponse(updatedGateway), nil
 }
 
 // RevokeGateway revokes an entire gateway.
 func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayResponse, *dto.AppError) {
-	params := store.RevokeGatewayParams{
-		ID:           id,
+	// Retrieve the admin's OrgID from context
+	adminOrgIDStr := middleware.OrgIDFromCtx(ctx)
+	adminOrgID, parseErr := uuid.Parse(adminOrgIDStr)
+	if parseErr != nil {
+		return GatewayResponse{}, dto.NewBadRequestError("Invalid Organization ID format")
 	}
-	gateway, err := s.repo.RevokeGateway(ctx, params)
+
+	// Fetch the gateway to verify it exists
+	gateway, err := s.repo.GetGatewayByID(ctx, id)
 	if err != nil {
-		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke gateway", err.Error())
+		if errors.Is(err, sql.ErrNoRows) {
+			return GatewayResponse{}, dto.NewNotFoundError("Gateway Not Found")
+		}
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
-	return mapToGatewayResponse(gateway), nil
+
+	// Verify that the gateway belongs to the admin's organization
+	if adminOrgID != gateway.OrgID {
+		return GatewayResponse{}, dto.NewUnauthorizedError("OrgID Error")
+	}
+
+	// Mark the gateway as revoked (offline) in the database
+	params := store.RevokeGatewayParams{
+		ID:    id,
+		OrgID: adminOrgID,
+	}
+	revokedGateway, err := s.repo.RevokeGateway(ctx, params)
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke gateway record", err.Error())
+	}
+
+	// Revoke the active component certificate if it exists
+	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+		ComponentType: "gateway",
+		ComponentID:   id,
+	})
+	if err == nil {
+		// Cert found, revoke it
+		_, err = s.repo.RevokeGatewayCert(ctx, store.RevokeCompCertParams{
+			ComponentID:   id,
+			ComponentType: "gateway",
+			RevokeReason:  pgtype.Text{String: "cessationOfOperation", Valid: true},
+		})
+		if err == nil {
+			// Write to CRL entries
+			_, _ = s.repo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
+				CertID:       activeCert.ID,
+				SerialNumber: activeCert.SerialNumber,
+				Reason:       "cessationOfOperation",
+			})
+		}
+	}
+
+	// Write revocation event
+	_, err = s.repo.CreateRevocation(ctx, store.CreateRevocationParams{
+		OrgID:     gateway.OrgID,
+		Type:      "gateway",
+		TargetID:  id.String(),
+		Reason:    pgtype.Text{String: "cessationOfOperation", Valid: true},
+		ExpiresAt: time.Now().Add(365 * 24 * time.Hour), // 1 year expiry
+	})
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to log gateway revocation event", err.Error())
+	}
+
+	return mapToGatewayResponse(revokedGateway), nil
 }
-
-

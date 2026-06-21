@@ -14,10 +14,11 @@ type Repository interface {
 	GetGatewayByTokenHash(ctx context.Context, token string) (store.Gateway, error)
 
 	CreateGatewayCert(ctx context.Context, params store.RegisterCompCertParams) (store.ComponentCertificate, error)
+	GetActiveCACert(ctx context.Context, params store.GetActiveCACertParams) (store.GetActiveCACertRow, error)
 
 
 	GetGatewayByID(ctx context.Context, id uuid.UUID) (store.Gateway, error)
-	EnrollGatewayUsingTokenHash(ctx context.Context, token string) (store.Gateway, error)
+	EnrollGatewayUsingTokenHash(ctx context.Context, tokenHash string) (store.Gateway, error)
 
 	UpdateGatewayHeartBeat(ctx context.Context, params store.UpdateGatewayHeartbeatParams) (store.Gateway, error)
 
@@ -25,6 +26,9 @@ type Repository interface {
 
 	// New methods
 	RevokeGatewayCert(ctx context.Context, params store.RevokeCompCertParams) (store.ComponentCertificate, error)
+	GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error)
+	CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error)
+	CreateRevocation(ctx context.Context, params store.CreateRevocationParams) (store.Revocation, error)
 }
 
 type postgresRepository struct {
@@ -56,8 +60,12 @@ func (r *postgresRepository) GetGatewayByID(ctx context.Context, id uuid.UUID) (
 	return r.q.GetGatewayByID(ctx, id)
 }
 
-func (r *postgresRepository) EnrollGatewayUsingTokenHash(ctx context.Context, token string) (store.Gateway, error) {
-	return r.q.EnrollGateway(ctx, token)
+func (r *postgresRepository) EnrollGatewayUsingTokenHash(ctx context.Context, tokenHash string) (store.Gateway, error) {
+	return r.q.EnrollGateway(ctx, tokenHash)
+}
+
+func (r *postgresRepository) GetActiveCACert(ctx context.Context, params store.GetActiveCACertParams) (store.GetActiveCACertRow, error) {
+	return r.q.GetActiveCACert(ctx, params)
 }
 
 func (r *postgresRepository) GetGatewayByTokenHash(ctx context.Context, token string) (store.Gateway, error) {
@@ -78,5 +86,17 @@ func (r *postgresRepository) RevokeGatewayCert(ctx context.Context, params store
 
 func (r *postgresRepository) CreateGatewayCert(ctx context.Context, params store.RegisterCompCertParams) (store.ComponentCertificate, error) {
 	return r.q.RegisterCompCert(ctx, params)
+}
+
+func (r *postgresRepository) GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error) {
+	return r.q.GetActiveComponentCert(ctx, params)
+}
+
+func (r *postgresRepository) CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error) {
+	return r.q.CreateCRLEntry(ctx, params)
+}
+
+func (r *postgresRepository) CreateRevocation(ctx context.Context, params store.CreateRevocationParams) (store.Revocation, error) {
+	return r.q.CreateRevocation(ctx, params)
 }
 

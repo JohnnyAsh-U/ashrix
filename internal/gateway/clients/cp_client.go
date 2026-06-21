@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/proto/gen"
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -48,7 +48,7 @@ func (c *CPClient) PerformBootstrap(ctx context.Context, token, nodeID string) (
 	req := &gen.BootstrapRequest{
 		BootstrapToken: token,
 		NodeId:         nodeID,
-		NodeType:       "GATEWAY",
+		NodeType:       gen.NodeType_NODE_TYPE_GATEWAY,
 		// Csr: csrPEM,
 	}
 	return c.Bootstrap.Bootstrap(ctx, req)

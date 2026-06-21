@@ -136,6 +136,16 @@ func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, dbQu
 		}
 	}
 
+	var intermediateCert *x509.Certificate
+	secret, err := client.Logical().Read("pki/cert/ca")
+	if err == nil && secret != nil && secret.Data["certificate"] != nil {
+		certPEM := secret.Data["certificate"].(string)
+		certBlock, _ := pem.Decode([]byte(certPEM))
+		if certBlock != nil {
+			intermediateCert, _ = x509.ParseCertificate(certBlock.Bytes)
+		}
+	}
+
 	rootCert, err := pki.LoadCert(rootCertPath)
 	if err != nil {
 		return nil, err
@@ -148,6 +158,7 @@ func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, dbQu
 		RootCACertPath:   rootCertPath,
 		MountPath:        "pki",
 		rootCACert:       rootCert,
+		intermediateCert: intermediateCert,
 	}, nil
 }
 
@@ -182,6 +193,15 @@ func (d *KMSCASigner) RootCert() *x509.Certificate {
 
 func (d *KMSCASigner) IntermediateCert() *x509.Certificate {
 	return d.intermediateCert
+}
+
+func (d *KMSCASigner) TrustBundle() string {
+	if d.intermediateCert == nil || d.rootCACert == nil {
+		return ""
+	}
+	interPEM := pki.MarshalCert(d.intermediateCert)
+	rootPEM := pki.MarshalCert(d.rootCACert)
+	return string(interPEM) + string(rootPEM)
 }
 
 // GetCertPool returns a cached x509.CertPool containing all active CA certificates.

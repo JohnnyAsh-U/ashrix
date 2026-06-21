@@ -21,8 +21,9 @@ type EnrollGatewayRequest struct {
 }
 
 type RenewGatewayCertRequest struct {
-	Certificate string `json:"certificate"`
-	CSR         string `json:"csr"`
+	GatewayID string `json:"gateway_id" validate:"required"`
+	Signature string `json:"signature" validate:"required"`
+	CSR       string `json:"csr" validate:"required"`
 }
 
 type RevokeGatewayCertRequest struct {
@@ -41,6 +42,7 @@ type RevokeGatewayRequest struct {
 type EnrollResponse struct {
 	Certificate string    `json:"certificate"`
 	CACert      string    `json:"ca_cert"`
+	TrustBundle string    `json:"trust_bundle"`
 	ExpiresAt   time.Time `json:"expires_at"`
 }
 

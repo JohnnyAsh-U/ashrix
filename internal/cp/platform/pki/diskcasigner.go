@@ -223,6 +223,15 @@ func (d *DiskCASigner) IntermediateCert() *x509.Certificate {
 	return d.intermediateCert
 }
 
+func (d *DiskCASigner) TrustBundle() string {
+	if d.intermediateCert == nil || d.RootCACert == nil {
+		return ""
+	}
+	interPEM := pki.MarshalCert(d.intermediateCert)
+	rootPEM := pki.MarshalCert(d.RootCACert)
+	return string(interPEM) + string(rootPEM)
+}
+
 // GetCertPool returns a cached x509.CertPool containing all active CA certificates.
 // It refreshes the pool from the database if it's older than 5 minutes.
 func (d *DiskCASigner) GetCertPool() (*x509.CertPool, error) {

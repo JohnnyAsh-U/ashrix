@@ -74,6 +74,18 @@ func ParseCSR(csrPEM []byte) (*x509.CertificateRequest, error) {
 	return x509.ParseCertificateRequest(block.Bytes)
 }
 
+func ParsePublicKey(pubKey []byte) (*ecdsa.PublicKey, error) {
+	block, _ := pem.Decode(pubKey)
+	if block == nil || block.Type != "PUBLIC KEY" {
+		return nil, fmt.Errorf("failed to decode PEM block containing public key")
+	}
+	pubKeyDER, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public key: %w", err)
+	}
+	return pubKeyDER.(*ecdsa.PublicKey), nil
+}
+
 func MarshalCert(cert *x509.Certificate) []byte {
 	return pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
@@ -123,6 +135,10 @@ func VerifyKeyAndCert(cert *x509.Certificate, key *ecdsa.PrivateKey) error {
 		return errors.New("Key and Cert doesn't match")
 	}
 	return nil
+}
+
+func VerifySignature(pubKey *ecdsa.PublicKey, data []byte, signature []byte) bool {
+	return ecdsa.VerifyASN1(pubKey, data, signature)
 }
 
 // =============================================================================

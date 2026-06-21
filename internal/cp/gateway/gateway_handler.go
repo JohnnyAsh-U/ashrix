@@ -12,7 +12,7 @@ import (
 
 type GatewayHandler struct {
 	service *Service
-	signer pki.CASigner
+	signer  pki.CASigner
 }
 
 func NewGatewayHandler(service *Service, signer pki.CASigner) *GatewayHandler {
@@ -52,7 +52,6 @@ func (h *GatewayHandler) CreateGateway(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, http.StatusCreated, gateway)
 }
 
-
 // @Summary List gateways by organization
 // @Description Retrieve a list of gateways for a admin organization.
 // @Tags Gateways
@@ -79,8 +78,6 @@ func (h *GatewayHandler) ListGatewaysByOrg(w http.ResponseWriter, r *http.Reques
 	}
 	dto.SendSuccess(w, http.StatusOK, gateways)
 }
-
-
 
 // @Summary Re-create a gateway
 // @Description Re-create an existing gateway.
@@ -121,10 +118,6 @@ func (h *GatewayHandler) ReCreateGateway(w http.ResponseWriter, r *http.Request)
 	dto.SendSuccess(w, http.StatusOK, gateway)
 }
 
-
-
-
-
 // @Summary Enroll a gateway
 // @Description Enroll a gateway using a token and CSR.
 // @Tags Gateways
@@ -156,6 +149,42 @@ func (h *GatewayHandler) EnrollGateway(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, http.StatusOK, enrollmentResponse)
 }
 
+// @Summary Renew gateway certificate
+// @Description Renew a gateway certificate.
+// @Tags Gateways
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param renewal body RenewGatewayCertRequest true "Certificate renewal details"
+// @Success 200 {object} EnrollResponse
+// @Failure 400 {object} dto.AppError
+// @Failure 500 {object} dto.AppError
+// @Router /internal/gateways/renew [post]
+func (h *GatewayHandler) RenewGatewayCert(w http.ResponseWriter, r *http.Request) {
+
+	var req RenewGatewayCertRequest
+	if err := dto.DecodeJSON(w, r, &req); err != nil {
+		dto.SendError(w, err)
+		return
+	}
+	if validationErrors := dto.ValidateStruct(req); validationErrors != nil {
+		dto.SendError(w, dto.NewBadRequestError(validationErrors))
+		return
+	}
+
+	gatewayID, parseErr := uuid.Parse(req.GatewayID)
+	if parseErr != nil {
+		dto.SendError(w, dto.NewBadRequestError("Invalid Gateway ID format"))
+		return
+	}
+
+	enrollmentResponse, appErr := h.service.RenewGatewayCert(r.Context(), gatewayID, req.Signature, req.CSR, h.signer)
+	if appErr != nil {
+		dto.SendError(w, appErr)
+		return
+	}
+	dto.SendSuccess(w, http.StatusOK, enrollmentResponse)
+}
 
 // @Summary Revoke gateway certificate
 // @Description Revoke a specific gateway certificate.
@@ -236,12 +265,11 @@ func (h *GatewayHandler) RevokeGateway(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, http.StatusOK, gateway)
 }
 
-
 // Routes registers the gateway-related routes to the provided router group.
 func (h *GatewayHandler) WithoutAuthRoutes(rg chi.Router) {
 	rg.Use(middleware.InternalOnlyMiddleware)
 	rg.Post("/enroll", h.EnrollGateway)
-	rg.Post("/renew", h.EnrollGateway)
+	rg.Post("/renew", h.RenewGatewayCert)
 }
 
 // Routes registers the gateway-related routes to the provided router group.
@@ -252,5 +280,3 @@ func (h *GatewayHandler) WithAuthRoutes(rg chi.Router) {
 	rg.Put("/{id}/certs/revoke", h.RevokeGatewayCert)
 	rg.Put("/{id}/revoke", h.RevokeGateway)
 }
-
-

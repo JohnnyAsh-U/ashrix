@@ -4,7 +4,7 @@
 // - protoc             (unknown)
 // source: ashrix.proto
 
-package gen
+package proto
 
 import (
 	context "context"

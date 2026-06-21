@@ -38,6 +38,7 @@ type CASigner interface {
 	// GetCertPool returns a cached x509.CertPool containing all active CA certificates.
 	// It refreshes the pool from the database if it's older than 5 minutes.
 	GetCertPool() (*x509.CertPool, error)
+	TrustBundle() string
 }
 
 // New constructs the CASigner for the configured backend.

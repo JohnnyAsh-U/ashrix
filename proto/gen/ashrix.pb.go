@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: ashrix.proto
 
-package gen
+package proto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -3786,7 +3786,7 @@ const file_ashrix_proto_rawDesc = "" +
 	"\x0eControlService\x12>\n" +
 	"\rControlStream\x12\x16.proto.GatewayEnvelope\x1a\x11.proto.CPEnvelope(\x010\x012f\n" +
 	"\x10ConnectorService\x12R\n" +
-	"\x0fConnectorStream\x12\x18.proto.ConnectorEnvelope\x1a!.proto.GatewayToConnectorEnvelope(\x010\x01B\rZ\v./proto/genb\x06proto3"
+	"\x0fConnectorStream\x12\x18.proto.ConnectorEnvelope\x1a!.proto.GatewayToConnectorEnvelope(\x010\x01B<Z:github.com/JohnnyAsh-U/ashrix-api/proto/ashrix.proto;protob\x06proto3"
 
 var (
 	file_ashrix_proto_rawDescOnce sync.Once
