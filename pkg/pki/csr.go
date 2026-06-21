@@ -40,6 +40,7 @@ func BuildCertTemplate(csr *x509.CertificateRequest, validity time.Duration) (*x
 		Subject: pkix.Name{
 			CommonName:   csr.Subject.CommonName,
 			Organization: []string{"Ashrix"},
+			OrganizationalUnit: csr.Subject.OrganizationalUnit,
 		},
 		DNSNames:  csr.DNSNames,
 		NotBefore: now.Add(-30 * time.Second), // small backdating for clock skew

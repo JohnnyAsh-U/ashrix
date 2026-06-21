@@ -131,6 +131,15 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 		return EnrollResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
 	}
 
+	//Validate the CSR fields
+	if len(certReq.Subject.OrganizationalUnit) == 0 || certReq.Subject.OrganizationalUnit[0] != "gateways" {
+		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
+	}
+
+	if certReq.Subject.CommonName != gateway.ID.String() {
+		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
+	}
+
 	// Sign the cert
 	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour)
 	if err != nil {
@@ -237,6 +246,15 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	certReq, err := pki_utils.ParseCSR([]byte(csr))
 	if err != nil {
 		return EnrollResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
+	}
+
+	//Validate the csr fields
+	if len(certReq.Subject.OrganizationalUnit) == 0 || certReq.Subject.OrganizationalUnit[0] != "gateways" {
+		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
+	}
+
+	if certReq.Subject.CommonName != gateway.ID.String() {
+		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
 	}
 
 	// Issue new cert

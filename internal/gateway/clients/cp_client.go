@@ -21,7 +21,7 @@ type CPClient struct {
 func NewBootstrapClient(addr string) (gen.BootstrapServiceClient, error) {
 	// Using default TLS (public CA)
 	creds := credentials.NewTLS(&tls.Config{})
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func NewBootstrapClient(addr string) (gen.BootstrapServiceClient, error) {
 // NewMTLSClient creates the primary communication client once the gateway is bootstrapped.
 func NewMTLSClient(addr string, tlsConfig *tls.Config) (*CPClient, error) {
 	creds := credentials.NewTLS(tlsConfig)
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}
