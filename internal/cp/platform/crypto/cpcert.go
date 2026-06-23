@@ -243,7 +243,7 @@ func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASig
 	fmt.Println("Control Plane CSR Request Done ...")
 	fmt.Println("CA Sigining Control Plane CSR...")
 
-	Cert, err := signer.IssueCert(certReq, 24*time.Hour)
+	Cert, err := signer.IssueCert(certReq, 24*time.Hour, certReq.Subject.CommonName)
 
 	if err := pki_utils.WriteCert(certPath, Cert); err != nil {
 		return nil, err

@@ -29,7 +29,7 @@ func ValidateCSR(csr *x509.CertificateRequest, nodeID string) error {
 
 // buildCertTemplate builds the x509 template for a node leaf cert.
 // Same template regardless of which backend signs it.
-func BuildCertTemplate(csr *x509.CertificateRequest, validity time.Duration) (*x509.Certificate, error) {
+func BuildCertTemplate(csr *x509.CertificateRequest, validity time.Duration, CN string) (*x509.Certificate, error) {
 	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
 		return nil, fmt.Errorf("generating serial: %w", err)
@@ -38,7 +38,7 @@ func BuildCertTemplate(csr *x509.CertificateRequest, validity time.Duration) (*x
 	return &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			CommonName:   csr.Subject.CommonName,
+			CommonName:   CN,
 			Organization: []string{"Ashrix"},
 			OrganizationalUnit: csr.Subject.OrganizationalUnit,
 		},

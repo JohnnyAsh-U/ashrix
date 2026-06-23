@@ -32,7 +32,7 @@ var _ io.Reader = rand.Reader
 // Swap the backend by changing one line in New(). Everything else stays.
 type CASigner interface {
 	// Issue signs a CSR and returns a signed x509 certificate.
-	IssueCert(csr *x509.CertificateRequest, validity time.Duration) (*x509.Certificate, error)
+	IssueCert(csr *x509.CertificateRequest, validity time.Duration, CN string) (*x509.Certificate, error)
 	RootCert() *x509.Certificate
 	IntermediateCert() *x509.Certificate
 	// GetCertPool returns a cached x509.CertPool containing all active CA certificates.

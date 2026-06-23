@@ -32,10 +32,15 @@ reset-db:
 
 
 # ----- Development run using Air -------
-.PHONY: sqlc run
+.PHONY: sqlc run-cp run-gateway
 
-run:
-	$(AIR)
+run-cp:
+	$(AIR) -c .air.cp.toml
+
+run-gateway:
+	$(AIR) -c .air.gateway.toml
+
+
 
 # ----- Generate Sql queries store --------
 

@@ -28,7 +28,7 @@ func NewProxyServer(cfg *config.Config, log *slog.Logger) *ProxyServer {
 	})
 
 	srv := &http.Server{
-		Addr:    cfg.HTTPAddr,
+		// Addr:    cfg.HTTPAddr,
 		Handler: mux,
 		// TLSConfig will be set by the main loop using GatewayPKI
 	}

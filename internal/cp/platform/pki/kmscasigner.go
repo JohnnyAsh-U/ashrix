@@ -162,7 +162,7 @@ func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, dbQu
 	}, nil
 }
 
-func (s *KMSCASigner) IssueCert(csr *x509.CertificateRequest, validity time.Duration) (*x509.Certificate, error) {
+func (s *KMSCASigner) IssueCert(csr *x509.CertificateRequest, validity time.Duration, CN string) (*x509.Certificate, error) {
 	//Issue with the vault intermediate ca
 	csrPEM := pki.MarshalCsr(csr)
 	resp, err := s.VaultClient.Logical().Write(s.MountPath+"/sign/ashrix",

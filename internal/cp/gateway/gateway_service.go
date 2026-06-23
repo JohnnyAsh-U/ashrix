@@ -131,17 +131,21 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 		return EnrollResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
 	}
 
+
 	//Validate the CSR fields
-	if len(certReq.Subject.OrganizationalUnit) == 0 || certReq.Subject.OrganizationalUnit[0] != "gateways" {
+	if len(certReq.Subject.OrganizationalUnit) == 0 || certReq.Subject.OrganizationalUnit[0] != "Gateway" {
 		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
 	}
 
-	if certReq.Subject.CommonName != gateway.ID.String() {
-		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
-	}
+	fmt.Println(certReq.Subject)
+
+
+	//Generate a CN for the cert
+	gatewayCN := utils.GenerateCommonName("gateway")
+
 
 	// Sign the cert
-	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour)
+	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gatewayCN)
 	if err != nil {
 		return EnrollResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
 	}
@@ -180,8 +184,8 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 	}
 
 	return EnrollResponse{
+		GatewayID: gateway.ID.String(),
 		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
-		CACert:      string(pki_utils.MarshalCert(signer.IntermediateCert())),
 		TrustBundle: string(signer.TrustBundle()),
 		ExpiresAt:   gatewayCRT.NotAfter,
 	}, nil
@@ -249,16 +253,16 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	}
 
 	//Validate the csr fields
-	if len(certReq.Subject.OrganizationalUnit) == 0 || certReq.Subject.OrganizationalUnit[0] != "gateways" {
+	if len(certReq.Subject.OrganizationalUnit) == 0 || certReq.Subject.OrganizationalUnit[0] != "Gateway" {
 		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
 	}
 
-	if certReq.Subject.CommonName != gateway.ID.String() {
-		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
-	}
+	//Generate a CN for the cert
+	gatewayCN := utils.GenerateCommonName("gateway")
+
 
 	// Issue new cert
-	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour)
+	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gatewayCN)
 	if err != nil {
 		return EnrollResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
 	}
@@ -283,7 +287,6 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 
 	return EnrollResponse{
 		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
-		CACert:      string(pki_utils.MarshalCert(signer.IntermediateCert())),
 		TrustBundle: string(signer.TrustBundle()),
 		ExpiresAt:   gatewayCRT.NotAfter,
 	}, nil
@@ -442,3 +445,5 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 
 	return mapToGatewayResponse(revokedGateway), nil
 }
+
+

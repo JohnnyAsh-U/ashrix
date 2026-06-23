@@ -2,44 +2,52 @@ package crypto
 
 import (
 	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"fmt"
+	"time"
+
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/bootstrap"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/utils"
+
+	// "github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	"os"
 	"path/filepath"
+	"sync"
 
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
+	"go.uber.org/zap"
 )
 
-// GatewayCrypto handles the gateway's mTLS identity and trust anchors.
-type GatewayCrypto interface {
-	IsBootstrapped() bool
-	GetCert() *x509.Certificate
-	GetTLSConfig() *tls.Config          // For talking to CP
-	GetConnectorTLSConfig() *tls.Config // For listening to connectors
-}
-
 type GatewayPKI struct {
-	NodeID      string
-	Key         *ecdsa.PrivateKey
-	Cert        *x509.Certificate
-	TrustBundle *x509.CertPool
-	BasePath    string
+	mu       sync.RWMutex
+	cert     *tls.Certificate
+	privKey  *ecdsa.PrivateKey
+	leaf     *x509.Certificate
+	certPool *x509.CertPool
+
+	gatewayID string
+	cp        *bootstrap.Client
+	log       *zap.Logger
+
+	cfg *config.Config
+
+	stopCh chan struct{}
+	once   sync.Once
 }
 
-func NewGatewayPKI(nodeID, basePath, secret string) (*GatewayPKI, error) {
-	keyPath := filepath.Join(basePath, "node.key.enc")
-	certPath := filepath.Join(basePath, "node.crt")
-	trustPath := filepath.Join(basePath, "trust-bundle.pem")
-
-	exists, _ := filehelper.FileExists(certPath)
-	if !exists {
-		return &GatewayPKI{NodeID: nodeID, BasePath: basePath}, nil
-	}
+func NewGatewayPKI(gatewayID, dataDir, secret, context string, log *zap.Logger, cpClient *bootstrap.Client, cfg *config.Config) (*GatewayPKI, error) {
+	keyPath := filepath.Join(dataDir, "gateway.key.enc")
+	certPath := filepath.Join(dataDir, "gateway.crt")
+	trustPath := filepath.Join(dataDir, "bundle.crt")
 
 	// Load Identity
-	key, cert, err := pki_utils.LoadKeyAndCert(keyPath, certPath, secret, "gateway")
+	key, cert, err := pki_utils.LoadKeyAndCert(keyPath, certPath, secret, context)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load gateway identity: %w", err)
 	}
@@ -49,66 +57,260 @@ func NewGatewayPKI(nodeID, basePath, secret string) (*GatewayPKI, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read trust bundle: %w", err)
 	}
+
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(trustPEM) {
 		return nil, fmt.Errorf("failed to parse trust bundle")
 	}
 
+	tlsCert := &tls.Certificate{
+		Certificate: [][]byte{cert.Raw},
+		PrivateKey:  key,
+		Leaf:        cert,
+	}
+
 	return &GatewayPKI{
-		NodeID:      nodeID,
-		Key:         key,
-		Cert:        cert,
-		TrustBundle: pool,
-		BasePath:    basePath,
+		cert:      tlsCert,
+		privKey:   key,
+		gatewayID: gatewayID,
+		leaf:      cert,
+		certPool:  pool,
+		cp:        cpClient,
+		log:       log,
+		cfg:       cfg,
+		stopCh:    make(chan struct{}),
 	}, nil
 }
 
-func (g *GatewayPKI) IsBootstrapped() bool {
-	return g.Cert != nil
+// Cert return the current certificate as *509.Certificate
+func (g *GatewayPKI) Cert() *x509.Certificate {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.leaf
 }
 
-func (g *GatewayPKI) GetCert() *x509.Certificate {
-	return g.Cert
-}
-
-// GetTLSConfig returns a config for the gateway to connect to the Control Plane.
+// GetTLSConfig returns a config works for inbound connection and outbound commenction
+// For Gateway to CP, and Connector to Gateway
 func (g *GatewayPKI) GetTLSConfig() *tls.Config {
 	return &tls.Config{
-		Certificates: []tls.Certificate{{
-			Certificate: [][]byte{g.Cert.Raw},
-			PrivateKey:  g.Key,
-			Leaf:        g.Cert,
-		}},
-		RootCAs:    g.TrustBundle,
-		MinVersion: tls.VersionTLS13,
-	}
-}
+		//InboundConnector dials gateway
+		GetCertificate: func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			g.mu.RLock()
+			defer g.mu.RUnlock()
+			return g.cert, nil
+		},
+		//Outbound: gateway dials CP
+		GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			g.mu.RLock()
+			defer g.mu.RUnlock()
+			return g.cert, nil
+		},
 
-// GetConnectorTLSConfig returns a config for the gateway to accept connector streams.
-func (g *GatewayPKI) GetConnectorTLSConfig() *tls.Config {
-	return &tls.Config{
-		Certificates: []tls.Certificate{{
-			Certificate: [][]byte{g.Cert.Raw},
-			PrivateKey:  g.Key,
-			Leaf:        g.Cert,
-		}},
-		ClientCAs:  g.TrustBundle,
+		RootCAs:    g.certPool, //Verify CP cert
+		ClientCAs:  g.certPool, //Verify Connector cert(for inbound connection)
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		MinVersion: tls.VersionTLS13,
 	}
 }
 
-// SaveIdentity persists the credentials received during bootstrap.
-// func (g *GatewayPKI) SaveIdentity(certPEM []byte, key *ecdsa.PrivateKey, trustPEM []byte, secret string) error {
-// 	keyPath := filepath.Join(g.BasePath, "node.key.enc")
-// 	certPath := filepath.Join(g.BasePath, "node.crt")
-// 	trustPath := filepath.Join(g.BasePath, "trust-bundle.pem")
+// Renewals-----------------------------
+//StartRotator begins the background cert rotation loop
+//Call this after New(), It runs until Stop() is called
 
-// 	if err := os.MkdirAll(filepath.Dir(keyPath), 0700); err != nil {
-// 		return err
-// 	}
+func (g *GatewayPKI) StartRotator() {
+	go g.rotator()
+}
 
-// 	// In real implementation: encrypt key using pki_utils and write to keyPath
-// 	// Write certPEM and trustPEM to respective paths
-// 	return nil 
-// }
+// Stop shuts down the rotator. Safe to call multiple times
+func (g *GatewayPKI) Stop() {
+	g.once.Do(func() {
+		close(g.stopCh)
+	})
+}
+
+// RenewNow forces an immediate renewal attempt
+// Used when the CP sends a rotation command
+func (g *GatewayPKI) RenewNow() error {
+	return g.renew()
+}
+
+// Rotator checks expiry every 5mins and renews when < 30 days remain
+func (g *GatewayPKI) rotator() {
+	fmt.Println("Running Rotator...")
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			g.mu.RLock()
+			remaining := time.Until(g.leaf.NotAfter)
+			g.mu.RUnlock()
+			if remaining < 30*24*time.Hour {
+				g.log.Info("certificate expiring soon", zap.Duration("remaining", remaining))
+
+				if err := g.renew(); err != nil {
+					g.log.Error("cert renewal failed", zap.Error(err))
+				}
+			}
+
+		case <-g.stopCh:
+			g.log.Info("Cert Rotator stopped")
+			return
+		}
+	}
+}
+
+// Renew Generates a new keypair, builds a CSR with possession proof.
+// calls the CP, and hot-swaps the certificate
+// The write lock is held only during the final swap - not during the network call.
+// This means TLS handshakes are never blocked by a slow CP
+func (g *GatewayPKI) renew() error {
+	// Step 1: Read current state (read lock, fast) ------------
+	g.mu.RLock()
+	remaining := time.Until(g.leaf.NotAfter)
+	currentPrivKey := g.privKey
+	g.mu.RUnlock()
+
+	//Another goroutines may have already renewed (e.g. RenewNow() race)
+	if remaining > 90*24*time.Hour {
+		g.log.Debug("Renewal Skipped - Cert still fresh", zap.Duration("remaining", remaining))
+		return nil
+	}
+
+	//Create new key pair
+	g.log.Info("Generating ECDSA P-256 keypair...")
+
+	priv, err := GenerateECDSAP256()
+
+	if err != nil {
+		return fmt.Errorf("renew: keygen failed %w", err)
+	}
+
+	//Build CSR
+	fmt.Println("Generating CSR...")
+
+	csrPem, err := GenerateCSR(priv)
+
+	if err != nil {
+		return fmt.Errorf("renew: CSR generation failed %w", err)
+	}
+
+	//Build Possession Proof (signs with current key)
+	// Proves to the CP that we hold the private key for the currently
+	// issued certificate - required per PKI
+
+	proof, err := buildPossessionProof(currentPrivKey, string(csrPem), g.gatewayID)
+	if err != nil {
+		return fmt.Errorf("renew: Possession proof failed %w", err)
+	}
+
+	//Call CP (no lock held here)
+	g.log.Info("Calling CP for cert renewal")
+	apiResponse, err := g.cp.RenewCert(proof, string(csrPem), g.gatewayID)
+
+	if err != nil {
+		return fmt.Errorf("")
+	}
+
+	if err := bootstrap.VerifyResponse(apiResponse); err != nil {
+		return fmt.Errorf("Invalid CP Response %w", err)
+	}
+
+	//Parse Cert
+	newCertDER, err := base64.StdEncoding.DecodeString(apiResponse.Data.Certificate)
+	if err != nil {
+		return fmt.Errorf("cannot decode certificate: %v", err)
+	}
+
+	newLeaf, err := x509.ParseCertificate(newCertDER)
+	if err != nil {
+		return fmt.Errorf("cannot parse new certificate: %v", err)
+	}
+
+	//Parse Bundle
+	newTrustPEM, err := base64.StdEncoding.DecodeString(apiResponse.Data.TrustBundle)
+	if err != nil {
+		return fmt.Errorf("cannot decode trust bundle: %v", err)
+	}
+
+	newPool := x509.NewCertPool()
+	if !newPool.AppendCertsFromPEM(newTrustPEM) {
+		return fmt.Errorf("cannot parse new trust bundle")
+	}
+
+	//Sanity check for the extended expiry
+	if !newLeaf.NotAfter.After(g.leaf.NotAfter) {
+		return fmt.Errorf("certificate validity is not extended, refusing")
+	}
+
+	g.log.Info("Renew Successful", zap.String("gateway_id", g.gatewayID), zap.Any("apiResponse", apiResponse))
+
+	g.log.Info("Writing new cert, bundle and key to directory")
+
+	Home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("Error %s", err)
+	}
+	configDir := filepath.Join(Home, "/.ashrix")
+
+	writeErr := utils.WriteConfig(g.cfg.CPURL, g.gatewayID, g.cfg.DataDir, configDir, g.cfg.LogDir)
+
+	if writeErr != nil {
+		return fmt.Errorf("write config failed: %w", writeErr)
+	}
+
+	if saveErr := utils.SaveKeyAndCertAndBundle(priv, apiResponse.Data.Certificate, apiResponse.Data.TrustBundle, g.cfg.DataDir, "SECRET", "GATEWAY"); saveErr != nil {
+		return fmt.Errorf("save key and cert and bundle failed: %w", saveErr)
+	}
+
+	logging.Audit.Log(logging.AuditEvent{
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		EventType: logging.EventGatewayRegistered,
+		GatewayID: apiResponse.Data.GatewayID,
+		Decision:  "ALLOW",
+	})
+
+	g.log.Info("Gateway Cert Renewed, Swapping", zap.String("gateway_id", apiResponse.Data.GatewayID))
+
+	//Swapping
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.leaf = newLeaf
+	g.privKey = priv
+	g.cert = &tls.Certificate{
+		Certificate: [][]byte{newLeaf.Raw},
+		PrivateKey:  priv,
+		Leaf:        newLeaf,
+	}
+
+	g.certPool = newPool
+
+	g.log.Info("Gateway cert swapped", zap.String("gateway_id", g.gatewayID))
+
+	return nil
+}
+
+// Buildpossessionproof signs sha256(gatewayid) with current private key.
+// CP verifies with the public key before issuing certificate
+func buildPossessionProof(currentKey *ecdsa.PrivateKey, csr, gatewayID string) ([]byte, error) {
+	ts := []byte(time.Now().UTC().Format(time.RFC3339))
+
+	h := sha256.New()
+	h.Write([]byte(csr))
+	h.Write([]byte(gatewayID))
+	h.Write(ts)
+	digest := h.Sum(nil)
+	sig, err := ecdsa.SignASN1(rand.Reader, currentKey, digest)
+
+	if err != nil {
+		return nil, fmt.Errorf("Possession proof signing failed: %w", err)
+	}
+
+	// Return as: sig || ts (CP needs ts to reconstruct the digest)
+	proof := append(sig, '|')
+	proof = append(proof, ts...)
+	return proof, nil
+}

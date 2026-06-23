@@ -203,8 +203,8 @@ func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCAS
 	return d, nil
 }
 
-func (d *DiskCASigner) IssueCert(csr *x509.CertificateRequest, validity time.Duration) (*x509.Certificate, error) {
-	template, err := pki.BuildCertTemplate(csr, validity)
+func (d *DiskCASigner) IssueCert(csr *x509.CertificateRequest, validity time.Duration, CN string) (*x509.Certificate, error) {
+	template, err := pki.BuildCertTemplate(csr, validity, CN)
 	if err != nil {
 		return nil, err
 	}

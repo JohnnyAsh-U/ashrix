@@ -5,6 +5,7 @@ tmp/
 *.pem
 *.key
 *.crt
+*.key.enc
 *.exe
 *.out
 *.prof

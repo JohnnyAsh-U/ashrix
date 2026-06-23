@@ -2,57 +2,48 @@ package config
 
 import (
 	"fmt"
-	"os"
+	"github.com/spf13/viper"
 	"path/filepath"
 )
 
-// Config holds the Gateway's runtime configuration.
 type Config struct {
-	NodeID         string
-	CPAddr         string // Control Plane gRPC address
-	HTTPAddr       string // Address for user traffic
-	ConnectorAddr  string // Address for gRPC connector streams
-	BootstrapToken string // Only used for initial enrollment
-	UnlockSecret   string // 32-byte secret to encrypt the private key
-	BasePath       string // Storage for certs and keys
+	CPURL     string
+	Token     string
+	GatewayID string
+	DataDir   string
+	LogDir string
+	PIDFile   string
 }
 
 // Load reads gateway configuration from environment variables.
-func Load() (*Config, error) {
-	require := func(key string) string {
-		v := os.Getenv(key)
-		return v
-	}
-
-	optional := func(key, fallback string) string {
-		if v := os.Getenv(key); v != "" {
-			return v
-		}
-		return fallback
-	}
-
-	nodeID := require("ASHRIX_NODE_ID")
-	if nodeID == "" {
-		return nil, fmt.Errorf("required env var ASHRIX_NODE_ID is not set")
-	}
-
-	unlockSecret := require("ASHRIX_UNLOCK_SECRET")
-	if unlockSecret == "" {
-		return nil, fmt.Errorf("required env var ASHRIX_UNLOCK_SECRET is not set")
-	}
-
-	home, _ := os.UserHomeDir()
-	basePath := optional("ASHRIX_BASE_PATH", filepath.Join(home, ".ashrix", "gateway"))
+func LoadFromViper() (*Config, error) {
 
 	cfg := &Config{
-		NodeID:         nodeID,
-		CPAddr:         optional("ASHRIX_CP_ADDR", "cp.ashrix.io:443"),
-		HTTPAddr:       optional("ASHRIX_HTTP_ADDR", "0.0.0.0:443"),
-		ConnectorAddr:  optional("ASHRIX_CONNECTOR_ADDR", "0.0.0.0:4443"),
-		BootstrapToken: os.Getenv("ASHRIX_BOOTSTRAP_TOKEN"),
-		UnlockSecret:   unlockSecret,
-		BasePath:       basePath,
+		CPURL:     viper.GetString("cp_url"),
+		Token:     viper.GetString("token"),
+		GatewayID: viper.GetString("gateway_id"),
+		LogDir: viper.GetString("log_dir"),
+		DataDir:   viper.GetString("data_dir"),
+		PIDFile:   filepath.Join(viper.GetString("data_dir"), "gateway.pid"),
 	}
 
 	return cfg, nil
+}
+
+func Validate(cfg *Config) error {
+	if cfg.CPURL == "" {
+		return fmt.Errorf(
+			"cp_url is required\n\n" +
+				"Set via flag:    --cp-url=https://cp.ashrix.io\n",
+		)
+	}
+
+	if cfg.GatewayID == "" {
+		return fmt.Errorf(
+			"gateway is not registered\n\n" +
+				"Run: ashrix-gateway register --cp-url=<url> --token=<string>",
+		)
+	}
+
+	return nil
 }
