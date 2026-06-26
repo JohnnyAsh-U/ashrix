@@ -8,17 +8,19 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 
 
 func (c *Client) RenewCert(proof []byte, csrPEM string, gatewayID string) (*APIResponse, error) {
 
-	body, err := json.Marshal(RenewGatewayCertRequest{
+	body, err := json.Marshal(gen.GatewayRenewCertRequest{
 		Signature: base64.StdEncoding.EncodeToString(proof),
-		CSR:       csrPEM,
-		GatewayID: gatewayID,
-		Timestamp: time.Now().UTC(),
+		CsrPem:       csrPEM,
+		GatewayId: gatewayID,
+		Timestamp: timestamppb.Now(),
 	})
 
 	if err != nil {

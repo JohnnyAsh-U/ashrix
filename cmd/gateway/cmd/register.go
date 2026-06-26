@@ -80,8 +80,13 @@ func runRegister(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	dataDir := DataDir
-	logDir := LogDir
+	Home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("Error %s", err)
+	}
+	dataDir := filepath.Join(Home, "/.ashrix/gateway/data")
+	logDir := filepath.Join(Home, "/.ashrix/gateway/logs")
+
 
 	//Init logging
 
@@ -157,19 +162,16 @@ func runRegister(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("Invalid CP Response %w", err)
 	}
 
-	fmt.Println("Bootstrap Successful", &apiResp.Data.GatewayID)
+	fmt.Println("Bootstrap Successful", &apiResp.Data.GatewayId)
 
 	fmt.Println(apiResp.Data.Certificate)
 
 	log.Info("Writing config, cert, bundle and key to directory")
 
-	Home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("Error %s", err)
-	}
-	configDir := filepath.Join(Home, "/.ashrix")
+	
+	configDir := filepath.Join(Home, "/.ashrix/gateway")
 
-	writeErr := utils.WriteConfig(cfg.CPURL, apiResp.Data.GatewayID, cfg.DataDir, configDir, cfg.LogDir)
+	writeErr := utils.WriteConfig(cfg.CPURL, apiResp.Data.GatewayId, cfg.DataDir, configDir, cfg.LogDir)
 
 	if writeErr != nil {
 		return writeErr
@@ -182,11 +184,11 @@ func runRegister(cmd *cobra.Command, args []string) error {
 	logging.Audit.Log(logging.AuditEvent{
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 		EventType: logging.EventGatewayRegistered,
-		GatewayID: apiResp.Data.GatewayID,
+		GatewayID: apiResp.Data.GatewayId,
 		Decision:  "ALLOW",
 	})
 
-	log.Info("Gateway Registered", zap.String("gateway_id", apiResp.Data.GatewayID), zap.String("cp_url", cfg.CPURL))
+	log.Info("Gateway Registered", zap.String("gateway_id", apiResp.Data.GatewayId), zap.String("cp_url", cfg.CPURL))
 
 	fmt.Println("Now run 'ashrix-gateway start' to run the gateway")
 

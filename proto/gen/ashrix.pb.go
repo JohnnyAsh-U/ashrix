@@ -136,58 +136,46 @@ func (NodeState) EnumDescriptor() ([]byte, []int) {
 	return file_ashrix_proto_rawDescGZIP(), []int{1}
 }
 
-type BundleType int32
+type BundleTypes int32
 
 const (
-	BundleType_BUNDLE_TYPE_UNSPECIFIED BundleType = 0
-	BundleType_BUNDLE_TYPE_TRUST       BundleType = 1 // CA trust bundle
-	BundleType_BUNDLE_TYPE_POLICY      BundleType = 2 // access policy bundle
-	BundleType_BUNDLE_TYPE_CRL         BundleType = 3 // certificate revocation list
-	BundleType_BUNDLE_TYPE_CONFIG      BundleType = 4 // runtime config bundle
+	BundleTypes_BUNDLE_TYPE_UNSPECIFIED BundleTypes = 0
 )
 
-// Enum value maps for BundleType.
+// Enum value maps for BundleTypes.
 var (
-	BundleType_name = map[int32]string{
+	BundleTypes_name = map[int32]string{
 		0: "BUNDLE_TYPE_UNSPECIFIED",
-		1: "BUNDLE_TYPE_TRUST",
-		2: "BUNDLE_TYPE_POLICY",
-		3: "BUNDLE_TYPE_CRL",
-		4: "BUNDLE_TYPE_CONFIG",
 	}
-	BundleType_value = map[string]int32{
+	BundleTypes_value = map[string]int32{
 		"BUNDLE_TYPE_UNSPECIFIED": 0,
-		"BUNDLE_TYPE_TRUST":       1,
-		"BUNDLE_TYPE_POLICY":      2,
-		"BUNDLE_TYPE_CRL":         3,
-		"BUNDLE_TYPE_CONFIG":      4,
 	}
 )
 
-func (x BundleType) Enum() *BundleType {
-	p := new(BundleType)
+func (x BundleTypes) Enum() *BundleTypes {
+	p := new(BundleTypes)
 	*p = x
 	return p
 }
 
-func (x BundleType) String() string {
+func (x BundleTypes) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (BundleType) Descriptor() protoreflect.EnumDescriptor {
+func (BundleTypes) Descriptor() protoreflect.EnumDescriptor {
 	return file_ashrix_proto_enumTypes[2].Descriptor()
 }
 
-func (BundleType) Type() protoreflect.EnumType {
+func (BundleTypes) Type() protoreflect.EnumType {
 	return &file_ashrix_proto_enumTypes[2]
 }
 
-func (x BundleType) Number() protoreflect.EnumNumber {
+func (x BundleTypes) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use BundleType.Descriptor instead.
-func (BundleType) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use BundleTypes.Descriptor instead.
+func (BundleTypes) EnumDescriptor() ([]byte, []int) {
 	return file_ashrix_proto_rawDescGZIP(), []int{2}
 }
 
@@ -540,10 +528,10 @@ func (x *NodeIdentity) GetCertExpiresAt() *timestamppb.Timestamp {
 // before parsing or applying the inner payload. A failed signature = discard entirely.
 type SignedPayload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Version       int64                  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`                 // monotonically increasing — reject if <= node's current version
-	Payload       []byte                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`                  // serialized inner message (TrustBundle, PolicyBundle, etc.)
-	Signature     []byte                 `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"`              // ECDSA-P384 over SHA256(version_bytes || payload)
-	Type          BundleType             `protobuf:"varint,4,opt,name=type,proto3,enum=proto.BundleType" json:"type,omitempty"` // what is inside payload
+	Version       int64                  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`                  // monotonically increasing — reject if <= node's current version
+	Payload       []byte                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`                   // serialized inner message (TrustBundle, PolicyBundle, etc.)
+	Signature     []byte                 `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"`               // ECDSA-P384 over SHA256(version_bytes || payload)
+	Type          BundleTypes            `protobuf:"varint,4,opt,name=type,proto3,enum=proto.BundleTypes" json:"type,omitempty"` // what is inside payload
 	IssuedAt      *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"` // short TTL — reject if now > expires_at
 	unknownFields protoimpl.UnknownFields
@@ -601,11 +589,11 @@ func (x *SignedPayload) GetSignature() []byte {
 	return nil
 }
 
-func (x *SignedPayload) GetType() BundleType {
+func (x *SignedPayload) GetType() BundleTypes {
 	if x != nil {
 		return x.Type
 	}
-	return BundleType_BUNDLE_TYPE_UNSPECIFIED
+	return BundleTypes_BUNDLE_TYPE_UNSPECIFIED
 }
 
 func (x *SignedPayload) GetIssuedAt() *timestamppb.Timestamp {
@@ -1062,36 +1050,36 @@ func (x *CertResponse) GetExpiresAt() *timestamppb.Timestamp {
 
 // GatewayEnvelope: top-level message from gateway to CP.
 // Exactly one payload per message.
-type GatewayEnvelope struct {
+type GatewayEnvelopes struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	NodeId string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"` // always set
 	// Types that are valid to be assigned to Payload:
 	//
-	//	*GatewayEnvelope_Heartbeat
-	//	*GatewayEnvelope_BundleAck
-	//	*GatewayEnvelope_CommandAck
-	//	*GatewayEnvelope_AccessLogs
-	//	*GatewayEnvelope_Metrics
-	//	*GatewayEnvelope_Anomaly
-	Payload       isGatewayEnvelope_Payload `protobuf_oneof:"payload"`
+	//	*GatewayEnvelopes_Heartbeat
+	//	*GatewayEnvelopes_BundleAck
+	//	*GatewayEnvelopes_CommandAck
+	//	*GatewayEnvelopes_AccessLogs
+	//	*GatewayEnvelopes_Metrics
+	//	*GatewayEnvelopes_Anomaly
+	Payload       isGatewayEnvelopes_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GatewayEnvelope) Reset() {
-	*x = GatewayEnvelope{}
+func (x *GatewayEnvelopes) Reset() {
+	*x = GatewayEnvelopes{}
 	mi := &file_ashrix_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GatewayEnvelope) String() string {
+func (x *GatewayEnvelopes) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GatewayEnvelope) ProtoMessage() {}
+func (*GatewayEnvelopes) ProtoMessage() {}
 
-func (x *GatewayEnvelope) ProtoReflect() protoreflect.Message {
+func (x *GatewayEnvelopes) ProtoReflect() protoreflect.Message {
 	mi := &file_ashrix_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1103,118 +1091,118 @@ func (x *GatewayEnvelope) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GatewayEnvelope.ProtoReflect.Descriptor instead.
-func (*GatewayEnvelope) Descriptor() ([]byte, []int) {
+// Deprecated: Use GatewayEnvelopes.ProtoReflect.Descriptor instead.
+func (*GatewayEnvelopes) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *GatewayEnvelope) GetNodeId() string {
+func (x *GatewayEnvelopes) GetNodeId() string {
 	if x != nil {
 		return x.NodeId
 	}
 	return ""
 }
 
-func (x *GatewayEnvelope) GetPayload() isGatewayEnvelope_Payload {
+func (x *GatewayEnvelopes) GetPayload() isGatewayEnvelopes_Payload {
 	if x != nil {
 		return x.Payload
 	}
 	return nil
 }
 
-func (x *GatewayEnvelope) GetHeartbeat() *Heartbeat {
+func (x *GatewayEnvelopes) GetHeartbeat() *Heartbeat {
 	if x != nil {
-		if x, ok := x.Payload.(*GatewayEnvelope_Heartbeat); ok {
+		if x, ok := x.Payload.(*GatewayEnvelopes_Heartbeat); ok {
 			return x.Heartbeat
 		}
 	}
 	return nil
 }
 
-func (x *GatewayEnvelope) GetBundleAck() *BundleAck {
+func (x *GatewayEnvelopes) GetBundleAck() *BundleAcks {
 	if x != nil {
-		if x, ok := x.Payload.(*GatewayEnvelope_BundleAck); ok {
+		if x, ok := x.Payload.(*GatewayEnvelopes_BundleAck); ok {
 			return x.BundleAck
 		}
 	}
 	return nil
 }
 
-func (x *GatewayEnvelope) GetCommandAck() *CommandAck {
+func (x *GatewayEnvelopes) GetCommandAck() *CommandAck {
 	if x != nil {
-		if x, ok := x.Payload.(*GatewayEnvelope_CommandAck); ok {
+		if x, ok := x.Payload.(*GatewayEnvelopes_CommandAck); ok {
 			return x.CommandAck
 		}
 	}
 	return nil
 }
 
-func (x *GatewayEnvelope) GetAccessLogs() *AccessLogBatch {
+func (x *GatewayEnvelopes) GetAccessLogs() *AccessLogBatch {
 	if x != nil {
-		if x, ok := x.Payload.(*GatewayEnvelope_AccessLogs); ok {
+		if x, ok := x.Payload.(*GatewayEnvelopes_AccessLogs); ok {
 			return x.AccessLogs
 		}
 	}
 	return nil
 }
 
-func (x *GatewayEnvelope) GetMetrics() *MetricsBatch {
+func (x *GatewayEnvelopes) GetMetrics() *MetricsBatch {
 	if x != nil {
-		if x, ok := x.Payload.(*GatewayEnvelope_Metrics); ok {
+		if x, ok := x.Payload.(*GatewayEnvelopes_Metrics); ok {
 			return x.Metrics
 		}
 	}
 	return nil
 }
 
-func (x *GatewayEnvelope) GetAnomaly() *AnomalyReport {
+func (x *GatewayEnvelopes) GetAnomaly() *AnomalyReport {
 	if x != nil {
-		if x, ok := x.Payload.(*GatewayEnvelope_Anomaly); ok {
+		if x, ok := x.Payload.(*GatewayEnvelopes_Anomaly); ok {
 			return x.Anomaly
 		}
 	}
 	return nil
 }
 
-type isGatewayEnvelope_Payload interface {
-	isGatewayEnvelope_Payload()
+type isGatewayEnvelopes_Payload interface {
+	isGatewayEnvelopes_Payload()
 }
 
-type GatewayEnvelope_Heartbeat struct {
+type GatewayEnvelopes_Heartbeat struct {
 	Heartbeat *Heartbeat `protobuf:"bytes,2,opt,name=heartbeat,proto3,oneof"`
 }
 
-type GatewayEnvelope_BundleAck struct {
-	BundleAck *BundleAck `protobuf:"bytes,3,opt,name=bundle_ack,json=bundleAck,proto3,oneof"`
+type GatewayEnvelopes_BundleAck struct {
+	BundleAck *BundleAcks `protobuf:"bytes,3,opt,name=bundle_ack,json=bundleAck,proto3,oneof"`
 }
 
-type GatewayEnvelope_CommandAck struct {
+type GatewayEnvelopes_CommandAck struct {
 	CommandAck *CommandAck `protobuf:"bytes,4,opt,name=command_ack,json=commandAck,proto3,oneof"`
 }
 
-type GatewayEnvelope_AccessLogs struct {
+type GatewayEnvelopes_AccessLogs struct {
 	AccessLogs *AccessLogBatch `protobuf:"bytes,5,opt,name=access_logs,json=accessLogs,proto3,oneof"`
 }
 
-type GatewayEnvelope_Metrics struct {
+type GatewayEnvelopes_Metrics struct {
 	Metrics *MetricsBatch `protobuf:"bytes,6,opt,name=metrics,proto3,oneof"`
 }
 
-type GatewayEnvelope_Anomaly struct {
+type GatewayEnvelopes_Anomaly struct {
 	Anomaly *AnomalyReport `protobuf:"bytes,7,opt,name=anomaly,proto3,oneof"`
 }
 
-func (*GatewayEnvelope_Heartbeat) isGatewayEnvelope_Payload() {}
+func (*GatewayEnvelopes_Heartbeat) isGatewayEnvelopes_Payload() {}
 
-func (*GatewayEnvelope_BundleAck) isGatewayEnvelope_Payload() {}
+func (*GatewayEnvelopes_BundleAck) isGatewayEnvelopes_Payload() {}
 
-func (*GatewayEnvelope_CommandAck) isGatewayEnvelope_Payload() {}
+func (*GatewayEnvelopes_CommandAck) isGatewayEnvelopes_Payload() {}
 
-func (*GatewayEnvelope_AccessLogs) isGatewayEnvelope_Payload() {}
+func (*GatewayEnvelopes_AccessLogs) isGatewayEnvelopes_Payload() {}
 
-func (*GatewayEnvelope_Metrics) isGatewayEnvelope_Payload() {}
+func (*GatewayEnvelopes_Metrics) isGatewayEnvelopes_Payload() {}
 
-func (*GatewayEnvelope_Anomaly) isGatewayEnvelope_Payload() {}
+func (*GatewayEnvelopes_Anomaly) isGatewayEnvelopes_Payload() {}
 
 type Heartbeat struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
@@ -1222,7 +1210,7 @@ type Heartbeat struct {
 	ActiveConnections int32                  `protobuf:"varint,2,opt,name=active_connections,json=activeConnections,proto3" json:"active_connections,omitempty"` // live connections (connectors + clients)
 	ActiveSessions    int32                  `protobuf:"varint,3,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"`          // authenticated sessions
 	ConnectorCount    int32                  `protobuf:"varint,4,opt,name=connector_count,json=connectorCount,proto3" json:"connector_count,omitempty"`          // how many connectors currently connected
-	ConnectorStatus   []*ConnectorsStatus    `protobuf:"bytes,5,rep,name=connector_status,json=connectorStatus,proto3" json:"connector_status,omitempty"`
+	ConnectorStatus   []*ConnectorsStatuses  `protobuf:"bytes,5,rep,name=connector_status,json=connectorStatus,proto3" json:"connector_status,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1285,14 +1273,14 @@ func (x *Heartbeat) GetConnectorCount() int32 {
 	return 0
 }
 
-func (x *Heartbeat) GetConnectorStatus() []*ConnectorsStatus {
+func (x *Heartbeat) GetConnectorStatus() []*ConnectorsStatuses {
 	if x != nil {
 		return x.ConnectorStatus
 	}
 	return nil
 }
 
-type ConnectorsStatus struct {
+type ConnectorsStatuses struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
 	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"` //connected | disconnected
@@ -1301,20 +1289,20 @@ type ConnectorsStatus struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ConnectorsStatus) Reset() {
-	*x = ConnectorsStatus{}
+func (x *ConnectorsStatuses) Reset() {
+	*x = ConnectorsStatuses{}
 	mi := &file_ashrix_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ConnectorsStatus) String() string {
+func (x *ConnectorsStatuses) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ConnectorsStatus) ProtoMessage() {}
+func (*ConnectorsStatuses) ProtoMessage() {}
 
-func (x *ConnectorsStatus) ProtoReflect() protoreflect.Message {
+func (x *ConnectorsStatuses) ProtoReflect() protoreflect.Message {
 	mi := &file_ashrix_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1326,56 +1314,56 @@ func (x *ConnectorsStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConnectorsStatus.ProtoReflect.Descriptor instead.
-func (*ConnectorsStatus) Descriptor() ([]byte, []int) {
+// Deprecated: Use ConnectorsStatuses.ProtoReflect.Descriptor instead.
+func (*ConnectorsStatuses) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *ConnectorsStatus) GetConnectorId() string {
+func (x *ConnectorsStatuses) GetConnectorId() string {
 	if x != nil {
 		return x.ConnectorId
 	}
 	return ""
 }
 
-func (x *ConnectorsStatus) GetStatus() string {
+func (x *ConnectorsStatuses) GetStatus() string {
 	if x != nil {
 		return x.Status
 	}
 	return ""
 }
 
-func (x *ConnectorsStatus) GetLastChecked() *timestamppb.Timestamp {
+func (x *ConnectorsStatuses) GetLastChecked() *timestamppb.Timestamp {
 	if x != nil {
 		return x.LastChecked
 	}
 	return nil
 }
 
-type BundleAck struct {
+type BundleAcks struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BundleVersion int64                  `protobuf:"varint,1,opt,name=bundle_version,json=bundleVersion,proto3" json:"bundle_version,omitempty"` // version being acknowledged
-	BundleType    BundleType             `protobuf:"varint,2,opt,name=bundle_type,json=bundleType,proto3,enum=proto.BundleType" json:"bundle_type,omitempty"`
+	BundleType    BundleTypes            `protobuf:"varint,2,opt,name=bundle_type,json=bundleType,proto3,enum=proto.BundleTypes" json:"bundle_type,omitempty"`
 	Applied       bool                   `protobuf:"varint,3,opt,name=applied,proto3" json:"applied,omitempty"` // true = successfully verified and applied
 	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`      // set if applied=false — reason for failure
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *BundleAck) Reset() {
-	*x = BundleAck{}
+func (x *BundleAcks) Reset() {
+	*x = BundleAcks{}
 	mi := &file_ashrix_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *BundleAck) String() string {
+func (x *BundleAcks) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*BundleAck) ProtoMessage() {}
+func (*BundleAcks) ProtoMessage() {}
 
-func (x *BundleAck) ProtoReflect() protoreflect.Message {
+func (x *BundleAcks) ProtoReflect() protoreflect.Message {
 	mi := &file_ashrix_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1387,33 +1375,33 @@ func (x *BundleAck) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BundleAck.ProtoReflect.Descriptor instead.
-func (*BundleAck) Descriptor() ([]byte, []int) {
+// Deprecated: Use BundleAcks.ProtoReflect.Descriptor instead.
+func (*BundleAcks) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *BundleAck) GetBundleVersion() int64 {
+func (x *BundleAcks) GetBundleVersion() int64 {
 	if x != nil {
 		return x.BundleVersion
 	}
 	return 0
 }
 
-func (x *BundleAck) GetBundleType() BundleType {
+func (x *BundleAcks) GetBundleType() BundleTypes {
 	if x != nil {
 		return x.BundleType
 	}
-	return BundleType_BUNDLE_TYPE_UNSPECIFIED
+	return BundleTypes_BUNDLE_TYPE_UNSPECIFIED
 }
 
-func (x *BundleAck) GetApplied() bool {
+func (x *BundleAcks) GetApplied() bool {
 	if x != nil {
 		return x.Applied
 	}
 	return false
 }
 
-func (x *BundleAck) GetError() string {
+func (x *BundleAcks) GetError() string {
 	if x != nil {
 		return x.Error
 	}
@@ -1903,33 +1891,33 @@ func (x *AnomalyReport) GetLastSeen() *timestamppb.Timestamp {
 // the SignedPayload inside BundleUpdate and Command is CP-signed,
 // so connectors verify it directly using the embedded CP public key.
 // The gateway cannot forge or modify these payloads.
-type CPEnvelope struct {
+type CPEnvelopes struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	NodeId string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	// Types that are valid to be assigned to Payload:
 	//
-	//	*CPEnvelope_HeartbeatResponse
-	//	*CPEnvelope_BundleUpdate
-	//	*CPEnvelope_Command
-	Payload       isCPEnvelope_Payload `protobuf_oneof:"payload"`
+	//	*CPEnvelopes_HeartbeatResponse
+	//	*CPEnvelopes_BundleUpdate
+	//	*CPEnvelopes_Command
+	Payload       isCPEnvelopes_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CPEnvelope) Reset() {
-	*x = CPEnvelope{}
+func (x *CPEnvelopes) Reset() {
+	*x = CPEnvelopes{}
 	mi := &file_ashrix_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CPEnvelope) String() string {
+func (x *CPEnvelopes) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CPEnvelope) ProtoMessage() {}
+func (*CPEnvelopes) ProtoMessage() {}
 
-func (x *CPEnvelope) ProtoReflect() protoreflect.Message {
+func (x *CPEnvelopes) ProtoReflect() protoreflect.Message {
 	mi := &file_ashrix_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1941,73 +1929,73 @@ func (x *CPEnvelope) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CPEnvelope.ProtoReflect.Descriptor instead.
-func (*CPEnvelope) Descriptor() ([]byte, []int) {
+// Deprecated: Use CPEnvelopes.ProtoReflect.Descriptor instead.
+func (*CPEnvelopes) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *CPEnvelope) GetNodeId() string {
+func (x *CPEnvelopes) GetNodeId() string {
 	if x != nil {
 		return x.NodeId
 	}
 	return ""
 }
 
-func (x *CPEnvelope) GetPayload() isCPEnvelope_Payload {
+func (x *CPEnvelopes) GetPayload() isCPEnvelopes_Payload {
 	if x != nil {
 		return x.Payload
 	}
 	return nil
 }
 
-func (x *CPEnvelope) GetHeartbeatResponse() *HeartbeatResponse {
+func (x *CPEnvelopes) GetHeartbeatResponse() *HeartbeatResponse {
 	if x != nil {
-		if x, ok := x.Payload.(*CPEnvelope_HeartbeatResponse); ok {
+		if x, ok := x.Payload.(*CPEnvelopes_HeartbeatResponse); ok {
 			return x.HeartbeatResponse
 		}
 	}
 	return nil
 }
 
-func (x *CPEnvelope) GetBundleUpdate() *BundleUpdate {
+func (x *CPEnvelopes) GetBundleUpdate() *BundleUpdate {
 	if x != nil {
-		if x, ok := x.Payload.(*CPEnvelope_BundleUpdate); ok {
+		if x, ok := x.Payload.(*CPEnvelopes_BundleUpdate); ok {
 			return x.BundleUpdate
 		}
 	}
 	return nil
 }
 
-func (x *CPEnvelope) GetCommand() *Command {
+func (x *CPEnvelopes) GetCommand() *Command {
 	if x != nil {
-		if x, ok := x.Payload.(*CPEnvelope_Command); ok {
+		if x, ok := x.Payload.(*CPEnvelopes_Command); ok {
 			return x.Command
 		}
 	}
 	return nil
 }
 
-type isCPEnvelope_Payload interface {
-	isCPEnvelope_Payload()
+type isCPEnvelopes_Payload interface {
+	isCPEnvelopes_Payload()
 }
 
-type CPEnvelope_HeartbeatResponse struct {
+type CPEnvelopes_HeartbeatResponse struct {
 	HeartbeatResponse *HeartbeatResponse `protobuf:"bytes,2,opt,name=heartbeat_response,json=heartbeatResponse,proto3,oneof"`
 }
 
-type CPEnvelope_BundleUpdate struct {
+type CPEnvelopes_BundleUpdate struct {
 	BundleUpdate *BundleUpdate `protobuf:"bytes,3,opt,name=bundle_update,json=bundleUpdate,proto3,oneof"`
 }
 
-type CPEnvelope_Command struct {
+type CPEnvelopes_Command struct {
 	Command *Command `protobuf:"bytes,4,opt,name=command,proto3,oneof"`
 }
 
-func (*CPEnvelope_HeartbeatResponse) isCPEnvelope_Payload() {}
+func (*CPEnvelopes_HeartbeatResponse) isCPEnvelopes_Payload() {}
 
-func (*CPEnvelope_BundleUpdate) isCPEnvelope_Payload() {}
+func (*CPEnvelopes_BundleUpdate) isCPEnvelopes_Payload() {}
 
-func (*CPEnvelope_Command) isCPEnvelope_Payload() {}
+func (*CPEnvelopes_Command) isCPEnvelopes_Payload() {}
 
 type HeartbeatResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2063,7 +2051,7 @@ func (x *HeartbeatResponse) GetExpectedState() NodeState {
 
 type BundleUpdate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          BundleType             `protobuf:"varint,1,opt,name=type,proto3,enum=proto.BundleType" json:"type,omitempty"`
+	Type          BundleTypes            `protobuf:"varint,1,opt,name=type,proto3,enum=proto.BundleTypes" json:"type,omitempty"`
 	Payload       *SignedPayload         `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2099,11 +2087,11 @@ func (*BundleUpdate) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *BundleUpdate) GetType() BundleType {
+func (x *BundleUpdate) GetType() BundleTypes {
 	if x != nil {
 		return x.Type
 	}
-	return BundleType_BUNDLE_TYPE_UNSPECIFIED
+	return BundleTypes_BUNDLE_TYPE_UNSPECIFIED
 }
 
 func (x *BundleUpdate) GetPayload() *SignedPayload {
@@ -2527,7 +2515,7 @@ func (x *ConnectorEnvelope) GetHeartbeat() *ConnectorHeartbeat {
 	return nil
 }
 
-func (x *ConnectorEnvelope) GetBundleAck() *BundleAck {
+func (x *ConnectorEnvelope) GetBundleAck() *BundleAcks {
 	if x != nil {
 		if x, ok := x.Payload.(*ConnectorEnvelope_BundleAck); ok {
 			return x.BundleAck
@@ -2572,7 +2560,7 @@ type ConnectorEnvelope_Heartbeat struct {
 }
 
 type ConnectorEnvelope_BundleAck struct {
-	BundleAck *BundleAck `protobuf:"bytes,3,opt,name=bundle_ack,json=bundleAck,proto3,oneof"`
+	BundleAck *BundleAcks `protobuf:"bytes,3,opt,name=bundle_ack,json=bundleAck,proto3,oneof"`
 }
 
 type ConnectorEnvelope_CommandAck struct {
@@ -3047,7 +3035,7 @@ func (x *ConnectorHeartbeatResponse) GetExpectedState() NodeState {
 // During intermediate CA rotation: [root_ca, inter_v1, inter_v2]
 // After rotation confirmed across all nodes: [root_ca, inter_v2]
 // v1 removed only after CP version ledger confirms every node has acked v2.
-type TrustBundle struct {
+type TrustBundles struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Version       int64                  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	CertsPem      [][]byte               `protobuf:"bytes,2,rep,name=certs_pem,json=certsPem,proto3" json:"certs_pem,omitempty"` // root CA cert + one or more intermediate CA certs
@@ -3055,20 +3043,20 @@ type TrustBundle struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TrustBundle) Reset() {
-	*x = TrustBundle{}
+func (x *TrustBundles) Reset() {
+	*x = TrustBundles{}
 	mi := &file_ashrix_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TrustBundle) String() string {
+func (x *TrustBundles) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TrustBundle) ProtoMessage() {}
+func (*TrustBundles) ProtoMessage() {}
 
-func (x *TrustBundle) ProtoReflect() protoreflect.Message {
+func (x *TrustBundles) ProtoReflect() protoreflect.Message {
 	mi := &file_ashrix_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3080,19 +3068,19 @@ func (x *TrustBundle) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TrustBundle.ProtoReflect.Descriptor instead.
-func (*TrustBundle) Descriptor() ([]byte, []int) {
+// Deprecated: Use TrustBundles.ProtoReflect.Descriptor instead.
+func (*TrustBundles) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_rawDescGZIP(), []int{32}
 }
 
-func (x *TrustBundle) GetVersion() int64 {
+func (x *TrustBundles) GetVersion() int64 {
 	if x != nil {
 		return x.Version
 	}
 	return 0
 }
 
-func (x *TrustBundle) GetCertsPem() [][]byte {
+func (x *TrustBundles) GetCertsPem() [][]byte {
 	if x != nil {
 		return x.CertsPem
 	}
@@ -3100,7 +3088,7 @@ func (x *TrustBundle) GetCertsPem() [][]byte {
 }
 
 // PolicyBundle — BUNDLE_TYPE_POLICY
-type PolicyBundle struct {
+type PolicyBundles struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Version       int64                  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	Policies      []*Policy              `protobuf:"bytes,2,rep,name=policies,proto3" json:"policies,omitempty"`
@@ -3108,20 +3096,20 @@ type PolicyBundle struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PolicyBundle) Reset() {
-	*x = PolicyBundle{}
+func (x *PolicyBundles) Reset() {
+	*x = PolicyBundles{}
 	mi := &file_ashrix_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PolicyBundle) String() string {
+func (x *PolicyBundles) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PolicyBundle) ProtoMessage() {}
+func (*PolicyBundles) ProtoMessage() {}
 
-func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
+func (x *PolicyBundles) ProtoReflect() protoreflect.Message {
 	mi := &file_ashrix_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3133,19 +3121,19 @@ func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PolicyBundle.ProtoReflect.Descriptor instead.
-func (*PolicyBundle) Descriptor() ([]byte, []int) {
+// Deprecated: Use PolicyBundles.ProtoReflect.Descriptor instead.
+func (*PolicyBundles) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_rawDescGZIP(), []int{33}
 }
 
-func (x *PolicyBundle) GetVersion() int64 {
+func (x *PolicyBundles) GetVersion() int64 {
 	if x != nil {
 		return x.Version
 	}
 	return 0
 }
 
-func (x *PolicyBundle) GetPolicies() []*Policy {
+func (x *PolicyBundles) GetPolicies() []*Policy {
 	if x != nil {
 		return x.Policies
 	}
@@ -3486,12 +3474,12 @@ const file_ashrix_proto_rawDesc = "" +
 	"\vcert_serial\x18\t \x01(\tR\n" +
 	"certSerial\x12B\n" +
 	"\x0fcert_expires_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\rcertExpiresAt\"\xfc\x01\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\rcertExpiresAt\"\xfd\x01\n" +
 	"\rSignedPayload\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\fR\apayload\x12\x1c\n" +
-	"\tsignature\x18\x03 \x01(\fR\tsignature\x12%\n" +
-	"\x04type\x18\x04 \x01(\x0e2\x11.proto.BundleTypeR\x04type\x127\n" +
+	"\tsignature\x18\x03 \x01(\fR\tsignature\x12&\n" +
+	"\x04type\x18\x04 \x01(\x0e2\x12.proto.BundleTypesR\x04type\x127\n" +
 	"\tissued_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\bissuedAt\x129\n" +
 	"\n" +
 	"expires_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"t\n" +
@@ -3531,32 +3519,33 @@ const file_ashrix_proto_rawDesc = "" +
 	"caChainPem\x12\x16\n" +
 	"\x06serial\x18\x03 \x01(\tR\x06serial\x129\n" +
 	"\n" +
-	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xed\x02\n" +
-	"\x0fGatewayEnvelope\x12\x17\n" +
+	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xef\x02\n" +
+	"\x10GatewayEnvelopes\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x120\n" +
-	"\theartbeat\x18\x02 \x01(\v2\x10.proto.HeartbeatH\x00R\theartbeat\x121\n" +
+	"\theartbeat\x18\x02 \x01(\v2\x10.proto.HeartbeatH\x00R\theartbeat\x122\n" +
 	"\n" +
-	"bundle_ack\x18\x03 \x01(\v2\x10.proto.BundleAckH\x00R\tbundleAck\x124\n" +
+	"bundle_ack\x18\x03 \x01(\v2\x11.proto.BundleAcksH\x00R\tbundleAck\x124\n" +
 	"\vcommand_ack\x18\x04 \x01(\v2\x11.proto.CommandAckH\x00R\n" +
 	"commandAck\x128\n" +
 	"\vaccess_logs\x18\x05 \x01(\v2\x15.proto.AccessLogBatchH\x00R\n" +
 	"accessLogs\x12/\n" +
 	"\ametrics\x18\x06 \x01(\v2\x13.proto.MetricsBatchH\x00R\ametrics\x120\n" +
 	"\aanomaly\x18\a \x01(\v2\x14.proto.AnomalyReportH\x00R\aanomalyB\t\n" +
-	"\apayload\"\x81\x02\n" +
+	"\apayload\"\x83\x02\n" +
 	"\tHeartbeat\x12/\n" +
 	"\bidentity\x18\x01 \x01(\v2\x13.proto.NodeIdentityR\bidentity\x12-\n" +
 	"\x12active_connections\x18\x02 \x01(\x05R\x11activeConnections\x12'\n" +
 	"\x0factive_sessions\x18\x03 \x01(\x05R\x0eactiveSessions\x12'\n" +
-	"\x0fconnector_count\x18\x04 \x01(\x05R\x0econnectorCount\x12B\n" +
-	"\x10connector_status\x18\x05 \x03(\v2\x17.proto.ConnectorsStatusR\x0fconnectorStatus\"\x8c\x01\n" +
-	"\x10ConnectorsStatus\x12!\n" +
+	"\x0fconnector_count\x18\x04 \x01(\x05R\x0econnectorCount\x12D\n" +
+	"\x10connector_status\x18\x05 \x03(\v2\x19.proto.ConnectorsStatusesR\x0fconnectorStatus\"\x8e\x01\n" +
+	"\x12ConnectorsStatuses\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12=\n" +
-	"\flast_checked\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vlastChecked\"\x96\x01\n" +
-	"\tBundleAck\x12%\n" +
-	"\x0ebundle_version\x18\x01 \x01(\x03R\rbundleVersion\x122\n" +
-	"\vbundle_type\x18\x02 \x01(\x0e2\x11.proto.BundleTypeR\n" +
+	"\flast_checked\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vlastChecked\"\x98\x01\n" +
+	"\n" +
+	"BundleAcks\x12%\n" +
+	"\x0ebundle_version\x18\x01 \x01(\x03R\rbundleVersion\x123\n" +
+	"\vbundle_type\x18\x02 \x01(\x0e2\x12.proto.BundleTypesR\n" +
 	"bundleType\x12\x18\n" +
 	"\aapplied\x18\x03 \x01(\bR\aapplied\x12\x14\n" +
 	"\x05error\x18\x04 \x01(\tR\x05error\"\x85\x01\n" +
@@ -3610,9 +3599,8 @@ const file_ashrix_proto_rawDesc = "" +
 	"\x10occurrence_count\x18\x04 \x01(\x05R\x0foccurrenceCount\x129\n" +
 	"\n" +
 	"first_seen\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tfirstSeen\x127\n" +
-	"\tlast_seen\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"\xe3\x01\n" +
-	"\n" +
-	"CPEnvelope\x12\x17\n" +
+	"\tlast_seen\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"\xe4\x01\n" +
+	"\vCPEnvelopes\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12I\n" +
 	"\x12heartbeat_response\x18\x02 \x01(\v2\x18.proto.HeartbeatResponseH\x00R\x11heartbeatResponse\x12:\n" +
 	"\rbundle_update\x18\x03 \x01(\v2\x13.proto.BundleUpdateH\x00R\fbundleUpdate\x12*\n" +
@@ -3621,9 +3609,9 @@ const file_ashrix_proto_rawDesc = "" +
 	"\x11HeartbeatResponse\x12;\n" +
 	"\vserver_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"serverTime\x127\n" +
-	"\x0eexpected_state\x18\x02 \x01(\x0e2\x10.proto.NodeStateR\rexpectedState\"e\n" +
-	"\fBundleUpdate\x12%\n" +
-	"\x04type\x18\x01 \x01(\x0e2\x11.proto.BundleTypeR\x04type\x12.\n" +
+	"\x0eexpected_state\x18\x02 \x01(\x0e2\x10.proto.NodeStateR\rexpectedState\"f\n" +
+	"\fBundleUpdate\x12&\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x12.proto.BundleTypesR\x04type\x12.\n" +
 	"\apayload\x18\x02 \x01(\v2\x14.proto.SignedPayloadR\apayload\"\x8e\x03\n" +
 	"\aCommand\x12\x1d\n" +
 	"\n" +
@@ -3649,12 +3637,12 @@ const file_ashrix_proto_rawDesc = "" +
 	"\vcert_serial\x18\x01 \x01(\tR\n" +
 	"certSerial\x12/\n" +
 	"\x06reason\x18\x02 \x01(\x0e2\x17.proto.RevocationReasonR\x06reason\x12-\n" +
-	"\x12allow_reenrollment\x18\x03 \x01(\bR\x11allowReenrollment\"\xdd\x02\n" +
+	"\x12allow_reenrollment\x18\x03 \x01(\bR\x11allowReenrollment\"\xde\x02\n" +
 	"\x11ConnectorEnvelope\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x129\n" +
-	"\theartbeat\x18\x02 \x01(\v2\x19.proto.ConnectorHeartbeatH\x00R\theartbeat\x121\n" +
+	"\theartbeat\x18\x02 \x01(\v2\x19.proto.ConnectorHeartbeatH\x00R\theartbeat\x122\n" +
 	"\n" +
-	"bundle_ack\x18\x03 \x01(\v2\x10.proto.BundleAckH\x00R\tbundleAck\x124\n" +
+	"bundle_ack\x18\x03 \x01(\v2\x11.proto.BundleAcksH\x00R\tbundleAck\x124\n" +
 	"\vcommand_ack\x18\x04 \x01(\v2\x11.proto.CommandAckH\x00R\n" +
 	"commandAck\x12A\n" +
 	"\vaccess_logs\x18\x05 \x01(\v2\x1e.proto.ConnectorAccessLogBatchH\x00R\n" +
@@ -3694,11 +3682,11 @@ const file_ashrix_proto_rawDesc = "" +
 	"\x1aConnectorHeartbeatResponse\x12;\n" +
 	"\vserver_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"serverTime\x127\n" +
-	"\x0eexpected_state\x18\x02 \x01(\x0e2\x10.proto.NodeStateR\rexpectedState\"D\n" +
-	"\vTrustBundle\x12\x18\n" +
+	"\x0eexpected_state\x18\x02 \x01(\x0e2\x10.proto.NodeStateR\rexpectedState\"E\n" +
+	"\fTrustBundles\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x1b\n" +
-	"\tcerts_pem\x18\x02 \x03(\fR\bcertsPem\"S\n" +
-	"\fPolicyBundle\x12\x18\n" +
+	"\tcerts_pem\x18\x02 \x03(\fR\bcertsPem\"T\n" +
+	"\rPolicyBundles\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x12)\n" +
 	"\bpolicies\x18\x02 \x03(\v2\r.proto.PolicyR\bpolicies\"_\n" +
 	"\x06Policy\x12\x1b\n" +
@@ -3743,14 +3731,9 @@ const file_ashrix_proto_rawDesc = "" +
 	"\x13NODE_STATE_RENEWING\x10\x04\x12\x16\n" +
 	"\x12NODE_STATE_REVOKED\x10\x05\x12\x1c\n" +
 	"\x18NODE_STATE_RE_ENROLLMENT\x10\x06\x12\x17\n" +
-	"\x13NODE_STATE_DRAINING\x10\a*\x85\x01\n" +
-	"\n" +
-	"BundleType\x12\x1b\n" +
-	"\x17BUNDLE_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
-	"\x11BUNDLE_TYPE_TRUST\x10\x01\x12\x16\n" +
-	"\x12BUNDLE_TYPE_POLICY\x10\x02\x12\x13\n" +
-	"\x0fBUNDLE_TYPE_CRL\x10\x03\x12\x16\n" +
-	"\x12BUNDLE_TYPE_CONFIG\x10\x04*\x92\x01\n" +
+	"\x13NODE_STATE_DRAINING\x10\a**\n" +
+	"\vBundleTypes\x12\x1b\n" +
+	"\x17BUNDLE_TYPE_UNSPECIFIED\x10\x00*\x92\x01\n" +
 	"\n" +
 	"CertReason\x12\x1b\n" +
 	"\x17CERT_REASON_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -3782,9 +3765,9 @@ const file_ashrix_proto_rawDesc = "" +
 	"\tBootstrap\x12\x17.proto.BootstrapRequest\x1a\x18.proto.BootstrapResponse2\x87\x01\n" +
 	"\x0fIdentityService\x124\n" +
 	"\tIssueCert\x12\x12.proto.CertRequest\x1a\x13.proto.CertResponse\x12>\n" +
-	"\vRecoverCert\x12\x1a.proto.CertRecoveryRequest\x1a\x13.proto.CertResponse2P\n" +
-	"\x0eControlService\x12>\n" +
-	"\rControlStream\x12\x16.proto.GatewayEnvelope\x1a\x11.proto.CPEnvelope(\x010\x012f\n" +
+	"\vRecoverCert\x12\x1a.proto.CertRecoveryRequest\x1a\x13.proto.CertResponse2R\n" +
+	"\x0eControlService\x12@\n" +
+	"\rControlStream\x12\x17.proto.GatewayEnvelopes\x1a\x12.proto.CPEnvelopes(\x010\x012f\n" +
 	"\x10ConnectorService\x12R\n" +
 	"\x0fConnectorStream\x12\x18.proto.ConnectorEnvelope\x1a!.proto.GatewayToConnectorEnvelope(\x010\x01B<Z:github.com/JohnnyAsh-U/ashrix-api/proto/ashrix.proto;protob\x06proto3"
 
@@ -3805,7 +3788,7 @@ var file_ashrix_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
 var file_ashrix_proto_goTypes = []any{
 	(NodeType)(0),                      // 0: proto.NodeType
 	(NodeState)(0),                     // 1: proto.NodeState
-	(BundleType)(0),                    // 2: proto.BundleType
+	(BundleTypes)(0),                   // 2: proto.BundleTypes
 	(CertReason)(0),                    // 3: proto.CertReason
 	(CommandType)(0),                   // 4: proto.CommandType
 	(AnomalyType)(0),                   // 5: proto.AnomalyType
@@ -3818,16 +3801,16 @@ var file_ashrix_proto_goTypes = []any{
 	(*CertRequest)(nil),                // 12: proto.CertRequest
 	(*CertRecoveryRequest)(nil),        // 13: proto.CertRecoveryRequest
 	(*CertResponse)(nil),               // 14: proto.CertResponse
-	(*GatewayEnvelope)(nil),            // 15: proto.GatewayEnvelope
+	(*GatewayEnvelopes)(nil),           // 15: proto.GatewayEnvelopes
 	(*Heartbeat)(nil),                  // 16: proto.Heartbeat
-	(*ConnectorsStatus)(nil),           // 17: proto.ConnectorsStatus
-	(*BundleAck)(nil),                  // 18: proto.BundleAck
+	(*ConnectorsStatuses)(nil),         // 17: proto.ConnectorsStatuses
+	(*BundleAcks)(nil),                 // 18: proto.BundleAcks
 	(*CommandAck)(nil),                 // 19: proto.CommandAck
 	(*AccessLogBatch)(nil),             // 20: proto.AccessLogBatch
 	(*AccessLogEntry)(nil),             // 21: proto.AccessLogEntry
 	(*MetricsBatch)(nil),               // 22: proto.MetricsBatch
 	(*AnomalyReport)(nil),              // 23: proto.AnomalyReport
-	(*CPEnvelope)(nil),                 // 24: proto.CPEnvelope
+	(*CPEnvelopes)(nil),                // 24: proto.CPEnvelopes
 	(*HeartbeatResponse)(nil),          // 25: proto.HeartbeatResponse
 	(*BundleUpdate)(nil),               // 26: proto.BundleUpdate
 	(*Command)(nil),                    // 27: proto.Command
@@ -3842,8 +3825,8 @@ var file_ashrix_proto_goTypes = []any{
 	(*ConnectorMetrics)(nil),           // 36: proto.ConnectorMetrics
 	(*GatewayToConnectorEnvelope)(nil), // 37: proto.GatewayToConnectorEnvelope
 	(*ConnectorHeartbeatResponse)(nil), // 38: proto.ConnectorHeartbeatResponse
-	(*TrustBundle)(nil),                // 39: proto.TrustBundle
-	(*PolicyBundle)(nil),               // 40: proto.PolicyBundle
+	(*TrustBundles)(nil),               // 39: proto.TrustBundles
+	(*PolicyBundles)(nil),              // 40: proto.PolicyBundles
 	(*Policy)(nil),                     // 41: proto.Policy
 	(*Rule)(nil),                       // 42: proto.Rule
 	(*CRLBundle)(nil),                  // 43: proto.CRLBundle
@@ -3854,7 +3837,7 @@ var file_ashrix_proto_depIdxs = []int32{
 	0,  // 0: proto.NodeIdentity.node_type:type_name -> proto.NodeType
 	1,  // 1: proto.NodeIdentity.state:type_name -> proto.NodeState
 	45, // 2: proto.NodeIdentity.cert_expires_at:type_name -> google.protobuf.Timestamp
-	2,  // 3: proto.SignedPayload.type:type_name -> proto.BundleType
+	2,  // 3: proto.SignedPayload.type:type_name -> proto.BundleTypes
 	45, // 4: proto.SignedPayload.issued_at:type_name -> google.protobuf.Timestamp
 	45, // 5: proto.SignedPayload.expires_at:type_name -> google.protobuf.Timestamp
 	45, // 6: proto.PossessionProof.timestamp:type_name -> google.protobuf.Timestamp
@@ -3868,16 +3851,16 @@ var file_ashrix_proto_depIdxs = []int32{
 	0,  // 14: proto.CertRecoveryRequest.node_type:type_name -> proto.NodeType
 	9,  // 15: proto.CertRecoveryRequest.possession_proof:type_name -> proto.PossessionProof
 	45, // 16: proto.CertResponse.expires_at:type_name -> google.protobuf.Timestamp
-	16, // 17: proto.GatewayEnvelope.heartbeat:type_name -> proto.Heartbeat
-	18, // 18: proto.GatewayEnvelope.bundle_ack:type_name -> proto.BundleAck
-	19, // 19: proto.GatewayEnvelope.command_ack:type_name -> proto.CommandAck
-	20, // 20: proto.GatewayEnvelope.access_logs:type_name -> proto.AccessLogBatch
-	22, // 21: proto.GatewayEnvelope.metrics:type_name -> proto.MetricsBatch
-	23, // 22: proto.GatewayEnvelope.anomaly:type_name -> proto.AnomalyReport
+	16, // 17: proto.GatewayEnvelopes.heartbeat:type_name -> proto.Heartbeat
+	18, // 18: proto.GatewayEnvelopes.bundle_ack:type_name -> proto.BundleAcks
+	19, // 19: proto.GatewayEnvelopes.command_ack:type_name -> proto.CommandAck
+	20, // 20: proto.GatewayEnvelopes.access_logs:type_name -> proto.AccessLogBatch
+	22, // 21: proto.GatewayEnvelopes.metrics:type_name -> proto.MetricsBatch
+	23, // 22: proto.GatewayEnvelopes.anomaly:type_name -> proto.AnomalyReport
 	7,  // 23: proto.Heartbeat.identity:type_name -> proto.NodeIdentity
-	17, // 24: proto.Heartbeat.connector_status:type_name -> proto.ConnectorsStatus
-	45, // 25: proto.ConnectorsStatus.last_checked:type_name -> google.protobuf.Timestamp
-	2,  // 26: proto.BundleAck.bundle_type:type_name -> proto.BundleType
+	17, // 24: proto.Heartbeat.connector_status:type_name -> proto.ConnectorsStatuses
+	45, // 25: proto.ConnectorsStatuses.last_checked:type_name -> google.protobuf.Timestamp
+	2,  // 26: proto.BundleAcks.bundle_type:type_name -> proto.BundleTypes
 	4,  // 27: proto.CommandAck.type:type_name -> proto.CommandType
 	21, // 28: proto.AccessLogBatch.entries:type_name -> proto.AccessLogEntry
 	45, // 29: proto.AccessLogEntry.started_at:type_name -> google.protobuf.Timestamp
@@ -3886,12 +3869,12 @@ var file_ashrix_proto_depIdxs = []int32{
 	5,  // 32: proto.AnomalyReport.type:type_name -> proto.AnomalyType
 	45, // 33: proto.AnomalyReport.first_seen:type_name -> google.protobuf.Timestamp
 	45, // 34: proto.AnomalyReport.last_seen:type_name -> google.protobuf.Timestamp
-	25, // 35: proto.CPEnvelope.heartbeat_response:type_name -> proto.HeartbeatResponse
-	26, // 36: proto.CPEnvelope.bundle_update:type_name -> proto.BundleUpdate
-	27, // 37: proto.CPEnvelope.command:type_name -> proto.Command
+	25, // 35: proto.CPEnvelopes.heartbeat_response:type_name -> proto.HeartbeatResponse
+	26, // 36: proto.CPEnvelopes.bundle_update:type_name -> proto.BundleUpdate
+	27, // 37: proto.CPEnvelopes.command:type_name -> proto.Command
 	45, // 38: proto.HeartbeatResponse.server_time:type_name -> google.protobuf.Timestamp
 	1,  // 39: proto.HeartbeatResponse.expected_state:type_name -> proto.NodeState
-	2,  // 40: proto.BundleUpdate.type:type_name -> proto.BundleType
+	2,  // 40: proto.BundleUpdate.type:type_name -> proto.BundleTypes
 	8,  // 41: proto.BundleUpdate.payload:type_name -> proto.SignedPayload
 	4,  // 42: proto.Command.type:type_name -> proto.CommandType
 	8,  // 43: proto.Command.signed_command:type_name -> proto.SignedPayload
@@ -3903,7 +3886,7 @@ var file_ashrix_proto_depIdxs = []int32{
 	45, // 49: proto.DrainParams.drain_deadline:type_name -> google.protobuf.Timestamp
 	6,  // 50: proto.RevokeParams.reason:type_name -> proto.RevocationReason
 	33, // 51: proto.ConnectorEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
-	18, // 52: proto.ConnectorEnvelope.bundle_ack:type_name -> proto.BundleAck
+	18, // 52: proto.ConnectorEnvelope.bundle_ack:type_name -> proto.BundleAcks
 	19, // 53: proto.ConnectorEnvelope.command_ack:type_name -> proto.CommandAck
 	34, // 54: proto.ConnectorEnvelope.access_logs:type_name -> proto.ConnectorAccessLogBatch
 	36, // 55: proto.ConnectorEnvelope.metrics:type_name -> proto.ConnectorMetrics
@@ -3917,19 +3900,19 @@ var file_ashrix_proto_depIdxs = []int32{
 	27, // 63: proto.GatewayToConnectorEnvelope.command:type_name -> proto.Command
 	45, // 64: proto.ConnectorHeartbeatResponse.server_time:type_name -> google.protobuf.Timestamp
 	1,  // 65: proto.ConnectorHeartbeatResponse.expected_state:type_name -> proto.NodeState
-	41, // 66: proto.PolicyBundle.policies:type_name -> proto.Policy
+	41, // 66: proto.PolicyBundles.policies:type_name -> proto.Policy
 	42, // 67: proto.Policy.rules:type_name -> proto.Rule
 	45, // 68: proto.Rule.expires_at:type_name -> google.protobuf.Timestamp
 	45, // 69: proto.CRLBundle.next_update:type_name -> google.protobuf.Timestamp
 	10, // 70: proto.BootstrapService.Bootstrap:input_type -> proto.BootstrapRequest
 	12, // 71: proto.IdentityService.IssueCert:input_type -> proto.CertRequest
 	13, // 72: proto.IdentityService.RecoverCert:input_type -> proto.CertRecoveryRequest
-	15, // 73: proto.ControlService.ControlStream:input_type -> proto.GatewayEnvelope
+	15, // 73: proto.ControlService.ControlStream:input_type -> proto.GatewayEnvelopes
 	32, // 74: proto.ConnectorService.ConnectorStream:input_type -> proto.ConnectorEnvelope
 	11, // 75: proto.BootstrapService.Bootstrap:output_type -> proto.BootstrapResponse
 	14, // 76: proto.IdentityService.IssueCert:output_type -> proto.CertResponse
 	14, // 77: proto.IdentityService.RecoverCert:output_type -> proto.CertResponse
-	24, // 78: proto.ControlService.ControlStream:output_type -> proto.CPEnvelope
+	24, // 78: proto.ControlService.ControlStream:output_type -> proto.CPEnvelopes
 	37, // 79: proto.ConnectorService.ConnectorStream:output_type -> proto.GatewayToConnectorEnvelope
 	75, // [75:80] is the sub-list for method output_type
 	70, // [70:75] is the sub-list for method input_type
@@ -3944,17 +3927,17 @@ func file_ashrix_proto_init() {
 		return
 	}
 	file_ashrix_proto_msgTypes[8].OneofWrappers = []any{
-		(*GatewayEnvelope_Heartbeat)(nil),
-		(*GatewayEnvelope_BundleAck)(nil),
-		(*GatewayEnvelope_CommandAck)(nil),
-		(*GatewayEnvelope_AccessLogs)(nil),
-		(*GatewayEnvelope_Metrics)(nil),
-		(*GatewayEnvelope_Anomaly)(nil),
+		(*GatewayEnvelopes_Heartbeat)(nil),
+		(*GatewayEnvelopes_BundleAck)(nil),
+		(*GatewayEnvelopes_CommandAck)(nil),
+		(*GatewayEnvelopes_AccessLogs)(nil),
+		(*GatewayEnvelopes_Metrics)(nil),
+		(*GatewayEnvelopes_Anomaly)(nil),
 	}
 	file_ashrix_proto_msgTypes[17].OneofWrappers = []any{
-		(*CPEnvelope_HeartbeatResponse)(nil),
-		(*CPEnvelope_BundleUpdate)(nil),
-		(*CPEnvelope_Command)(nil),
+		(*CPEnvelopes_HeartbeatResponse)(nil),
+		(*CPEnvelopes_BundleUpdate)(nil),
+		(*CPEnvelopes_Command)(nil),
 	}
 	file_ashrix_proto_msgTypes[20].OneofWrappers = []any{
 		(*Command_RotateCert)(nil),

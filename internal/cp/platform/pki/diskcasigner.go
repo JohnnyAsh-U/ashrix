@@ -195,6 +195,8 @@ func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCAS
 		certPoolMutex:          sync.RWMutex{},
 	}
 
+	fmt.Println(d.intermediateCert.NotBefore, d.intermediateCert.NotAfter)
+
 	// Initial refresh of the cert pool
 	if err := d.refreshCertPool(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initially refresh cert pool: %w", err)
@@ -365,7 +367,7 @@ func generateIntermediateCA(intermediateKeyPath, intermediateCertPath, secret st
 		MaxPathLen:                  0,
 		MaxPathLenZero:              true,
 		PermittedDNSDomainsCritical: true,
-		PermittedDNSDomains:         []string{".ashrix.internal", "ashrix.internal"},
+		PermittedDNSDomains:         []string{".ashrix.internal", "ashrix.internal", "localhost"},
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, template, rootCert, pub, rootKey)

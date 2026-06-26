@@ -136,8 +136,6 @@ func (g *GatewayPKI) RenewNow() error {
 
 // Rotator checks expiry every 5mins and renews when < 30 days remain
 func (g *GatewayPKI) rotator() {
-	fmt.Println("Running Rotator...")
-
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -268,11 +266,11 @@ func (g *GatewayPKI) renew() error {
 	logging.Audit.Log(logging.AuditEvent{
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 		EventType: logging.EventGatewayRegistered,
-		GatewayID: apiResponse.Data.GatewayID,
+		GatewayID: apiResponse.Data.GatewayId,
 		Decision:  "ALLOW",
 	})
 
-	g.log.Info("Gateway Cert Renewed, Swapping", zap.String("gateway_id", apiResponse.Data.GatewayID))
+	g.log.Info("Gateway Cert Renewed, Swapping", zap.String("gateway_id", apiResponse.Data.GatewayId))
 
 	//Swapping
 	g.mu.Lock()

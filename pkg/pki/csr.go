@@ -42,7 +42,7 @@ func BuildCertTemplate(csr *x509.CertificateRequest, validity time.Duration, CN 
 			Organization: []string{"Ashrix"},
 			OrganizationalUnit: csr.Subject.OrganizationalUnit,
 		},
-		DNSNames:  csr.DNSNames,
+		DNSNames:  []string{"localhost"},
 		NotBefore: now.Add(-30 * time.Second), // small backdating for clock skew
 		NotAfter:  now.Add(validity),
 		KeyUsage:  x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,

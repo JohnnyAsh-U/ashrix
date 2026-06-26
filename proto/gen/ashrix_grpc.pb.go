@@ -290,7 +290,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ControlServiceClient interface {
-	ControlStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GatewayEnvelope, CPEnvelope], error)
+	ControlStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GatewayEnvelopes, CPEnvelopes], error)
 }
 
 type controlServiceClient struct {
@@ -301,24 +301,24 @@ func NewControlServiceClient(cc grpc.ClientConnInterface) ControlServiceClient {
 	return &controlServiceClient{cc}
 }
 
-func (c *controlServiceClient) ControlStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GatewayEnvelope, CPEnvelope], error) {
+func (c *controlServiceClient) ControlStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GatewayEnvelopes, CPEnvelopes], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &ControlService_ServiceDesc.Streams[0], ControlService_ControlStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[GatewayEnvelope, CPEnvelope]{ClientStream: stream}
+	x := &grpc.GenericClientStream[GatewayEnvelopes, CPEnvelopes]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ControlService_ControlStreamClient = grpc.BidiStreamingClient[GatewayEnvelope, CPEnvelope]
+type ControlService_ControlStreamClient = grpc.BidiStreamingClient[GatewayEnvelopes, CPEnvelopes]
 
 // ControlServiceServer is the server API for ControlService service.
 // All implementations must embed UnimplementedControlServiceServer
 // for forward compatibility.
 type ControlServiceServer interface {
-	ControlStream(grpc.BidiStreamingServer[GatewayEnvelope, CPEnvelope]) error
+	ControlStream(grpc.BidiStreamingServer[GatewayEnvelopes, CPEnvelopes]) error
 	mustEmbedUnimplementedControlServiceServer()
 }
 
@@ -329,7 +329,7 @@ type ControlServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedControlServiceServer struct{}
 
-func (UnimplementedControlServiceServer) ControlStream(grpc.BidiStreamingServer[GatewayEnvelope, CPEnvelope]) error {
+func (UnimplementedControlServiceServer) ControlStream(grpc.BidiStreamingServer[GatewayEnvelopes, CPEnvelopes]) error {
 	return status.Error(codes.Unimplemented, "method ControlStream not implemented")
 }
 func (UnimplementedControlServiceServer) mustEmbedUnimplementedControlServiceServer() {}
@@ -354,11 +354,11 @@ func RegisterControlServiceServer(s grpc.ServiceRegistrar, srv ControlServiceSer
 }
 
 func _ControlService_ControlStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ControlServiceServer).ControlStream(&grpc.GenericServerStream[GatewayEnvelope, CPEnvelope]{ServerStream: stream})
+	return srv.(ControlServiceServer).ControlStream(&grpc.GenericServerStream[GatewayEnvelopes, CPEnvelopes]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ControlService_ControlStreamServer = grpc.BidiStreamingServer[GatewayEnvelope, CPEnvelope]
+type ControlService_ControlStreamServer = grpc.BidiStreamingServer[GatewayEnvelopes, CPEnvelopes]
 
 // ControlService_ServiceDesc is the grpc.ServiceDesc for ControlService service.
 // It's only intended for direct use with grpc.RegisterService,

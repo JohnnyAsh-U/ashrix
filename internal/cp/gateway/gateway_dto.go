@@ -15,18 +15,6 @@ type ReEnrollGatewayRequest struct {
 	Name  string    `json:"name"`
 }
 
-type EnrollGatewayRequest struct {
-	Token string `json:"token" validate:"required"`
-	CSR   string `json:"csr_pem" validate:"required"`
-	Timestamp time.Time `json:"timestamp" validate:"required"`
-}
-
-type RenewGatewayCertRequest struct {
-	GatewayID string `json:"gateway_id" validate:"required"`
-	Signature string `json:"signature" validate:"required"`
-	CSR       string `json:"csr" validate:"required"`
-}
-
 type RevokeGatewayCertRequest struct {
 	ComponentID   uuid.UUID `json:"component_id"`
 	ComponentType string    `json:"component_type"`
@@ -40,12 +28,6 @@ type RevokeGatewayRequest struct {
 // ==========================================================
 // RESPONSE
 // ==========================================================
-type EnrollResponse struct {
-	GatewayID string `json:"gateway_id"`
-	Certificate string    `json:"certificate"`
-	TrustBundle string    `json:"trust_bundle"`
-	ExpiresAt   time.Time `json:"expires_at"`
-}
 
 type GatewayResponse struct {
 	ID            string    `json:"id"`

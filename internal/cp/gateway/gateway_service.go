@@ -13,8 +13,10 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/utils"
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Service struct {
@@ -118,36 +120,29 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name string
 }
 
 // EnrollGateway enrolls a gateway using a token hash and CSR.
-func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer pki.CASigner) (EnrollResponse, *dto.AppError) {
+func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer pki.CASigner) (gen.GatewayEnrollResponse, *dto.AppError) {
 	// Get the Gateway by using the token
 	gateway, err := s.repo.GetGatewayByTokenHash(ctx, utils.HashToken(token))
 	if err != nil {
-		return EnrollResponse{}, dto.NewNotFoundError("Gateway Not Found")
+		return gen.GatewayEnrollResponse{}, dto.NewNotFoundError("Gateway Not Found")
 	}
 
 	// Parse CSR
 	certReq, err := pki_utils.ParseCSR([]byte(csr))
 	if err != nil {
-		return EnrollResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
+		return gen.GatewayEnrollResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
 	}
 
 
 	//Validate the CSR fields
 	if len(certReq.Subject.OrganizationalUnit) == 0 || certReq.Subject.OrganizationalUnit[0] != "Gateway" {
-		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
+		return gen.GatewayEnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
 	}
 
-	fmt.Println(certReq.Subject)
-
-
-	//Generate a CN for the cert
-	gatewayCN := utils.GenerateCommonName("gateway")
-
-
 	// Sign the cert
-	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gatewayCN)
+	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gateway.ID.String())
 	if err != nil {
-		return EnrollResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
+		return gen.GatewayEnrollResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
 	}
 
 	// Get active intermediate CA certificate from DB to retrieve its ID
@@ -156,7 +151,7 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 		Type: "intermediate",
 	})
 	if err != nil {
-		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active Intermediate CA", err.Error())
+		return gen.GatewayEnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active Intermediate CA", err.Error())
 	}
 
 	// Register component cert
@@ -174,31 +169,31 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 		RotationOf:    pgtype.UUID{Valid: false},
 	})
 	if err != nil {
-		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to register gateway certificate", err.Error())
+		return gen.GatewayEnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to register gateway certificate", err.Error())
 	}
 
 	// Update gateway status to healthy/enrolled
 	_, err = s.repo.EnrollGatewayUsingTokenHash(ctx, utils.HashToken(token))
 	if err != nil {
-		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to enroll gateway", err.Error())
+		return gen.GatewayEnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to enroll gateway", err.Error())
 	}
 
-	return EnrollResponse{
-		GatewayID: gateway.ID.String(),
+	return gen.GatewayEnrollResponse{
+		GatewayId: gateway.ID.String(),
 		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
 		TrustBundle: string(signer.TrustBundle()),
-		ExpiresAt:   gatewayCRT.NotAfter,
+		ExpiresAt:   timestamppb.New(gatewayCRT.NotAfter),
 	}, nil
 }
 
-func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, signature string, csr string, signer pki.CASigner) (EnrollResponse, *dto.AppError) {
+func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, signature string, csr string, signer pki.CASigner) (gen.GatewayRenewCertResponse, *dto.AppError) {
 	// get gateway
 	gateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return EnrollResponse{}, dto.NewNotFoundError("Gateway Not Found")
+			return gen.GatewayRenewCertResponse{}, dto.NewNotFoundError("Gateway Not Found")
 		}
-		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+		return gen.GatewayRenewCertResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
 	// get active cert
@@ -208,21 +203,21 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return EnrollResponse{}, dto.NewNotFoundError("Active Component Certificate Not Found")
+			return gen.GatewayRenewCertResponse{}, dto.NewNotFoundError("Active Component Certificate Not Found")
 		}
-		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
+		return gen.GatewayRenewCertResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
 	}
 
 	certPem := []byte(activeCert.CertPem)
 	pubkey, err := pki_utils.ParsePublicKey(certPem)
 	if err != nil {
-		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to parse active component certificate", err.Error())
+		return gen.GatewayRenewCertResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to parse active component certificate", err.Error())
 	}
 
 	// verify signature
 	verified := pki_utils.VerifySignature(pubkey, []byte(gatewayID.String()), []byte(signature))
 	if !verified {
-		return EnrollResponse{}, dto.NewUnauthorizedError("Signature verification failed")
+		return gen.GatewayRenewCertResponse{}, dto.NewUnauthorizedError("Signature verification failed")
 	}
 
 	// Issue new cert
@@ -232,7 +227,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 		Type: "intermediate",
 	})
 	if err != nil {
-		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active Intermediate CA", err.Error())
+		return gen.GatewayRenewCertResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active Intermediate CA", err.Error())
 	}
 
 	//Revoke the current cert of the gateway
@@ -243,28 +238,25 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	})
 
 	if err != nil {
-		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke gateway certificate", err.Error())
+		return gen.GatewayRenewCertResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke gateway certificate", err.Error())
 	}
 
 	//Parse CSR
 	certReq, err := pki_utils.ParseCSR([]byte(csr))
 	if err != nil {
-		return EnrollResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
+		return gen.GatewayRenewCertResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
 	}
 
 	//Validate the csr fields
 	if len(certReq.Subject.OrganizationalUnit) == 0 || certReq.Subject.OrganizationalUnit[0] != "Gateway" {
-		return EnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
+		return gen.GatewayRenewCertResponse{}, dto.NewUnauthorizedError("Not a gateway")
 	}
-
-	//Generate a CN for the cert
-	gatewayCN := utils.GenerateCommonName("gateway")
 
 
 	// Issue new cert
-	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gatewayCN)
+	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gatewayID.String())
 	if err != nil {
-		return EnrollResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
+		return gen.GatewayRenewCertResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
 	}
 
 	//Register the cert
@@ -282,13 +274,13 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 		RotationOf:    pgtype.UUID{Valid: false},
 	})
 	if err != nil {
-		return EnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to register gateway certificate", err.Error())
+		return gen.GatewayRenewCertResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to register gateway certificate", err.Error())
 	}
 
-	return EnrollResponse{
+	return gen.GatewayRenewCertResponse{
 		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
 		TrustBundle: string(signer.TrustBundle()),
-		ExpiresAt:   gatewayCRT.NotAfter,
+		ExpiresAt:   timestamppb.New(gatewayCRT.NotAfter),
 	}, nil
 
 }

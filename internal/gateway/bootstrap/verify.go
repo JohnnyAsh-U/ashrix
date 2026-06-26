@@ -9,7 +9,7 @@ import (
 func VerifyResponse(resp *APIResponse) error {
 	fmt.Println(resp.Success)
 
-	if resp.Data.GatewayID == "" {
+	if resp.Data.GatewayId == "" {
 		return fmt.Errorf("Missing gateway_id in CP Response")
 	}
 

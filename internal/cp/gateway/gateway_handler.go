@@ -8,6 +8,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
 type GatewayHandler struct {
@@ -130,23 +131,23 @@ func (h *GatewayHandler) ReCreateGateway(w http.ResponseWriter, r *http.Request)
 // @Failure 500 {object} dto.AppError
 // @Router /internal/gateways/enroll [post]
 func (h *GatewayHandler) EnrollGateway(w http.ResponseWriter, r *http.Request) {
-	var req EnrollGatewayRequest
+	var req gen.GatewayEnrollRequest
 	if err := dto.DecodeJSON(w, r, &req); err != nil {
 		dto.SendError(w, err)
 		return
 	}
 
-	if validationErrors := dto.ValidateStruct(req); validationErrors != nil {
+	if validationErrors := dto.ValidateStruct(&req); validationErrors != nil {
 		dto.SendError(w, dto.NewBadRequestError(validationErrors))
 		return
 	}
 
-	enrollmentResponse, appErr := h.service.EnrollGateway(r.Context(), req.Token, req.CSR, h.signer)
+	enrollmentResponse, appErr := h.service.EnrollGateway(r.Context(), req.Token, req.CsrPem, h.signer)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return
 	}
-	dto.SendSuccess(w, http.StatusOK, enrollmentResponse)
+	dto.SendSuccess(w, http.StatusOK, &enrollmentResponse)
 }
 
 // @Summary Renew gateway certificate
@@ -162,28 +163,28 @@ func (h *GatewayHandler) EnrollGateway(w http.ResponseWriter, r *http.Request) {
 // @Router /internal/gateways/renew [post]
 func (h *GatewayHandler) RenewGatewayCert(w http.ResponseWriter, r *http.Request) {
 
-	var req RenewGatewayCertRequest
+	var req gen.GatewayRenewCertRequest
 	if err := dto.DecodeJSON(w, r, &req); err != nil {
 		dto.SendError(w, err)
 		return
 	}
-	if validationErrors := dto.ValidateStruct(req); validationErrors != nil {
+	if validationErrors := dto.ValidateStruct(&req); validationErrors != nil {
 		dto.SendError(w, dto.NewBadRequestError(validationErrors))
 		return
 	}
 
-	gatewayID, parseErr := uuid.Parse(req.GatewayID)
+	gatewayID, parseErr := uuid.Parse(req.GatewayId)
 	if parseErr != nil {
 		dto.SendError(w, dto.NewBadRequestError("Invalid Gateway ID format"))
 		return
 	}
 
-	enrollmentResponse, appErr := h.service.RenewGatewayCert(r.Context(), gatewayID, req.Signature, req.CSR, h.signer)
+	enrollmentResponse, appErr := h.service.RenewGatewayCert(r.Context(), gatewayID, req.Signature, req.CsrPem, h.signer)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return
 	}
-	dto.SendSuccess(w, http.StatusOK, enrollmentResponse)
+	dto.SendSuccess(w, http.StatusOK, &enrollmentResponse)
 }
 
 // @Summary Revoke gateway certificate

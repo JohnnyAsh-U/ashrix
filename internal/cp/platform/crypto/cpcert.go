@@ -109,6 +109,9 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 	pool.AddCert(signer.RootCert())
 	pool.AddCert(signer.IntermediateCert())
 
+	fmt.Println(cpCert.NotAfter, cpCert.NotBefore)
+
+
 	fmt.Println("Control Plane PKI Intializing Done...")
 
 	return &ControlPlanePKI{
@@ -229,6 +232,7 @@ func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASig
 				Path:   "/cp/cp-main",
 			},
 		},
+		DNSNames: []string{"localhost"},
 	}
 
 	certDER, err := x509.CreateCertificateRequest(rand.Reader, template, key)
@@ -243,7 +247,7 @@ func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASig
 	fmt.Println("Control Plane CSR Request Done ...")
 	fmt.Println("CA Sigining Control Plane CSR...")
 
-	Cert, err := signer.IssueCert(certReq, 24*time.Hour, certReq.Subject.CommonName)
+	Cert, err := signer.IssueCert(certReq, 356 * 24*time.Hour, certReq.Subject.CommonName)
 
 	if err := pki_utils.WriteCert(certPath, Cert); err != nil {
 		return nil, err

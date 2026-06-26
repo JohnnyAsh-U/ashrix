@@ -28,12 +28,12 @@ enum NodeState {
   NODE_STATE_DRAINING      = 7; // graceful shutdown, no new connections
 }
 
-enum BundleType {
+enum BundleTypes {
   BUNDLE_TYPE_UNSPECIFIED = 0;
-  BUNDLE_TYPE_TRUST       = 1; // CA trust bundle
-  BUNDLE_TYPE_POLICY      = 2; // access policy bundle
-  BUNDLE_TYPE_CRL         = 3; // certificate revocation list
-  BUNDLE_TYPE_CONFIG      = 4; // runtime config bundle
+  // BUNDLE_TYPE_TRUST       = 1; // CA trust bundle
+  // BUNDLE_TYPE_POLICY      = 2; // access policy bundle
+  // BUNDLE_TYPE_CRL         = 3; // certificate revocation list
+  // BUNDLE_TYPE_CONFIG      = 4; // runtime config bundle
 }
 
 enum CertReason {
@@ -96,7 +96,7 @@ message SignedPayload {
   int64      version    = 1; // monotonically increasing — reject if <= node's current version
   bytes      payload    = 2; // serialized inner message (TrustBundle, PolicyBundle, etc.)
   bytes      signature  = 3; // ECDSA-P384 over SHA256(version_bytes || payload)
-  BundleType type       = 4; // what is inside payload
+  BundleTypes type       = 4; // what is inside payload
   google.protobuf.Timestamp issued_at  = 5;
   google.protobuf.Timestamp expires_at = 6; // short TTL — reject if now > expires_at
 }
@@ -196,19 +196,19 @@ message CertResponse {
 // =============================================================================
 
 service ControlService {
-  rpc ControlStream(stream GatewayEnvelope) returns (stream CPEnvelope);
+  rpc ControlStream(stream GatewayEnvelopes) returns (stream CPEnvelopes);
 }
 
 // ── Gateway → CP ─────────────────────────────────────────────────────────────
 
 // GatewayEnvelope: top-level message from gateway to CP.
 // Exactly one payload per message.
-message GatewayEnvelope {
+message GatewayEnvelopes {
   string node_id = 1; // always set
 
   oneof payload {
     Heartbeat      heartbeat   = 2;
-    BundleAck      bundle_ack  = 3;
+    BundleAcks     bundle_ack  = 3;
     CommandAck     command_ack = 4;
     AccessLogBatch access_logs = 5;
     MetricsBatch   metrics     = 6;
@@ -221,19 +221,19 @@ message Heartbeat {
   int32        active_connections  = 2; // live connections (connectors + clients)
   int32        active_sessions     = 3; // authenticated sessions
   int32        connector_count     = 4; // how many connectors currently connected
-  repeated ConnectorsStatus connector_status = 5;
+  repeated ConnectorsStatuses connector_status = 5;
 }
 
-message ConnectorsStatus {
+message ConnectorsStatuses {
   string                    connector_id = 1;
   string                    status       = 2; //connected | disconnected
   google.protobuf.Timestamp last_checked = 3;
 }
 
 
-message BundleAck {
+message BundleAcks {
   int64      bundle_version = 1; // version being acknowledged
-  BundleType bundle_type    = 2;
+  BundleTypes bundle_type    = 2;
   bool       applied        = 3; // true = successfully verified and applied
   string     error          = 4; // set if applied=false — reason for failure
 }
@@ -299,7 +299,7 @@ message AnomalyReport {
 // the SignedPayload inside BundleUpdate and Command is CP-signed,
 // so connectors verify it directly using the embedded CP public key.
 // The gateway cannot forge or modify these payloads.
-message CPEnvelope {
+message CPEnvelopes {
   string node_id = 1;
 
   oneof payload {
@@ -315,7 +315,7 @@ message HeartbeatResponse {
 }
 
 message BundleUpdate {
-  BundleType    type    = 1;
+  BundleTypes    type    = 1;
   SignedPayload payload = 2;
   // payload.signature verified by node using embedded CP public key.
   // Gateway relays this to connectors unchanged — any modification invalidates the signature.
@@ -375,7 +375,7 @@ message ConnectorEnvelope {
 
   oneof payload {
     ConnectorHeartbeat      heartbeat   = 2;
-    BundleAck               bundle_ack  = 3;
+    BundleAcks            bundle_ack  = 3;
     CommandAck              command_ack = 4;
     ConnectorAccessLogBatch access_logs = 5;
     ConnectorMetrics        metrics     = 6;
@@ -439,13 +439,13 @@ message ConnectorHeartbeatResponse {
 // During intermediate CA rotation: [root_ca, inter_v1, inter_v2]
 // After rotation confirmed across all nodes: [root_ca, inter_v2]
 // v1 removed only after CP version ledger confirms every node has acked v2.
-message TrustBundle {
+message TrustBundles {
   int64          version   = 1;
   repeated bytes certs_pem = 2; // root CA cert + one or more intermediate CA certs
 }
 
 // PolicyBundle — BUNDLE_TYPE_POLICY
-message PolicyBundle {
+message PolicyBundles {
   int64            version  = 1;
   repeated Policy  policies = 2;
 }

@@ -15,7 +15,8 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/server"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_http"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/logger"
 	"github.com/joho/godotenv"
 )
@@ -78,10 +79,10 @@ func main() {
 	quit := make(chan os.Signal, 2)
 
 	// Build and start HTTP server
-	httpServer := server.InitializeHttpServer(cfg, dbQueries, log, signer)
+	httpServer := cp_http.InitializeHttpServer(cfg, dbQueries, log, signer)
 
 	// Build and start gRPC server
-	grpcServer := server.InitializeGRPCServer(cfg, cppki, log)
+	grpcServer := cp_grpc.InitializeGRPCServer(cfg, cppki, log)
 
 	// Graceful shutdown on SIGINT / SIGTERM
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

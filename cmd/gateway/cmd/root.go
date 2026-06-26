@@ -41,7 +41,7 @@ func init() {
 func initConfig() {
 
 	viper.AddConfigPath("/etc/ashrix")
-	viper.AddConfigPath("$HOME/.ashrix")
+	viper.AddConfigPath("$HOME/.ashrix/gateway")
 	viper.AddConfigPath(".")
 	viper.SetConfigName("gateway")
 	viper.SetConfigType("yaml")

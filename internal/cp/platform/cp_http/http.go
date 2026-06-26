@@ -1,4 +1,4 @@
-package server
+package cp_http
 
 import (
 	"context"

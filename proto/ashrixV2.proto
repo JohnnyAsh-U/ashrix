@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/ashrixV2.proto;proto";
+
+import "google/protobuf/timestamp.proto";
+
+// =============================================================================
+// Gateway Bootstrap Proto Types
+// =============================================================================
+
+message GatewayEnrollRequest {
+  string                    token     = 1;
+  string                    csr_pem   = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message GatewayEnrollResponse {
+  string                    gateway_id   = 1;
+  string                    certificate  = 2;
+  string                    trust_bundle = 3;
+  google.protobuf.Timestamp expires_at   = 4;
+}
+
+message GatewayRenewCertRequest {
+  string                    gateway_id = 1;
+  string                    signature  = 2;
+  string                    csr_pem    = 3;
+  google.protobuf.Timestamp timestamp  = 4;
+}
+
+message GatewayRenewCertResponse {
+  string                    gateway_id   = 1;
+  string                    certificate  = 2;
+  string                    trust_bundle = 3;
+  google.protobuf.Timestamp expires_at   = 4;
+}
+
+// =============================================================================
+// Control Plane Service
+// =============================================================================
+
+service ControlPlaneService {
+  rpc Connect(stream GatewayEnvelope) returns (stream CPEnvelope);
+}
+
+// =============================================================================
+// Top Level Envelopes
+// =============================================================================
+
+//GatewayEnvelope - Gateway => CP
+message GatewayEnvelope {
+  string                    gateway_id = 1;
+  google.protobuf.Timestamp sent_at    = 2;
+
+  oneof payload {
+    HelloMessage     hello      = 10;
+    HeartbeatMessage heartbeat  = 11;
+    BundleAck        bundle_ack = 12;
+  }
+}
+
+//CPEnvelope - CP => Gateway
+message CPEnvelope {
+  string                    node_id          = 1;
+  MessagePriority           message_priority = 2;
+  google.protobuf.Timestamp sent_at          = 3;
+
+  oneof payload {
+    HelloAck     hello_ack     = 10;
+    CRLUpdate    crl_update    = 11;
+    PolicyBundle policy_bundle = 12;
+    TrustBundle  trust_bundle  = 13;
+  }
+}
+
+enum MessagePriority {
+  PRIORITY_NORMAL   = 0;
+  PRIORITY_HIGH     = 1;
+  PRIORITY_CRITICAL = 2; //bypass queue, processed immediately
+}
+
+// =============================================================================
+// Gateway to CP Messages
+// =============================================================================
+
+message HelloMessage {
+  string gateway_id     = 1;  // stable ID — never changes
+  string binary_version = 2;  // Ashrix binary version for compatibility checks
+  int64  policy_version = 3;  // policy bundle version currently applied
+  int64  crl_version    = 4;  // CRL version currently applied
+  int64  trust_version  = 5;  // trust bundle version currently applied
+}
+
+message HeartbeatMessage {
+  int64                     seq                = 1; // full state snapshot — CP needs no separate query
+  int32                     active_connections = 2; // live connections (connectors + clients)
+  int32                     active_sessions    = 3; // authenticated sessions
+  int32                     connector_count    = 4; // how many connectors currently connected
+  repeated ConnectorsStatus connector_status   = 5;
+}
+
+message ConnectorsStatus {
+  string                    connector_id = 1;
+  string                    status       = 2; //connected | disconnected
+  google.protobuf.Timestamp last_checked = 3;
+}
+
+enum BundleType {
+  BUNDLE_TYPE_TRUST       = 0; // CA trust bundle
+  BUNDLE_TYPE_POLICY      = 1; // access policy bundle
+  BUNDLE_TYPE_CRL         = 2; // certificate revocation list
+}
+
+message BundleAck {
+  string     message_id     = 1; //The CP Message being ack
+  int64      bundle_version = 2; // version being acknowledged
+  BundleType bundle_type    = 3;
+  string version = 6;
+  bool       applied        = 4; // true = successfully verified and applied
+  string     error          = 5; // set if applied=false — reason for failure
+}
+
+// =============================================================================
+// CP to Gateway Messages
+// =============================================================================
+
+message HelloAck {
+  string                    server_version = 1;
+  bool                      needs_policy   = 2;
+  bool                      needs_trust    = 3;
+  bool                      needs_crl      = 4;
+  google.protobuf.Timestamp server_time    = 5;
+}
+
+message PolicyBundle {
+  string                    version         = 1;
+  bytes                     payload         = 2;
+  bytes                     signature       = 3;
+  google.protobuf.Timestamp issued_at       = 4;
+  google.protobuf.Timestamp expires_at      = 5;
+  google.protobuf.Timestamp max_valid_until = 6;
+}
+
+message TrustBundle {
+  string                    version         = 1;
+  repeated bytes            ca_bytes        = 2;
+  bytes                     signature       = 3;
+  google.protobuf.Timestamp issued_at       = 4;
+  google.protobuf.Timestamp max_valid_until = 6;
+}
+
+message CRLUpdate {
+  string                    version          = 1;
+  repeated string           revoked_serials  = 2;
+  bytes                     signature        = 3;
+  google.protobuf.Timestamp issued_at        = 4;
+  google.protobuf.Timestamp max_valid_until  = 6;
+  bool                      full_replacement = 7;
+}

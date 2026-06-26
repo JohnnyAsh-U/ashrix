@@ -1,14 +1,17 @@
-package server
+package cp_grpc
 
 import (
 	"fmt"
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
+	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 // GRPCServer wraps the gRPC server and its configuration.
@@ -27,12 +30,19 @@ func InitializeGRPCServer(cfg *config.Config, cp crypto.ControlPlaneCrypto, log 
 	// Initialize the gRPC server with TLS credentials
 	s := grpc.NewServer(
 		grpc.Creds(creds),
+		grpc.ChainStreamInterceptor(
+			StreamIdentityInterceptor,
+		// 	interceptors.JwtInterceptor([]byte("secret")),
+		),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 5 * time.Minute,
+			Time:              30 * time.Second,
+			Timeout:           10 * time.Second,
+		}),
 	)
 
-	// Note: You will need to register your service implementations here.
-	// Example:
-	// gen.RegisterBootstrapServiceServer(s, bootstrapHandler)
-	// gen.RegisterIdentityServiceServer(s, identityHandler)
+	
+	proto.RegisterControlPlaneServiceServer(s, &cpServer{log: log})
 
 	return &GRPCServer{
 		srv:  s,

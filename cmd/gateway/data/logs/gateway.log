@@ -1,6 +1,0 @@
-{"level":"\u001b[34minfo\u001b[0m","ts":"2026-06-23T11:49:45.759688541Z","caller":"cmd/register.go:164","msg":"Writing config, cert, bundle and key to directory","service":"gateway"}
-{"level":"\u001b[34minfo\u001b[0m","ts":"2026-06-23T11:49:45.769088411Z","caller":"cmd/register.go:189","msg":"Gateway Registered","service":"gateway","gateway_id":"b16bb1fb-3481-4c4e-9aad-2a6fbea17477","cp_url":"http://localhost:8001"}
-{"level":"\u001b[34minfo\u001b[0m","ts":"2026-06-23T11:50:37.881101312Z","caller":"cmd/start.go:115","msg":"identity loaded","service":"gateway","gateway_id":"b16bb1fb-3481-4c4e-9aad-2a6fbea17477","cert_expires":"2026-09-21T11:49:45Z"}
-{"level":"\u001b[34minfo\u001b[0m","ts":"2026-06-23T11:50:37.881703266Z","caller":"cmd/start.go:119","msg":"gateway started","service":"gateway","cp_url":"http://localhost:8001","data_dir":"./cmd/gateway/data","pid":277832}
-{"level":"\u001b[34minfo\u001b[0m","ts":"2026-06-23T11:53:54.678935425Z","caller":"cmd/start.go:115","msg":"identity loaded","service":"gateway","gateway_id":"b16bb1fb-3481-4c4e-9aad-2a6fbea17477","cert_expires":"2026-09-21T11:49:45Z"}
-{"level":"\u001b[34minfo\u001b[0m","ts":"2026-06-23T11:53:54.679674206Z","caller":"cmd/start.go:119","msg":"gateway started","service":"gateway","cp_url":"http://localhost:8001","data_dir":"./cmd/gateway/data","pid":277945}

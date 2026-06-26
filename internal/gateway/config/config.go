@@ -2,8 +2,9 @@ package config
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"path/filepath"
+
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -17,7 +18,6 @@ type Config struct {
 
 // Load reads gateway configuration from environment variables.
 func LoadFromViper() (*Config, error) {
-
 	cfg := &Config{
 		CPURL:     viper.GetString("cp_url"),
 		Token:     viper.GetString("token"),

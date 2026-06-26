@@ -1,10 +1,12 @@
 package logging
 
 import (
+	"fmt"
+	"os"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"os"
 )
 
 var (
@@ -59,6 +61,8 @@ func initDev(cfg Config) error {
 	)
 
 	App = zap.New(core, zap.AddCaller())
+
+	fmt.Println(cfg.LogDir)
 
 	// Audit log
 	auditFile, err := os.OpenFile(

@@ -1,9 +1,6 @@
 package auth
 
 import (
-	// "fmt"
-	// "fmt"
-	"fmt"
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
@@ -298,7 +295,6 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	// Read refresh token from HttpOnly cookie — never from the request body.
 	cookie, err := r.Cookie("refresh_token")
 
-	fmt.Println(cookie, err)
 	if err != nil {
 		dto.SendError(w, dto.NewUnauthorizedError(err))
 		return

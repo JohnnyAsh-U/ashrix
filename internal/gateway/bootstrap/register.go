@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	// "io"
 	"net/http"
 	"time"
+
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Client struct {
@@ -24,13 +26,13 @@ func NewClient(cpURL string) *Client {
 }
 
 func (c *Client) Bootstrap(token string, csrPEM string) (*APIResponse, error) {
-	reqBody := Request{
+	reqBody := gen.GatewayEnrollRequest{
 		Token:     token,
-		CSR:       csrPEM,
-		Timestamp: time.Now().UTC(),
+		CsrPem:       csrPEM,
+		Timestamp: timestamppb.Now(),
 	}
 
-	body, err := json.Marshal(reqBody)
+	body, err := json.Marshal(&reqBody)
 
 	if err != nil {
 		return nil, fmt.Errorf("Failed to encode bootstrap request %w", err)
