@@ -12,19 +12,26 @@ type Config struct {
 	Token     string
 	GatewayID string
 	DataDir   string
-	LogDir string
+	LogDir    string
 	PIDFile   string
+	GRPCPort  string
+	QUICPort  string
 }
 
 // Load reads gateway configuration from environment variables.
 func LoadFromViper() (*Config, error) {
+	viper.SetDefault("grpc_port", "9444")
+	viper.SetDefault("quic_port", "9445")
+
 	cfg := &Config{
 		CPURL:     viper.GetString("cp_url"),
 		Token:     viper.GetString("token"),
 		GatewayID: viper.GetString("gateway_id"),
-		LogDir: viper.GetString("log_dir"),
+		LogDir:    viper.GetString("log_dir"),
 		DataDir:   viper.GetString("data_dir"),
 		PIDFile:   filepath.Join(viper.GetString("data_dir"), "gateway.pid"),
+		GRPCPort:  viper.GetString("grpc_port"),
+		QUICPort:  viper.GetString("quic_port"),
 	}
 
 	return cfg, nil

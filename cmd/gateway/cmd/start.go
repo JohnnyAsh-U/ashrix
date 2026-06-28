@@ -17,6 +17,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
 	gateway_grpc "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/grpc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -187,14 +188,24 @@ func runStart(cmd *cobra.Command, args []string) error {
 		zap.Int("pid", pid),
 	)
 
-	//--------------------Shutdown context--------------------
-	// ctx, cancel := context.WithCancel(context.Background())
+	//--------------------Start Listeners--------------------
 
-	// fmt.Println([]byte(gatewayInfo.Certificate))
+	// Instantiate new servers
+	grpcServer := server.NewGRPCServer(cfg, pki.GetTLSConfig(), log)
+	quicServer := server.NewQUICServer(cfg, pki.GetTLSConfig(), log)
 
-	// TODO: pass id.TLSCert into the proxy/listener
-	// proxy := proxy.New(cfg, id)
-	// return proxy.ListenAndServe()
+	// Start servers in background
+	go func() {
+		if err := grpcServer.Start(); err != nil {
+			log.Error("gRPC server stopped", zap.Error(err))
+		}
+	}()
+
+	go func() {
+		if err := quicServer.Start(ctx); err != nil {
+			log.Error("QUIC server stopped", zap.Error(err))
+		}
+	}()
 
 	// Block until SIGTERM or SIGINT (Ctrl+C / systemd stop / our stop command).
 	quit := make(chan os.Signal, 1)
@@ -203,6 +214,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 	go func() {
 		sig := <-quit
 		log.Info("shutdown signal received", zap.String("signal", sig.String()))
+		
+		// Stop listeners gracefully
+		grpcServer.Stop()
+		quicServer.Stop()
+		
 		cancel()
 	}()
 
