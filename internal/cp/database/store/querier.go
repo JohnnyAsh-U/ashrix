@@ -115,6 +115,7 @@ type Querier interface {
 	// Soft delete. Rules are cascade-orphaned but retained for audit.
 	DeletePolicy(ctx context.Context, arg DeletePolicyParams) (Policy, error)
 	DeletePolicyRule(ctx context.Context, arg DeletePolicyRuleParams) (PolicyRule, error)
+	EnrollConnector(ctx context.Context, tokenHash string) (Connector, error)
 	EnrollGateway(ctx context.Context, tokenHash string) (Gateway, error)
 	GetActiveCACert(ctx context.Context, arg GetActiveCACertParams) (GetActiveCACertRow, error)
 	// Returns the active (non-revoked) CA cert of a given type.
@@ -215,6 +216,7 @@ type Querier interface {
 	PurgeExpiredRevocations(ctx context.Context) error
 	// Retention policy. Default 90 days. Run via background job.
 	PurgeOldAccessLogs(ctx context.Context, dollar_1 pgtype.Text) error
+	ReCreateConnector(ctx context.Context, arg ReCreateConnectorParams) (Connector, error)
 	ReCreateGateway(ctx context.Context, arg ReCreateGatewayParams) (Gateway, error)
 	// =================================================================
 	// Cert Components
@@ -242,7 +244,7 @@ type Querier interface {
 	// Owner only action.
 	UpdateAdminRole(ctx context.Context, arg UpdateAdminRoleParams) (Admin, error)
 	UpdateApp(ctx context.Context, arg UpdateAppParams) (App, error)
-	UpdateConnectorLastSeen(ctx context.Context, arg UpdateConnectorLastSeenParams) (Connector, error)
+	UpdateConnectorStatus(ctx context.Context, arg UpdateConnectorStatusParams) (Connector, error)
 	// Called every 30s by Gateway. Updates last_heartbeat and version.
 	UpdateGatewayHeartbeat(ctx context.Context, arg UpdateGatewayHeartbeatParams) (Gateway, error)
 	// Updating secrets rotates the encrypted value.

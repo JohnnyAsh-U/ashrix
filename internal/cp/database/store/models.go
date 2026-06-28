@@ -158,6 +158,9 @@ type Gateway struct {
 	Name          string             `json:"name"`
 	TokenHash     string             `json:"token_hash"`
 	Version       pgtype.Text        `json:"version"`
+	Type          string             `json:"type"`
+	PublicUrl     string             `json:"public_url"`
+	IpAddress     string             `json:"ip_address"`
 	LastHeartbeat pgtype.Timestamptz `json:"last_heartbeat"`
 	Status        string             `json:"status"`
 	CreatedAt     time.Time          `json:"created_at"`

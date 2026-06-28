@@ -55,15 +55,18 @@ func (q *Queries) CreateConnector(ctx context.Context, arg CreateConnectorParams
 
 const createGateway = `-- name: CreateGateway :one
 
-INSERT INTO gateways (org_id, name, token_hash)
-VALUES ($1, $2, $3)
-RETURNING id, org_id, name, token_hash, version, last_heartbeat, status, created_at, enrolled_at, revoked_at
+INSERT INTO gateways (org_id, name,type, token_hash, public_url, ip_address)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 type CreateGatewayParams struct {
 	OrgID     uuid.UUID `json:"org_id"`
 	Name      string    `json:"name"`
+	Type      string    `json:"type"`
 	TokenHash string    `json:"token_hash"`
+	PublicUrl string    `json:"public_url"`
+	IpAddress string    `json:"ip_address"`
 }
 
 // =================================================================
@@ -71,7 +74,14 @@ type CreateGatewayParams struct {
 // token_hash: SHA-256 of enrollment token. Never plaintext.
 // =================================================================
 func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (Gateway, error) {
-	row := q.db.QueryRow(ctx, createGateway, arg.OrgID, arg.Name, arg.TokenHash)
+	row := q.db.QueryRow(ctx, createGateway,
+		arg.OrgID,
+		arg.Name,
+		arg.Type,
+		arg.TokenHash,
+		arg.PublicUrl,
+		arg.IpAddress,
+	)
 	var i Gateway
 	err := row.Scan(
 		&i.ID,
@@ -79,7 +89,38 @@ func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (G
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
+		&i.Type,
+		&i.PublicUrl,
+		&i.IpAddress,
 		&i.LastHeartbeat,
+		&i.Status,
+		&i.CreatedAt,
+		&i.EnrolledAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const enrollConnector = `-- name: EnrollConnector :one
+UPDATE connectors 
+SET enrolled_at = NOW(), 
+    status = 'connected',
+    last_seen = NOW()
+WHERE token_hash = $1
+AND revoked_at IS NULL
+RETURNING id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, enrolled_at, revoked_at
+`
+
+func (q *Queries) EnrollConnector(ctx context.Context, tokenHash string) (Connector, error) {
+	row := q.db.QueryRow(ctx, enrollConnector, tokenHash)
+	var i Connector
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.GatewayID,
+		&i.Name,
+		&i.TokenHash,
+		&i.LastSeen,
 		&i.Status,
 		&i.CreatedAt,
 		&i.EnrolledAt,
@@ -95,7 +136,7 @@ SET enrolled_at = NOW(),
     last_heartbeat = NOW()
 WHERE token_hash = $1
 AND revoked_at IS NULL
-RETURNING id, org_id, name, token_hash, version, last_heartbeat, status, created_at, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 func (q *Queries) EnrollGateway(ctx context.Context, tokenHash string) (Gateway, error) {
@@ -107,6 +148,9 @@ func (q *Queries) EnrollGateway(ctx context.Context, tokenHash string) (Gateway,
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
+		&i.Type,
+		&i.PublicUrl,
+		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
 		&i.CreatedAt,
@@ -196,7 +240,7 @@ func (q *Queries) GetConnectorByTokenHash(ctx context.Context, tokenHash string)
 }
 
 const getGatewayByID = `-- name: GetGatewayByID :one
-SELECT id, org_id, name, token_hash, version, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
 WHERE id         = $1
   AND revoked_at IS NULL
 `
@@ -210,6 +254,9 @@ func (q *Queries) GetGatewayByID(ctx context.Context, id uuid.UUID) (Gateway, er
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
+		&i.Type,
+		&i.PublicUrl,
+		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
 		&i.CreatedAt,
@@ -220,7 +267,7 @@ func (q *Queries) GetGatewayByID(ctx context.Context, id uuid.UUID) (Gateway, er
 }
 
 const getGatewayByIDAndOrg = `-- name: GetGatewayByIDAndOrg :one
-SELECT id, org_id, name, token_hash, version, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
 WHERE id         = $1
   AND org_id     = $2
   AND revoked_at IS NULL
@@ -240,6 +287,9 @@ func (q *Queries) GetGatewayByIDAndOrg(ctx context.Context, arg GetGatewayByIDAn
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
+		&i.Type,
+		&i.PublicUrl,
+		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
 		&i.CreatedAt,
@@ -250,7 +300,7 @@ func (q *Queries) GetGatewayByIDAndOrg(ctx context.Context, arg GetGatewayByIDAn
 }
 
 const getGatewayByTokenHash = `-- name: GetGatewayByTokenHash :one
-SELECT id, org_id, name, token_hash, version, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
 WHERE token_hash = $1
   AND status = 'pending'
   AND revoked_at IS NULL
@@ -267,6 +317,9 @@ func (q *Queries) GetGatewayByTokenHash(ctx context.Context, tokenHash string) (
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
+		&i.Type,
+		&i.PublicUrl,
+		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
 		&i.CreatedAt,
@@ -353,7 +406,7 @@ func (q *Queries) ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]C
 }
 
 const listGatewaysByOrg = `-- name: ListGatewaysByOrg :many
-SELECT id, org_id, name, token_hash, version, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
 WHERE org_id     = $1
   AND revoked_at IS NULL
 ORDER BY created_at ASC
@@ -374,6 +427,9 @@ func (q *Queries) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 			&i.Name,
 			&i.TokenHash,
 			&i.Version,
+			&i.Type,
+			&i.PublicUrl,
+			&i.IpAddress,
 			&i.LastHeartbeat,
 			&i.Status,
 			&i.CreatedAt,
@@ -390,26 +446,78 @@ func (q *Queries) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 	return items, nil
 }
 
+const reCreateConnector = `-- name: ReCreateConnector :one
+UPDATE connectors 
+SET created_at = NOW(), 
+    status = 'pending',
+    last_seen = NULL,
+    token_hash = $2,
+    name = $3,
+    gateway_id = $4
+WHERE id = $1
+RETURNING id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, enrolled_at, revoked_at
+`
+
+type ReCreateConnectorParams struct {
+	ID        uuid.UUID `json:"id"`
+	TokenHash string    `json:"token_hash"`
+	Name      string    `json:"name"`
+	GatewayID uuid.UUID `json:"gateway_id"`
+}
+
+func (q *Queries) ReCreateConnector(ctx context.Context, arg ReCreateConnectorParams) (Connector, error) {
+	row := q.db.QueryRow(ctx, reCreateConnector,
+		arg.ID,
+		arg.TokenHash,
+		arg.Name,
+		arg.GatewayID,
+	)
+	var i Connector
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.GatewayID,
+		&i.Name,
+		&i.TokenHash,
+		&i.LastSeen,
+		&i.Status,
+		&i.CreatedAt,
+		&i.EnrolledAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const reCreateGateway = `-- name: ReCreateGateway :one
 UPDATE gateways 
 SET created_at = NOW(), 
     status = 'pending',
     last_heartbeat = NULL,
     version = NULL,
+    ip_address = $5,
+    public_url = $4,
     token_hash = $2,
     name = $3
 WHERE id = $1
-RETURNING id, org_id, name, token_hash, version, last_heartbeat, status, created_at, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 type ReCreateGatewayParams struct {
 	ID        uuid.UUID `json:"id"`
 	TokenHash string    `json:"token_hash"`
 	Name      string    `json:"name"`
+	PublicUrl string    `json:"public_url"`
+	IpAddress string    `json:"ip_address"`
 }
 
 func (q *Queries) ReCreateGateway(ctx context.Context, arg ReCreateGatewayParams) (Gateway, error) {
-	row := q.db.QueryRow(ctx, reCreateGateway, arg.ID, arg.TokenHash, arg.Name)
+	row := q.db.QueryRow(ctx, reCreateGateway,
+		arg.ID,
+		arg.TokenHash,
+		arg.Name,
+		arg.PublicUrl,
+		arg.IpAddress,
+	)
 	var i Gateway
 	err := row.Scan(
 		&i.ID,
@@ -417,6 +525,9 @@ func (q *Queries) ReCreateGateway(ctx context.Context, arg ReCreateGatewayParams
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
+		&i.Type,
+		&i.PublicUrl,
+		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
 		&i.CreatedAt,
@@ -431,18 +542,18 @@ UPDATE connectors
 SET revoked_at = now(),
     status     = 'disconnected'
 WHERE id         = $1
-  AND org_id     = $2
+  AND gateway_id     = $2
   AND revoked_at IS NULL
 RETURNING id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, enrolled_at, revoked_at
 `
 
 type RevokeConnectorParams struct {
-	ID    uuid.UUID `json:"id"`
-	OrgID uuid.UUID `json:"org_id"`
+	ID        uuid.UUID `json:"id"`
+	GatewayID uuid.UUID `json:"gateway_id"`
 }
 
 func (q *Queries) RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (Connector, error) {
-	row := q.db.QueryRow(ctx, revokeConnector, arg.ID, arg.OrgID)
+	row := q.db.QueryRow(ctx, revokeConnector, arg.ID, arg.GatewayID)
 	var i Connector
 	err := row.Scan(
 		&i.ID,
@@ -480,7 +591,7 @@ SET revoked_at = now(),
 WHERE id         = $1
   AND org_id     = $2
   AND revoked_at IS NULL
-RETURNING id, org_id, name, token_hash, version, last_heartbeat, status, created_at, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 type RevokeGatewayParams struct {
@@ -498,6 +609,9 @@ func (q *Queries) RevokeGateway(ctx context.Context, arg RevokeGatewayParams) (G
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
+		&i.Type,
+		&i.PublicUrl,
+		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
 		&i.CreatedAt,
@@ -507,7 +621,7 @@ func (q *Queries) RevokeGateway(ctx context.Context, arg RevokeGatewayParams) (G
 	return i, err
 }
 
-const updateConnectorLastSeen = `-- name: UpdateConnectorLastSeen :one
+const updateConnectorStatus = `-- name: UpdateConnectorStatus :one
 UPDATE connectors
 SET last_seen = now(),
     status    = $2
@@ -515,13 +629,13 @@ WHERE id      = $1
 RETURNING id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, enrolled_at, revoked_at
 `
 
-type UpdateConnectorLastSeenParams struct {
+type UpdateConnectorStatusParams struct {
 	ID     uuid.UUID `json:"id"`
 	Status string    `json:"status"`
 }
 
-func (q *Queries) UpdateConnectorLastSeen(ctx context.Context, arg UpdateConnectorLastSeenParams) (Connector, error) {
-	row := q.db.QueryRow(ctx, updateConnectorLastSeen, arg.ID, arg.Status)
+func (q *Queries) UpdateConnectorStatus(ctx context.Context, arg UpdateConnectorStatusParams) (Connector, error) {
+	row := q.db.QueryRow(ctx, updateConnectorStatus, arg.ID, arg.Status)
 	var i Connector
 	err := row.Scan(
 		&i.ID,
@@ -545,7 +659,7 @@ SET last_heartbeat = now(),
     status         = $3
 WHERE id           = $1
   AND revoked_at   IS NULL
-RETURNING id, org_id, name, token_hash, version, last_heartbeat, status, created_at, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 type UpdateGatewayHeartbeatParams struct {
@@ -564,6 +678,9 @@ func (q *Queries) UpdateGatewayHeartbeat(ctx context.Context, arg UpdateGatewayH
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
+		&i.Type,
+		&i.PublicUrl,
+		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
 		&i.CreatedAt,

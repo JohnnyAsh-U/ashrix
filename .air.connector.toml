@@ -6,13 +6,12 @@ testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = ["start"] 
-  #args_bin = ["register", "--token=8vyRg2", "--cp-url=http://localhost:8001"] 
-  bin = "./tmp/ashrix-gateway"
-  cmd = "go build -o ./tmp/ashrix-gateway ./cmd/gateway/main.go"
+  args_bin = ["start", "--token=OGg52S"]
+  bin = "./tmp/ashrix-connector"
+  cmd = "go build -o ./tmp/ashrix-connector ./cmd/connector/main.go"
   delay = 1000
-  entrypoint = ["./tmp/ashrix-gateway"]
-  exclude_dir = ["assets", "tmp", "vendor", "testdata", "internal/cp", "cmd/cp", "internal/connector", "cmd/connector"]
+  entrypoint = ["./tmp/ashrix-connector"]
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "internal/gateway", "cmd/gateway", "internal/cp", "cmd/cp"]
   exclude_file = []
   exclude_regex = ["_test.go"]
   exclude_unchanged = false
@@ -58,5 +57,3 @@ tmp_dir = "tmp"
 [screen]
   clear_on_rebuild = false
   keep_scroll = true
-
-

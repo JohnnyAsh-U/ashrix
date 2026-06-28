@@ -40,6 +40,9 @@ run-cp:
 run-gateway:
 	$(AIR) -c .air.gateway.toml
 
+run-connector:
+	$(AIR) -c .air.connector.toml
+
 
 
 # ----- Generate Sql queries store --------

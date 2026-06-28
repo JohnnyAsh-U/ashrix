@@ -45,7 +45,7 @@ func (h *GatewayHandler) CreateGateway(w http.ResponseWriter, r *http.Request) {
 
 	// Assuming OrgID is passed in the request body.
 	// If OrgID is to be extracted from context (e.g., from JWT), this needs adjustment.
-	gateway, appErr := h.service.CreateGateway(r.Context(), req.OrgID, req.Name)
+	gateway, appErr := h.service.CreateGateway(r.Context(), req.OrgID, req.Name, req.IPAddress, req.PublicURL)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return
@@ -111,7 +111,7 @@ func (h *GatewayHandler) ReCreateGateway(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	gateway, appErr := h.service.ReCreateGateway(r.Context(), gatewayID, req.Name)
+	gateway, appErr := h.service.ReCreateGateway(r.Context(), gatewayID, req.Name, req.IPAddress, req.PublicURL)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return
@@ -125,8 +125,8 @@ func (h *GatewayHandler) ReCreateGateway(w http.ResponseWriter, r *http.Request)
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param enrollment body EnrollGatewayRequest true "Enrollment details"
-// @Success 200 {object} EnrollResponse
+// @Param enrollment body gen.GatewayEnrollRequest true "Enrollment details"
+// @Success 200 {object} gen.GatewayEnrollResponse
 // @Failure 400 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
 // @Router /internal/gateways/enroll [post]
@@ -156,8 +156,8 @@ func (h *GatewayHandler) EnrollGateway(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param renewal body RenewGatewayCertRequest true "Certificate renewal details"
-// @Success 200 {object} EnrollResponse
+// @Param renewal body gen.GatewayRenewCertRequest true "Certificate renewal details"
+// @Success 200 {object} gen.GatewayRenewCertResponse
 // @Failure 400 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
 // @Router /internal/gateways/renew [post]
@@ -179,7 +179,10 @@ func (h *GatewayHandler) RenewGatewayCert(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	enrollmentResponse, appErr := h.service.RenewGatewayCert(r.Context(), gatewayID, req.Signature, req.CsrPem, h.signer)
+	//timestamp to seconds
+	timestampSeconds := req.Timestamp.AsTime().Unix()
+
+	enrollmentResponse, appErr := h.service.RenewGatewayCert(r.Context(), gatewayID, req.Signature, req.CsrPem, timestampSeconds, h.signer)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return

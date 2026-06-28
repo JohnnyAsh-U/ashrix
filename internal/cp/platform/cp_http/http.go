@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/auth"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
@@ -73,6 +74,12 @@ func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries, log *slo
 	gatewayService := gateway.NewService(gatewayRepo)
 	gatewayHandler := gateway.NewGatewayHandler(gatewayService, signer)
 
+
+	//Connectors routes
+	connectorRepo := connector.NewPostgresRepository(dbQueries)
+	connectorService := connector.NewService(connectorRepo)
+	connectorHandler := connector.NewConnectorHandler(connectorService, signer)
+
 	//Docs - date this in prod
 	r.Get("/docs/*", httpSwagger.Handler(
 		httpSwagger.URL("/docs/doc.json"),
@@ -83,12 +90,14 @@ func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries, log *slo
 		r.Group(func(r chi.Router) {
 			r.Route("/auth", authHandler.Routes)
 			r.Route("/internal/gateways", gatewayHandler.WithoutAuthRoutes)
+			r.Route("/internal/connectors", connectorHandler.WithoutAuthRoutes)
 		})
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.AuthMiddleware([]byte(cfg.JwtAccessSecret)))
 			r.Route("/gateways", gatewayHandler.WithAuthRoutes)
 			r.Route("/orgs", orgHandler.Routes)
+			r.Route("/connectors", connectorHandler.WithAuthRoutes)
 		})
 	})
 

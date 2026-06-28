@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             (unknown)
-// source: ashrixV2.proto
+// source: ashrix-gateway.proto
 
 package proto
 
@@ -111,5 +111,5 @@ var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "ashrixV2.proto",
+	Metadata: "ashrix-gateway.proto",
 }

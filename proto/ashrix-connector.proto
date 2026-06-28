@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/ashrix-connector.proto;proto";
+
+import "google/protobuf/timestamp.proto";
+
+// =============================================================================
+// Connecotor Bootstrap Proto Types
+// =============================================================================
+
+message ConnectorEnrollRequest {
+  string                    token     = 1;
+  string                    csr_pem   = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message ConnectorEnrollResponse {
+  string                    connector_id = 1;
+  string                    certificate  = 2;
+  string                    trust_bundle = 3;
+  google.protobuf.Timestamp expires_at   = 4;
+}
+
+message ConnectorRenewCertRequest {
+  string                    connector_id = 1;
+  string                    signature    = 2;
+  string                    csr_pem      = 3;
+  google.protobuf.Timestamp timestamp    = 4;
+}
+
+message ConnectorRenewCertResponse {
+  string                    connector_id = 1;
+  string                    certificate  = 2;
+  string                    trust_bundle = 3;
+  google.protobuf.Timestamp expires_at   = 4;
+}
+
+message ConnectorStatusResponse {
+  string                 connector_id = 1;
+  string                 gateway_id   = 2;
+  string                 gateway_url  = 3;
+  repeated ConnectorApps apps         = 4;
+}
+
+message ConnectorApps {
+  string name      = 1;
+  string subdomain = 2;
+  string upstream  = 3; //must be host:port
+  string protocol  = 4;
+  bool is_public = 5;
+}

@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -195,17 +196,19 @@ func (g *GatewayPKI) renew() error {
 		return fmt.Errorf("renew: CSR generation failed %w", err)
 	}
 
-	//Build Possession Proof (signs with current key)
-	// Proves to the CP that we hold the private key for the currently
-	// issued certificate - required per PKI
-
-	proof, err := buildPossessionProof(currentPrivKey, string(csrPem), g.gatewayID)
-	if err != nil {
-		return fmt.Errorf("renew: Possession proof failed %w", err)
-	}
-
 	//Call CP (no lock held here)
 	g.log.Info("Calling CP for cert renewal")
+
+	// Build Possession Proof (signs with current key)
+	// Proves to the CP that we hold the private key for the currently
+	// issued certificate - required per PKI
+	timestamp := time.Now().UTC().Unix()
+	proof, err := buildPossessionProof(currentPrivKey, csrPem, g.gatewayID, timestamp)
+
+	if err != nil {
+		return fmt.Errorf("build possession proof: %w", err)
+	}
+
 	apiResponse, err := g.cp.RenewCert(proof, string(csrPem), g.gatewayID)
 
 	if err != nil {
@@ -291,24 +294,31 @@ func (g *GatewayPKI) renew() error {
 	return nil
 }
 
-// Buildpossessionproof signs sha256(gatewayid) with current private key.
-// CP verifies with the public key before issuing certificate
-func buildPossessionProof(currentKey *ecdsa.PrivateKey, csr, gatewayID string) ([]byte, error) {
-	ts := []byte(time.Now().UTC().Format(time.RFC3339))
+// buildPossessionProof signs SHA256(csr || connectorID || timestamp_bytes)
+// with the current private key.
+func buildPossessionProof(
+	currentKey *ecdsa.PrivateKey,
+	csrPEM []byte,
+	gatewayID string,
+	timestamp int64,
+) (string, error) {
 
 	h := sha256.New()
-	h.Write([]byte(csr))
+	h.Write(csrPEM)
 	h.Write([]byte(gatewayID))
-	h.Write(ts)
-	digest := h.Sum(nil)
-	sig, err := ecdsa.SignASN1(rand.Reader, currentKey, digest)
 
+	// Convert int64 timestamp to 8-byte big-endian slice
+	timeBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(timeBytes, uint64(timestamp))
+	h.Write(timeBytes)
+
+	digest := h.Sum(nil)
+
+	sig, err := ecdsa.SignASN1(rand.Reader, currentKey, digest)
 	if err != nil {
-		return nil, fmt.Errorf("Possession proof signing failed: %w", err)
+		return "", fmt.Errorf("sign possession proof: %w", err)
 	}
 
-	// Return as: sig || ts (CP needs ts to reconstruct the digest)
-	proof := append(sig, '|')
-	proof = append(proof, ts...)
-	return proof, nil
+	// Encode as base64 for JSON transport
+	return base64.StdEncoding.EncodeToString(sig), nil
 }

@@ -42,7 +42,7 @@ CREATE TABLE idp_configs (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id          UUID        NOT NULL REFERENCES orgs(id),
     name            TEXT        NOT NULL,        -- human label: "Google Workspace"
-    provider_type   TEXT        NOT NULL CHECK (provider_type IN ('google', 'okta', 'entra', 'oidc')),
+    provider_type   TEXT        NOT NULL CHECK (provider_type IN ('google', 'okta', 'entra', 'oidc', 'saml')),
     client_id       TEXT        NOT NULL,
     client_secret   TEXT        NOT NULL,        -- AES-256-GCM encrypted, never plaintext
     issuer_url      TEXT        NOT NULL,        -- OIDC discovery base URL
@@ -131,6 +131,9 @@ CREATE TABLE gateways (
     name            TEXT        NOT NULL,
     token_hash      TEXT        NOT NULL UNIQUE, -- SHA-256, never plaintext
     version         TEXT,                        -- reported by gateway on heartbeat
+    type            TEXT NOT NULL DEFAULT 'ashrix_hosted' CHECK (type IN ('ashrix_hosted', 'self_hosted')),
+    public_url      TEXT NOT NULL, --"gw1.company.com; gateway own public url"
+    ip_address      TEXT NOT NULL,
     last_heartbeat  TIMESTAMPTZ,
     status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'healthy', 'degraded', 'offline')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),

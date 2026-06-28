@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package proto;
 
-option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/ashrixV2.proto;proto";
+option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/ashrix-gateway.proto;proto";
 
 import "google/protobuf/timestamp.proto";
 

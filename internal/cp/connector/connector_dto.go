@@ -1,31 +1,29 @@
-package gateway
+package connector
 
 import (
 	"github.com/google/uuid"
 	"time"
 )
 
-type CreateGateway struct {
+type CreateConnector struct {
 	OrgID uuid.UUID `json:"org_id"`
 	Name  string    `json:"name"`
-	IPAddress string `json:"ip_address"`
-	PublicURL string `json:"public_url"`
+	GatewayID uuid.UUID `json:"gateway_id"`
 }
 
-type ReEnrollGatewayRequest struct {
+type ReEnrollConnectorRequest struct {
 	OrgID uuid.UUID `json:"org_id"`
 	Name  string    `json:"name"`
-	IPAddress string `json:"ip_address"`
-	PublicURL string `json:"public_url"`
+	GatewayID uuid.UUID `json:"gateway_id"`
 }
 
-type RevokeGatewayCertRequest struct {
+type RevokeConnectorCertRequest struct {
 	ComponentID   uuid.UUID `json:"component_id"`
 	ComponentType string    `json:"component_type"`
 	RevokeReason  string    `json:"revoke_reason"`
 }
 
-type RevokeGatewayRequest struct {
+type RevokeConnectorRequest struct {
 	RevokeReason string `json:"revoke_reason" validate:"required"`
 }
 
@@ -33,10 +31,11 @@ type RevokeGatewayRequest struct {
 // RESPONSE
 // ==========================================================
 
-type GatewayResponse struct {
+type ConnectorResponse struct {
 	ID            string    `json:"id"`
 	Name          string    `json:"name"`
 	OrgID         string    `json:"org_id"`
+	GatewayID    string `json:"gateway_id"`
 	Version       string    `json:"version"`
 	LastHeartBeat time.Time `json:"last_heartbeat"`
 	Status        string    `json:"status"`

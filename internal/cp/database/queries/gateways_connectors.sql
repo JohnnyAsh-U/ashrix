@@ -4,8 +4,8 @@
 -- =================================================================
 
 -- name: CreateGateway :one
-INSERT INTO gateways (org_id, name, token_hash)
-VALUES ($1, $2, $3)
+INSERT INTO gateways (org_id, name,type, token_hash, public_url, ip_address)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: ListGatewaysByOrg :many
@@ -21,6 +21,8 @@ SET created_at = NOW(),
     status = 'pending',
     last_heartbeat = NULL,
     version = NULL,
+    ip_address = $5,
+    public_url = $4,
     token_hash = $2,
     name = $3
 WHERE id = $1
@@ -95,6 +97,30 @@ INSERT INTO connectors (org_id, gateway_id, name, token_hash)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
+
+-- name: ReCreateConnector :one
+UPDATE connectors 
+SET created_at = NOW(), 
+    status = 'pending',
+    last_seen = NULL,
+    token_hash = $2,
+    name = $3,
+    gateway_id = $4
+WHERE id = $1
+RETURNING *;
+
+
+-- name: EnrollConnector :one
+UPDATE connectors 
+SET enrolled_at = NOW(), 
+    status = 'connected',
+    last_seen = NOW()
+WHERE token_hash = $1
+AND revoked_at IS NULL
+RETURNING *;
+
+
+
 -- name: GetConnectorByID :one
 SELECT * FROM connectors
 WHERE id         = $1
@@ -110,6 +136,7 @@ WHERE id         = $1
 -- Called on connector → gateway auth.
 SELECT * FROM connectors
 WHERE token_hash = $1
+  AND status = 'pending'
   AND revoked_at IS NULL;
 
 -- name: ListConnectorsByOrg :many
@@ -124,7 +151,7 @@ WHERE gateway_id = $1
   AND revoked_at IS NULL
 ORDER BY created_at ASC;
 
--- name: UpdateConnectorLastSeen :one
+-- name: UpdateConnectorStatus :one
 UPDATE connectors
 SET last_seen = now(),
     status    = $2
@@ -136,7 +163,7 @@ UPDATE connectors
 SET revoked_at = now(),
     status     = 'disconnected'
 WHERE id         = $1
-  AND org_id     = $2
+  AND gateway_id     = $2
   AND revoked_at IS NULL
 RETURNING *;
 

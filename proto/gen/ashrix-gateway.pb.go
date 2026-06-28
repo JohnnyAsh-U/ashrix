@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        (unknown)
-// source: ashrixV2.proto
+// source: ashrix-gateway.proto
 
 package proto
 
@@ -55,11 +55,11 @@ func (x MessagePriority) String() string {
 }
 
 func (MessagePriority) Descriptor() protoreflect.EnumDescriptor {
-	return file_ashrixV2_proto_enumTypes[0].Descriptor()
+	return file_ashrix_gateway_proto_enumTypes[0].Descriptor()
 }
 
 func (MessagePriority) Type() protoreflect.EnumType {
-	return &file_ashrixV2_proto_enumTypes[0]
+	return &file_ashrix_gateway_proto_enumTypes[0]
 }
 
 func (x MessagePriority) Number() protoreflect.EnumNumber {
@@ -68,7 +68,7 @@ func (x MessagePriority) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use MessagePriority.Descriptor instead.
 func (MessagePriority) EnumDescriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{0}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{0}
 }
 
 type BundleType int32
@@ -104,11 +104,11 @@ func (x BundleType) String() string {
 }
 
 func (BundleType) Descriptor() protoreflect.EnumDescriptor {
-	return file_ashrixV2_proto_enumTypes[1].Descriptor()
+	return file_ashrix_gateway_proto_enumTypes[1].Descriptor()
 }
 
 func (BundleType) Type() protoreflect.EnumType {
-	return &file_ashrixV2_proto_enumTypes[1]
+	return &file_ashrix_gateway_proto_enumTypes[1]
 }
 
 func (x BundleType) Number() protoreflect.EnumNumber {
@@ -117,7 +117,7 @@ func (x BundleType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use BundleType.Descriptor instead.
 func (BundleType) EnumDescriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{1}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{1}
 }
 
 type GatewayEnrollRequest struct {
@@ -131,7 +131,7 @@ type GatewayEnrollRequest struct {
 
 func (x *GatewayEnrollRequest) Reset() {
 	*x = GatewayEnrollRequest{}
-	mi := &file_ashrixV2_proto_msgTypes[0]
+	mi := &file_ashrix_gateway_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -143,7 +143,7 @@ func (x *GatewayEnrollRequest) String() string {
 func (*GatewayEnrollRequest) ProtoMessage() {}
 
 func (x *GatewayEnrollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[0]
+	mi := &file_ashrix_gateway_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -156,7 +156,7 @@ func (x *GatewayEnrollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayEnrollRequest.ProtoReflect.Descriptor instead.
 func (*GatewayEnrollRequest) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{0}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GatewayEnrollRequest) GetToken() string {
@@ -192,7 +192,7 @@ type GatewayEnrollResponse struct {
 
 func (x *GatewayEnrollResponse) Reset() {
 	*x = GatewayEnrollResponse{}
-	mi := &file_ashrixV2_proto_msgTypes[1]
+	mi := &file_ashrix_gateway_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -204,7 +204,7 @@ func (x *GatewayEnrollResponse) String() string {
 func (*GatewayEnrollResponse) ProtoMessage() {}
 
 func (x *GatewayEnrollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[1]
+	mi := &file_ashrix_gateway_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -217,7 +217,7 @@ func (x *GatewayEnrollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayEnrollResponse.ProtoReflect.Descriptor instead.
 func (*GatewayEnrollResponse) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{1}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GatewayEnrollResponse) GetGatewayId() string {
@@ -260,7 +260,7 @@ type GatewayRenewCertRequest struct {
 
 func (x *GatewayRenewCertRequest) Reset() {
 	*x = GatewayRenewCertRequest{}
-	mi := &file_ashrixV2_proto_msgTypes[2]
+	mi := &file_ashrix_gateway_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -272,7 +272,7 @@ func (x *GatewayRenewCertRequest) String() string {
 func (*GatewayRenewCertRequest) ProtoMessage() {}
 
 func (x *GatewayRenewCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[2]
+	mi := &file_ashrix_gateway_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -285,7 +285,7 @@ func (x *GatewayRenewCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayRenewCertRequest.ProtoReflect.Descriptor instead.
 func (*GatewayRenewCertRequest) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{2}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GatewayRenewCertRequest) GetGatewayId() string {
@@ -328,7 +328,7 @@ type GatewayRenewCertResponse struct {
 
 func (x *GatewayRenewCertResponse) Reset() {
 	*x = GatewayRenewCertResponse{}
-	mi := &file_ashrixV2_proto_msgTypes[3]
+	mi := &file_ashrix_gateway_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -340,7 +340,7 @@ func (x *GatewayRenewCertResponse) String() string {
 func (*GatewayRenewCertResponse) ProtoMessage() {}
 
 func (x *GatewayRenewCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[3]
+	mi := &file_ashrix_gateway_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -353,7 +353,7 @@ func (x *GatewayRenewCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayRenewCertResponse.ProtoReflect.Descriptor instead.
 func (*GatewayRenewCertResponse) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{3}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GatewayRenewCertResponse) GetGatewayId() string {
@@ -401,7 +401,7 @@ type GatewayEnvelope struct {
 
 func (x *GatewayEnvelope) Reset() {
 	*x = GatewayEnvelope{}
-	mi := &file_ashrixV2_proto_msgTypes[4]
+	mi := &file_ashrix_gateway_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -413,7 +413,7 @@ func (x *GatewayEnvelope) String() string {
 func (*GatewayEnvelope) ProtoMessage() {}
 
 func (x *GatewayEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[4]
+	mi := &file_ashrix_gateway_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -426,7 +426,7 @@ func (x *GatewayEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayEnvelope.ProtoReflect.Descriptor instead.
 func (*GatewayEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{4}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GatewayEnvelope) GetGatewayId() string {
@@ -518,7 +518,7 @@ type CPEnvelope struct {
 
 func (x *CPEnvelope) Reset() {
 	*x = CPEnvelope{}
-	mi := &file_ashrixV2_proto_msgTypes[5]
+	mi := &file_ashrix_gateway_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -530,7 +530,7 @@ func (x *CPEnvelope) String() string {
 func (*CPEnvelope) ProtoMessage() {}
 
 func (x *CPEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[5]
+	mi := &file_ashrix_gateway_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -543,7 +543,7 @@ func (x *CPEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CPEnvelope.ProtoReflect.Descriptor instead.
 func (*CPEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{5}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CPEnvelope) GetNodeId() string {
@@ -651,7 +651,7 @@ type HelloMessage struct {
 
 func (x *HelloMessage) Reset() {
 	*x = HelloMessage{}
-	mi := &file_ashrixV2_proto_msgTypes[6]
+	mi := &file_ashrix_gateway_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -663,7 +663,7 @@ func (x *HelloMessage) String() string {
 func (*HelloMessage) ProtoMessage() {}
 
 func (x *HelloMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[6]
+	mi := &file_ashrix_gateway_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -676,7 +676,7 @@ func (x *HelloMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloMessage.ProtoReflect.Descriptor instead.
 func (*HelloMessage) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{6}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *HelloMessage) GetGatewayId() string {
@@ -727,7 +727,7 @@ type HeartbeatMessage struct {
 
 func (x *HeartbeatMessage) Reset() {
 	*x = HeartbeatMessage{}
-	mi := &file_ashrixV2_proto_msgTypes[7]
+	mi := &file_ashrix_gateway_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +739,7 @@ func (x *HeartbeatMessage) String() string {
 func (*HeartbeatMessage) ProtoMessage() {}
 
 func (x *HeartbeatMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[7]
+	mi := &file_ashrix_gateway_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +752,7 @@ func (x *HeartbeatMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatMessage.ProtoReflect.Descriptor instead.
 func (*HeartbeatMessage) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{7}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *HeartbeatMessage) GetSeq() int64 {
@@ -801,7 +801,7 @@ type ConnectorsStatus struct {
 
 func (x *ConnectorsStatus) Reset() {
 	*x = ConnectorsStatus{}
-	mi := &file_ashrixV2_proto_msgTypes[8]
+	mi := &file_ashrix_gateway_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -813,7 +813,7 @@ func (x *ConnectorsStatus) String() string {
 func (*ConnectorsStatus) ProtoMessage() {}
 
 func (x *ConnectorsStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[8]
+	mi := &file_ashrix_gateway_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -826,7 +826,7 @@ func (x *ConnectorsStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorsStatus.ProtoReflect.Descriptor instead.
 func (*ConnectorsStatus) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{8}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ConnectorsStatus) GetConnectorId() string {
@@ -864,7 +864,7 @@ type BundleAck struct {
 
 func (x *BundleAck) Reset() {
 	*x = BundleAck{}
-	mi := &file_ashrixV2_proto_msgTypes[9]
+	mi := &file_ashrix_gateway_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -876,7 +876,7 @@ func (x *BundleAck) String() string {
 func (*BundleAck) ProtoMessage() {}
 
 func (x *BundleAck) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[9]
+	mi := &file_ashrix_gateway_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +889,7 @@ func (x *BundleAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BundleAck.ProtoReflect.Descriptor instead.
 func (*BundleAck) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{9}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *BundleAck) GetMessageId() string {
@@ -947,7 +947,7 @@ type HelloAck struct {
 
 func (x *HelloAck) Reset() {
 	*x = HelloAck{}
-	mi := &file_ashrixV2_proto_msgTypes[10]
+	mi := &file_ashrix_gateway_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -959,7 +959,7 @@ func (x *HelloAck) String() string {
 func (*HelloAck) ProtoMessage() {}
 
 func (x *HelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[10]
+	mi := &file_ashrix_gateway_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -972,7 +972,7 @@ func (x *HelloAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloAck.ProtoReflect.Descriptor instead.
 func (*HelloAck) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{10}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *HelloAck) GetServerVersion() string {
@@ -1024,7 +1024,7 @@ type PolicyBundle struct {
 
 func (x *PolicyBundle) Reset() {
 	*x = PolicyBundle{}
-	mi := &file_ashrixV2_proto_msgTypes[11]
+	mi := &file_ashrix_gateway_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1036,7 +1036,7 @@ func (x *PolicyBundle) String() string {
 func (*PolicyBundle) ProtoMessage() {}
 
 func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[11]
+	mi := &file_ashrix_gateway_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1049,7 +1049,7 @@ func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyBundle.ProtoReflect.Descriptor instead.
 func (*PolicyBundle) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{11}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PolicyBundle) GetVersion() string {
@@ -1107,7 +1107,7 @@ type TrustBundle struct {
 
 func (x *TrustBundle) Reset() {
 	*x = TrustBundle{}
-	mi := &file_ashrixV2_proto_msgTypes[12]
+	mi := &file_ashrix_gateway_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1119,7 +1119,7 @@ func (x *TrustBundle) String() string {
 func (*TrustBundle) ProtoMessage() {}
 
 func (x *TrustBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[12]
+	mi := &file_ashrix_gateway_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1132,7 +1132,7 @@ func (x *TrustBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrustBundle.ProtoReflect.Descriptor instead.
 func (*TrustBundle) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{12}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *TrustBundle) GetVersion() string {
@@ -1184,7 +1184,7 @@ type CRLUpdate struct {
 
 func (x *CRLUpdate) Reset() {
 	*x = CRLUpdate{}
-	mi := &file_ashrixV2_proto_msgTypes[13]
+	mi := &file_ashrix_gateway_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1196,7 +1196,7 @@ func (x *CRLUpdate) String() string {
 func (*CRLUpdate) ProtoMessage() {}
 
 func (x *CRLUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrixV2_proto_msgTypes[13]
+	mi := &file_ashrix_gateway_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1209,7 +1209,7 @@ func (x *CRLUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CRLUpdate.ProtoReflect.Descriptor instead.
 func (*CRLUpdate) Descriptor() ([]byte, []int) {
-	return file_ashrixV2_proto_rawDescGZIP(), []int{13}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CRLUpdate) GetVersion() string {
@@ -1254,11 +1254,11 @@ func (x *CRLUpdate) GetFullReplacement() bool {
 	return false
 }
 
-var File_ashrixV2_proto protoreflect.FileDescriptor
+var File_ashrix_gateway_proto protoreflect.FileDescriptor
 
-const file_ashrixV2_proto_rawDesc = "" +
+const file_ashrix_gateway_proto_rawDesc = "" +
 	"\n" +
-	"\x0eashrixV2.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x7f\n" +
+	"\x14ashrix-gateway.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x7f\n" +
 	"\x14GatewayEnrollRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x17\n" +
 	"\acsr_pem\x18\x02 \x01(\tR\x06csrPem\x128\n" +
@@ -1371,23 +1371,23 @@ const file_ashrixV2_proto_rawDesc = "" +
 	"\x12BUNDLE_TYPE_POLICY\x10\x01\x12\x13\n" +
 	"\x0fBUNDLE_TYPE_CRL\x10\x022O\n" +
 	"\x13ControlPlaneService\x128\n" +
-	"\aConnect\x12\x16.proto.GatewayEnvelope\x1a\x11.proto.CPEnvelope(\x010\x01B>Z<github.com/JohnnyAsh-U/ashrix-api/proto/ashrixV2.proto;protob\x06proto3"
+	"\aConnect\x12\x16.proto.GatewayEnvelope\x1a\x11.proto.CPEnvelope(\x010\x01BDZBgithub.com/JohnnyAsh-U/ashrix-api/proto/ashrix-gateway.proto;protob\x06proto3"
 
 var (
-	file_ashrixV2_proto_rawDescOnce sync.Once
-	file_ashrixV2_proto_rawDescData []byte
+	file_ashrix_gateway_proto_rawDescOnce sync.Once
+	file_ashrix_gateway_proto_rawDescData []byte
 )
 
-func file_ashrixV2_proto_rawDescGZIP() []byte {
-	file_ashrixV2_proto_rawDescOnce.Do(func() {
-		file_ashrixV2_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_ashrixV2_proto_rawDesc), len(file_ashrixV2_proto_rawDesc)))
+func file_ashrix_gateway_proto_rawDescGZIP() []byte {
+	file_ashrix_gateway_proto_rawDescOnce.Do(func() {
+		file_ashrix_gateway_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_ashrix_gateway_proto_rawDesc), len(file_ashrix_gateway_proto_rawDesc)))
 	})
-	return file_ashrixV2_proto_rawDescData
+	return file_ashrix_gateway_proto_rawDescData
 }
 
-var file_ashrixV2_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_ashrixV2_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
-var file_ashrixV2_proto_goTypes = []any{
+var file_ashrix_gateway_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_ashrix_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_ashrix_gateway_proto_goTypes = []any{
 	(MessagePriority)(0),             // 0: proto.MessagePriority
 	(BundleType)(0),                  // 1: proto.BundleType
 	(*GatewayEnrollRequest)(nil),     // 2: proto.GatewayEnrollRequest
@@ -1406,7 +1406,7 @@ var file_ashrixV2_proto_goTypes = []any{
 	(*CRLUpdate)(nil),                // 15: proto.CRLUpdate
 	(*timestamppb.Timestamp)(nil),    // 16: google.protobuf.Timestamp
 }
-var file_ashrixV2_proto_depIdxs = []int32{
+var file_ashrix_gateway_proto_depIdxs = []int32{
 	16, // 0: proto.GatewayEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
 	16, // 1: proto.GatewayEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
 	16, // 2: proto.GatewayRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
@@ -1441,17 +1441,17 @@ var file_ashrixV2_proto_depIdxs = []int32{
 	0,  // [0:25] is the sub-list for field type_name
 }
 
-func init() { file_ashrixV2_proto_init() }
-func file_ashrixV2_proto_init() {
-	if File_ashrixV2_proto != nil {
+func init() { file_ashrix_gateway_proto_init() }
+func file_ashrix_gateway_proto_init() {
+	if File_ashrix_gateway_proto != nil {
 		return
 	}
-	file_ashrixV2_proto_msgTypes[4].OneofWrappers = []any{
+	file_ashrix_gateway_proto_msgTypes[4].OneofWrappers = []any{
 		(*GatewayEnvelope_Hello)(nil),
 		(*GatewayEnvelope_Heartbeat)(nil),
 		(*GatewayEnvelope_BundleAck)(nil),
 	}
-	file_ashrixV2_proto_msgTypes[5].OneofWrappers = []any{
+	file_ashrix_gateway_proto_msgTypes[5].OneofWrappers = []any{
 		(*CPEnvelope_HelloAck)(nil),
 		(*CPEnvelope_CrlUpdate)(nil),
 		(*CPEnvelope_PolicyBundle)(nil),
@@ -1461,18 +1461,18 @@ func file_ashrixV2_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrixV2_proto_rawDesc), len(file_ashrixV2_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_gateway_proto_rawDesc), len(file_ashrix_gateway_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_ashrixV2_proto_goTypes,
-		DependencyIndexes: file_ashrixV2_proto_depIdxs,
-		EnumInfos:         file_ashrixV2_proto_enumTypes,
-		MessageInfos:      file_ashrixV2_proto_msgTypes,
+		GoTypes:           file_ashrix_gateway_proto_goTypes,
+		DependencyIndexes: file_ashrix_gateway_proto_depIdxs,
+		EnumInfos:         file_ashrix_gateway_proto_enumTypes,
+		MessageInfos:      file_ashrix_gateway_proto_msgTypes,
 	}.Build()
-	File_ashrixV2_proto = out.File
-	file_ashrixV2_proto_goTypes = nil
-	file_ashrixV2_proto_depIdxs = nil
+	File_ashrix_gateway_proto = out.File
+	file_ashrix_gateway_proto_goTypes = nil
+	file_ashrix_gateway_proto_depIdxs = nil
 }

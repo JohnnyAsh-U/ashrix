@@ -50,7 +50,7 @@ func mapToGatewayResponse(g store.Gateway) GatewayResponse {
 }
 
 // CreateGateway creates a new gateway.
-func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name string) (GatewayResponse, *dto.AppError) {
+func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name, IPAdress,PublicURL string) (GatewayResponse, *dto.AppError) {
 
 	//Check if the Org is same as the Admin
 	AdminOrgId := middleware.OrgIDFromCtx(ctx)
@@ -66,6 +66,9 @@ func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name strin
 		OrgID:     orgID,
 		Name:      name,
 		TokenHash: utils.HashToken(token),
+		Type: "ashrix_hosted",
+		PublicUrl: PublicURL,
+		IpAddress: IPAdress,
 	}
 	gateway, err := s.repo.CreateGateway(ctx, params)
 	if err != nil {
@@ -89,7 +92,7 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 }
 
 // ReEnrollGateway re-create a gateway.
-func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name string) (GatewayResponse, *dto.AppError) {
+func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdress,PublicURL string) (GatewayResponse, *dto.AppError) {
 
 	gatewayRes, err := s.repo.GetGatewayByID(ctx, id)
 
@@ -111,6 +114,8 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name string
 		ID:        id,
 		Name:      name, // Assuming name can be updated during re-enrollment
 		TokenHash: utils.HashToken(token),
+		PublicUrl: PublicURL,
+		IpAddress: PublicURL,
 	}
 	gateway, err := s.repo.ReCreateGateway(ctx, params)
 	if err != nil {
@@ -186,7 +191,13 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 	}, nil
 }
 
-func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, signature string, csr string, signer pki.CASigner) (gen.GatewayRenewCertResponse, *dto.AppError) {
+func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, signature string, csr string, timestamp int64, signer pki.CASigner) (gen.GatewayRenewCertResponse, *dto.AppError) {
+	//Check timestamp is within 60 secsy
+	timeNow := time.Now().Unix()
+	if timeNow-timestamp > 60 {
+		return gen.GatewayRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp Expired")
+	}
+	
 	// get gateway
 	gateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
 	if err != nil {
@@ -209,16 +220,23 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	}
 
 	certPem := []byte(activeCert.CertPem)
-	pubkey, err := pki_utils.ParsePublicKey(certPem)
+	pubkey, err := pki_utils.ParsePublicKeyFromCert(certPem)
 	if err != nil {
 		return gen.GatewayRenewCertResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to parse active component certificate", err.Error())
 	}
 
 	// verify signature
-	verified := pki_utils.VerifySignature(pubkey, []byte(gatewayID.String()), []byte(signature))
+	verified := pki_utils.VerifyPossessionProof	(pubkey, []byte(csr), gatewayID.String(), timestamp, signature)
 	if !verified {
 		return gen.GatewayRenewCertResponse{}, dto.NewUnauthorizedError("Signature verification failed")
 	}
+
+		//Check timestamp is within 60 secsy
+	timeNow = time.Now().Unix()
+	if timeNow-timestamp > 60 {
+		return gen.GatewayRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp Expired")
+	}
+
 
 	// Issue new cert
 	// get active intermediate CA

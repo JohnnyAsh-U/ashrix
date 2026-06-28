@@ -3,21 +3,21 @@ package bootstrap
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
+
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 
 
-func (c *Client) RenewCert(proof []byte, csrPEM string, gatewayID string) (*APIResponse, error) {
+func (c *Client) RenewCert(proof string, csrPEM string, gatewayID string) (*APIResponse, error) {
 
 	body, err := json.Marshal(gen.GatewayRenewCertRequest{
-		Signature: base64.StdEncoding.EncodeToString(proof),
+		Signature: proof,
 		CsrPem:       csrPEM,
 		GatewayId: gatewayID,
 		Timestamp: timestamppb.Now(),
@@ -70,3 +70,7 @@ func (c *Client) RenewCert(proof []byte, csrPEM string, gatewayID string) (*APIR
 
 	return &apiResponse, nil
 }
+
+
+
+
