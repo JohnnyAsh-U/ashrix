@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -17,6 +18,8 @@ type StreamHandler struct {
 	pki       *crypto.GatewayPKI
 	log       *zap.Logger
 
+	registry *registry.Registry
+
 	//outbound queue - everything gateway sends to CP
 	outbound chan *proto.GatewayEnvelope
 	stopCh   chan struct{}
@@ -26,12 +29,14 @@ func NewStreamHandler(
 	gatewayID string,
 	stream proto.ControlPlaneService_ConnectClient,
 	pki *crypto.GatewayPKI,
+	reg *registry.Registry,
 	log *zap.Logger,
 ) *StreamHandler {
 	return &StreamHandler{
 		gatewayID: gatewayID,
 		stream:    stream,
 		pki:       pki,
+		registry: reg,
 		log:       log,
 		outbound:  make(chan *proto.GatewayEnvelope, 512),
 		stopCh:    make(chan struct{}),
@@ -184,3 +189,81 @@ func (h *StreamHandler) heartbeater(ctx context.Context) {
 		}
 	}
 }
+
+
+
+
+// // handleSuspendCommand is the exact flow traced in our conversation:
+// // look up in shared registry, relay if connected, otherwise no-op
+// // (reconciliation on reconnect handles the offline case correctly).
+// func (h *Handler) handleSuspendCommand(cmd *pb.SuspendCommand) {
+// 	if err := h.pki.VerifySignature(cmd.Signature, cmd); err != nil {
+// 		h.log.Error("suspend command signature invalid — ignoring",
+// 			zap.Error(err))
+// 		return
+// 	}
+
+// 	connectorID := cmd.ConnectorId
+
+// 	// Update registry's view of truth regardless of connection state.
+// 	// This matters for policy checks even if relay fails below.
+// 	h.registry.SetState(connectorID, "suspended")
+
+// 	entry, connected := h.registry.GetByConnectorID(connectorID)
+// 	if !connected {
+// 		h.log.Info("connector offline — state recorded, will apply on reconnect",
+// 			zap.String("connector_id", connectorID))
+
+// 		// Best-effort: queue it too, in case connector reconnects
+// 		// within this gateway's lifetime before a full reconciliation
+// 		// cycle would otherwise catch it.
+// 		h.pending.Enqueue(connectorID, &pb.GatewayEnvelope{
+// 			Payload: &pb.GatewayEnvelope_SuspendCmd{SuspendCmd: cmd},
+// 		})
+// 		return
+// 	}
+
+// 	err := entry.ManagementStream.Send(&pb.GatewayEnvelope{
+// 		Payload: &pb.GatewayEnvelope_SuspendCmd{SuspendCmd: cmd},
+// 	})
+// 	if err != nil {
+// 		h.log.Error("failed to relay suspend to connector",
+// 			zap.String("connector_id", connectorID),
+// 			zap.Error(err))
+// 		// Stream write failed — connector's stream is likely dying.
+// 		// Do NOT retry here. Let the connector server's own recv
+// 		// loop detect the dead stream, unregister, and let the
+// 		// connector's natural reconnect trigger reconciliation.
+// 		return
+// 	}
+
+// 	h.log.Info("suspend command relayed",
+// 		zap.String("connector_id", connectorID))
+// }
+
+// func (h *Handler) handleResumeCommand(cmd *pb.ResumeCommand) {
+// 	if err := h.pki.VerifySignature(cmd.Signature, cmd); err != nil {
+// 		h.log.Error("resume command signature invalid — ignoring",
+// 			zap.Error(err))
+// 		return
+// 	}
+
+// 	connectorID := cmd.ConnectorId
+// 	h.registry.SetState(connectorID, "active")
+
+// 	entry, connected := h.registry.GetByConnectorID(connectorID)
+// 	if !connected {
+// 		h.pending.Enqueue(connectorID, &pb.GatewayEnvelope{
+// 			Payload: &pb.GatewayEnvelope_ResumeCmd{ResumeCmd: cmd},
+// 		})
+// 		return
+// 	}
+
+// 	if err := entry.ManagementStream.Send(&pb.GatewayEnvelope{
+// 		Payload: &pb.GatewayEnvelope_ResumeCmd{ResumeCmd: cmd},
+// 	}); err != nil {
+// 		h.log.Error("failed to relay resume to connector", zap.Error(err))
+// 	}
+// }
+
+

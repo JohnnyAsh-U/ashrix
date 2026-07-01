@@ -11,6 +11,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
@@ -80,6 +81,12 @@ func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries, log *slo
 	connectorService := connector.NewService(connectorRepo)
 	connectorHandler := connector.NewConnectorHandler(connectorService, signer)
 
+
+	//Apps routes
+	appRepo := app.NewPostgresRepository(dbQueries)
+	appService := app.NewService(appRepo)
+	appHandler := app.NewAppHandler(appService)
+
 	//Docs - date this in prod
 	r.Get("/docs/*", httpSwagger.Handler(
 		httpSwagger.URL("/docs/doc.json"),
@@ -98,6 +105,7 @@ func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries, log *slo
 			r.Route("/gateways", gatewayHandler.WithAuthRoutes)
 			r.Route("/orgs", orgHandler.Routes)
 			r.Route("/connectors", connectorHandler.WithAuthRoutes)
+			r.Route("/apps", appHandler.Routes)
 		})
 	})
 

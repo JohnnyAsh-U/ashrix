@@ -291,7 +291,8 @@ type ConnectorStatusResponse struct {
 	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
 	GatewayId     string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
 	GatewayUrl    string                 `protobuf:"bytes,3,opt,name=gateway_url,json=gatewayUrl,proto3" json:"gateway_url,omitempty"`
-	Apps          []*ConnectorApps       `protobuf:"bytes,4,rep,name=apps,proto3" json:"apps,omitempty"`
+	GatewayIp     string                 `protobuf:"bytes,4,opt,name=gateway_ip,json=gatewayIp,proto3" json:"gateway_ip,omitempty"`
+	Apps          []*ConnectorApps       `protobuf:"bytes,5,rep,name=apps,proto3" json:"apps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -343,6 +344,13 @@ func (x *ConnectorStatusResponse) GetGatewayId() string {
 func (x *ConnectorStatusResponse) GetGatewayUrl() string {
 	if x != nil {
 		return x.GatewayUrl
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetGatewayIp() string {
+	if x != nil {
+		return x.GatewayIp
 	}
 	return ""
 }
@@ -430,6 +438,868 @@ func (x *ConnectorApps) GetIsPublic() bool {
 	return false
 }
 
+type TunnelChunk struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*TunnelChunk_Ready
+	//	*TunnelChunk_ReqHeader
+	//	*TunnelChunk_BodyChunk
+	//	*TunnelChunk_ResHeader
+	//	*TunnelChunk_EndStream
+	Payload       isTunnelChunk_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TunnelChunk) Reset() {
+	*x = TunnelChunk{}
+	mi := &file_ashrix_connector_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TunnelChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TunnelChunk) ProtoMessage() {}
+
+func (x *TunnelChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TunnelChunk.ProtoReflect.Descriptor instead.
+func (*TunnelChunk) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *TunnelChunk) GetPayload() isTunnelChunk_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *TunnelChunk) GetReady() bool {
+	if x != nil {
+		if x, ok := x.Payload.(*TunnelChunk_Ready); ok {
+			return x.Ready
+		}
+	}
+	return false
+}
+
+func (x *TunnelChunk) GetReqHeader() *RequestHeader {
+	if x != nil {
+		if x, ok := x.Payload.(*TunnelChunk_ReqHeader); ok {
+			return x.ReqHeader
+		}
+	}
+	return nil
+}
+
+func (x *TunnelChunk) GetBodyChunk() []byte {
+	if x != nil {
+		if x, ok := x.Payload.(*TunnelChunk_BodyChunk); ok {
+			return x.BodyChunk
+		}
+	}
+	return nil
+}
+
+func (x *TunnelChunk) GetResHeader() *ResponseHeader {
+	if x != nil {
+		if x, ok := x.Payload.(*TunnelChunk_ResHeader); ok {
+			return x.ResHeader
+		}
+	}
+	return nil
+}
+
+func (x *TunnelChunk) GetEndStream() bool {
+	if x != nil {
+		if x, ok := x.Payload.(*TunnelChunk_EndStream); ok {
+			return x.EndStream
+		}
+	}
+	return false
+}
+
+type isTunnelChunk_Payload interface {
+	isTunnelChunk_Payload()
+}
+
+type TunnelChunk_Ready struct {
+	Ready bool `protobuf:"varint,1,opt,name=ready,proto3,oneof"`
+}
+
+type TunnelChunk_ReqHeader struct {
+	ReqHeader *RequestHeader `protobuf:"bytes,2,opt,name=req_header,json=reqHeader,proto3,oneof"`
+}
+
+type TunnelChunk_BodyChunk struct {
+	BodyChunk []byte `protobuf:"bytes,3,opt,name=body_chunk,json=bodyChunk,proto3,oneof"`
+}
+
+type TunnelChunk_ResHeader struct {
+	ResHeader *ResponseHeader `protobuf:"bytes,4,opt,name=res_header,json=resHeader,proto3,oneof"`
+}
+
+type TunnelChunk_EndStream struct {
+	EndStream bool `protobuf:"varint,5,opt,name=end_stream,json=endStream,proto3,oneof"`
+}
+
+func (*TunnelChunk_Ready) isTunnelChunk_Payload() {}
+
+func (*TunnelChunk_ReqHeader) isTunnelChunk_Payload() {}
+
+func (*TunnelChunk_BodyChunk) isTunnelChunk_Payload() {}
+
+func (*TunnelChunk_ResHeader) isTunnelChunk_Payload() {}
+
+func (*TunnelChunk_EndStream) isTunnelChunk_Payload() {}
+
+type RequestHeader struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AppId         string                 `protobuf:"bytes,1,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	Method        string                 `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Query         string                 `protobuf:"bytes,4,opt,name=query,proto3" json:"query,omitempty"`
+	Headers       map[string]string      `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	UserId        string                 `protobuf:"bytes,6,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserEmail     string                 `protobuf:"bytes,7,opt,name=user_email,json=userEmail,proto3" json:"user_email,omitempty"`
+	RequestId     string                 `protobuf:"bytes,8,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	BodyLength    string                 `protobuf:"bytes,9,opt,name=body_length,json=bodyLength,proto3" json:"body_length,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestHeader) Reset() {
+	*x = RequestHeader{}
+	mi := &file_ashrix_connector_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestHeader) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestHeader) ProtoMessage() {}
+
+func (x *RequestHeader) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestHeader.ProtoReflect.Descriptor instead.
+func (*RequestHeader) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RequestHeader) GetAppId() string {
+	if x != nil {
+		return x.AppId
+	}
+	return ""
+}
+
+func (x *RequestHeader) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *RequestHeader) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *RequestHeader) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *RequestHeader) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+func (x *RequestHeader) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *RequestHeader) GetUserEmail() string {
+	if x != nil {
+		return x.UserEmail
+	}
+	return ""
+}
+
+func (x *RequestHeader) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *RequestHeader) GetBodyLength() string {
+	if x != nil {
+		return x.BodyLength
+	}
+	return ""
+}
+
+type ResponseHeader struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StatusCode    int32                  `protobuf:"varint,1,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
+	Headers       map[string]string      `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResponseHeader) Reset() {
+	*x = ResponseHeader{}
+	mi := &file_ashrix_connector_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResponseHeader) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResponseHeader) ProtoMessage() {}
+
+func (x *ResponseHeader) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResponseHeader.ProtoReflect.Descriptor instead.
+func (*ResponseHeader) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ResponseHeader) GetStatusCode() int32 {
+	if x != nil {
+		return x.StatusCode
+	}
+	return 0
+}
+
+func (x *ResponseHeader) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+type ConnectorGatewayEnvelope struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	ConnectorId string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
+	SentAt      *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=sent_at,json=sentAt,proto3" json:"sent_at,omitempty"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*ConnectorGatewayEnvelope_Hello
+	//	*ConnectorGatewayEnvelope_Heartbeat
+	Payload       isConnectorGatewayEnvelope_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectorGatewayEnvelope) Reset() {
+	*x = ConnectorGatewayEnvelope{}
+	mi := &file_ashrix_connector_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectorGatewayEnvelope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectorGatewayEnvelope) ProtoMessage() {}
+
+func (x *ConnectorGatewayEnvelope) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectorGatewayEnvelope.ProtoReflect.Descriptor instead.
+func (*ConnectorGatewayEnvelope) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ConnectorGatewayEnvelope) GetConnectorId() string {
+	if x != nil {
+		return x.ConnectorId
+	}
+	return ""
+}
+
+func (x *ConnectorGatewayEnvelope) GetSentAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SentAt
+	}
+	return nil
+}
+
+func (x *ConnectorGatewayEnvelope) GetPayload() isConnectorGatewayEnvelope_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *ConnectorGatewayEnvelope) GetHello() *ConnectorHello {
+	if x != nil {
+		if x, ok := x.Payload.(*ConnectorGatewayEnvelope_Hello); ok {
+			return x.Hello
+		}
+	}
+	return nil
+}
+
+func (x *ConnectorGatewayEnvelope) GetHeartbeat() *ConnectorHeartbeat {
+	if x != nil {
+		if x, ok := x.Payload.(*ConnectorGatewayEnvelope_Heartbeat); ok {
+			return x.Heartbeat
+		}
+	}
+	return nil
+}
+
+type isConnectorGatewayEnvelope_Payload interface {
+	isConnectorGatewayEnvelope_Payload()
+}
+
+type ConnectorGatewayEnvelope_Hello struct {
+	Hello *ConnectorHello `protobuf:"bytes,3,opt,name=hello,proto3,oneof"`
+}
+
+type ConnectorGatewayEnvelope_Heartbeat struct {
+	Heartbeat *ConnectorHeartbeat `protobuf:"bytes,4,opt,name=heartbeat,proto3,oneof"`
+}
+
+func (*ConnectorGatewayEnvelope_Hello) isConnectorGatewayEnvelope_Payload() {}
+
+func (*ConnectorGatewayEnvelope_Heartbeat) isConnectorGatewayEnvelope_Payload() {}
+
+type GatewayConnectorEnvelope struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*GatewayConnectorEnvelope_HelloAck
+	//	*GatewayConnectorEnvelope_Reject
+	//	*GatewayConnectorEnvelope_Cmd
+	Payload       isGatewayConnectorEnvelope_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GatewayConnectorEnvelope) Reset() {
+	*x = GatewayConnectorEnvelope{}
+	mi := &file_ashrix_connector_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GatewayConnectorEnvelope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GatewayConnectorEnvelope) ProtoMessage() {}
+
+func (x *GatewayConnectorEnvelope) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GatewayConnectorEnvelope.ProtoReflect.Descriptor instead.
+func (*GatewayConnectorEnvelope) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GatewayConnectorEnvelope) GetPayload() isGatewayConnectorEnvelope_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *GatewayConnectorEnvelope) GetHelloAck() *ConnectorHelloAck {
+	if x != nil {
+		if x, ok := x.Payload.(*GatewayConnectorEnvelope_HelloAck); ok {
+			return x.HelloAck
+		}
+	}
+	return nil
+}
+
+func (x *GatewayConnectorEnvelope) GetReject() *ConnectorReject {
+	if x != nil {
+		if x, ok := x.Payload.(*GatewayConnectorEnvelope_Reject); ok {
+			return x.Reject
+		}
+	}
+	return nil
+}
+
+func (x *GatewayConnectorEnvelope) GetCmd() *ConnectorCmd {
+	if x != nil {
+		if x, ok := x.Payload.(*GatewayConnectorEnvelope_Cmd); ok {
+			return x.Cmd
+		}
+	}
+	return nil
+}
+
+type isGatewayConnectorEnvelope_Payload interface {
+	isGatewayConnectorEnvelope_Payload()
+}
+
+type GatewayConnectorEnvelope_HelloAck struct {
+	HelloAck *ConnectorHelloAck `protobuf:"bytes,1,opt,name=hello_ack,json=helloAck,proto3,oneof"`
+}
+
+type GatewayConnectorEnvelope_Reject struct {
+	Reject *ConnectorReject `protobuf:"bytes,2,opt,name=reject,proto3,oneof"`
+}
+
+type GatewayConnectorEnvelope_Cmd struct {
+	Cmd *ConnectorCmd `protobuf:"bytes,3,opt,name=cmd,proto3,oneof"`
+}
+
+func (*GatewayConnectorEnvelope_HelloAck) isGatewayConnectorEnvelope_Payload() {}
+
+func (*GatewayConnectorEnvelope_Reject) isGatewayConnectorEnvelope_Payload() {}
+
+func (*GatewayConnectorEnvelope_Cmd) isGatewayConnectorEnvelope_Payload() {}
+
+type ConnectorCmd struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cmd           string                 `protobuf:"bytes,1,opt,name=cmd,proto3" json:"cmd,omitempty"`
+	Payload       string                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectorCmd) Reset() {
+	*x = ConnectorCmd{}
+	mi := &file_ashrix_connector_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectorCmd) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectorCmd) ProtoMessage() {}
+
+func (x *ConnectorCmd) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectorCmd.ProtoReflect.Descriptor instead.
+func (*ConnectorCmd) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ConnectorCmd) GetCmd() string {
+	if x != nil {
+		return x.Cmd
+	}
+	return ""
+}
+
+func (x *ConnectorCmd) GetPayload() string {
+	if x != nil {
+		return x.Payload
+	}
+	return ""
+}
+
+type ConnectorHello struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
+	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Apps          []*AppDef              `protobuf:"bytes,3,rep,name=apps,proto3" json:"apps,omitempty"`
+	Transport     string                 `protobuf:"bytes,4,opt,name=transport,proto3" json:"transport,omitempty"` //quic, grpc, websocket
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectorHello) Reset() {
+	*x = ConnectorHello{}
+	mi := &file_ashrix_connector_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectorHello) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectorHello) ProtoMessage() {}
+
+func (x *ConnectorHello) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectorHello.ProtoReflect.Descriptor instead.
+func (*ConnectorHello) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ConnectorHello) GetConnectorId() string {
+	if x != nil {
+		return x.ConnectorId
+	}
+	return ""
+}
+
+func (x *ConnectorHello) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ConnectorHello) GetApps() []*AppDef {
+	if x != nil {
+		return x.Apps
+	}
+	return nil
+}
+
+func (x *ConnectorHello) GetTransport() string {
+	if x != nil {
+		return x.Transport
+	}
+	return ""
+}
+
+type ConnectorHeartbeat struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Seq             int64                  `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"`
+	TunnelState     string                 `protobuf:"bytes,2,opt,name=tunnel_state,json=tunnelState,proto3" json:"tunnel_state,omitempty"`
+	TunnelTransport string                 `protobuf:"bytes,3,opt,name=tunnel_transport,json=tunnelTransport,proto3" json:"tunnel_transport,omitempty"`
+	ActiveStreams   int64                  `protobuf:"varint,4,opt,name=active_streams,json=activeStreams,proto3" json:"active_streams,omitempty"`
+	UptimeSeconds   int64                  `protobuf:"varint,5,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ConnectorHeartbeat) Reset() {
+	*x = ConnectorHeartbeat{}
+	mi := &file_ashrix_connector_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectorHeartbeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectorHeartbeat) ProtoMessage() {}
+
+func (x *ConnectorHeartbeat) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectorHeartbeat.ProtoReflect.Descriptor instead.
+func (*ConnectorHeartbeat) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ConnectorHeartbeat) GetSeq() int64 {
+	if x != nil {
+		return x.Seq
+	}
+	return 0
+}
+
+func (x *ConnectorHeartbeat) GetTunnelState() string {
+	if x != nil {
+		return x.TunnelState
+	}
+	return ""
+}
+
+func (x *ConnectorHeartbeat) GetTunnelTransport() string {
+	if x != nil {
+		return x.TunnelTransport
+	}
+	return ""
+}
+
+func (x *ConnectorHeartbeat) GetActiveStreams() int64 {
+	if x != nil {
+		return x.ActiveStreams
+	}
+	return 0
+}
+
+func (x *ConnectorHeartbeat) GetUptimeSeconds() int64 {
+	if x != nil {
+		return x.UptimeSeconds
+	}
+	return 0
+}
+
+type ConnectorHelloAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ServerVersion string                 `protobuf:"bytes,2,opt,name=server_version,json=serverVersion,proto3" json:"server_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectorHelloAck) Reset() {
+	*x = ConnectorHelloAck{}
+	mi := &file_ashrix_connector_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectorHelloAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectorHelloAck) ProtoMessage() {}
+
+func (x *ConnectorHelloAck) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectorHelloAck.ProtoReflect.Descriptor instead.
+func (*ConnectorHelloAck) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ConnectorHelloAck) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *ConnectorHelloAck) GetServerVersion() string {
+	if x != nil {
+		return x.ServerVersion
+	}
+	return ""
+}
+
+type ConnectorReject struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reason        string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
+	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	Permanent     bool                   `protobuf:"varint,3,opt,name=permanent,proto3" json:"permanent,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectorReject) Reset() {
+	*x = ConnectorReject{}
+	mi := &file_ashrix_connector_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectorReject) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectorReject) ProtoMessage() {}
+
+func (x *ConnectorReject) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectorReject.ProtoReflect.Descriptor instead.
+func (*ConnectorReject) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ConnectorReject) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ConnectorReject) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *ConnectorReject) GetPermanent() bool {
+	if x != nil {
+		return x.Permanent
+	}
+	return false
+}
+
+type AppDef struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Addr          string                 `protobuf:"bytes,3,opt,name=addr,proto3" json:"addr,omitempty"`
+	Proto         string                 `protobuf:"bytes,4,opt,name=proto,proto3" json:"proto,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppDef) Reset() {
+	*x = AppDef{}
+	mi := &file_ashrix_connector_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppDef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppDef) ProtoMessage() {}
+
+func (x *AppDef) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppDef.ProtoReflect.Descriptor instead.
+func (*AppDef) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *AppDef) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AppDef) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *AppDef) GetAddr() string {
+	if x != nil {
+		return x.Addr
+	}
+	return ""
+}
+
+func (x *AppDef) GetProto() string {
+	if x != nil {
+		return x.Proto
+	}
+	return ""
+}
+
 var File_ashrix_connector_proto protoreflect.FileDescriptor
 
 const file_ashrix_connector_proto_rawDesc = "" +
@@ -455,20 +1325,98 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\vcertificate\x18\x02 \x01(\tR\vcertificate\x12!\n" +
 	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x129\n" +
 	"\n" +
-	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xa6\x01\n" +
+	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xc5\x01\n" +
 	"\x17ConnectorStatusResponse\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x02 \x01(\tR\tgatewayId\x12\x1f\n" +
 	"\vgateway_url\x18\x03 \x01(\tR\n" +
-	"gatewayUrl\x12(\n" +
-	"\x04apps\x18\x04 \x03(\v2\x14.proto.ConnectorAppsR\x04apps\"\x96\x01\n" +
+	"gatewayUrl\x12\x1d\n" +
+	"\n" +
+	"gateway_ip\x18\x04 \x01(\tR\tgatewayIp\x12(\n" +
+	"\x04apps\x18\x05 \x03(\v2\x14.proto.ConnectorAppsR\x04apps\"\x96\x01\n" +
 	"\rConnectorApps\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
 	"\tsubdomain\x18\x02 \x01(\tR\tsubdomain\x12\x1a\n" +
 	"\bupstream\x18\x03 \x01(\tR\bupstream\x12\x1a\n" +
 	"\bprotocol\x18\x04 \x01(\tR\bprotocol\x12\x1b\n" +
-	"\tis_public\x18\x05 \x01(\bR\bisPublicBFZDgithub.com/JohnnyAsh-U/ashrix-api/proto/ashrix-connector.proto;protob\x06proto3"
+	"\tis_public\x18\x05 \x01(\bR\bisPublic\"\xe1\x01\n" +
+	"\vTunnelChunk\x12\x16\n" +
+	"\x05ready\x18\x01 \x01(\bH\x00R\x05ready\x125\n" +
+	"\n" +
+	"req_header\x18\x02 \x01(\v2\x14.proto.RequestHeaderH\x00R\treqHeader\x12\x1f\n" +
+	"\n" +
+	"body_chunk\x18\x03 \x01(\fH\x00R\tbodyChunk\x126\n" +
+	"\n" +
+	"res_header\x18\x04 \x01(\v2\x15.proto.ResponseHeaderH\x00R\tresHeader\x12\x1f\n" +
+	"\n" +
+	"end_stream\x18\x05 \x01(\bH\x00R\tendStreamB\t\n" +
+	"\apayload\"\xd9\x02\n" +
+	"\rRequestHeader\x12\x15\n" +
+	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12\x16\n" +
+	"\x06method\x18\x02 \x01(\tR\x06method\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x14\n" +
+	"\x05query\x18\x04 \x01(\tR\x05query\x12;\n" +
+	"\aheaders\x18\x05 \x03(\v2!.proto.RequestHeader.HeadersEntryR\aheaders\x12\x17\n" +
+	"\auser_id\x18\x06 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"user_email\x18\a \x01(\tR\tuserEmail\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\b \x01(\tR\trequestId\x12\x1f\n" +
+	"\vbody_length\x18\t \x01(\tR\n" +
+	"bodyLength\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xab\x01\n" +
+	"\x0eResponseHeader\x12\x1f\n" +
+	"\vstatus_code\x18\x01 \x01(\x05R\n" +
+	"statusCode\x12<\n" +
+	"\aheaders\x18\x02 \x03(\v2\".proto.ResponseHeader.HeadersEntryR\aheaders\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe7\x01\n" +
+	"\x18ConnectorGatewayEnvelope\x12!\n" +
+	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x123\n" +
+	"\asent_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06sentAt\x12-\n" +
+	"\x05hello\x18\x03 \x01(\v2\x15.proto.ConnectorHelloH\x00R\x05hello\x129\n" +
+	"\theartbeat\x18\x04 \x01(\v2\x19.proto.ConnectorHeartbeatH\x00R\theartbeatB\t\n" +
+	"\apayload\"\xb9\x01\n" +
+	"\x18GatewayConnectorEnvelope\x127\n" +
+	"\thello_ack\x18\x01 \x01(\v2\x18.proto.ConnectorHelloAckH\x00R\bhelloAck\x120\n" +
+	"\x06reject\x18\x02 \x01(\v2\x16.proto.ConnectorRejectH\x00R\x06reject\x12'\n" +
+	"\x03cmd\x18\x03 \x01(\v2\x13.proto.ConnectorCmdH\x00R\x03cmdB\t\n" +
+	"\apayload\":\n" +
+	"\fConnectorCmd\x12\x10\n" +
+	"\x03cmd\x18\x01 \x01(\tR\x03cmd\x12\x18\n" +
+	"\apayload\x18\x02 \x01(\tR\apayload\"\x8e\x01\n" +
+	"\x0eConnectorHello\x12!\n" +
+	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12!\n" +
+	"\x04apps\x18\x03 \x03(\v2\r.proto.AppDefR\x04apps\x12\x1c\n" +
+	"\ttransport\x18\x04 \x01(\tR\ttransport\"\xc2\x01\n" +
+	"\x12ConnectorHeartbeat\x12\x10\n" +
+	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12!\n" +
+	"\ftunnel_state\x18\x02 \x01(\tR\vtunnelState\x12)\n" +
+	"\x10tunnel_transport\x18\x03 \x01(\tR\x0ftunnelTransport\x12%\n" +
+	"\x0eactive_streams\x18\x04 \x01(\x03R\ractiveStreams\x12%\n" +
+	"\x0euptime_seconds\x18\x05 \x01(\x03R\ruptimeSeconds\"Y\n" +
+	"\x11ConnectorHelloAck\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12%\n" +
+	"\x0eserver_version\x18\x02 \x01(\tR\rserverVersion\"[\n" +
+	"\x0fConnectorReject\x12\x16\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x12\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\x12\x1c\n" +
+	"\tpermanent\x18\x03 \x01(\bR\tpermanent\"T\n" +
+	"\x06AppDef\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
+	"\x04addr\x18\x03 \x01(\tR\x04addr\x12\x14\n" +
+	"\x05proto\x18\x04 \x01(\tR\x05proto2E\n" +
+	"\rTunnelService\x124\n" +
+	"\x06Tunnel\x12\x12.proto.TunnelChunk\x1a\x12.proto.TunnelChunk(\x010\x012c\n" +
+	"\x10ConnectorService\x12O\n" +
+	"\aConnect\x12\x1f.proto.ConnectorGatewayEnvelope\x1a\x1f.proto.GatewayConnectorEnvelope(\x010\x01BFZDgithub.com/JohnnyAsh-U/ashrix-api/proto/ashrix-connector.proto;protob\x06proto3"
 
 var (
 	file_ashrix_connector_proto_rawDescOnce sync.Once
@@ -482,7 +1430,7 @@ func file_ashrix_connector_proto_rawDescGZIP() []byte {
 	return file_ashrix_connector_proto_rawDescData
 }
 
-var file_ashrix_connector_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_ashrix_connector_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_ashrix_connector_proto_goTypes = []any{
 	(*ConnectorEnrollRequest)(nil),     // 0: proto.ConnectorEnrollRequest
 	(*ConnectorEnrollResponse)(nil),    // 1: proto.ConnectorEnrollResponse
@@ -490,19 +1438,47 @@ var file_ashrix_connector_proto_goTypes = []any{
 	(*ConnectorRenewCertResponse)(nil), // 3: proto.ConnectorRenewCertResponse
 	(*ConnectorStatusResponse)(nil),    // 4: proto.ConnectorStatusResponse
 	(*ConnectorApps)(nil),              // 5: proto.ConnectorApps
-	(*timestamppb.Timestamp)(nil),      // 6: google.protobuf.Timestamp
+	(*TunnelChunk)(nil),                // 6: proto.TunnelChunk
+	(*RequestHeader)(nil),              // 7: proto.RequestHeader
+	(*ResponseHeader)(nil),             // 8: proto.ResponseHeader
+	(*ConnectorGatewayEnvelope)(nil),   // 9: proto.ConnectorGatewayEnvelope
+	(*GatewayConnectorEnvelope)(nil),   // 10: proto.GatewayConnectorEnvelope
+	(*ConnectorCmd)(nil),               // 11: proto.ConnectorCmd
+	(*ConnectorHello)(nil),             // 12: proto.ConnectorHello
+	(*ConnectorHeartbeat)(nil),         // 13: proto.ConnectorHeartbeat
+	(*ConnectorHelloAck)(nil),          // 14: proto.ConnectorHelloAck
+	(*ConnectorReject)(nil),            // 15: proto.ConnectorReject
+	(*AppDef)(nil),                     // 16: proto.AppDef
+	nil,                                // 17: proto.RequestHeader.HeadersEntry
+	nil,                                // 18: proto.ResponseHeader.HeadersEntry
+	(*timestamppb.Timestamp)(nil),      // 19: google.protobuf.Timestamp
 }
 var file_ashrix_connector_proto_depIdxs = []int32{
-	6, // 0: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
-	6, // 1: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
-	6, // 2: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
-	6, // 3: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
-	5, // 4: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	19, // 0: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
+	19, // 1: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
+	19, // 2: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
+	19, // 3: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
+	5,  // 4: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
+	7,  // 5: proto.TunnelChunk.req_header:type_name -> proto.RequestHeader
+	8,  // 6: proto.TunnelChunk.res_header:type_name -> proto.ResponseHeader
+	17, // 7: proto.RequestHeader.headers:type_name -> proto.RequestHeader.HeadersEntry
+	18, // 8: proto.ResponseHeader.headers:type_name -> proto.ResponseHeader.HeadersEntry
+	19, // 9: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	12, // 10: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
+	13, // 11: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
+	14, // 12: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
+	15, // 13: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
+	11, // 14: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
+	16, // 15: proto.ConnectorHello.apps:type_name -> proto.AppDef
+	6,  // 16: proto.TunnelService.Tunnel:input_type -> proto.TunnelChunk
+	9,  // 17: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
+	6,  // 18: proto.TunnelService.Tunnel:output_type -> proto.TunnelChunk
+	10, // 19: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
+	18, // [18:20] is the sub-list for method output_type
+	16, // [16:18] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_connector_proto_init() }
@@ -510,15 +1486,31 @@ func file_ashrix_connector_proto_init() {
 	if File_ashrix_connector_proto != nil {
 		return
 	}
+	file_ashrix_connector_proto_msgTypes[6].OneofWrappers = []any{
+		(*TunnelChunk_Ready)(nil),
+		(*TunnelChunk_ReqHeader)(nil),
+		(*TunnelChunk_BodyChunk)(nil),
+		(*TunnelChunk_ResHeader)(nil),
+		(*TunnelChunk_EndStream)(nil),
+	}
+	file_ashrix_connector_proto_msgTypes[9].OneofWrappers = []any{
+		(*ConnectorGatewayEnvelope_Hello)(nil),
+		(*ConnectorGatewayEnvelope_Heartbeat)(nil),
+	}
+	file_ashrix_connector_proto_msgTypes[10].OneofWrappers = []any{
+		(*GatewayConnectorEnvelope_HelloAck)(nil),
+		(*GatewayConnectorEnvelope_Reject)(nil),
+		(*GatewayConnectorEnvelope_Cmd)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_connector_proto_rawDesc), len(file_ashrix_connector_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   19,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   2,
 		},
 		GoTypes:           file_ashrix_connector_proto_goTypes,
 		DependencyIndexes: file_ashrix_connector_proto_depIdxs,

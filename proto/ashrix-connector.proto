@@ -41,7 +41,8 @@ message ConnectorStatusResponse {
   string                 connector_id = 1;
   string                 gateway_id   = 2;
   string                 gateway_url  = 3;
-  repeated ConnectorApps apps         = 4;
+  string                 gateway_ip   = 4;
+  repeated ConnectorApps apps         = 5;
 }
 
 message ConnectorApps {
@@ -49,5 +50,106 @@ message ConnectorApps {
   string subdomain = 2;
   string upstream  = 3; //must be host:port
   string protocol  = 4;
-  bool is_public = 5;
+  bool   is_public = 5;
+}
+
+//=================================================================================
+//    Tunnel Service
+//===========================================================================================
+//Each Tunnel call = one proxied Http Request stream
+//Connector preopens streams signalling ready and Gateway sends request into a waiting stream
+service TunnelService {
+  rpc Tunnel(stream TunnelChunk) returns (stream TunnelChunk);
+}
+
+message TunnelChunk {
+  oneof payload {
+    bool           ready      = 1;
+    RequestHeader  req_header = 2;
+    bytes          body_chunk = 3;
+    ResponseHeader res_header = 4;
+    bool           end_stream = 5;
+  }
+}
+
+message RequestHeader {
+  string              app_id      = 1;
+  string              method      = 2;
+  string              path        = 3;
+  string              query       = 4;
+  map<string, string> headers     = 5;
+  string              user_id     = 6;
+  string              user_email  = 7;
+  string              request_id  = 8;
+  string              body_length = 9;
+}
+
+message ResponseHeader {
+  int32               status_code = 1;
+  map<string, string> headers     = 2;
+}
+
+//====================================================================================
+//  Management Service to gateway
+//==========================================================================================
+//Sends Heartbeat to gateway, send hello to gateway
+service ConnectorService {
+  rpc Connect(stream ConnectorGatewayEnvelope) returns (stream GatewayConnectorEnvelope);
+}
+
+message ConnectorGatewayEnvelope {
+  string                    connector_id = 1;
+  google.protobuf.Timestamp sent_at      = 2;
+
+  oneof payload {
+    ConnectorHello     hello     = 3;
+    ConnectorHeartbeat heartbeat = 4;
+  }
+}
+
+message GatewayConnectorEnvelope {
+
+  oneof payload {
+    ConnectorHelloAck hello_ack = 1;
+    ConnectorReject   reject    = 2;
+    ConnectorCmd      cmd       = 3;
+  }
+}
+
+message ConnectorCmd {
+  string cmd     = 1;
+  string payload = 2;
+}
+
+message ConnectorHello {
+  string          connector_id = 1;
+  string          version      = 2;
+  repeated AppDef apps         = 3;
+  string          transport    = 4; //quic, grpc, websocket
+}
+
+message ConnectorHeartbeat {
+  int64  seq              = 1;
+  string tunnel_state     = 2;
+  string tunnel_transport = 3;
+  int64  active_streams   = 4;
+  int64  uptime_seconds   = 5;
+}
+
+message ConnectorHelloAck {
+  string session_id     = 1;
+  string server_version = 2;
+}
+
+message ConnectorReject {
+  string reason    = 1;
+  string code      = 2;
+  bool   permanent = 3;
+}
+
+message AppDef {
+  string id    = 1;
+  string url   = 2;
+  string addr  = 3;
+  string proto = 4;
 }

@@ -113,58 +113,11 @@ message PossessionProof {
 }
 
 // =============================================================================
-// BOOTSTRAP SERVICE
-// First contact for both gateways and connectors.
-// Uses public-CA-validated HTTPS — the only moment public CAs are relevant.
-// After bootstrap, all communication switches to private PKI.
-// =============================================================================
-
-service BootstrapService {
-  // Called once per node lifetime.
-  // Bootstrap token is single-use and expires in minutes.
-  // Returns everything the node needs to start operating.
-  rpc Bootstrap(BootstrapRequest) returns (BootstrapResponse);
-}
-
-message BootstrapRequest {
-  string   bootstrap_token = 1; // one-time token, issued out-of-band by CP operator
-  string   node_id         = 2; // stable ID the org has assigned this node
-  NodeType node_type       = 3;
-  bytes    csr_pem         = 4; // node generates keypair locally, sends only CSR
-  string   binary_version  = 5;
-}
-
-message BootstrapResponse {
-  bytes         cert_pem        = 1; // signed node certificate (90-day validity)
-  bytes         ca_chain_pem    = 2; // intermediate CA + root CA (PEM) — initial trust bundle
-  string        cp_endpoint     = 3; // CP gRPC address — retained permanently as break-glass
-  string        gateway_address = 4; // gateway gRPC address (connectors only; empty for gateways)
-  SignedPayload policy_bundle   = 5; // initial policy bundle — verify with embedded CP public key
-  SignedPayload config_bundle   = 6; // initial config bundle — verify with embedded CP public key
-  google.protobuf.Timestamp registered_at = 7;
-}
-
-// =============================================================================
 // IDENTITY SERVICE
 // Cert lifecycle: issuance, rotation, and expired-cert recovery.
 // Called directly by both gateways and connectors.
 // Connectors call this via the break-glass CP endpoint — not through the gateway.
 // =============================================================================
-
-service IdentityService {
-
-  // IssueCert covers: CERT_REASON_ROTATION and CERT_REASON_COMPROMISE.
-  // Node must provide a possession proof signed with its current private key.
-  // CP verifies possession before issuing new cert — prevents hijacking during renewal.
-  rpc IssueCert(CertRequest) returns (CertResponse);
-
-  // RecoverCert covers: CERT_REASON_RECOVERY (expired cert).
-  // Node does NOT connect to gateway first. It calls CP directly.
-  // Gateway never accepts expired certificates under any circumstances.
-  // Node proves it holds the private key via possession proof even though cert is expired.
-  // CP validates: node_id is registered + possession proof is valid against known public key.
-  rpc RecoverCert(CertRecoveryRequest) returns (CertResponse);
-}
 
 message CertRequest {
   NodeIdentity   identity         = 1;
@@ -354,79 +307,6 @@ message RevokeParams {
   string            cert_serial = 1;
   RevocationReason  reason      = 2;
   bool              allow_reenrollment = 3; // if true, node may request new cert after revocation
-}
-
-// =============================================================================
-// CONNECTOR SERVICE — Gateway ↔ Connector
-// One persistent bidirectional mTLS stream per connector.
-// Carries both application traffic AND management events (bundle relays, commands).
-// All management payloads are CP-signed — gateway cannot forge them.
-// Connector verifies using embedded CP public key before applying anything.
-// =============================================================================
-
-service ConnectorService {
-  rpc ConnectorStream(stream ConnectorEnvelope) returns (stream GatewayToConnectorEnvelope);
-}
-
-// ── Connector → Gateway ──────────────────────────────────────────────────────
-
-message ConnectorEnvelope {
-  string connector_id = 1; // always set
-
-  oneof payload {
-    ConnectorHeartbeat      heartbeat   = 2;
-    BundleAcks            bundle_ack  = 3;
-    CommandAck              command_ack = 4;
-    ConnectorAccessLogBatch access_logs = 5;
-    ConnectorMetrics        metrics     = 6;
-  }
-}
-
-message ConnectorHeartbeat {
-  NodeIdentity identity           = 1;
-  int32        active_app_tunnels = 2; // live tunnels to internal apps
-}
-
-message ConnectorAccessLogBatch {
-  repeated ConnectorAccessLogEntry entries = 1;
-}
-
-message ConnectorAccessLogEntry {
-  string session_id    = 1;
-  string target_app_id = 2;
-  string action        = 3; // ALLOW / DENY
-  string policy_id     = 4;
-  int64  bytes_in      = 5;
-  int64  bytes_out     = 6;
-  google.protobuf.Timestamp started_at = 7;
-  google.protobuf.Timestamp ended_at   = 8;
-}
-
-message ConnectorMetrics {
-  google.protobuf.Timestamp collected_at  = 1;
-  int32  active_app_tunnels               = 2;
-  int64  total_requests                   = 3;
-  int64  denied_requests                  = 4;
-  double p95_latency_ms                   = 5;
-  double cpu_usage_percent                = 6;
-  double mem_usage_bytes                  = 7;
-}
-
-// ── Gateway → Connector ──────────────────────────────────────────────────────
-
-message GatewayToConnectorEnvelope {
-  string connector_id = 1;
-
-  oneof payload {
-    ConnectorHeartbeatResponse heartbeat_response = 2;
-    BundleUpdate               bundle_update      = 3; // relayed from CP — CP-signed
-    Command                    command            = 4; // relayed from CP — CP-signed
-  }
-}
-
-message ConnectorHeartbeatResponse {
-  google.protobuf.Timestamp server_time  = 1;
-  NodeState                 expected_state = 2;
 }
 
 // =============================================================================

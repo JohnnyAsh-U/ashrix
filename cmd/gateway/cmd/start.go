@@ -15,9 +15,12 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/bootstrap"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
-	gateway_grpc "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/grpc"
+	gateway_grpc "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/grpc_client"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
+	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/store"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -131,6 +134,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	//---------------------------Initialize and Load Registry------------------------------//
+
+	reg := registry.New()
+	regPendingCmd := registry.NewPendingCommands()
+
+	log.Info("Initialising Registry...")
+
 	//-----------------------Load TLS and Open stream -----------------------------------------------
 	// This is the real liveness check - If CP is unreachable or
 	// rejects the cert, we check if connection is successful
@@ -147,7 +157,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	grpcConn, stream, err := gateway_grpc.OpenStream(ctx, replacer.Replace(cfg.CPURL), tlsConfig, pki, log)
-	
+
 	if err != nil {
 		if fe, ok := errors.AsType[*gateway_grpc.FatalError](err); ok {
 			log.Fatal(fe.UserMessage)
@@ -157,7 +167,6 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 
 	defer grpcConn.Close()
-
 
 	// ---------------------Hello handshake---------------------
 	//CP confirms this gateway is known and trusted
@@ -173,12 +182,20 @@ func runStart(cmd *cobra.Command, args []string) error {
 	pki.StartRotator()
 	defer pki.Stop()
 
+	//-------------------Open Store BBOLT--------------------------------------------//
+	store, err := store.Open(cfg.DataDir, log)
+	if err != nil {
+		log.Fatal("failed to open store", zap.Error(err))
+	}
+	defer store.Close()
+
 	//---------------------Build stream handler-------------------------
 
 	handler := gateway_grpc.NewStreamHandler(
 		cfg.GatewayID,
 		stream,
 		pki,
+		reg,
 		log,
 	)
 
@@ -191,8 +208,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 	//--------------------Start Listeners--------------------
 
 	// Instantiate new servers
-	grpcServer := server.NewGRPCServer(cfg, pki.GetTLSConfig(), log)
-	quicServer := server.NewQUICServer(cfg, pki.GetTLSConfig(), log)
+	grpcServer := grpc.NewGRPCServer(cfg, pki.GetTLSConfig(), log, reg, regPendingCmd)
+	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log)
 
 	// Start servers in background
 	go func() {
@@ -214,11 +231,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 	go func() {
 		sig := <-quit
 		log.Info("shutdown signal received", zap.String("signal", sig.String()))
-		
+
 		// Stop listeners gracefully
 		grpcServer.Stop()
 		quicServer.Stop()
-		
+
 		cancel()
 	}()
 
@@ -262,13 +279,12 @@ func runStart(cmd *cobra.Command, args []string) error {
 			goto done
 		}
 
-
 		log.Info("redialing CP",
 			zap.String("cp_url", cfg.CPURL),
 			zap.Int("attempt", attempt),
 		)
 
-		grpcConn,stream, err = gateway_grpc.OpenStream(ctx, replacer.Replace(cfg.CPURL), tlsConfig, pki, log)
+		grpcConn, stream, err = gateway_grpc.OpenStream(ctx, replacer.Replace(cfg.CPURL), tlsConfig, pki, log)
 		if err != nil {
 			if fe, ok := errors.AsType[*gateway_grpc.FatalError](err); ok {
 				log.Fatal(fe.UserMessage)
@@ -281,6 +297,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 			cfg.GatewayID,
 			stream,
 			pki,
+			reg,
 			log,
 		)
 

@@ -38,8 +38,6 @@ func SendHello(
 	defer cancel()
 	respCh := make(chan error, 1)
 
-	fmt.Println("Here")
-
 	go func() {
 		msg, err := stream.Recv()
 		if err != nil {

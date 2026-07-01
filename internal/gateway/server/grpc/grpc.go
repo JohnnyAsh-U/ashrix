@@ -1,4 +1,4 @@
-package server
+package grpc
 
 import (
 	"crypto/tls"
@@ -6,6 +6,8 @@ import (
 	"net"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -17,7 +19,8 @@ type GRPCServer struct {
 	log    *zap.Logger
 }
 
-func NewGRPCServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger) *GRPCServer {
+
+func NewGRPCServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger, registry *registry.Registry, pendingCmd *registry.PendingCommands) *GRPCServer {
 	// Enforce mTLS by requiring client certificates
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
@@ -25,7 +28,7 @@ func NewGRPCServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger) *
 	s := grpc.NewServer(grpc.Creds(creds))
 
 	// TODO: Register your gRPC handlers here
-	// pb.RegisterYourServiceServer(s, &server{})
+	gen.RegisterConnectorServiceServer(s, &Server{registry: registry, log: log, pending: pendingCmd})
 
 	return &GRPCServer{
 		server: s,

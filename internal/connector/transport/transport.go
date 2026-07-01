@@ -1,8 +1,11 @@
 package transport
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
-//Session is multiplexed connection to the gateway
+// Session is multiplexed connection to the gateway
 // Implemented by both QUIC, gRPC and websocket(yamux)
 type Session interface {
 
@@ -24,14 +27,13 @@ type Session interface {
 	TransportName() string
 }
 
-
 //Stream is a single bidirectional channel within a Session
 //Implements io.ReadWriteCloser
 
 type Stream interface {
-	Read(b []byte) (int, error)
-	Write(b []byte) (int, error)
-	Close() error
+	io.ReadWriteCloser
+
 	//Close Write signals end of our writes(half-close)
 	//Gateway knows we finished sending the request body
+	CloseWrite() error
 }

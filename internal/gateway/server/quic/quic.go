@@ -1,4 +1,4 @@
-package server
+package quic
 
 import (
 	"context"

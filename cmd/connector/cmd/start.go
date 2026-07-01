@@ -3,14 +3,21 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/logger"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/tunnel"
+
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -18,7 +25,6 @@ import (
 
 func init() {
 	startCmd.Flags().String("token", "", "First Time Token")
-
 
 	viper.BindPFlag("token", startCmd.Flags().Lookup("token"))
 	rootCmd.AddCommand(startCmd)
@@ -58,7 +64,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	//------------------------Logger Initializer---------------------------
 	fmt.Println("Initializing Logger...")
 
-	if err := connector.LoggerInit(connector.LoggerConfig{
+	if err := logger.LoggerInit(logger.LoggerConfig{
 		Env:        "dev",
 		LogDir:     logDir,
 		Level:      "info",
@@ -71,9 +77,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
-	defer connector.LoggerApp.Sync()
+	defer logger.LoggerApp.Sync()
 
-	log := connector.LoggerApp
+	log := logger.LoggerApp
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -106,27 +112,133 @@ func runStart(cmd *cobra.Command, args []string) error {
 		zap.Int("apps", len(result.Status.Apps)),
 	)
 
-	//------------------------ Build Transport config from status response-----------------------------------//
+	//------------------------ Build Transport config from status response-------------------------//
 
-	gatewayAddr := result.Status.GatewayUrl
+	gatewayAddr := result.Status.GatewayIp
+	fmt.Println(gatewayAddr)
 	if gatewayAddr == "" {
 		fmt.Println("Gateway URL not valid")
 		os.Exit(1)
 	}
 
-	// tlsConfig := result.PKI.TLSConfig()
+	tlsConfig := result.PKI.TLSConfig()
+	connectorID := result.Status.ConnectorId
 
-	//--------------------------Build Connector config -------------------------------//
-
-
-	//--------------------------Start Cert Rotator------------------------------------//
-	result.PKI.StartRotator()
+	//-----------------------Build the Management Stream--------------------------------------------//
 	log.Info("Connector ready - Opening management stream with gateway")
 
+	gRPCURL := result.Status.GatewayIp + ":9444"
+	streamConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tlsConfig, log)
 
+	if err != nil {
+		log.Fatal("Failed to open Gateway stream", zap.String("cp_url", gRPCURL), zap.Error(err))
+	}
 
+	defer streamConn.Conn.Close()
 
-	<-ctx.Done()
-	log.Info("Connector stopped")
-	return nil
+	// ---------------------Hello handshake-------------------------------------------//
+	//CP confirms this gateway is known and trusted
+	helloCtx, helloCancel := context.WithTimeout(ctx, 10*time.Second)
+	err = streamConn.Register(helloCtx)
+
+	helloCancel()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	//--------------------Mangement Receiver And HeartBeat -----------------------------------------//
+
+	go func() {
+		if err := streamConn.RunReceiver(ctx); err != nil {
+			log.Error("Management stream receive loop error", zap.Error(err))
+		}
+	}()
+
+	go func() {
+		if err := streamConn.RunHeartbeat(ctx, 10*time.Second); err != nil {
+			log.Error("Management stream heartbeat loop error", zap.Error(err))
+		}
+	}()
+
+	log.Info("✓ connector management stream ready",zap.String("connector_id", connectorID), zap.String("app_addr", gRPCURL))
+
+	result.PKI.StartRotator()
+
+	//---------------------------Config for different Transport---------------------------------------------//
+	config := transport.Config{
+		GatewayQUICAddr: result.Status.GatewayIp + ":9445",
+		GatewayGRPCAddr: result.Status.GatewayIp + ":9444",
+		GatewayWSURL:    "wss://" + result.Status.GatewayIp + "/ws",
+		ConnectorID:     connectorID,
+		TLSConfig:       tlsConfig,
+	}
+
+	//---------------------------Run the Transport Negociation---------------------------------------------//
+
+	attempt := 0
+
+	for {
+		attempt++
+
+		transportProto, err := transport.Negotiate(ctx, config, log)
+		if err != nil {
+			return fmt.Errorf("tunnel transport: %w", err)
+		}
+		defer transportProto.Close()
+
+		log.Info("✓ connector ready",
+			zap.String("connector_id", config.ConnectorID),
+			zap.String("app_addr", config.GatewayGRPCAddr),
+			zap.String("tunnel", transportProto.TransportName()),
+		)
+
+		//Tunnel: accept and proxy requests
+		errCh := make(chan error, 1)
+
+		connTunnel := tunnel.NewTunnel(log)
+
+		go func() {
+			errCh <- connTunnel.AcceptLoop(ctx, transportProto)
+		}()
+
+		select {
+		case err := <-errCh:
+			log.Error("Tunnel error", zap.Error(err))
+		case <-ctx.Done():
+			return nil
+		}
+
+		// Clean shutdown
+		if ctx.Err() != nil {
+			log.Info("connector shutting down cleanly")
+			return nil
+		}
+
+		// Transient — reconnect with backoff
+		delay := reconnectDelay(attempt)
+		log.Warn("disconnected — reconnecting",
+			zap.Error(err),
+			zap.Duration("retry_in", delay),
+			zap.Int("attempt", attempt),
+		)
+
+		select {
+		case <-time.After(delay):
+			// Reset attempt counter if last connection was healthy
+			// (connected > 60s = stable, backoff from zero on next failure)
+		case <-ctx.Done():
+			log.Info("Connector stopped")
+			return nil
+		}
+	}
+}
+
+// reconnectDelay returns exponential backoff with jitter and 60s cap.
+func reconnectDelay(attempt int) time.Duration {
+	base := time.Duration(1<<attempt) * time.Second
+	if base > 60*time.Second {
+		base = 60 * time.Second
+	}
+	jitter := time.Duration(rand.Int63n(int64(base / 5)))
+	return base + jitter
 }
