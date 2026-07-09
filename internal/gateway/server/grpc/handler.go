@@ -82,22 +82,17 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	// ctx := stream.Context()
 	// state, bool := s.registry.Get(connectorID)
 
-	entry := &registry.ConnectorEntry{
-		ConnectorID:      connectorID,
-		// TenantID:         hello.TenantId,
-		ManagementStream: stream, // the live gRPC stream — satisfies registry.ManagementStream
-		Apps:             hello.Apps,
-		Transport:        hello.Transport,
-		// State:            state.State,
-		ConnectedAt:      time.Now(),
-		LastHeartbeat:    time.Now(),
+	apps := make([]*gen.AppDef, len(hello.Apps))
+	for i, a := range hello.Apps{
+		apps[i] = &gen.AppDef{
+			Id: a.Id, Url: a.Addr, Proto: a.Proto, Subdomain: a.Subdomain,
+		}
 	}
 
-	// ── Register in the SHARED registry ─────────────────────────────
-	// From this point, cpstream.Handler can find and message
-	// this connector via the exact same Registry instance.
-	s.registry.Register(entry)
-	defer s.registry.Unregister(connectorID)
+	//Attach management - does not touch tunnel fields per correct registry
+	entry := s.registry.AttachManagement(connectorID,apps,stream, "active")
+	defer s.registry.DetachManagement(connectorID)
+
 
 	// Send HelloAck
 	if err := stream.Send(&gen.GatewayConnectorEnvelope{
@@ -110,6 +105,9 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	}); err != nil {
 		return fmt.Errorf("send hello ack: %w", err)
 	}
+
+
+	s.log.Info("Management plane attached", zap.String("Connector_id", connectorID), zap.Bool("Tunnel already attached", entry.TunnelSession != nil))
 
 	// If CP says this connector should be suspended, apply
 	// immediately — before accepting any further traffic.
@@ -159,6 +157,8 @@ func (s *Server) handleConnectorMessage(connectorID string, env *gen.ConnectorGa
 	switch p := env.Payload.(type) {
 	case *gen.ConnectorGatewayEnvelope_Heartbeat:
 		s.registry.UpdateHeartbeat(connectorID)
+		// all := s.registry.All()
+		// fmt.Println(s.registry.GetByConnectorID(connectorID))
 		s.log.Debug("heartbeat received",
 			zap.String("connector_id", connectorID),
 			zap.Int64("seq", p.Heartbeat.Seq))

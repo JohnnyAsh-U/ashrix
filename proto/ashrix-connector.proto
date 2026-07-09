@@ -81,7 +81,7 @@ message RequestHeader {
   string              user_id     = 6;
   string              user_email  = 7;
   string              request_id  = 8;
-  string              body_length = 9;
+  int64              body_length = 9;
 }
 
 message ResponseHeader {
@@ -152,4 +152,5 @@ message AppDef {
   string url   = 2;
   string addr  = 3;
   string proto = 4;
+  string subdomain = 5;
 }

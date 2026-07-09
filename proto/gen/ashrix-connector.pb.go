@@ -578,7 +578,7 @@ type RequestHeader struct {
 	UserId        string                 `protobuf:"bytes,6,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	UserEmail     string                 `protobuf:"bytes,7,opt,name=user_email,json=userEmail,proto3" json:"user_email,omitempty"`
 	RequestId     string                 `protobuf:"bytes,8,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	BodyLength    string                 `protobuf:"bytes,9,opt,name=body_length,json=bodyLength,proto3" json:"body_length,omitempty"`
+	BodyLength    int64                  `protobuf:"varint,9,opt,name=body_length,json=bodyLength,proto3" json:"body_length,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -669,11 +669,11 @@ func (x *RequestHeader) GetRequestId() string {
 	return ""
 }
 
-func (x *RequestHeader) GetBodyLength() string {
+func (x *RequestHeader) GetBodyLength() int64 {
 	if x != nil {
 		return x.BodyLength
 	}
-	return ""
+	return 0
 }
 
 type ResponseHeader struct {
@@ -1238,6 +1238,7 @@ type AppDef struct {
 	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
 	Addr          string                 `protobuf:"bytes,3,opt,name=addr,proto3" json:"addr,omitempty"`
 	Proto         string                 `protobuf:"bytes,4,opt,name=proto,proto3" json:"proto,omitempty"`
+	Subdomain     string                 `protobuf:"bytes,5,opt,name=subdomain,proto3" json:"subdomain,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1296,6 +1297,13 @@ func (x *AppDef) GetAddr() string {
 func (x *AppDef) GetProto() string {
 	if x != nil {
 		return x.Proto
+	}
+	return ""
+}
+
+func (x *AppDef) GetSubdomain() string {
+	if x != nil {
+		return x.Subdomain
 	}
 	return ""
 }
@@ -1363,7 +1371,7 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"user_email\x18\a \x01(\tR\tuserEmail\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\b \x01(\tR\trequestId\x12\x1f\n" +
-	"\vbody_length\x18\t \x01(\tR\n" +
+	"\vbody_length\x18\t \x01(\x03R\n" +
 	"bodyLength\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -1407,12 +1415,13 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\x0fConnectorReject\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x1c\n" +
-	"\tpermanent\x18\x03 \x01(\bR\tpermanent\"T\n" +
+	"\tpermanent\x18\x03 \x01(\bR\tpermanent\"r\n" +
 	"\x06AppDef\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
 	"\x04addr\x18\x03 \x01(\tR\x04addr\x12\x14\n" +
-	"\x05proto\x18\x04 \x01(\tR\x05proto2E\n" +
+	"\x05proto\x18\x04 \x01(\tR\x05proto\x12\x1c\n" +
+	"\tsubdomain\x18\x05 \x01(\tR\tsubdomain2E\n" +
 	"\rTunnelService\x124\n" +
 	"\x06Tunnel\x12\x12.proto.TunnelChunk\x1a\x12.proto.TunnelChunk(\x010\x012c\n" +
 	"\x10ConnectorService\x12O\n" +

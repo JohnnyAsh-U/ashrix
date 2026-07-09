@@ -1,6 +1,7 @@
 package tunnel
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
 var httpClient = &http.Client{
@@ -27,9 +29,9 @@ var httpClient = &http.Client{
 func (c *ConnectorTunnel) handleRequestStream(stream transport.Stream) {
 	defer stream.Close()
 
-	// ── Read request envelope ─────────────────────────────────────
-	var envelope RequestEnvelope
-	if err := json.NewDecoder(stream).Decode(&envelope); err != nil {
+	// ── Read request envelope (length-prefixed JSON) ──────────────
+	var envelope gen.RequestHeader
+	if err := readEnvelope(stream, &envelope); err != nil {
 		c.log.Error("failed to read request envelope",
 			zap.Error(err),
 		)
@@ -41,7 +43,7 @@ func (c *ConnectorTunnel) handleRequestStream(stream transport.Stream) {
 		zap.String("method", envelope.Method),
 		zap.String("path", envelope.Path),
 		zap.String("user", envelope.UserEmail),
-		zap.String("request_id", envelope.RequestID),
+		// zap.String("request_id", envelope.RequestID),
 	)
 
 	upstreamHost := "localhost:3000"
@@ -54,8 +56,15 @@ func (c *ConnectorTunnel) handleRequestStream(stream transport.Stream) {
 
 	// ── Body reader ───────────────────────────────────────────────
 	var bodyReader io.Reader
-	if envelope.BodyLen > 0 {
-		bodyReader = io.LimitReader(stream, envelope.BodyLen)
+	switch {
+	case envelope.BodyLength < 0:
+		c.log.Error("invalid body length", zap.Int64("length", envelope.BodyLength))
+		c.writeError(stream, 400, "invalid body length")
+		return
+	case envelope.BodyLength == 0:
+		bodyReader = nil
+	default:
+		bodyReader = io.LimitReader(stream, envelope.BodyLength)
 	}
 
 	// ── Build HTTP request ────────────────────────────────────────
@@ -74,9 +83,9 @@ func (c *ConnectorTunnel) handleRequestStream(stream transport.Stream) {
 	// Inject verified identity headers
 	// Internal app trusts these — they come from the connector,
 	// not from the user directly
-	req.Header.Set("X-Ashrix-User-ID",    envelope.UserID)
+	req.Header.Set("X-Ashrix-User-ID", envelope.UserId)
 	req.Header.Set("X-Ashrix-User-Email", envelope.UserEmail)
-	req.Header.Set("X-Ashrix-Request-ID", envelope.RequestID)
+	// req.Header.Set("X-Ashrix-Request-ID", envelope.RequestID)
 
 	// Strip headers user should not control
 	req.Header.Del("X-Forwarded-For")
@@ -95,12 +104,22 @@ func (c *ConnectorTunnel) handleRequestStream(stream transport.Stream) {
 	defer resp.Body.Close()
 
 	// ── Write response envelope ───────────────────────────────────
-	respEnvelope := ResponseEnvelope{
-		StatusCode: resp.StatusCode,
+	// respEnvelope := gen.ResponseHeader{
+	// 	StatusCode: int32(resp.StatusCode),
+	// 	Headers:    flattenHeaders(resp.Header),
+	// }
+	// if err := json.NewEncoder(stream).Encode(&respEnvelope); err != nil {
+	// 	c.log.Error("failed to write response envelope", zap.Error(err))
+	// 	return
+	// }
+	respEnvelope := gen.ResponseHeader{
+		StatusCode: int32(resp.StatusCode),
 		Headers:    flattenHeaders(resp.Header),
 	}
-	if err := json.NewEncoder(stream).Encode(respEnvelope); err != nil {
-		c.log.Error("failed to write response envelope", zap.Error(err))
+	if err := writeEnvelope(stream, &respEnvelope); err != nil {
+		c.log.Error("failed to write response envelope",
+			zap.Error(err),
+		)
 		return
 	}
 
@@ -120,14 +139,60 @@ func (c *ConnectorTunnel) handleRequestStream(stream transport.Stream) {
 }
 
 func (c *ConnectorTunnel) writeError(stream transport.Stream, code int, msg string) {
-	resp := ResponseEnvelope{
-		StatusCode: code,
+	resp := gen.ResponseHeader{
+		StatusCode: int32(code),
 		Headers:    map[string]string{"Content-Type": "application/json"},
 	}
-	data, _ := json.Marshal(resp)
-	stream.Write(append(data, '\n'))
+	// write length-prefixed response envelope
+	if err := writeEnvelope(stream, &resp); err != nil {
+		c.log.Error("failed to write error envelope", zap.Error(err))
+		return
+	}
 	body, _ := json.Marshal(map[string]string{"error": msg})
-	stream.Write(body)
+	if _, err := stream.Write(body); err != nil {
+		c.log.Error("failed to write error body", zap.Error(err))
+	}
+}
+
+const maxEnvelopeSize = 64 * 1024
+
+func readEnvelope(stream transport.Stream, envelope interface{}) error {
+	// Read 4-byte big endian length prefix
+	lengthPrefix := make([]byte, 4)
+	if _, err := io.ReadFull(stream, lengthPrefix); err != nil {
+		return fmt.Errorf("Read Envelope Length Prefix: %w", err)
+	}
+	length := binary.BigEndian.Uint32(lengthPrefix)
+	if length > maxEnvelopeSize {
+		return fmt.Errorf("Envelope too large: %d bytes (max: %d)", length, maxEnvelopeSize)
+	}
+	data := make([]byte, length)
+	if _, err := io.ReadFull(stream, data); err != nil {
+		return fmt.Errorf("Read Envelope Data: %w", err)
+	}
+	if err := json.Unmarshal(data, envelope); err != nil {
+		return fmt.Errorf("Unmarshal Envelope: %w", err)
+	}
+	return nil
+}
+
+func writeEnvelope(stream transport.Stream, envelope interface{}) error {
+	data, err := json.Marshal(envelope)
+	if err != nil {
+		return fmt.Errorf("Marshal Envelope: %w", err)
+	}
+	if len(data) > maxEnvelopeSize {
+		return fmt.Errorf("Envelope too large: %d bytes (max: %d)", len(data), maxEnvelopeSize)
+	}
+	lengthPrefix := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthPrefix, uint32(len(data)))
+	if _, err := stream.Write(lengthPrefix); err != nil {
+		return fmt.Errorf("Write Envelope Length Prefix: %w", err)
+	}
+	if _, err := stream.Write(data); err != nil {
+		return fmt.Errorf("Write Envelope Data: %w", err)
+	}
+	return nil
 }
 
 func flattenHeaders(h http.Header) map[string]string {
@@ -139,5 +204,3 @@ func flattenHeaders(h http.Header) map[string]string {
 	}
 	return out
 }
-
-

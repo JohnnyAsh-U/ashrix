@@ -19,6 +19,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
+	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/store"
 	"github.com/spf13/cobra"
@@ -209,9 +210,16 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// Instantiate new servers
 	grpcServer := grpc.NewGRPCServer(cfg, pki.GetTLSConfig(), log, reg, regPendingCmd)
-	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log)
+	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log, reg)
+	httpServer := http_proxy.NewProxyServer(cfg,reg, log)
 
 	// Start servers in background
+	go func() {
+		if err := httpServer.Start(); err != nil {
+			log.Error("HTTP server stopped", zap.Error(err))
+		}
+	}()
+
 	go func() {
 		if err := grpcServer.Start(); err != nil {
 			log.Error("gRPC server stopped", zap.Error(err))
