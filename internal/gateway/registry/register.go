@@ -12,7 +12,7 @@ import (
 // Lives entirely in memory. Rebuilt on every reconnect.
 type ConnectorEntry struct {
 	ConnectorID      string
-	Apps             []*pb.AppDef
+	Apps             []*pb.ConnectorApps
 
 	// TenantID         string
 	ManagementStream ManagementStream // live stream — nil if tunnel-only entry
@@ -26,13 +26,6 @@ type ConnectorEntry struct {
 	TunnelConnAt time.Time
 	tunnelAttached bool
 	State            string // "active", "suspended"
-}
-
-type AppDef struct {
-	ID        string
-	Subdomain string
-	Addr      string
-	Proto     string
 }
 
 // Registry holds all live connector state for this gateway process.
@@ -76,7 +69,7 @@ func (r *Registry) getOrCreate(connectorID string) *ConnectorEntry {
 // connector's management stream registers successfully.
 func (r *Registry) AttachManagement(
 	connectorID string,
-	apps []*pb.AppDef,
+	apps []*pb.ConnectorApps,
 	stream ManagementStream,
 	state string,
 ) *ConnectorEntry {
@@ -159,14 +152,14 @@ func (r *Registry) removeIfFullyDetachedLocked(connectorID string, entry *Connec
 		return
 	}
 	for _, app := range entry.Apps {
-		delete(r.routing, app.Url)
+		delete(r.routing, app.Id)
 	}
 	delete(r.connectors, connectorID)
 }
 
 func (r *Registry) rebuildRoutingLocked(entry *ConnectorEntry) {
 	for _, app := range entry.Apps {
-		r.routing[app.Url] = entry.ConnectorID
+		r.routing[app.Id] = entry.ConnectorID
 	}
 }
 

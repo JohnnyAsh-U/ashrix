@@ -3,6 +3,7 @@ package http_proxy
 import (
 	"fmt"
 	"io"
+	"time"
 
 	// "io"
 	"net/http"
@@ -67,7 +68,7 @@ func NewProxyServer(cfg *config.Config, registry *registry.Registry, log *zap.Lo
 		//Write request envelope + body to stream
 		envelope := gen.RequestHeader{
 			Method:     r.Method,
-			AppId:      "ECCLESIX",
+			AppId:      "367595d8-30c4-4b87-8660-ec1862d8c138",
 			Path:       r.URL.Path,
 			Query:      r.URL.RawQuery,
 			UserId:     "user-123",
@@ -132,8 +133,16 @@ func NewProxyServer(cfg *config.Config, registry *registry.Registry, log *zap.Lo
 				log.Error("Failed to write response body", zap.Error(err))
 			}
 		} else {
-			if _, err := io.Copy(io.Discard, stream); err != nil {
-				log.Error("Failed to drain response body", zap.Error(err))
+			// Drain at most 1MB of the discarded body with a 2-second timeout to prevent hangs
+			drainDone := make(chan struct{})
+			go func() {
+				_, _ = io.Copy(io.Discard, io.LimitReader(stream, 1024*1024))
+				close(drainDone)
+			}()
+			select {
+			case <-drainDone:
+			case <-time.After(2 * time.Second):
+				log.Warn("Draining response body timed out, closing stream")
 			}
 		}
 

@@ -28,6 +28,12 @@ var httpClient = &http.Client{
 // Runs in its own goroutine — one per concurrent user request.
 func (c *ConnectorTunnel) handleRequestStream(stream transport.Stream) {
 	defer stream.Close()
+	defer func() {
+		if r := recover(); r != nil {
+			c.log.Error("panic in handleRequestStream", zap.Any("panic", r))
+			c.writeError(stream, 500, "internal server error due to panic")
+		}
+	}()
 
 	// ── Read request envelope (length-prefixed JSON) ──────────────
 	var envelope gen.RequestHeader
@@ -39,20 +45,36 @@ func (c *ConnectorTunnel) handleRequestStream(stream transport.Stream) {
 		return
 	}
 
+	//===============Getting the app from the applist using requestheader app id================//
+	var requestApp *gen.ConnectorApps
+	for i := range c.apps {
+		if c.apps[i].Id == envelope.AppId {
+			requestApp = c.apps[i]
+			break
+		}
+	}
+
+	if requestApp == nil {
+		c.log.Error("App Not Found")
+		c.writeError(stream, 502, "App Not Found")
+		return
+	}
+
 	c.log.Debug("proxying request",
 		zap.String("method", envelope.Method),
 		zap.String("path", envelope.Path),
 		zap.String("user", envelope.UserEmail),
-		// zap.String("request_id", envelope.RequestID),
+		zap.String("appName", requestApp.Name),
 	)
 
-	upstreamHost := "localhost:3000"
 
 	// ── Build upstream URL ────────────────────────────────────────
-	upstream := fmt.Sprintf("http://%s%s", upstreamHost, envelope.Path)
+	upstream := fmt.Sprintf("%s%s", requestApp.Upstream, envelope.Path)
 	if envelope.Query != "" {
 		upstream += "?" + envelope.Query
 	}
+
+	fmt.Println(upstream)
 
 	// ── Body reader ───────────────────────────────────────────────
 	var bodyReader io.Reader

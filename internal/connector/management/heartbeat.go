@@ -11,7 +11,14 @@ import (
 )
 
 // runHeartbeat sends heartbeats every 30s on the management stream.
-func (c *ManagementConn) RunHeartbeat(ctx context.Context, seconds time.Duration) error {
+func (c *ManagementConn) RunHeartbeat(ctx context.Context, seconds time.Duration) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.log.Error("panic in RunHeartbeat", zap.Any("panic", r))
+			err = fmt.Errorf("RunHeartbeat panic: %v", r)
+		}
+	}()
+
 	ticker := time.NewTicker(seconds)
 	defer ticker.Stop()
 

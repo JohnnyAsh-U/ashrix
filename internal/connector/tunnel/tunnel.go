@@ -9,6 +9,8 @@ import (
 	// "go.uber.org/zap"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"go.uber.org/zap"
+	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+
 )
 
 // ConnectorTunnel manages the full lifecycle of the tunnel.
@@ -16,14 +18,17 @@ type ConnectorTunnel struct {
 	log       *zap.Logger
 	startedAt time.Time
 
+	apps []*pb.ConnectorApps
+
 	// Active stream count — reported in heartbeat
 	activeStreams atomic.Int64
 }
 
-func NewTunnel(log *zap.Logger) *ConnectorTunnel {
+func NewTunnel(log *zap.Logger, apps []*pb.ConnectorApps) *ConnectorTunnel {
 	return &ConnectorTunnel{
 		log:       log,
 		startedAt: time.Now(),
+		apps: apps,
 	}
 }
 
@@ -34,7 +39,13 @@ func NewTunnel(log *zap.Logger) *ConnectorTunnel {
 func (c *ConnectorTunnel) AcceptLoop(
 	ctx context.Context,
 	session transport.Session,
-) error {
+) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.log.Error("panic in AcceptLoop", zap.Any("panic", r))
+			err = fmt.Errorf("AcceptLoop panic: %v", r)
+		}
+	}()
 	c.log.Debug("accept loop started — waiting for requests")
 
 	for {

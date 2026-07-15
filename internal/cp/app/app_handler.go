@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -22,15 +23,16 @@ func NewAppHandler(service *Service) *AppHandler {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param orgId path string true "Organization ID"
 // @Param app body CreateAppRequest true "App details"
 // @Success 201 {object} AppResponse
 // @Failure 400 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
-// @Router /orgs/{orgId}/apps [post]
+// @Router /apps [post]
 func (h *AppHandler) CreateApp(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := chi.URLParam(r, "orgId")
-	orgID, err := uuid.Parse(orgIDStr)
+
+	orgID := middleware.OrgIDFromCtx(r.Context())
+
+	orgIDUUID, err := uuid.Parse(orgID)
 	if err != nil {
 		dto.SendError(w, dto.NewBadRequestError("Invalid Organization ID format"))
 		return
@@ -47,7 +49,9 @@ func (h *AppHandler) CreateApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svcResp, svcErr := h.service.CreateApp(r.Context(), orgID, req)
+	//Check if the user belongs to the org
+
+	svcResp, svcErr := h.service.CreateApp(r.Context(), orgIDUUID, req)
 	if svcErr != nil {
 		dto.SendError(w, svcErr)
 		return
@@ -61,17 +65,18 @@ func (h *AppHandler) CreateApp(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param orgId path string true "Organization ID"
 // @Param id path string true "App ID"
 // @Param app body UpdateAppRequest true "Updated app details"
 // @Success 200 {object} AppResponse
 // @Failure 400 {object} dto.AppError
 // @Failure 404 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
-// @Router /orgs/{orgId}/apps/{id} [put]
+// @Router /apps/{id} [put]
 func (h *AppHandler) UpdateApp(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := chi.URLParam(r, "orgId")
-	orgID, err := uuid.Parse(orgIDStr)
+
+	orgID := middleware.OrgIDFromCtx(r.Context())
+
+	orgIDUUID, err := uuid.Parse(orgID)
 	if err != nil {
 		dto.SendError(w, dto.NewBadRequestError("Invalid Organization ID format"))
 		return
@@ -95,7 +100,7 @@ func (h *AppHandler) UpdateApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svcResp, svcErr := h.service.UpdateApp(r.Context(), id, orgID, req)
+	svcResp, svcErr := h.service.UpdateApp(r.Context(), id, orgIDUUID, req)
 	if svcErr != nil {
 		dto.SendError(w, svcErr)
 		return
@@ -109,20 +114,21 @@ func (h *AppHandler) UpdateApp(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param orgId path string true "Organization ID"
 // @Success 200 {array} AppResponse
 // @Failure 400 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
-// @Router /orgs/{orgId}/apps [get]
+// @Router /apps [get]
 func (h *AppHandler) ListAppsByOrg(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := chi.URLParam(r, "orgId")
-	orgID, err := uuid.Parse(orgIDStr)
+
+	orgID := middleware.OrgIDFromCtx(r.Context())
+
+	orgIDUUID, err := uuid.Parse(orgID)
 	if err != nil {
 		dto.SendError(w, dto.NewBadRequestError("Invalid Organization ID format"))
 		return
 	}
 
-	svcResp, svcErr := h.service.ListAppsByOrg(r.Context(), orgID)
+	svcResp, svcErr := h.service.ListAppsByOrg(r.Context(), orgIDUUID)
 	if svcErr != nil {
 		dto.SendError(w, svcErr)
 		return
@@ -142,9 +148,9 @@ func (h *AppHandler) ListAppsByOrg(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} dto.AppError
 // @Failure 404 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
-// @Router /orgs/{orgId}/apps/{id} [delete]
+// @Router /apps/{id} [delete]
 func (h *AppHandler) DeleteApp(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := chi.URLParam(r, "orgId")
+	orgIDStr := middleware.OrgIDFromCtx(r.Context())
 	orgID, err := uuid.Parse(orgIDStr)
 	if err != nil {
 		dto.SendError(w, dto.NewBadRequestError("Invalid Organization ID format"))

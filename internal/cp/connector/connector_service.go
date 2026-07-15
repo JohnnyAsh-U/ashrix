@@ -512,6 +512,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 	if len(apps) > 0 {
 		for _, g := range apps {
 			app := &gen.ConnectorApps{
+				Id: g.ID.String(),
 				Name:      g.Name,
 				Subdomain: g.Subdomain,
 				Upstream:  g.Upstream,

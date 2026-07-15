@@ -46,11 +46,12 @@ message ConnectorStatusResponse {
 }
 
 message ConnectorApps {
-  string name      = 1;
-  string subdomain = 2;
-  string upstream  = 3; //must be host:port
-  string protocol  = 4;
-  bool   is_public = 5;
+  string id          = 1;
+  string name        = 2;
+  string subdomain   = 3;
+  string upstream    = 4; //must be host:port
+  string protocol    = 5;
+  bool   is_public   = 6;
 }
 
 //=================================================================================
@@ -124,7 +125,7 @@ message ConnectorCmd {
 message ConnectorHello {
   string          connector_id = 1;
   string          version      = 2;
-  repeated AppDef apps         = 3;
+  repeated ConnectorApps apps         = 3;
   string          transport    = 4; //quic, grpc, websocket
 }
 
@@ -147,10 +148,3 @@ message ConnectorReject {
   bool   permanent = 3;
 }
 
-message AppDef {
-  string id    = 1;
-  string url   = 2;
-  string addr  = 3;
-  string proto = 4;
-  string subdomain = 5;
-}

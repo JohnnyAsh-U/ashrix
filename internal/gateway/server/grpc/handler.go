@@ -82,10 +82,10 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	// ctx := stream.Context()
 	// state, bool := s.registry.Get(connectorID)
 
-	apps := make([]*gen.AppDef, len(hello.Apps))
+	apps := make([]*gen.ConnectorApps, len(hello.Apps))
 	for i, a := range hello.Apps{
-		apps[i] = &gen.AppDef{
-			Id: a.Id, Url: a.Addr, Proto: a.Proto, Subdomain: a.Subdomain,
+		apps[i] = &gen.ConnectorApps{
+			Id: a.Id, Protocol: a.Protocol, Subdomain: a.Subdomain, Name: a.Name, Upstream: a.Upstream,
 		}
 	}
 

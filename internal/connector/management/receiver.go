@@ -9,7 +9,13 @@ import (
 )
 
 //The management receiver
-func (c *ManagementConn) RunReceiver(ctx context.Context) error {
+func (c *ManagementConn) RunReceiver(ctx context.Context) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.log.Error("panic in RunReceiver", zap.Any("panic", r))
+			err = fmt.Errorf("RunReceiver panic: %v", r)
+		}
+	}()
 	// Receive loop — this is the main goroutine
 	return c.receiver(ctx)
 }

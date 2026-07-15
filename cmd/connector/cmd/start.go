@@ -16,6 +16,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/tunnel"
+	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/spf13/cobra"
@@ -37,7 +38,13 @@ var startCmd = &cobra.Command{
 	RunE:  runStart,
 }
 
-func runStart(cmd *cobra.Command, args []string) error {
+func runStart(cmd *cobra.Command, args []string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "FATAL: Panic in connector runStart: %v\n", r)
+			err = fmt.Errorf("panic in connector: %v", r)
+		}
+	}()
 	fmt.Println("Starting Connector...")
 	baseDir := config.BaseDir()
 	if err := config.InitDirs(); err != nil {
@@ -123,46 +130,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	tlsConfig := result.PKI.TLSConfig()
 	connectorID := result.Status.ConnectorId
+	apps := result.Status.Apps
 
-	//-----------------------Build the Management Stream--------------------------------------------//
-	log.Info("Connector ready - Opening management stream with gateway")
-
+	//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
 	gRPCURL := result.Status.GatewayIp + ":9444"
-	streamConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tlsConfig, log)
-
-	if err != nil {
-		log.Fatal("Failed to open Gateway stream", zap.String("cp_url", gRPCURL), zap.Error(err))
-	}
-
-	defer streamConn.Conn.Close()
-
-	// ---------------------Hello handshake-------------------------------------------//
-	//CP confirms this gateway is known and trusted
-	helloCtx, helloCancel := context.WithTimeout(ctx, 10*time.Second)
-	err = streamConn.Register(helloCtx)
-
-	helloCancel()
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	//--------------------Mangement Receiver And HeartBeat -----------------------------------------//
-
-	go func() {
-		if err := streamConn.RunReceiver(ctx); err != nil {
-			log.Error("Management stream receive loop error", zap.Error(err))
-		}
-	}()
-
-	go func() {
-		if err := streamConn.RunHeartbeat(ctx, 10*time.Second); err != nil {
-			log.Error("Management stream heartbeat loop error", zap.Error(err))
-		}
-	}()
-
-	log.Info("✓ connector management stream ready",zap.String("connector_id", connectorID), zap.String("app_addr", gRPCURL))
-
-	result.PKI.StartRotator()
 
 	//---------------------------Config for different Transport---------------------------------------------//
 	config := transport.Config{
@@ -173,18 +144,123 @@ func runStart(cmd *cobra.Command, args []string) error {
 		TLSConfig:       tlsConfig,
 	}
 
-	//---------------------------Run the Transport Negociation---------------------------------------------//
-
 	attempt := 0
-
 	for {
+		if ctx.Err() != nil {
+			return nil
+		}
+		attempt++
+
+		log.Info("Opening management stream with gateway", zap.String("addr", gRPCURL), zap.Int("attempt", attempt))
+		streamConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tlsConfig, log, apps)
+		if err != nil {
+			log.Error("Failed to open Gateway stream", zap.String("cp_url", gRPCURL), zap.Error(err))
+			select {
+			case <-time.After(reconnectDelay(attempt)):
+				continue
+			case <-ctx.Done():
+				return nil
+			}
+		}
+
+		// ---------------------Hello handshake-------------------------------------------//
+		helloCtx, helloCancel := context.WithTimeout(ctx, 10*time.Second)
+		err = streamConn.Register(helloCtx)
+		helloCancel()
+		if err != nil {
+			log.Error("Failed to register management stream", zap.Error(err))
+			streamConn.Conn.Close()
+			select {
+			case <-time.After(reconnectDelay(attempt)):
+				continue
+			case <-ctx.Done():
+				return nil
+			}
+		}
+
+		log.Info("✓ connector management stream ready", zap.String("connector_id", connectorID), zap.String("app_addr", gRPCURL))
+		attempt = 0
+
+		//--------------------Mangement Receiver, HeartBeat, and Tunnel Loop ---------------------------//
+		sessionCtx, sessionCancel := context.WithCancel(ctx)
+		errCh := make(chan error, 3)
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("panic in management receiver", zap.Any("panic", r))
+					errCh <- fmt.Errorf("management receiver panic: %v", r)
+				}
+			}()
+			errCh <- streamConn.RunReceiver(sessionCtx)
+		}()
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("panic in management heartbeat", zap.Any("panic", r))
+					errCh <- fmt.Errorf("management heartbeat panic: %v", r)
+				}
+			}()
+			errCh <- streamConn.RunHeartbeat(sessionCtx, 10*time.Second)
+		}()
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("panic in tunnel loop", zap.Any("panic", r))
+					errCh <- fmt.Errorf("tunnel loop panic: %v", r)
+				}
+			}()
+			errCh <- runTunnelLoop(sessionCtx, config, log, apps)
+		}()
+
+		select {
+		case err := <-errCh:
+			if err != nil {
+				log.Error("Session lost due to component error", zap.Error(err))
+			}
+		case <-ctx.Done():
+			sessionCancel()
+			streamConn.Conn.Close()
+			return nil
+		}
+
+		sessionCancel()
+		streamConn.Conn.Close()
+
+		// Sleep briefly before reconnecting
+		select {
+		case <-time.After(reconnectDelay(1)):
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger, apps []*pb.ConnectorApps) error {
+	attempt := 0
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		attempt++
 
 		transportProto, err := transport.Negotiate(ctx, config, log)
 		if err != nil {
-			return fmt.Errorf("tunnel transport: %w", err)
+			delay := reconnectDelay(attempt)
+			log.Warn("tunnel negotiation failed — reconnecting",
+				zap.Error(err),
+				zap.Duration("retry_in", delay),
+				zap.Int("attempt", attempt),
+			)
+			select {
+			case <-time.After(delay):
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
-		defer transportProto.Close()
 
 		log.Info("✓ connector ready",
 			zap.String("connector_id", config.ConnectorID),
@@ -192,43 +268,47 @@ func runStart(cmd *cobra.Command, args []string) error {
 			zap.String("tunnel", transportProto.TransportName()),
 		)
 
-		//Tunnel: accept and proxy requests
-		errCh := make(chan error, 1)
+		// Record connection time to check for stability
+		connectTime := time.Now()
 
-		connTunnel := tunnel.NewTunnel(log)
+		// Tunnel: accept and proxy requests
+		errCh := make(chan error, 1)
+		connTunnel := tunnel.NewTunnel(log, apps)
 
 		go func() {
 			errCh <- connTunnel.AcceptLoop(ctx, transportProto)
 		}()
 
+		var tunnelErr error
 		select {
-		case err := <-errCh:
-			log.Error("Tunnel error", zap.Error(err))
+		case tunnelErr = <-errCh:
+			if tunnelErr != nil {
+				log.Error("Tunnel error", zap.Error(tunnelErr))
+			}
 		case <-ctx.Done():
-			return nil
+			transportProto.Close()
+			return ctx.Err()
 		}
 
-		// Clean shutdown
-		if ctx.Err() != nil {
-			log.Info("connector shutting down cleanly")
-			return nil
+		transportProto.Close()
+
+		// Reset attempt counter if the connection was stable (> 60 seconds)
+		if time.Since(connectTime) > 60*time.Second {
+			attempt = 0
 		}
 
 		// Transient — reconnect with backoff
-		delay := reconnectDelay(attempt)
+		delay := reconnectDelay(attempt + 1)
 		log.Warn("disconnected — reconnecting",
-			zap.Error(err),
+			zap.Error(tunnelErr),
 			zap.Duration("retry_in", delay),
 			zap.Int("attempt", attempt),
 		)
 
 		select {
 		case <-time.After(delay):
-			// Reset attempt counter if last connection was healthy
-			// (connected > 60s = stable, backoff from zero on next failure)
 		case <-ctx.Done():
-			log.Info("Connector stopped")
-			return nil
+			return ctx.Err()
 		}
 	}
 }

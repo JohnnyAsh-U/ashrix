@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
@@ -32,7 +33,12 @@ func NewQUICServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger, r
 }
 
 func (s *QUICServer) Start(ctx context.Context) error {
-	listener, err := quic.ListenAddr(s.addr, s.tlsConf, nil)
+	quicConfig := &quic.Config{
+		KeepAlivePeriod: 15 * time.Second,
+		MaxIdleTimeout:  30 * time.Second,
+		MaxIncomingStreams:    1000,
+	}
+	listener, err := quic.ListenAddr(s.addr, s.tlsConf, quicConfig)
 	if err != nil {
 		return fmt.Errorf("failed to listen on QUIC port %s: %w", s.addr, err)
 	}
@@ -67,6 +73,12 @@ func (s *QUICServer) Stop() {
 }
 
 func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Error("panic in handleQUICConnection", zap.Any("panic", r))
+			conn.CloseWithError(500, "internal server error due to panic")
+		}
+	}()
 
 	//mTLS already happened at QUIC handshake
 	// Cert tells us connector_id extract from the certs
@@ -95,15 +107,17 @@ func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) 
 	<-conn.Context().Done()
 
 	s.log.Info("Quic tunnel closed", zap.String("connector_id", connectorID))
-
 }
 
 func extractConnectorIDFromCert(conn *quic.Conn) (string, error) {
 	tlsState := conn.ConnectionState().TLS
+	if len(tlsState.PeerCertificates) == 0 {
+		return "", fmt.Errorf("no peer certificates found")
+	}
 	for _, cert := range tlsState.PeerCertificates {
 		if connectorID := cert.Subject.CommonName; connectorID != "" {
 			return connectorID, nil
 		}
 	}
-	return "", nil
+	return "", fmt.Errorf("peer certificate missing CommonName")
 }
