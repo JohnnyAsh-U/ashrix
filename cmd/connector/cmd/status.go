@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func init() {
@@ -25,7 +25,7 @@ var statusCmd = &cobra.Command{
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	baseDir := config.BaseDir()
+	baseDir := viper.GetString("basedir")
 	pidFile := filepath.Join(baseDir, "connector.pid")
 
 	fmt.Println("=== Ashrix Connector Status ===")
@@ -57,7 +57,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	certPath := filepath.Join(certDir, "connector.crt")
 	_, cert, err := pki_utils.LoadKeyAndCert(keyPath, certPath, "SECRET", "CONNECTOR")
 
-	fmt.Println(keyPath)
 	if err != nil {
 		fmt.Println("certificate or key: not found — run start to register")
 	} else {
@@ -79,8 +78,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				remaining.Round(time.Hour))
 		}
 
-		fmt.Printf("  common name: %s\n", cert.Subject.CommonName)
-		fmt.Printf("  issuer:      %s\n", cert.Issuer.CommonName)
+		fmt.Printf("  ConnectorID: %s\n", cert.Subject.CommonName)
+		fmt.Printf("  Issuer:      %s\n", cert.Issuer.CommonName)
 	}
 
 	// --- Key status ---

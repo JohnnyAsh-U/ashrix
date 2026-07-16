@@ -10,6 +10,7 @@ import (
 	"time"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"go.uber.org/zap"
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
@@ -33,6 +34,7 @@ type PKIInitialiser struct {
 	connectorID string
 	cpURL       string
 	log         *zap.Logger
+	appStorage  storage.Storage
 
 	certPath  string
 	keyPath   string
@@ -53,10 +55,8 @@ func NewPKIInitialiser(
 	pool string,
 	connectorID string,
 	cpURL string,
-	certPath string,
-	keyPath string,
-	trustPath string,
 	log *zap.Logger,
+	appStorage storage.Storage,
 ) (*PKIInitialiser, error) {
 
 	CertPool := x509.NewCertPool()
@@ -75,6 +75,7 @@ func NewPKIInitialiser(
 		tlscert:     &tlsCert,
 		leaf:        cert,
 		pool:        CertPool,
+		appStorage:  appStorage,
 		privKey:     privKey,
 		connectorID: connectorID,
 		cpURL:       cpURL,
@@ -139,7 +140,11 @@ func (p *PKIInitialiser) Renew(ctx context.Context) error {
 
 	// ── Save renewed cert + key ────────────────────────────────
 
-	if err := SaveCred(result, p.certPath, p.keyPath, p.trustPath, newKey, p.context, p.secret); err != nil {
+	// if err := SaveCred(result, p.certPath, p.keyPath, p.trustPath, newKey, p.context, p.secret); err != nil {
+	// 	return err
+	// }
+
+	if err := p.appStorage.SaveCredential(result, newKey); err != nil {
 		return err
 	}
 

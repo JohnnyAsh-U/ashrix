@@ -6,28 +6,22 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
-
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/logger"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/tunnel"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
 func init() {
-	startCmd.Flags().String("token", "", "First Time Token")
-
-	viper.BindPFlag("token", startCmd.Flags().Lookup("token"))
 	rootCmd.AddCommand(startCmd)
 }
 
@@ -35,10 +29,15 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the Ashrix Connector",
 	Long:  `Start the Ashrix Gateway`,
-	RunE:  runStart,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := runStart(); err != nil {
+			return err
+		}
+		return nil
+	},
 }
 
-func runStart(cmd *cobra.Command, args []string) (err error) {
+func runStart() (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "FATAL: Panic in connector runStart: %v\n", r)
@@ -46,16 +45,18 @@ func runStart(cmd *cobra.Command, args []string) (err error) {
 		}
 	}()
 	fmt.Println("Starting Connector...")
-	baseDir := config.BaseDir()
-	if err := config.InitDirs(); err != nil {
-		fmt.Println(err)
-	} //Creates Data dir for certs and logs
-	certDir := filepath.Join(baseDir, "certs")
-	logDir := filepath.Join(baseDir, "logs")
+	appStorage, err := storage.NewStorage()
 
-	CPURL := "http://localhost:8001"
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Storage Error", err)
+		os.Exit(1)
+	}
+
 
 	token := viper.GetString("token")
+	baseDir := viper.GetString("basedir")
+	logDir := viper.GetString("logdir")
+	CPURL := viper.GetString("cp_url")
 
 	//-----------------------PID Checker----------------------------------
 	fmt.Println("Checking and Creating PID")
@@ -72,7 +73,7 @@ func runStart(cmd *cobra.Command, args []string) (err error) {
 	fmt.Println("Initializing Logger...")
 
 	if err := logger.LoggerInit(logger.LoggerConfig{
-		Env:        "dev",
+		Env:        "prod",
 		LogDir:     logDir,
 		Level:      "info",
 		MaxSizeMB:  100,
@@ -104,7 +105,7 @@ func runStart(cmd *cobra.Command, args []string) (err error) {
 	//Check Cert -> renew or register
 	log.Info("Running startup workflow and connecting with CP", zap.String("cp_url", CPURL))
 
-	result, err := startup.Run(ctx, CPURL, certDir, "SECRET", "CONNECTOR", log, token)
+	result, err := startup.Run(ctx, CPURL, log, token, appStorage)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\nFATAL: %s\n\n", err.Error())
 		os.Exit(1)

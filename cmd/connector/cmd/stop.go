@@ -7,9 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-
-	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func init() {
@@ -23,7 +22,8 @@ var stopCmd = &cobra.Command{
 }
 
 func runStop(cmd *cobra.Command, args []string) error {
-	baseDir := config.BaseDir()
+	baseDir := viper.GetString("basedir")
+	
 	pidFile := filepath.Join(baseDir, "connector.pid")
 
 	data, err := os.ReadFile(pidFile)
