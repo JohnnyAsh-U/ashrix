@@ -2,9 +2,16 @@
 
 package tray
 
-import "github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
+import (
+	"log"
+
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
+)
 
 func runPlatform(s storage.Storage) {
-	// Linux doesn't have system tray support in this implementation
-	// Users should use CLI commands
+	log.Println("⚠️  System tray not available on Linux")
+	log.Println("💡 Use CLI commands instead:")
+	log.Println("   ashrix-connector list          # List connections")
+	log.Println("   ashrix-connector connect <name>  # Connect")
+	log.Println("   ashrix-connector disconnect <name> # Disconnect")
 }

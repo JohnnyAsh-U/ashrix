@@ -11,26 +11,6 @@ import (
 	"github.com/sqweek/dialog"
 )
 
-// func ShowTokenDialog() string {
-//     log.Println("🔑 Opening token input dialog...")
-
-//     token, err := dialog.Entry("Enter your ephemeral token from the Control Plane:\n\nThe token is NOT stored - you need a new one each time.",
-//         "Ashrix Connector - Token Input")
-
-//     if err != nil {
-//         log.Printf("❌ Dialog cancelled or error: %v", err)
-//         return ""
-//     }
-
-//     if token == "" {
-//         log.Println("❌ No token entered")
-//         return ""
-//     }
-
-//     log.Println("✅ Token received from dialog")
-//     return token
-// }
-
 func ShowInfoDialog(message string) {
     dialog.Message("%s", message).Title("Ashrix Connector").Info()
 }

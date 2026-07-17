@@ -6,9 +6,9 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"math/big"
+	"net"
 	"time"
 )
-
 
 // validateCSR checks the CSR is well-formed and matches the expected node identity.
 func ValidateCSR(csr *x509.CertificateRequest, nodeID string) error {
@@ -43,6 +43,9 @@ func BuildCertTemplate(csr *x509.CertificateRequest, validity time.Duration, CN 
 			OrganizationalUnit: csr.Subject.OrganizationalUnit,
 		},
 		DNSNames:  []string{"localhost"},
+		IPAddresses: []net.IP{
+			net.ParseIP("10.18.74.9"),
+		},
 		NotBefore: now.Add(-30 * time.Second), // small backdating for clock skew
 		NotAfter:  now.Add(validity),
 		KeyUsage:  x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,

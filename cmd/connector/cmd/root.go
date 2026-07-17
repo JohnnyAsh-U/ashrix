@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/tray"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -38,7 +39,7 @@ Run 'ashrix-connector start' to connect your internal application`,
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if runtime.GOOS == "windows" {
-			// tray.Run(Storage)
+			tray.Run(Storage)
 		} else {
 			cmd.Help()
 		}
@@ -94,7 +95,7 @@ func initConfig() {
 }
 
 func initViper() {
-	viper.SetDefault("cp_url", "http://localhost:8001")
+	viper.SetDefault("cp_url", "http://10.18.74.9:8001")
 	viper.SetDefault("connector.heartbeat_interval", 30)
 	viper.SetDefault("connector.reconnect_attempts", 5)
 }

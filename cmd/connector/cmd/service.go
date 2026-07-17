@@ -2,9 +2,6 @@ package cmd
 
 import (
 	"log"
-
-	// "ashrix-connector/internal/connector"
-
 	"github.com/spf13/cobra"
 )
 

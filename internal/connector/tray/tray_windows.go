@@ -6,10 +6,8 @@ import (
 	// "fmt"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 	"github.com/getlantern/systray"
-	// "github.com/spf13/viper"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/tray/icon"
 	"log"
-	// "os/exec"
-	// "time"
 )
 
 var (
@@ -29,6 +27,7 @@ func runPlatform(s storage.Storage) {
 
 
 func onReady() {
+    systray.SetIcon(icon.Data)
     systray.SetTitle("Ashrix Connector")
     systray.SetTooltip("Ashrix Connector - Click to manage")
 
