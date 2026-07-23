@@ -14,6 +14,7 @@ import (
 type Querier interface {
 	// Called at the end of /verify-otp during setup. Creates the org and links it.
 	ActivateAdmin(ctx context.Context, arg ActivateAdminParams) (Admin, error)
+	AddAppIdPMapping(ctx context.Context, arg AddAppIdPMappingParams) (AppIdpMapping, error)
 	// Called once during SSO binding confirmation flow.
 	// Stores sub claim, links IdP config, marks sso_bound.
 	BindAdminSSO(ctx context.Context, arg BindAdminSSOParams) (Admin, error)
@@ -171,6 +172,7 @@ type Querier interface {
 	ListAdminsByOrg(ctx context.Context, orgID pgtype.UUID) ([]Admin, error)
 	// Used by dashboard to display all policies across all apps.
 	ListAllPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)
+	ListAppIdPs(ctx context.Context, appID uuid.UUID) ([]IdpConfig, error)
 	ListAppsByConnector(ctx context.Context, connectorID pgtype.UUID) ([]App, error)
 	ListAppsByOrg(ctx context.Context, orgID uuid.UUID) ([]App, error)
 	ListAuditLogsByActor(ctx context.Context, arg ListAuditLogsByActorParams) ([]AuditLog, error)

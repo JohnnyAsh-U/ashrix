@@ -3,10 +3,20 @@ package broker
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/pkg/pki"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -26,8 +36,55 @@ type TokenIssuer struct {
 	ttl        time.Duration
 }
 
-func NewTokenIssuer(signingKey *ecdsa.PrivateKey, issuer string) *TokenIssuer {
-	return &TokenIssuer{signingKey: signingKey, issuer: issuer, ttl: 15 * time.Minute}
+func NewTokenIssuer(baseDir, encryptionSecret, issuer string) (*TokenIssuer, error) {
+	fmt.Println("Initializing JWT PKI...")
+
+	jwtDir := filepath.Join(baseDir, "jwt")
+
+	// Ensure the directory exists
+	if err := os.MkdirAll(jwtDir, 0700); err != nil {
+		return nil, fmt.Errorf("creating JWT directory: %w", err)
+	}
+
+	jwtPrivateKeyPath := filepath.Join(jwtDir, "jwt.key.enc")
+	context := "jwt-signing-key"
+
+	var signingKey *ecdsa.PrivateKey
+
+	// Check if key exists
+	keyExists, err := filehelper.FileExists(jwtPrivateKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("checking key existence: %w", err)
+	}
+
+	if keyExists {
+		// Load existing key
+		fmt.Println("→ Loading existing JWT signing key...")
+		signingKey, err = decryptAndLoadKey(jwtPrivateKeyPath, encryptionSecret, context)
+		if err != nil {
+			return nil, fmt.Errorf("loading JWT signing key: %w", err)
+		}
+		fmt.Println("✓ JWT signing key loaded successfully")
+	} else {
+		// Generate new key pair
+		fmt.Println("→ Generating new JWT signing key...")
+		signingKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			return nil, fmt.Errorf("generating JWT signing key: %w", err)
+		}
+
+		// Encrypt and write the key
+		if err := encryptAndWriteKey(jwtPrivateKeyPath, signingKey, encryptionSecret, context); err != nil {
+			return nil, fmt.Errorf("writing JWT signing key: %w", err)
+		}
+		fmt.Println("✓ JWT signing key generated and saved successfully")
+	}
+
+	return &TokenIssuer{
+		signingKey: signingKey,
+		issuer:     issuer,
+		ttl:        15 * time.Minute,
+	}, nil
 }
 
 func (t *TokenIssuer) Issue(identity *identity.NormalizedIdentity) (string, error) {
@@ -55,8 +112,7 @@ func (t *TokenIssuer) Issue(identity *identity.NormalizedIdentity) (string, erro
 	return signed, nil
 }
 
-
-//For Gateway to verify; to be moved to gateway
+// For Gateway to verify; to be moved to gateway
 func (t *TokenIssuer) Verify(tokenString string) (*BrokerClaims, error) {
 	claims := &BrokerClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(tok *jwt.Token) (interface{}, error) {
@@ -70,7 +126,52 @@ func (t *TokenIssuer) Verify(tokenString string) (*BrokerClaims, error) {
 	}
 	return claims, nil
 }
+
 // PublicKeyPEM should be exposed via a JWKS-style endpoint so
 // Ashrix CP (and anything else trusting broker tokens) can verify
 // signatures without a shared secret — same pattern as your CP's
 // own embedded-public-key model from the PKI architecture.
+
+// encryptAndWriteKey encrypts and writes an ECDSA private key to disk
+func encryptAndWriteKey(path string, key *ecdsa.PrivateKey, secret, context string) error {
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return fmt.Errorf("marshaling key: %w", err)
+	}
+	defer wipeBytes(keyDER)
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	defer wipeBytes(keyPEM)
+
+	encrypted, err := crypto.AesgcmEncrypt(keyPEM, secret, context)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, encrypted, 0600)
+}
+
+// decryptAndLoadKey decrypts and loads an ECDSA private key from disk
+func decryptAndLoadKey(path, secret, context string) (*ecdsa.PrivateKey, error) {
+	encrypted, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	keyPEM, err := crypto.AesgcmDecrypt(encrypted, secret, context)
+	if err != nil {
+		return nil, err
+	}
+	defer wipeBytes(keyPEM)
+
+	block, _ := pem.Decode(keyPEM)
+	if block == nil {
+		return nil, errors.New("failed to decode decrypted key PEM")
+	}
+	return x509.ParseECPrivateKey(block.Bytes)
+}
+
+// wipeBytes securely wipes a byte slice by overwriting with zeros
+func wipeBytes(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+}

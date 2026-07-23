@@ -43,12 +43,12 @@ type CASigner interface {
 
 // New constructs the CASigner for the configured backend.
 // This is the only line that changes when you switch backends.
-func NewSigner(cfg *config.PKIConfig, dbQueries *store.Queries) (CASigner, error) {
+func NewSigner(BasePath string, cfg *config.PKIConfig, dbQueries *store.Queries) (CASigner, error) {
 	switch cfg.Backend {
 	case config.BackendDisk:
-		return NewDiskCASigner(cfg.BasePath, cfg.PKIUnlockSecret, dbQueries)
+		return NewDiskCASigner(BasePath, cfg.PKIUnlockSecret, dbQueries)
 	case config.BackendKMS:
-		return NewKMSCASigner(cfg.KMSToken, cfg.KMSUrl, cfg.BasePath, cfg.PKIUnlockSecret, dbQueries) // KMSCASigner also needs dbQueries
+		return NewKMSCASigner(cfg.KMSToken, cfg.KMSUrl, BasePath, cfg.PKIUnlockSecret, dbQueries) // KMSCASigner also needs dbQueries
 	default:
 		return nil, fmt.Errorf("unknown backend: %q", cfg.Backend)
 	}

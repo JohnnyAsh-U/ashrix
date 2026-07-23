@@ -1,16 +1,18 @@
 package pki
 
 import (
+	"context" // Added for database operations
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"context" // Added for database operations
 	"database/sql" // For sql.ErrNoRows
 	"encoding/pem" // For PEM encoding/decoding
 	"errors"       // For errors.Is
 	"fmt"
 	"os"
+
+	// "os"
 	"path/filepath"
 	"sync" // For mutex
 	"time"
@@ -40,22 +42,15 @@ type DiskCASigner struct {
 
 func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCASigner, error) {
 	println("Initializing PKI...")
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("getting home dir: %w", err)
+	PkiDir := filepath.Join(baseDir, "pki")
+	if err := os.MkdirAll(PkiDir, 0700); err != nil {
+		return nil, fmt.Errorf("creating PKI directory: %w", err)
 	}
 
-	if baseDir == "" {
-		baseDir = filepath.Join(home, ".ashrix", "pki")
-		println("→ Using default PKI base directory:", baseDir)
-	} else {
-		baseDir = filepath.Join(home, baseDir)
-	}
-
-	rootKeyPath := filepath.Join(baseDir, "root-ca.key.enc")
-	rootCertPath := filepath.Join(baseDir, "root-ca.crt")
-	interKeyPath := filepath.Join(baseDir, "intermediate-ca.key.enc")
-	interCertPath := filepath.Join(baseDir, "intermediate-ca.crt")
+	rootKeyPath := filepath.Join(PkiDir, "root-ca.key.enc")
+	rootCertPath := filepath.Join(PkiDir, "root-ca.crt")
+	interKeyPath := filepath.Join(PkiDir, "intermediate-ca.key.enc")
+	interCertPath := filepath.Join(PkiDir, "intermediate-ca.crt")
 	var intermediateKey *ecdsa.PrivateKey
 	var intermediateCert *x509.Certificate
 	var rootCert *x509.Certificate

@@ -42,15 +42,15 @@ func NewAdapter(ctx context.Context, cfg *identity.IdentityProvider, clientSecre
 	}
 
 	switch cfg.Type {
-	case "oidc_google":
+	case "google":
 		return newGoogleAdapter(base, cfg)
-	case "oidc_entra":
+	case "entra":
 		return newEntraAdapter(base, cfg)
-	case "oidc_okta":
+	case "okta":
 		return newOktaAdapter(base, cfg)
-	case "oidc_keycloak":
+	case "keycloak":
 		return newKeycloakAdapter(base, cfg)
-	case "oidc_generic":
+	case "generic":
 		return newGenericAdapter(base, cfg)
 	default:
 		return nil, fmt.Errorf("unknown provider type: %s", cfg.Type)

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -13,10 +14,10 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_http"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_http"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/redis"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/logger"
 	"github.com/joho/godotenv"
@@ -77,9 +78,22 @@ func main() {
     }
     defer redisStore.Close()
 
+	//Initializing Directory for Ashrix
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Error("Failed to Get Home Directory: %w", slog.String("err", err.Error()))
+	}
+	BaseDir := filepath.Join(home, ".ashrix")
+	log.Info("Ashrix base directory Initialized")
+	if err := os.MkdirAll(BaseDir, 0700); err != nil {
+		log.Error("Creating JWT directory: %w", slog.String("err",err.Error()))
+		os.Exit(1) // Fail hard if Dir initialization fails
+	}
+	
+
 	// Initializing PKI Root CA and Intermediate CA
 	// Pass db.Queries to the PKI signer for database-backed CA certificate management
-	signer, err := pki.NewSigner(cfg.PKIConfig, dbQueries)
+	signer, err := pki.NewSigner(BaseDir, cfg.PKIConfig, dbQueries)
 	if err != nil {
 		log.Error("Failed to Initialized PKI", slog.String("err", err.Error()))
 		os.Exit(1) // Fail hard if PKI initialization fails
@@ -87,7 +101,7 @@ func main() {
 
 	//Initialzing CP Key and Cert
 	cppki, cperr := crypto.ControlPlanePKIIntializer(
-		cfg.PKIConfig.BasePath,
+		BaseDir,
 		cfg.PKIConfig.PKIUnlockSecret,
 		signer,
 	)
@@ -100,7 +114,7 @@ func main() {
 	quit := make(chan os.Signal, 2)
 
 	// Build and start HTTP server
-	httpServer := cp_http.InitializeHttpServer(cfg, dbQueries,redisStore, log, signer)
+	httpServer := cp_http.InitializeHttpServer(BaseDir, cfg, dbQueries,redisStore, log, signer)
 
 	// Build and start gRPC server
 	grpcServer := cp_grpc.InitializeGRPCServer(cfg, cppki, log)

@@ -2,6 +2,7 @@ package cp_http
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,7 +13,10 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/broker"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
+
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
@@ -27,13 +31,13 @@ import (
 
 // Server wraps the HTTP server and all dependencies.
 type Server struct {
-	http *http.Server
-	log  *slog.Logger
+	http   *http.Server
+	log    *slog.Logger
 	signer pki.CASigner
 }
 
 // New wires together all dependencies and builds the router.
-func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries,redisStore *redis.RedisStore, log *slog.Logger, signer pki.CASigner) *Server {
+func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Queries, redisStore *redis.RedisStore, log *slog.Logger, signer pki.CASigner) *Server {
 
 	//Mailer config
 	mailer := utils.NewMailerService(cfg)
@@ -54,24 +58,24 @@ func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries,redisStor
 	r.Use(chimiddleware.Recoverer)
 	r.Use(middleware.SecurityHeaders)
 
-	//Identity routes
+	//Identity configs and routes
 	identitySecretBox, err := broker.NewSecretBox([]byte(cfg.PKIConfig.IDPSecretEncryptionKey))
 	if err != nil {
-		log.Error("Please Set the IDP Encryption key")
+		fmt.Println("err", err)
 		os.Exit(1)
 	}
-	stateStore := broker.NewStateStore(redisStore.Client(), "idp_")
+	idpRepo := identity.NewPostgresRepository(dbQueries)
+	stateStore := broker.NewIDPStateStore(redisStore.Client(), "idp_")
+	clientCache := oidc.NewIdPResolverCache(idpRepo, redisStore.Client(), identitySecretBox)
+	tokenIssuer, err := broker.NewTokenIssuer(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
-	// signingKey := loadSigningKey() // from your existing KMS/Vault wiring
-	// tokenIssuer := broker.NewTokenIssuer(signingKey, "ashrix")
+	// idpHandler := identity.NewIDPHandler(stateStore, tokenIssuer, clientCache, log)
 
-	//For caching the adapter of idp broker
-	// clientCache := oidc.NewAdapterCache()
-
-	// api := httpapi.New(store, stateStore, tokenIssuer, clientCache, log)
-
-	_, _ = identitySecretBox, stateStore
-
+	// _= idpHandler
 
 	//Org routes
 	orgRepo := org.NewPostgresRepository(dbQueries)
@@ -98,12 +102,10 @@ func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries,redisStor
 	gatewayService := gateway.NewService(gatewayRepo)
 	gatewayHandler := gateway.NewGatewayHandler(gatewayService, signer)
 
-
 	//Connectors routes
 	connectorRepo := connector.NewPostgresRepository(dbQueries)
 	connectorService := connector.NewService(connectorRepo)
 	connectorHandler := connector.NewConnectorHandler(connectorService, signer)
-
 
 	//Apps routes
 	appRepo := app.NewPostgresRepository(dbQueries)

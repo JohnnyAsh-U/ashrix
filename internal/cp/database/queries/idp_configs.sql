@@ -71,3 +71,17 @@ WHERE id        = $1
   AND org_id    = $2
   AND deleted_at IS NULL
 RETURNING *;
+
+
+
+-- name: AddAppIdPMapping :one
+INSERT INTO app_idp_mappings (app_id, idp_id, is_required) 
+VALUES ($1, $2, $3) 
+RETURNING *;
+
+-- name: ListAppIdPs :many
+SELECT idp_configs.* 
+FROM idp_configs 
+JOIN app_idp_mappings ON idp_configs.id = app_idp_mappings.idp_id 
+WHERE app_idp_mappings.app_id = $1 AND idp_configs.is_active = true;
+

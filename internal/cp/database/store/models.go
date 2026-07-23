@@ -77,6 +77,14 @@ type App struct {
 	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type AppIdpMapping struct {
+	ID         uuid.UUID `json:"id"`
+	AppID      uuid.UUID `json:"app_id"`
+	IdpID      uuid.UUID `json:"idp_id"`
+	IsRequired bool      `json:"is_required"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 type AuditLog struct {
 	ID         uuid.UUID   `json:"id"`
 	OrgID      uuid.UUID   `json:"org_id"`

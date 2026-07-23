@@ -12,6 +12,31 @@ import (
 	"github.com/google/uuid"
 )
 
+const addAppIdPMapping = `-- name: AddAppIdPMapping :one
+INSERT INTO app_idp_mappings (app_id, idp_id, is_required) 
+VALUES ($1, $2, $3) 
+RETURNING id, app_id, idp_id, is_required, created_at
+`
+
+type AddAppIdPMappingParams struct {
+	AppID      uuid.UUID `json:"app_id"`
+	IdpID      uuid.UUID `json:"idp_id"`
+	IsRequired bool      `json:"is_required"`
+}
+
+func (q *Queries) AddAppIdPMapping(ctx context.Context, arg AddAppIdPMappingParams) (AppIdpMapping, error) {
+	row := q.db.QueryRow(ctx, addAppIdPMapping, arg.AppID, arg.IdpID, arg.IsRequired)
+	var i AppIdpMapping
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.IdpID,
+		&i.IsRequired,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createIDPConfig = `-- name: CreateIDPConfig :one
 
 INSERT INTO idp_configs (
@@ -191,6 +216,50 @@ func (q *Queries) GetIDPConfigByIDAndOrg(ctx context.Context, arg GetIDPConfigBy
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const listAppIdPs = `-- name: ListAppIdPs :many
+SELECT idp_configs.id, idp_configs.org_id, idp_configs.name, idp_configs.provider_type, idp_configs.client_id, idp_configs.client_secret, idp_configs.issuer_url, idp_configs.scopes, idp_configs.email_claim, idp_configs.name_claim, idp_configs.group_claim, idp_configs.extra_config, idp_configs.is_active, idp_configs.is_verified, idp_configs.created_at, idp_configs.deleted_at 
+FROM idp_configs 
+JOIN app_idp_mappings ON idp_configs.id = app_idp_mappings.idp_id 
+WHERE app_idp_mappings.app_id = $1 AND idp_configs.is_active = true
+`
+
+func (q *Queries) ListAppIdPs(ctx context.Context, appID uuid.UUID) ([]IdpConfig, error) {
+	rows, err := q.db.Query(ctx, listAppIdPs, appID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IdpConfig{}
+	for rows.Next() {
+		var i IdpConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.Name,
+			&i.ProviderType,
+			&i.ClientID,
+			&i.ClientSecret,
+			&i.IssuerUrl,
+			&i.Scopes,
+			&i.EmailClaim,
+			&i.NameClaim,
+			&i.GroupClaim,
+			&i.ExtraConfig,
+			&i.IsActive,
+			&i.IsVerified,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listIDPConfigsByOrg = `-- name: ListIDPConfigsByOrg :many

@@ -31,7 +31,7 @@ type StateEntry struct {
 	RedirectURI  string `json:"redirect_uri"`
 }
 
-func NewStateStore(rdb *redis.Client, prefix string) *StateStore {
+func NewIDPStateStore(rdb *redis.Client, prefix string) *StateStore {
 	return &StateStore{rdb: rdb, prefix: prefix, ttl: 10 * time.Minute}
 }
 

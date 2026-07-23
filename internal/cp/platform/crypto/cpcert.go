@@ -56,19 +56,14 @@ type SignedBundle struct {
 
 func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigner) (ControlPlaneCrypto, error) {
 	fmt.Println("Initializing Control Plane PKI...")
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("getting home dir: %w", err)
+	CPPKIDir := filepath.Join(baseDir, "pki", "cp")
+
+	if err := os.MkdirAll(CPPKIDir, 0700); err != nil {
+		return nil, fmt.Errorf("creating PKI directory: %w", err)
 	}
 
-	if baseDir == "" {
-		baseDir = filepath.Join(home, ".ashrix", "pki")
-		fmt.Println("→ Using default PKI base directory:", baseDir)
-	} else {
-		baseDir = filepath.Join(home, baseDir)
-	}
-	cpKeyPath := filepath.Join(baseDir, "cp", "cp.key.enc")
-	cpCertPath := filepath.Join(baseDir, "cp", "cp.crt")
+	cpKeyPath := filepath.Join(CPPKIDir, "cp.key.enc")
+	cpCertPath := filepath.Join(CPPKIDir, "cp.crt")
 
 	//Check if intermediateCAKey and Cert Exists on the filepath
 	keyexists, err := filehelper.FileExists(cpKeyPath)

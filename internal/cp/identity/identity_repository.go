@@ -12,6 +12,7 @@ type Repository interface {
 	UpdateIdentityConfig(ctx context.Context, params store.UpdateIDPConfigParams) (store.IdpConfig, error)
 	DeleteIdentityConfig(ctx context.Context, params store.DeleteIDPConfigParams) (store.IdpConfig, error)
 	ListIdentityConfigsForTenant(ctx context.Context, tenantID uuid.UUID) ([]store.IdpConfig, error)
+	ListAppIdPConfigs(ctx context.Context, id uuid.UUID) ([]store.IdpConfig, error)
 }
 
 type postgresRepository struct {
@@ -39,4 +40,8 @@ func (r *postgresRepository) DeleteIdentityConfig(ctx context.Context, params st
 
 func (r *postgresRepository) ListIdentityConfigsForTenant(ctx context.Context, tenantID uuid.UUID) ([]store.IdpConfig, error) {
 	return r.q.ListIDPConfigsByOrg(ctx, tenantID)
+}
+
+func (r *postgresRepository) ListAppIdPConfigs(ctx context.Context, tenantID uuid.UUID) ([]store.IdpConfig, error) {
+	return r.q.ListAppIdPs(ctx, tenantID)
 }

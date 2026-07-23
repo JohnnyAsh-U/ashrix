@@ -42,7 +42,7 @@ CREATE TABLE idp_configs (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id          UUID        NOT NULL REFERENCES orgs(id),
     name            TEXT        NOT NULL,        -- human label: "Google Workspace"
-    provider_type   TEXT        NOT NULL CHECK (provider_type IN ('google', 'okta', 'entra', 'oidc', 'saml')),
+    provider_type   TEXT        NOT NULL CHECK (provider_type IN ('google', 'okta', 'entra', 'oidc','keycloak', 'generic' 'saml')),
     client_id       TEXT        NOT NULL,
     client_secret   TEXT        NOT NULL,        -- AES-256-GCM encrypted, never plaintext
     issuer_url      TEXT        NOT NULL,        -- OIDC discovery base URL
@@ -192,6 +192,20 @@ CREATE TABLE apps (
     deleted_at    TIMESTAMPTZ,
 
     UNIQUE (org_id, subdomain)
+);
+
+
+--------------------------------------------------------------------
+-- Orgs Can Have Multiple IDPS For APPS
+--------------------------------------------------------------------
+-- Add IdP routing table for apps
+CREATE TABLE app_idp_mappings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    app_id UUID NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+    idp_id UUID NOT NULL REFERENCES idp_configs(id) ON DELETE CASCADE,
+    is_required BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(app_id, idp_id)
 );
 
 -- -----------------------------------------------------------------
