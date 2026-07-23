@@ -168,8 +168,6 @@ type Querier interface {
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
 	ListActiveCACerts(ctx context.Context) ([]ListActiveCACertsRow, error)
-	// Used by Gateway during OIDC flow to find valid providers.
-	ListActiveIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error)
 	ListAdminsByOrg(ctx context.Context, orgID pgtype.UUID) ([]Admin, error)
 	// Used by dashboard to display all policies across all apps.
 	ListAllPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)

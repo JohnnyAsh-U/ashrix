@@ -1,0 +1,1196 @@
+package storage
+
+import (
+    "gorm.io/driver/postgres"
+    "gorm.io/gorm"
+    "gorm.io/gorm/logger"
+)
+
+type Database struct {
+    *gorm.DB
+}
+
+func NewDatabase(dsn string) (*Database, error) {
+    db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+        Logger: logger.Default.LogMode(logger.Info),
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    // Auto migrate schemas
+    if err := db.AutoMigrate(
+        &ProviderConfig{},
+        &PKCESession{},
+        &TokenCache{},
+    ); err != nil {
+        return nil, err
+    }
+
+    return &Database{DB: db}, nil
+}
+
+
+
+
+
+
+package storage
+
+import (
+    "time"
+    "gorm.io/gorm"
+)
+
+type ProviderConfig struct {
+    ID           uint           `gorm:"primaryKey"`
+    Name         string         `gorm:"uniqueIndex;not null"`
+    Type         string         `gorm:"not null"` // google, microsoft, okta, oidc, saml
+    ClientID     string         `gorm:"not null"`
+    ClientSecret string         `gorm:"not null"`
+    RedirectURL  string         `gorm:"not null"`
+    IssuerURL    string
+    Tenant       string
+    OktaDomain   string
+    MetadataURL  string
+    PrivateKey   string         `gorm:"type:text"`
+    Certificate  string         `gorm:"type:text"`
+    Extra        string         `gorm:"type:jsonb"` // JSON for additional configs
+    IsActive     bool           `gorm:"default:true"`
+    CreatedAt    time.Time
+    UpdatedAt    time.Time
+    DeletedAt    gorm.DeletedAt `gorm:"index"`
+}
+
+type PKCESession struct {
+    ID            string    `gorm:"primaryKey;type:uuid"`
+    ProviderName  string    `gorm:"not null"`
+    CodeVerifier  string    `gorm:"not null"`
+    CodeChallenge string    `gorm:"not null"`
+    State         string    `gorm:"not null;index"`
+    RedirectURI   string
+    Nonce         string
+    ExpiresAt     time.Time `gorm:"index"`
+    CreatedAt     time.Time
+}
+
+type TokenCache struct {
+    ID           string    `gorm:"primaryKey;type:uuid"`
+    ProviderName string    `gorm:"not null;index:idx_provider_user"`
+    UserID       string    `gorm:"not null;index:idx_provider_user"`
+    AccessToken  string    `gorm:"not null"`
+    RefreshToken string
+    ExpiresAt    time.Time `gorm:"index"`
+    RawProfile   string    `gorm:"type:jsonb"`
+    CreatedAt    time.Time
+    UpdatedAt    time.Time
+}
+
+
+
+package pkce
+
+import (
+    "crypto/rand"
+    "crypto/sha256"
+    "encoding/base64"
+    "fmt"
+)
+
+type PKCE struct {
+    CodeVerifier  string
+    CodeChallenge string
+    Method        string
+}
+
+// GeneratePKCE creates a new PKCE pair with S256 method
+func GeneratePKCE() (*PKCE, error) {
+    // Generate 32 bytes (43 characters when base64 encoded)
+    verifier := make([]byte, 32)
+    if _, err := rand.Read(verifier); err != nil {
+        return nil, fmt.Errorf("failed to generate verifier: %w", err)
+    }
+
+    // Base64 URL encode (without padding)
+    codeVerifier := base64.RawURLEncoding.EncodeToString(verifier)
+
+    // Generate challenge using S256
+    hash := sha256.Sum256([]byte(codeVerifier))
+    codeChallenge := base64.RawURLEncoding.EncodeToString(hash[:])
+
+    return &PKCE{
+        CodeVerifier:  codeVerifier,
+        CodeChallenge: codeChallenge,
+        Method:        "S256",
+    }, nil
+}
+
+// ValidatePKCE validates the code verifier against the challenge
+func ValidatePKCE(verifier, challenge string) bool {
+    hash := sha256.Sum256([]byte(verifier))
+    computed := base64.RawURLEncoding.EncodeToString(hash[:])
+    return computed == challenge
+}
+
+// GenerateNonce creates a random nonce for OIDC
+func GenerateNonce() (string, error) {
+    nonce := make([]byte, 16)
+    if _, err := rand.Read(nonce); err != nil {
+        return "", err
+    }
+    return base64.RawURLEncoding.EncodeToString(nonce), nil
+}
+
+
+
+package broker
+
+import (
+    "context"
+    "crypto/rand"
+    "encoding/base64"
+    "encoding/json"
+    "fmt"
+    "sync"
+    "time"
+
+    "github.com/google/uuid"
+    "idp-broker/internal/adapters"
+    "idp-broker/internal/models"
+    "idp-broker/internal/pkce"
+    "idp-broker/internal/storage"
+)
+
+type IDPBroker struct {
+    mu          sync.RWMutex
+    adapters    map[string]adapters.IDPAdapter
+    db          *storage.Database
+    jwtVerifier *JWTVerifier
+}
+
+// NewIDPBroker creates a new broker with database storage
+func NewIDPBroker(db *storage.Database, jwtSecret string) *IDPBroker {
+    return &IDPBroker{
+        adapters:    make(map[string]adapters.IDPAdapter),
+        db:          db,
+        jwtVerifier: NewJWTVerifier(jwtSecret),
+    }
+}
+
+// RegisterProvider saves config to DB and initializes adapter
+func (b *IDPBroker) RegisterProvider(cfg ProviderConfig) error {
+    b.mu.Lock()
+    defer b.mu.Unlock()
+
+    // Save to database
+    dbConfig := &storage.ProviderConfig{
+        Name:         cfg.Name,
+        Type:         cfg.Type,
+        ClientID:     cfg.ClientID,
+        ClientSecret: cfg.ClientSecret,
+        RedirectURL:  cfg.RedirectURL,
+        IssuerURL:    cfg.IssuerURL,
+        Tenant:       cfg.Tenant,
+        OktaDomain:   cfg.OktaDomain,
+        MetadataURL:  cfg.MetadataURL,
+        PrivateKey:   cfg.PrivateKey,
+        Certificate:  cfg.Certificate,
+        IsActive:     true,
+    }
+
+    if cfg.Extra != nil {
+        extraJSON, _ := json.Marshal(cfg.Extra)
+        dbConfig.Extra = string(extraJSON)
+    }
+
+    if err := b.db.Create(dbConfig).Error; err != nil {
+        return fmt.Errorf("failed to save provider config: %w", err)
+    }
+
+    // Create adapter
+    adapter, err := b.createAdapter(cfg)
+    if err != nil {
+        return fmt.Errorf("failed to create adapter: %w", err)
+    }
+
+    b.adapters[cfg.Name] = adapter
+    return nil
+}
+
+// createAdapter creates adapter from config (same as before but with storage)
+func (b *IDPBroker) createAdapter(cfg ProviderConfig) (adapters.IDPAdapter, error) {
+    // ... (same as previous implementation)
+    // I'll keep it concise here, but full code would be same as before
+    return nil, nil
+}
+
+// GetLoginURL generates auth URL with PKCE and stores session
+func (b *IDPBroker) GetLoginURL(providerName, state, redirectURI string) (string, error) {
+    b.mu.RLock()
+    adapter, ok := b.adapters[providerName]
+    b.mu.RUnlock()
+
+    if !ok {
+        return "", fmt.Errorf("provider not found: %s", providerName)
+    }
+
+    // Generate PKCE
+    pkcePair, err := pkce.GeneratePKCE()
+    if err != nil {
+        return "", fmt.Errorf("failed to generate PKCE: %w", err)
+    }
+
+    // Generate nonce
+    nonce, err := pkce.GenerateNonce()
+    if err != nil {
+        return "", fmt.Errorf("failed to generate nonce: %w", err)
+    }
+
+    // Store PKCE session in database
+    sessionID := uuid.New().String()
+    pkceSession := &storage.PKCESession{
+        ID:            sessionID,
+        ProviderName:  providerName,
+        CodeVerifier:  pkcePair.CodeVerifier,
+        CodeChallenge: pkcePair.CodeChallenge,
+        State:         state,
+        RedirectURI:   redirectURI,
+        Nonce:         nonce,
+        ExpiresAt:     time.Now().Add(10 * time.Minute),
+    }
+
+    if err := b.db.Create(pkceSession).Error; err != nil {
+        return "", fmt.Errorf("failed to store PKCE session: %w", err)
+    }
+
+    // Get auth URL with PKCE challenge
+    authURL, err := adapter.GetAuthorizationURLWithPKCE(state, redirectURI, pkcePair.CodeChallenge, nonce)
+    if err != nil {
+        return "", fmt.Errorf("failed to get auth URL: %w", err)
+    }
+
+    return authURL, nil
+}
+
+// ExchangeCode exchanges code for token with PKCE verification
+func (b *IDPBroker) ExchangeCode(providerName, code, state string) (*models.UnifiedUser, error) {
+    b.mu.RLock()
+    adapter, ok := b.adapters[providerName]
+    b.mu.RUnlock()
+
+    if !ok {
+        return nil, fmt.Errorf("provider not found: %s", providerName)
+    }
+
+    // Retrieve PKCE session
+    var pkceSession storage.PKCESession
+    if err := b.db.Where("state = ? AND expires_at > ?", state, time.Now()).
+        First(&pkceSession).Error; err != nil {
+        return nil, fmt.Errorf("invalid or expired PKCE session: %w", err)
+    }
+
+    // Exchange code with verifier
+    user, err := adapter.ExchangeCodeWithVerifier(code, pkceSession.RedirectURI, pkceSession.CodeVerifier)
+    if err != nil {
+        return nil, fmt.Errorf("failed to exchange code: %w", err)
+    }
+
+    // Cache token in database
+    tokenCache := &storage.TokenCache{
+        ID:           uuid.New().String(),
+        ProviderName: providerName,
+        UserID:       user.ID,
+        AccessToken:  user.AccessToken,
+        RefreshToken: user.RefreshToken,
+        ExpiresAt:    time.Unix(user.ExpiresAt, 0),
+    }
+
+    rawProfileJSON, _ := json.Marshal(user.RawProfile)
+    tokenCache.RawProfile = string(rawProfileJSON)
+
+    if err := b.db.Create(tokenCache).Error; err != nil {
+        // Log error but don't fail the auth flow
+        fmt.Printf("Failed to cache token: %v\n", err)
+    }
+
+    // Delete used PKCE session
+    b.db.Delete(&pkceSession)
+
+    return user, nil
+}
+
+// RefreshToken refreshes token using stored refresh token
+func (b *IDPBroker) RefreshToken(providerName, userID string) (*models.UnifiedUser, error) {
+    b.mu.RLock()
+    adapter, ok := b.adapters[providerName]
+    b.mu.RUnlock()
+
+    if !ok {
+        return nil, fmt.Errorf("provider not found: %s", providerName)
+    }
+
+    // Get cached token
+    var tokenCache storage.TokenCache
+    if err := b.db.Where("provider_name = ? AND user_id = ?", providerName, userID).
+        First(&tokenCache).Error; err != nil {
+        return nil, fmt.Errorf("no cached token found: %w", err)
+    }
+
+    if tokenCache.RefreshToken == "" {
+        return nil, fmt.Errorf("no refresh token available")
+    }
+
+    // Refresh token
+    user, err := adapter.RefreshToken(tokenCache.RefreshToken)
+    if err != nil {
+        return nil, fmt.Errorf("failed to refresh token: %w", err)
+    }
+
+    // Update cache
+    tokenCache.AccessToken = user.AccessToken
+    if user.RefreshToken != "" {
+        tokenCache.RefreshToken = user.RefreshToken
+    }
+    tokenCache.ExpiresAt = time.Unix(user.ExpiresAt, 0)
+
+    if err := b.db.Save(&tokenCache).Error; err != nil {
+        fmt.Printf("Failed to update token cache: %v\n", err)
+    }
+
+    return user, nil
+}
+
+// LoadProvidersFromDB loads all active providers from database
+func (b *IDPBroker) LoadProvidersFromDB() error {
+    var configs []storage.ProviderConfig
+    if err := b.db.Where("is_active = ?", true).Find(&configs).Error; err != nil {
+        return fmt.Errorf("failed to load providers: %w", err)
+    }
+
+    for _, cfg := range configs {
+        providerCfg := ProviderConfig{
+            Name:         cfg.Name,
+            Type:         cfg.Type,
+            ClientID:     cfg.ClientID,
+            ClientSecret: cfg.ClientSecret,
+            RedirectURL:  cfg.RedirectURL,
+            IssuerURL:    cfg.IssuerURL,
+            Tenant:       cfg.Tenant,
+            OktaDomain:   cfg.OktaDomain,
+            MetadataURL:  cfg.MetadataURL,
+            PrivateKey:   cfg.PrivateKey,
+            Certificate:  cfg.Certificate,
+        }
+
+        if cfg.Extra != "" {
+            var extra map[string]interface{}
+            json.Unmarshal([]byte(cfg.Extra), &extra)
+            providerCfg.Extra = extra
+        }
+
+        if _, err := b.createAdapter(providerCfg); err != nil {
+            fmt.Printf("Failed to load provider %s: %v\n", cfg.Name, err)
+            continue
+        }
+        b.adapters[cfg.Name] = b.adapters[cfg.Name] // Store adapter
+    }
+
+    return nil
+}
+
+
+
+package broker
+
+import (
+    "crypto/rsa"
+    "crypto/x509"
+    "encoding/pem"
+    "fmt"
+    "strings"
+    "time"
+
+    "github.com/golang-jwt/jwt/v5"
+)
+
+type JWTVerifier struct {
+    secret       []byte
+    publicKey    *rsa.PublicKey
+    hmacSecret   []byte
+    useHS256     bool
+}
+
+type JWTClaims struct {
+    UserID   string `json:"sub"`
+    Email    string `json:"email"`
+    Provider string `json:"provider"`
+    Scopes   string `json:"scope"`
+    jwt.RegisteredClaims
+}
+
+// NewJWTVerifier creates a new verifier with secret (supports HMAC and RSA)
+func NewJWTVerifier(secret string) *JWTVerifier {
+    verifier := &JWTVerifier{
+        secret: []byte(secret),
+    }
+
+    // Try to parse as RSA public key
+    block, _ := pem.Decode([]byte(secret))
+    if block != nil {
+        if pub, err := x509.ParsePKIXPublicKey(block.Bytes); err == nil {
+            if rsaPub, ok := pub.(*rsa.PublicKey); ok {
+                verifier.publicKey = rsaPub
+                return verifier
+            }
+        }
+    }
+
+    // If it's not RSA, assume HMAC
+    verifier.hmacSecret = []byte(secret)
+    verifier.useHS256 = true
+    return verifier
+}
+
+// ValidateJWT validates a JWT token from Ashrix
+func (v *JWTVerifier) ValidateJWT(tokenString string) (*JWTClaims, error) {
+    // Remove "Bearer " prefix if present
+    tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+
+    var token *jwt.Token
+    var err error
+
+    if v.useHS256 {
+        // HMAC verification
+        token, err = jwt.ParseWithClaims(tokenString, &JWTClaims{},
+            func(token *jwt.Token) (interface{}, error) {
+                if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+                    return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+                }
+                return v.hmacSecret, nil
+            })
+    } else {
+        // RSA verification
+        token, err = jwt.ParseWithClaims(tokenString, &JWTClaims{},
+            func(token *jwt.Token) (interface{}, error) {
+                if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+                    return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+                }
+                return v.publicKey, nil
+            })
+    }
+
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse JWT: %w", err)
+    }
+
+    if !token.Valid {
+        return nil, fmt.Errorf("invalid token")
+    }
+
+    claims, ok := token.Claims.(*JWTClaims)
+    if !ok {
+        return nil, fmt.Errorf("invalid claims type")
+    }
+
+    // Validate expiration
+    if claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
+        return nil, fmt.Errorf("token expired")
+    }
+
+    return claims, nil
+}
+
+// ValidateAshrixRequest validates an incoming request from Ashrix
+func (b *IDPBroker) ValidateAshrixRequest(authHeader string) (*JWTClaims, error) {
+    if authHeader == "" {
+        return nil, fmt.Errorf("missing authorization header")
+    }
+
+    return b.jwtVerifier.ValidateJWT(authHeader)
+}
+
+// GenerateJWTForAshrix creates a JWT for Ashrix to use
+func (b *IDPBroker) GenerateJWTForAshrix(user *models.UnifiedUser, expiresIn time.Duration) (string, error) {
+    claims := &JWTClaims{
+        UserID:   user.ID,
+        Email:    user.Email,
+        Provider: user.Provider,
+        RegisteredClaims: jwt.RegisteredClaims{
+            ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiresIn)),
+            IssuedAt:  jwt.NewNumericDate(time.Now()),
+            Issuer:    "ashrix-broker",
+            Subject:   user.ID,
+        },
+    }
+
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+    return token.SignedString(b.jwtVerifier.hmacSecret)
+}
+
+
+
+
+
+package adapters
+
+import "idp-broker/internal/models"
+
+type IDPAdapter interface {
+    GetProviderName() string
+    GetAuthorizationURLWithPKCE(state, redirectURI, codeChallenge, nonce string) (string, error)
+    ExchangeCodeWithVerifier(code, redirectURI, codeVerifier string) (*models.UnifiedUser, error)
+    RefreshToken(refreshToken string) (*models.UnifiedUser, error)
+}
+
+
+
+func (a *OIDCGenericAdapter) GetAuthorizationURLWithPKCE(state, redirectURI, codeChallenge, nonce string) (string, error) {
+    if redirectURI != "" {
+        a.oauth2Config.RedirectURL = redirectURI
+    }
+
+    opts := []oauth2.AuthCodeOption{
+        oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+        oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+    }
+
+    // Add nonce if provided
+    if nonce != "" {
+        opts = append(opts, oauth2.SetAuthURLParam("nonce", nonce))
+    }
+
+    return a.oauth2Config.AuthCodeURL(state, opts...), nil
+}
+
+func (a *OIDCGenericAdapter) ExchangeCodeWithVerifier(code, redirectURI, codeVerifier string) (*models.UnifiedUser, error) {
+    ctx := context.Background()
+
+    if redirectURI != "" {
+        a.oauth2Config.RedirectURL = redirectURI
+    }
+
+    // Add PKCE verifier to exchange
+    opts := []oauth2.AuthCodeOption{
+        oauth2.SetAuthURLParam("code_verifier", codeVerifier),
+    }
+
+    oauth2Token, err := a.oauth2Config.Exchange(ctx, code, opts...)
+    if err != nil {
+        return nil, fmt.Errorf("failed to exchange code: %w", err)
+    }
+
+    // ... rest of the exchange logic same as before
+    return a.processToken(oauth2Token)
+}
+
+
+
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+    "os"
+    "strconv"
+    "time"
+
+    "github.com/gorilla/mux"
+    "github.com/joho/godotenv"
+    "idp-broker/internal/broker"
+    "idp-broker/internal/storage"
+)
+
+var idpBroker *broker.IDPBroker
+
+func main() {
+    godotenv.Load()
+
+    // Initialize database
+    dbDSN := os.Getenv("DATABASE_URL")
+    if dbDSN == "" {
+        dbDSN = "host=localhost user=postgres password=postgres dbname=idp_broker port=5432 sslmode=disable"
+    }
+
+    db, err := storage.NewDatabase(dbDSN)
+    if err != nil {
+        log.Fatalf("Failed to connect to database: %v", err)
+    }
+
+    // Initialize broker with JWT secret
+    jwtSecret := os.Getenv("JWT_SECRET")
+    if jwtSecret == "" {
+        jwtSecret = "your-secret-key-change-in-production"
+    }
+    idpBroker = broker.NewIDPBroker(db, jwtSecret)
+
+    // Load providers from database
+    if err := idpBroker.LoadProvidersFromDB(); err != nil {
+        log.Printf("Warning: Failed to load providers: %v", err)
+    }
+
+    r := mux.NewRouter()
+
+    // Public endpoints
+    r.HandleFunc("/auth/{provider}", handleAuth).Methods("GET")
+    r.HandleFunc("/callback/{provider}", handleCallback).Methods("GET")
+
+    // Protected endpoints (require JWT from Ashrix)
+    r.HandleFunc("/providers", authenticateAshrix(handleListProviders)).Methods("GET")
+    r.HandleFunc("/providers", authenticateAshrix(handleRegisterProvider)).Methods("POST")
+    r.HandleFunc("/refresh", authenticateAshrix(handleRefresh)).Methods("POST")
+    r.HandleFunc("/user", authenticateAshrix(handleGetUserInfo)).Methods("GET")
+
+    // Health check
+    r.HandleFunc("/health", handleHealth).Methods("GET")
+
+    log.Println("IDP Broker starting on :8080")
+    log.Fatal(http.ListenAndServe(":8080", r))
+}
+
+// Middleware to authenticate requests from Ashrix
+func authenticateAshrix(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        authHeader := r.Header.Get("Authorization")
+        claims, err := idpBroker.ValidateAshrixRequest(authHeader)
+        if err != nil {
+            http.Error(w, fmt.Sprintf("Unauthorized: %v", err), http.StatusUnauthorized)
+            return
+        }
+
+        // Add claims to context for downstream handlers
+        ctx := context.WithValue(r.Context(), "claims", claims)
+        next(w, r.WithContext(ctx))
+    }
+}
+
+func handleAuth(w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    provider := vars["provider"]
+    redirectURI := r.URL.Query().Get("redirect_uri")
+    state := r.URL.Query().Get("state")
+    
+    if state == "" {
+        // Generate state
+        b := make([]byte, 16)
+        rand.Read(b)
+        state = base64.URLEncoding.EncodeToString(b)
+    }
+
+    authURL, err := idpBroker.GetLoginURL(provider, state, redirectURI)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{
+        "url":   authURL,
+        "state": state,
+    })
+}
+
+func handleCallback(w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    provider := vars["provider"]
+
+    code := r.URL.Query().Get("code")
+    state := r.URL.Query().Get("state")
+
+    if code == "" || state == "" {
+        http.Error(w, "Missing code or state", http.StatusBadRequest)
+        return
+    }
+
+    user, err := idpBroker.ExchangeCode(provider, code, state)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Generate JWT for Ashrix
+    token, err := idpBroker.GenerateJWTForAshrix(user, 24*time.Hour)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "user":  user,
+        "token": token,
+    })
+}
+
+func handleListProviders(w http.ResponseWriter, r *http.Request) {
+    // Get claims from context
+    claims, ok := r.Context().Value("claims").(*broker.JWTClaims)
+    if !ok {
+        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+        return
+    }
+
+    // Log who's accessing
+    log.Printf("User %s (%s) listing providers", claims.UserID, claims.Email)
+
+    providers := idpBroker.ListProviders()
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "providers": providers,
+    })
+}
+
+func handleRegisterProvider(w http.ResponseWriter, r *http.Request) {
+    // Only allow admin users
+    claims := r.Context().Value("claims").(*broker.JWTClaims)
+    if claims.Scopes != "admin" {
+        http.Error(w, "Admin privileges required", http.StatusForbidden)
+        return
+    }
+
+    var cfg broker.ProviderConfig
+    if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    if err := idpBroker.RegisterProvider(cfg); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(map[string]string{
+        "status": "registered",
+        "name":   cfg.Name,
+    })
+}
+
+func handleRefresh(w http.ResponseWriter, r *http.Request) {
+    claims := r.Context().Value("claims").(*broker.JWTClaims)
+    
+    var req struct {
+        Provider string `json:"provider"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    user, err := idpBroker.RefreshToken(req.Provider, claims.UserID)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Generate new JWT
+    newToken, err := idpBroker.GenerateJWTForAshrix(user, 24*time.Hour)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "user":  user,
+        "token": newToken,
+    })
+}
+
+func handleGetUserInfo(w http.ResponseWriter, r *http.Request) {
+    claims := r.Context().Value("claims").(*broker.JWTClaims)
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "user_id":  claims.UserID,
+        "email":    claims.Email,
+        "provider": claims.Provider,
+    })
+}
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{
+        "status": "healthy",
+        "time":   time.Now().UTC().String(),
+    })
+}
+
+
+
+package auth
+
+import (
+    "context"
+    "fmt"
+    "time"
+
+    "idp-broker/internal/broker"
+    "idp-broker/internal/models"
+    "idp-broker/internal/storage"
+    "gorm.io/gorm"
+)
+
+// AshrixBroker wraps the IDP broker for Ashrix
+type AshrixBroker struct {
+    broker *broker.IDPBroker
+    db     *gorm.DB
+}
+
+// NewAshrixBroker creates a new broker instance for Ashrix
+func NewAshrixBroker(db *gorm.DB, jwtSecret string) *AshrixBroker {
+    // Use the same database connection
+    storageDB := &storage.Database{DB: db}
+    return &AshrixBroker{
+        broker: broker.NewIDPBroker(storageDB, jwtSecret),
+        db:     db,
+    }
+}
+
+// AuthenticateWithIDP handles the full authentication flow
+func (a *AshrixBroker) AuthenticateWithIDP(ctx context.Context, provider, code, state, redirectURI string) (*models.UnifiedUser, string, error) {
+    // Exchange code
+    user, err := a.broker.ExchangeCode(provider, code, state)
+    if err != nil {
+        return nil, "", fmt.Errorf("failed to exchange code: %w", err)
+    }
+
+    // Generate JWT for session
+    token, err := a.broker.GenerateJWTForAshrix(user, 24*time.Hour)
+    if err != nil {
+        return nil, "", fmt.Errorf("failed to generate JWT: %w", err)
+    }
+
+    // Store user in Ashrix's user table (custom logic)
+    if err := a.storeUserInAshrix(user); err != nil {
+        return nil, "", fmt.Errorf("failed to store user: %w", err)
+    }
+
+    return user, token, nil
+}
+
+// ValidateToken validates a JWT token and returns the user
+func (a *AshrixBroker) ValidateToken(tokenString string) (*models.UnifiedUser, error) {
+    claims, err := a.broker.ValidateAshrixRequest(tokenString)
+    if err != nil {
+        return nil, err
+    }
+
+    // Fetch full user from Ashrix DB
+    return a.getUserFromAshrix(claims.UserID)
+}
+
+// GetLoginURL returns the login URL for a provider
+func (a *AshrixBroker) GetLoginURL(provider, state, redirectURI string) (string, error) {
+    return a.broker.GetLoginURL(provider, state, redirectURI)
+}
+
+// RegisterProvider registers a new IDP provider
+func (a *AshrixBroker) RegisterProvider(cfg broker.ProviderConfig) error {
+    return a.broker.RegisterProvider(cfg)
+}
+
+// ListProviders lists all available providers
+func (a *AshrixBroker) ListProviders() []string {
+    return a.broker.ListProviders()
+}
+
+// Internal methods for Ashrix integration
+func (a *AshrixBroker) storeUserInAshrix(user *models.UnifiedUser) error {
+    // Custom logic to store user in Ashrix's user table
+    // Example:
+    // var ashrixUser AshrixUser
+    // result := a.db.Where("external_id = ? AND provider = ?", user.ID, user.Provider).FirstOrCreate(&ashrixUser)
+    // ashrixUser.Email = user.Email
+    // ashrixUser.Name = user.Name
+    // return a.db.Save(&ashrixUser).Error
+    return nil
+}
+
+func (a *AshrixBroker) getUserFromAshrix(userID string) (*models.UnifiedUser, error) {
+    // Custom logic to fetch user from Ashrix's user table
+    return &models.UnifiedUser{
+        ID:   userID,
+        // ... populate from DB
+    }, nil
+}
+
+
+package client
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "time"
+)
+
+type IDPBrokerClient struct {
+    baseURL    string
+    httpClient *http.Client
+    apiKey     string
+}
+
+type UserInfo struct {
+    ID       string `json:"id"`
+    Email    string `json:"email"`
+    Name     string `json:"name"`
+    Provider string `json:"provider"`
+}
+
+type AuthResponse struct {
+    User  UserInfo `json:"user"`
+    Token string   `json:"token"`
+}
+
+func NewIDPBrokerClient(baseURL, apiKey string) *IDPBrokerClient {
+    return &IDPBrokerClient{
+        baseURL: baseURL,
+        apiKey:  apiKey,
+        httpClient: &http.Client{
+            Timeout: 10 * time.Second,
+        },
+    }
+}
+
+func (c *IDPBrokerClient) GetLoginURL(provider, state, redirectURI string) (string, error) {
+    url := fmt.Sprintf("%s/auth/%s?state=%s&redirect_uri=%s", c.baseURL, provider, state, redirectURI)
+    resp, err := c.httpClient.Get(url)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+
+    var result map[string]string
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return "", err
+    }
+
+    return result["url"], nil
+}
+
+func (c *IDPBrokerClient) HandleCallback(provider, code, state string) (*AuthResponse, error) {
+    url := fmt.Sprintf("%s/callback/%s?code=%s&state=%s", c.baseURL, provider, code, state)
+    resp, err := c.httpClient.Get(url)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    var result AuthResponse
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return nil, err
+    }
+
+    return &result, nil
+}
+
+func (c *IDPBrokerClient) RefreshToken(provider, userID string) (*AuthResponse, error) {
+    reqBody := map[string]string{"provider": provider}
+    body, _ := json.Marshal(reqBody)
+
+    req, err := http.NewRequest("POST", c.baseURL+"/refresh", bytes.NewReader(body))
+    if err != nil {
+        return nil, err
+    }
+
+    req.Header.Set("Authorization", "Bearer "+c.apiKey)
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := c.httpClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    var result AuthResponse
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return nil, err
+    }
+
+    return &result, nil
+}
+
+func (c *IDPBrokerClient) ListProviders() ([]string, error) {
+    req, err := http.NewRequest("GET", c.baseURL+"/providers", nil)
+    if err != nil {
+        return nil, err
+    }
+
+    req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+    resp, err := c.httpClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    var result map[string][]string
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return nil, err
+    }
+
+    return result["providers"], nil
+}
+
+
+
+
+
+
+
+
+package handlers
+
+import (
+    "encoding/json"
+    "net/http"
+    "net/url"
+
+    "ashrix/internal/auth"
+    "github.com/gorilla/mux"
+)
+
+type AuthHandler struct {
+    broker *auth.AshrixBroker
+}
+
+func NewAuthHandler(broker *auth.AshrixBroker) *AuthHandler {
+    return &AuthHandler{broker: broker}
+}
+
+// HandleLogin initiates the OIDC flow
+func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    provider := vars["provider"]
+    
+    // Generate state
+    state := generateState()
+    
+    // Get redirect URI from query or use default
+    redirectURI := r.URL.Query().Get("redirect_uri")
+    if redirectURI == "" {
+        redirectURI = "https://ashrix.com/auth/callback"
+    }
+
+    // Get login URL from broker
+    authURL, err := h.broker.GetLoginURL(provider, state, redirectURI)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Store state in session cookie
+    http.SetCookie(w, &http.Cookie{
+        Name:     "oauth_state",
+        Value:    state,
+        Path:     "/",
+        HttpOnly: true,
+        Secure:   true,
+        SameSite: http.SameSiteLaxMode,
+        MaxAge:   600, // 10 minutes
+    })
+
+    http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
+}
+
+// HandleCallback handles the OIDC callback
+func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    provider := vars["provider"]
+
+    code := r.URL.Query().Get("code")
+    state := r.URL.Query().Get("state")
+
+    // Verify state
+    cookie, err := r.Cookie("oauth_state")
+    if err != nil || cookie.Value != state {
+        http.Error(w, "Invalid state parameter", http.StatusBadRequest)
+        return
+    }
+
+    // Get redirect URI from original request (stored in session)
+    redirectURI := r.URL.Query().Get("redirect_uri")
+    if redirectURI == "" {
+        redirectURI = "https://ashrix.com/auth/callback"
+    }
+
+    // Authenticate with IDP
+    user, token, err := h.broker.AuthenticateWithIDP(
+        r.Context(),
+        provider,
+        code,
+        state,
+        redirectURI,
+    )
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Clear state cookie
+    http.SetCookie(w, &http.Cookie{
+        Name:   "oauth_state",
+        Value:  "",
+        Path:   "/",
+        MaxAge: -1,
+    })
+
+    // Set session token
+    http.SetCookie(w, &http.Cookie{
+        Name:     "auth_token",
+        Value:    token,
+        Path:     "/",
+        HttpOnly: true,
+        Secure:   true,
+        SameSite: http.SameSiteLaxMode,
+        MaxAge:   86400, // 24 hours
+    })
+
+    // Redirect to dashboard
+    http.Redirect(w, r, "/dashboard", http.StatusFound)
+}
+
+// HandleLogout logs out the user
+func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
+    // Clear session cookie
+    http.SetCookie(w, &http.Cookie{
+        Name:     "auth_token",
+        Value:    "",
+        Path:     "/",
+        MaxAge:   -1,
+        HttpOnly: true,
+        Secure:   true,
+    })
+    
+    http.Redirect(w, r, "/login", http.StatusFound)
+}
+
+// GetUserInfo returns the current user's info
+func (h *AuthHandler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
+    // Get token from cookie
+    cookie, err := r.Cookie("auth_token")
+    if err != nil {
+        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+        return
+    }
+
+    // Validate token
+    user, err := h.broker.ValidateToken(cookie.Value)
+    if err != nil {
+        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(user)
+}
+
+func generateState() string {
+    b := make([]byte, 16)
+    rand.Read(b)
+    return base64.URLEncoding.EncodeToString(b)
+}

@@ -17,6 +17,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_http"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/redis"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/logger"
 	"github.com/joho/godotenv"
 )
@@ -40,6 +41,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize context
+    // ctx, cancel := context.WithCancel(context.Background())
+    // defer cancel()
+
 	// Structured logger — JSON in production, text in dev
 	log := logger.New(cfg.ENV)
 
@@ -55,6 +60,22 @@ func main() {
 
 	//Initializing the dbQueries
 	dbQueries := store.New(db)
+
+	 // Initialize Redis
+    redisStore, err := redis.NewRedisStore(
+        context.Background(),
+        cfg.RedisAddr,
+        cfg.RedisPassword,
+        cfg.RedisDB,
+        cfg.RedisPoolSize,
+    )
+
+	log.Info("Redis connected")
+
+    if err != nil {
+        log.Error("Failed to connect to Redis: %w", slog.String("err", err.Error()))
+    }
+    defer redisStore.Close()
 
 	// Initializing PKI Root CA and Intermediate CA
 	// Pass db.Queries to the PKI signer for database-backed CA certificate management
@@ -79,7 +100,7 @@ func main() {
 	quit := make(chan os.Signal, 2)
 
 	// Build and start HTTP server
-	httpServer := cp_http.InitializeHttpServer(cfg, dbQueries, log, signer)
+	httpServer := cp_http.InitializeHttpServer(cfg, dbQueries,redisStore, log, signer)
 
 	// Build and start gRPC server
 	grpcServer := cp_grpc.InitializeGRPCServer(cfg, cppki, log)

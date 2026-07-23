@@ -5,8 +5,20 @@
 -- =================================================================
 
 -- name: CreateIDPConfig :one
-INSERT INTO idp_configs (org_id, name, provider_type, client_id, client_secret, issuer_url)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO idp_configs (
+  org_id, 
+  name, 
+  provider_type, 
+  client_id, 
+  client_secret, 
+  issuer_url, 
+  scopes, 
+  email_claim,
+  name_claim,
+  group_claim,
+  extra_config
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
 
 -- name: GetIDPConfigByID :one
@@ -27,14 +39,6 @@ WHERE org_id     = $1
   AND deleted_at IS NULL
 ORDER BY created_at ASC;
 
--- name: ListActiveIDPConfigsByOrg :many
--- Used by Gateway during OIDC flow to find valid providers.
-SELECT * FROM idp_configs
-WHERE org_id     = $1
-  AND is_active  = true
-  AND is_verified = true
-  AND deleted_at IS NULL
-ORDER BY created_at ASC;
 
 -- name: MarkIDPConfigVerified :one
 -- Called after owner completes SSO binding confirmation flow.

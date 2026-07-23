@@ -217,6 +217,7 @@ func (q *Queries) GetConnectorByIDAndOrg(ctx context.Context, arg GetConnectorBy
 const getConnectorByTokenHash = `-- name: GetConnectorByTokenHash :one
 SELECT id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, enrolled_at, revoked_at FROM connectors
 WHERE token_hash = $1
+  AND status = 'pending'
   AND revoked_at IS NULL
 `
 

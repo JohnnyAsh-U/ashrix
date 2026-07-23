@@ -46,6 +46,11 @@ CREATE TABLE idp_configs (
     client_id       TEXT        NOT NULL,
     client_secret   TEXT        NOT NULL,        -- AES-256-GCM encrypted, never plaintext
     issuer_url      TEXT        NOT NULL,        -- OIDC discovery base URL
+    scopes          TEXT[]      NOT NULL DEFAULT '{}',
+    email_claim     TEXT        NOT NULL,
+    name_claim      TEXT        NOT NULL,
+    group_claim     TEXT        NOT NULL,
+    extra_config    JSONB       NOT NULL DEFAULT '{}',
     is_active       BOOLEAN     NOT NULL DEFAULT true,
     is_verified     BOOLEAN     NOT NULL DEFAULT false,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -5,6 +5,7 @@
 package store
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -176,6 +177,11 @@ type IdpConfig struct {
 	ClientID     string             `json:"client_id"`
 	ClientSecret string             `json:"client_secret"`
 	IssuerUrl    string             `json:"issuer_url"`
+	Scopes       []string           `json:"scopes"`
+	EmailClaim   string             `json:"email_claim"`
+	NameClaim    string             `json:"name_claim"`
+	GroupClaim   string             `json:"group_claim"`
+	ExtraConfig  json.RawMessage    `json:"extra_config"`
 	IsActive     bool               `json:"is_active"`
 	IsVerified   bool               `json:"is_verified"`
 	CreatedAt    time.Time          `json:"created_at"`

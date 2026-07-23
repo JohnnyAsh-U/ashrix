@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"io"
 	"time"
-
-	// "io"
 	"net/http"
-
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
 
@@ -21,10 +19,16 @@ type ProxyServer struct {
 }
 
 func NewProxyServer(cfg *config.Config, registry *registry.Registry, log *zap.Logger) *ProxyServer {
-	mux := http.NewServeMux()
+	r := chi.NewRouter()
 
 	// Central proxy handler
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// r.Use(func(h http.Handler) http.Handler {
+		
+	// })
+
+	
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+
 		// Defensive nil checks to avoid runtime panics
 		if registry == nil {
 			if log != nil {
@@ -152,7 +156,7 @@ func NewProxyServer(cfg *config.Config, registry *registry.Registry, log *zap.Lo
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.HTTPPort),
-		Handler: mux,
+		Handler: r,
 		// TLSConfig will be set by the main loop using GatewayPKI
 	}
 

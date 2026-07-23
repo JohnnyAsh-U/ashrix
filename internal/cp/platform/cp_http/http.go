@@ -4,17 +4,21 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/auth"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/broker"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/redis"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/utils"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -29,7 +33,7 @@ type Server struct {
 }
 
 // New wires together all dependencies and builds the router.
-func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries, log *slog.Logger, signer pki.CASigner) *Server {
+func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries,redisStore *redis.RedisStore, log *slog.Logger, signer pki.CASigner) *Server {
 
 	//Mailer config
 	mailer := utils.NewMailerService(cfg)
@@ -49,6 +53,25 @@ func InitializeHttpServer(cfg *config.Config, dbQueries *store.Queries, log *slo
 	r.Use(middleware.LoggingMiddleware(log))
 	r.Use(chimiddleware.Recoverer)
 	r.Use(middleware.SecurityHeaders)
+
+	//Identity routes
+	identitySecretBox, err := broker.NewSecretBox([]byte(cfg.PKIConfig.IDPSecretEncryptionKey))
+	if err != nil {
+		log.Error("Please Set the IDP Encryption key")
+		os.Exit(1)
+	}
+	stateStore := broker.NewStateStore(redisStore.Client(), "idp_")
+
+	// signingKey := loadSigningKey() // from your existing KMS/Vault wiring
+	// tokenIssuer := broker.NewTokenIssuer(signingKey, "ashrix")
+
+	//For caching the adapter of idp broker
+	// clientCache := oidc.NewAdapterCache()
+
+	// api := httpapi.New(store, stateStore, tokenIssuer, clientCache, log)
+
+	_, _ = identitySecretBox, stateStore
+
 
 	//Org routes
 	orgRepo := org.NewPostgresRepository(dbQueries)

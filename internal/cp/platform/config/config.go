@@ -25,6 +25,12 @@ type PKIConfig struct {
 	// KMS
 	KMSToken string
 	KMSUrl   string
+
+	//Idp secret encrytion key
+	IDPSecretEncryptionKey string
+
+	//IdentityJWT Keys
+	
 }
 
 // Config holds all runtime configuration for the control plane.
@@ -70,6 +76,12 @@ type Config struct {
 	SetupTokenDuration time.Duration
 	OtpTokenDuration   time.Duration
 	AppUrl string
+
+	//Redis
+	RedisAddr string
+	RedisDB int
+	RedisPassword string
+	RedisPoolSize int
 
 	// PKI
 	PKIConfig *PKIConfig
@@ -117,6 +129,7 @@ func Load() (*Config, []error) {
 		PKIUnlockSecret: optional("PKI_UNLOCK_SECRET", "ashrix-pki-unlock-must-be-32-bytes-long"),
 		KMSToken:        optional("PKI_KMS_TOKEN", ""),
 		KMSUrl:          optional("PKI_KMS_URL", "http://localhost:8200"),
+		IDPSecretEncryptionKey: optional("IDP_SECRET_KEY", "ashrix-pki-unlock-must-be-32-bytes-long"),
 	}
 
 	cfg := &Config{
@@ -141,6 +154,11 @@ func Load() (*Config, []error) {
 		SetupTokenDuration: mustDuration(optional("SETUP_TOKEN_DURATION", "1h")),
 		OtpTokenDuration:   mustDuration(optional("OTP_TOKEN_DURATION", "5m")),
 		AppUrl: optional("APP_URL", "http://localhost:8080"),
+
+		RedisAddr: optional("REDIS_ADDR", "localhost:6379"),
+		RedisDB: int(mustInt(optional("REDIS_DB", "0"))),
+		RedisPassword: optional("REDIS_PASSWORD", ""),
+		RedisPoolSize: int(mustInt(optional("REDIS_POOL_SIZE", "2"))),
 
 		PKIConfig:        pkiConfig,
 	}

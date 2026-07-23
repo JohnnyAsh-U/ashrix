@@ -7,24 +7,42 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 )
 
 const createIDPConfig = `-- name: CreateIDPConfig :one
 
-INSERT INTO idp_configs (org_id, name, provider_type, client_id, client_secret, issuer_url)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, org_id, name, provider_type, client_id, client_secret, issuer_url, is_active, is_verified, created_at, deleted_at
+INSERT INTO idp_configs (
+  org_id, 
+  name, 
+  provider_type, 
+  client_id, 
+  client_secret, 
+  issuer_url, 
+  scopes, 
+  email_claim,
+  name_claim,
+  group_claim,
+  extra_config
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, org_id, name, provider_type, client_id, client_secret, issuer_url, scopes, email_claim, name_claim, group_claim, extra_config, is_active, is_verified, created_at, deleted_at
 `
 
 type CreateIDPConfigParams struct {
-	OrgID        uuid.UUID `json:"org_id"`
-	Name         string    `json:"name"`
-	ProviderType string    `json:"provider_type"`
-	ClientID     string    `json:"client_id"`
-	ClientSecret string    `json:"client_secret"`
-	IssuerUrl    string    `json:"issuer_url"`
+	OrgID        uuid.UUID       `json:"org_id"`
+	Name         string          `json:"name"`
+	ProviderType string          `json:"provider_type"`
+	ClientID     string          `json:"client_id"`
+	ClientSecret string          `json:"client_secret"`
+	IssuerUrl    string          `json:"issuer_url"`
+	Scopes       []string        `json:"scopes"`
+	EmailClaim   string          `json:"email_claim"`
+	NameClaim    string          `json:"name_claim"`
+	GroupClaim   string          `json:"group_claim"`
+	ExtraConfig  json.RawMessage `json:"extra_config"`
 }
 
 // =================================================================
@@ -40,6 +58,11 @@ func (q *Queries) CreateIDPConfig(ctx context.Context, arg CreateIDPConfigParams
 		arg.ClientID,
 		arg.ClientSecret,
 		arg.IssuerUrl,
+		arg.Scopes,
+		arg.EmailClaim,
+		arg.NameClaim,
+		arg.GroupClaim,
+		arg.ExtraConfig,
 	)
 	var i IdpConfig
 	err := row.Scan(
@@ -50,6 +73,11 @@ func (q *Queries) CreateIDPConfig(ctx context.Context, arg CreateIDPConfigParams
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.IssuerUrl,
+		&i.Scopes,
+		&i.EmailClaim,
+		&i.NameClaim,
+		&i.GroupClaim,
+		&i.ExtraConfig,
 		&i.IsActive,
 		&i.IsVerified,
 		&i.CreatedAt,
@@ -64,7 +92,7 @@ SET deleted_at = now()
 WHERE id        = $1
   AND org_id    = $2
   AND deleted_at IS NULL
-RETURNING id, org_id, name, provider_type, client_id, client_secret, issuer_url, is_active, is_verified, created_at, deleted_at
+RETURNING id, org_id, name, provider_type, client_id, client_secret, issuer_url, scopes, email_claim, name_claim, group_claim, extra_config, is_active, is_verified, created_at, deleted_at
 `
 
 type DeleteIDPConfigParams struct {
@@ -85,6 +113,11 @@ func (q *Queries) DeleteIDPConfig(ctx context.Context, arg DeleteIDPConfigParams
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.IssuerUrl,
+		&i.Scopes,
+		&i.EmailClaim,
+		&i.NameClaim,
+		&i.GroupClaim,
+		&i.ExtraConfig,
 		&i.IsActive,
 		&i.IsVerified,
 		&i.CreatedAt,
@@ -94,7 +127,7 @@ func (q *Queries) DeleteIDPConfig(ctx context.Context, arg DeleteIDPConfigParams
 }
 
 const getIDPConfigByID = `-- name: GetIDPConfigByID :one
-SELECT id, org_id, name, provider_type, client_id, client_secret, issuer_url, is_active, is_verified, created_at, deleted_at FROM idp_configs
+SELECT id, org_id, name, provider_type, client_id, client_secret, issuer_url, scopes, email_claim, name_claim, group_claim, extra_config, is_active, is_verified, created_at, deleted_at FROM idp_configs
 WHERE id         = $1
   AND deleted_at IS NULL
 `
@@ -110,6 +143,11 @@ func (q *Queries) GetIDPConfigByID(ctx context.Context, id uuid.UUID) (IdpConfig
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.IssuerUrl,
+		&i.Scopes,
+		&i.EmailClaim,
+		&i.NameClaim,
+		&i.GroupClaim,
+		&i.ExtraConfig,
 		&i.IsActive,
 		&i.IsVerified,
 		&i.CreatedAt,
@@ -119,7 +157,7 @@ func (q *Queries) GetIDPConfigByID(ctx context.Context, id uuid.UUID) (IdpConfig
 }
 
 const getIDPConfigByIDAndOrg = `-- name: GetIDPConfigByIDAndOrg :one
-SELECT id, org_id, name, provider_type, client_id, client_secret, issuer_url, is_active, is_verified, created_at, deleted_at FROM idp_configs
+SELECT id, org_id, name, provider_type, client_id, client_secret, issuer_url, scopes, email_claim, name_claim, group_claim, extra_config, is_active, is_verified, created_at, deleted_at FROM idp_configs
 WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL
@@ -142,6 +180,11 @@ func (q *Queries) GetIDPConfigByIDAndOrg(ctx context.Context, arg GetIDPConfigBy
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.IssuerUrl,
+		&i.Scopes,
+		&i.EmailClaim,
+		&i.NameClaim,
+		&i.GroupClaim,
+		&i.ExtraConfig,
 		&i.IsActive,
 		&i.IsVerified,
 		&i.CreatedAt,
@@ -150,50 +193,8 @@ func (q *Queries) GetIDPConfigByIDAndOrg(ctx context.Context, arg GetIDPConfigBy
 	return i, err
 }
 
-const listActiveIDPConfigsByOrg = `-- name: ListActiveIDPConfigsByOrg :many
-SELECT id, org_id, name, provider_type, client_id, client_secret, issuer_url, is_active, is_verified, created_at, deleted_at FROM idp_configs
-WHERE org_id     = $1
-  AND is_active  = true
-  AND is_verified = true
-  AND deleted_at IS NULL
-ORDER BY created_at ASC
-`
-
-// Used by Gateway during OIDC flow to find valid providers.
-func (q *Queries) ListActiveIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error) {
-	rows, err := q.db.Query(ctx, listActiveIDPConfigsByOrg, orgID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []IdpConfig{}
-	for rows.Next() {
-		var i IdpConfig
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrgID,
-			&i.Name,
-			&i.ProviderType,
-			&i.ClientID,
-			&i.ClientSecret,
-			&i.IssuerUrl,
-			&i.IsActive,
-			&i.IsVerified,
-			&i.CreatedAt,
-			&i.DeletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listIDPConfigsByOrg = `-- name: ListIDPConfigsByOrg :many
-SELECT id, org_id, name, provider_type, client_id, client_secret, issuer_url, is_active, is_verified, created_at, deleted_at FROM idp_configs
+SELECT id, org_id, name, provider_type, client_id, client_secret, issuer_url, scopes, email_claim, name_claim, group_claim, extra_config, is_active, is_verified, created_at, deleted_at FROM idp_configs
 WHERE org_id     = $1
   AND deleted_at IS NULL
 ORDER BY created_at ASC
@@ -216,6 +217,11 @@ func (q *Queries) ListIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]I
 			&i.ClientID,
 			&i.ClientSecret,
 			&i.IssuerUrl,
+			&i.Scopes,
+			&i.EmailClaim,
+			&i.NameClaim,
+			&i.GroupClaim,
+			&i.ExtraConfig,
 			&i.IsActive,
 			&i.IsVerified,
 			&i.CreatedAt,
@@ -237,7 +243,7 @@ SET is_verified = true
 WHERE id        = $1
   AND org_id    = $2
   AND deleted_at IS NULL
-RETURNING id, org_id, name, provider_type, client_id, client_secret, issuer_url, is_active, is_verified, created_at, deleted_at
+RETURNING id, org_id, name, provider_type, client_id, client_secret, issuer_url, scopes, email_claim, name_claim, group_claim, extra_config, is_active, is_verified, created_at, deleted_at
 `
 
 type MarkIDPConfigVerifiedParams struct {
@@ -257,6 +263,11 @@ func (q *Queries) MarkIDPConfigVerified(ctx context.Context, arg MarkIDPConfigVe
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.IssuerUrl,
+		&i.Scopes,
+		&i.EmailClaim,
+		&i.NameClaim,
+		&i.GroupClaim,
+		&i.ExtraConfig,
 		&i.IsActive,
 		&i.IsVerified,
 		&i.CreatedAt,
@@ -275,7 +286,7 @@ SET name          = $3,
 WHERE id          = $1
   AND org_id      = $2
   AND deleted_at  IS NULL
-RETURNING id, org_id, name, provider_type, client_id, client_secret, issuer_url, is_active, is_verified, created_at, deleted_at
+RETURNING id, org_id, name, provider_type, client_id, client_secret, issuer_url, scopes, email_claim, name_claim, group_claim, extra_config, is_active, is_verified, created_at, deleted_at
 `
 
 type UpdateIDPConfigParams struct {
@@ -308,6 +319,11 @@ func (q *Queries) UpdateIDPConfig(ctx context.Context, arg UpdateIDPConfigParams
 		&i.ClientID,
 		&i.ClientSecret,
 		&i.IssuerUrl,
+		&i.Scopes,
+		&i.EmailClaim,
+		&i.NameClaim,
+		&i.GroupClaim,
+		&i.ExtraConfig,
 		&i.IsActive,
 		&i.IsVerified,
 		&i.CreatedAt,

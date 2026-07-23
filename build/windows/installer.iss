@@ -44,7 +44,6 @@ Source: "{#AppExeName}";   DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
-Name: "{group}\{#AppName} (Tray)"; Filename: "{app}\{#AppExeName}"; Parameters: "tray"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
@@ -58,9 +57,6 @@ Filename: "{app}\{#AppExeName}"; Parameters: "start --token ""{code:GetToken}"""
 
 ; If no token, just start with stored credential (if exists)
 Filename: "{app}\{#AppExeName}"; Parameters: "start"; Flags: runhidden; Check: ShouldStartWithoutToken
-
-; Launch tray
-Filename: "{app}\{#AppExeName}"; Parameters: "tray"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "{app}\{#AppExeName}"; Parameters: "stop"; Flags: runhidden; RunOnceId: "StopService"
