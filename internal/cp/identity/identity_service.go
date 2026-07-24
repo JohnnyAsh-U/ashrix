@@ -185,21 +185,21 @@ func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, App
 }
 
 
-func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (*oidc.NormalizedIdentity, string, error) {
+func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (*oidc.NormalizedIdentity, string, string, error) {
 	// Get the state from the session
 	stateData, err := r.idpSession.ConsumeState(ctx, state)
 	if err != nil {
-		return &oidc.NormalizedIdentity{},"",fmt.Errorf("get state: %w", err)
+		return &oidc.NormalizedIdentity{},"","",fmt.Errorf("get state: %w", err)
 	}
 
 	//Get the OIDC Provider
 	providerID, err := uuid.Parse(stateData.ProviderID)
 	if err != nil {
-		return &oidc.NormalizedIdentity{},"", fmt.Errorf("provider parsing: %w", err)
+		return &oidc.NormalizedIdentity{},"","", fmt.Errorf("provider parsing: %w", err)
 	}
 	idpConfig,err := r.repo.GetIdentityConfigByID(ctx, providerID)
 	if err != nil {
-		return &oidc.NormalizedIdentity{},"",fmt.Errorf("get provider: %w", err)
+		return &oidc.NormalizedIdentity{},"","",fmt.Errorf("get provider: %w", err)
 	}
 	identityProvider := &oidc.IdentityProvider{
 		ID:          idpConfig.ID.String(),
@@ -221,10 +221,14 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (*
 
 	identity, err := adapter.Exchange(ctx, code, stateData.Nonce, stateData.PKCEVerifier)
 	if err != nil {
-		return &oidc.NormalizedIdentity{},"",fmt.Errorf("exchange: %w", err)
+		return &oidc.NormalizedIdentity{},"","",fmt.Errorf("exchange: %w", err)
 	}
 	
-	return identity,stateData.RedirectURI, nil
+	token, err := r.idpSession.CreateSession(identity)
+	if err != nil {
+		return &oidc.NormalizedIdentity{},"","",fmt.Errorf("get state: %w", err)
+	}
+	return identity,stateData.RedirectURI, token, nil
 }
 
 // getOrCreateAdapter retrieves an existing adapter from cache or creates a new one

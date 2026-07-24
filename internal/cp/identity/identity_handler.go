@@ -141,7 +141,7 @@ func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identity, redirectURI, err := i.idpService.ExchangeService(ctx, state, code)
+	identity, redirectURI,token, err := i.idpService.ExchangeService(ctx, state, code)
 	if err != nil {
 		dto.SendError(w, dto.NewAppError(500, dto.CodeForbidden, err.Error(), nil))
 		return
@@ -149,10 +149,12 @@ func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	Response := struct {
 		RedirectURI string
 		Identity *oidc.NormalizedIdentity
+		Token string
 
 	}{
 		RedirectURI: redirectURI,
 		Identity: identity,
+		Token: token,
 	}
 	dto.SendSuccess(w, http.StatusCreated, Response)
 }
