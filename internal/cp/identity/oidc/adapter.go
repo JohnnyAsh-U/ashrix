@@ -4,7 +4,7 @@ package oidc
 import (
 	"context"
 	"fmt"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 )
 
 // ProviderAdapter is what each IdP "flavor" implements. All
@@ -18,15 +18,17 @@ type ProviderAdapter interface {
 	// domain_hint) — each adapter adds its own.
 	AuthCodeURL(state, nonce string) string
 
+	GetProviderID() string
+
 	// Exchange trades the authorization code for tokens,
 	// verifies the ID token, and normalizes claims into the
 	// ONE shape everything downstream consumes.
-	Exchange(ctx context.Context, code, expectedNonce string) (*identity.NormalizedIdentity, error)
+	Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error)
 
 	GetProviderType() string
 
-	SearchUsers(ctx context.Context, query string, limit int) ([]identity.User, error)
-	SearchGroups(ctx context.Context, query string, limit int) ([]identity.Group, error)
+	SearchUsers(ctx context.Context, query string, limit int) ([]User, error)
+	SearchGroups(ctx context.Context, query string, limit int) ([]Group, error)
 	GetUserGroups(ctx context.Context, userID string) ([]string, error)
 }
 
@@ -35,7 +37,7 @@ type ProviderAdapter interface {
 // concrete adapter to construct based on IdentityProvider.Type.
 // Adding a new provider means adding one case here plus one new
 // adapter type — nothing else in the codebase needs to change.
-func NewAdapter(ctx context.Context, cfg *identity.IdentityProvider, clientSecret string) (ProviderAdapter, error) {
+func NewAdapter(ctx context.Context, cfg *IdentityProvider, clientSecret string) (ProviderAdapter, error) {
 	base, err := newBaseClient(ctx, cfg, clientSecret)
 	if err != nil {
 		return nil, fmt.Errorf("base OIDC client init failed: %w", err)
@@ -48,7 +50,7 @@ func NewAdapter(ctx context.Context, cfg *identity.IdentityProvider, clientSecre
 		return newEntraAdapter(base, cfg)
 	case "okta":
 		return newOktaAdapter(base, cfg)
-	case "keycloak":
+	case "oidc":
 		return newKeycloakAdapter(base, cfg)
 	case "generic":
 		return newGenericAdapter(base, cfg)

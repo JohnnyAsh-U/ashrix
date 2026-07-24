@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
-
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 )
 
 type googleExtraConfig struct {
@@ -18,11 +16,11 @@ type googleExtraConfig struct {
 
 type googleAdapter struct {
 	base  *baseOIDCClient
-	cfg   *identity.IdentityProvider
+	cfg   *IdentityProvider
 	extra googleExtraConfig
 }
 
-func newGoogleAdapter(base *baseOIDCClient, cfg *identity.IdentityProvider) (*googleAdapter, error) {
+func newGoogleAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*googleAdapter, error) {
 	var extra googleExtraConfig
 	if len(cfg.ExtraConfig) > 0 {
 		if err := json.Unmarshal(cfg.ExtraConfig, &extra); err != nil {
@@ -47,7 +45,7 @@ func (a *googleAdapter) AuthCodeURL(state, nonce string) string {
 	return a.base.authCodeURL(state, nonce, opts...)
 }
 
-func (a *googleAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*identity.NormalizedIdentity, error) {
+func (a *googleAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
 	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
 	if err != nil {
 		return nil, err
@@ -74,7 +72,7 @@ func (a *googleAdapter) Exchange(ctx context.Context, code, expectedNonce string
 	// Admin SDK integration, which is out of scope here and should
 	// be a documented limitation, not a silent gap someone
 	// discovers by confused debugging later.
-	return &identity.NormalizedIdentity{
+	return &NormalizedIdentity{
 		TenantID:   a.cfg.TenantID,
 		ProviderID: a.cfg.ID,
 		UserID:     sub,
@@ -87,10 +85,10 @@ func (a *googleAdapter) Exchange(ctx context.Context, code, expectedNonce string
 }
 
 
-func (a *googleAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]identity.User, error) {
+func (a *googleAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]User, error) {
 	return nil, nil
 }
-func (a *googleAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]identity.Group, error) {
+func (a *googleAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]Group, error) {
 	return nil, nil
 }
 func (a *googleAdapter) GetUserGroups(ctx context.Context, userID string) ([]string, error) {
@@ -99,4 +97,8 @@ func (a *googleAdapter) GetUserGroups(ctx context.Context, userID string) ([]str
 
 func (a *googleAdapter) GetProviderType() string {
 	return a.base.GetProviderType()
+}
+
+func (b *googleAdapter) GetProviderID() string {
+	return b.base.GetProviderID()
 }

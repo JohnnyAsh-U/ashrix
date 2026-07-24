@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-    "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/graph"
 )
 
@@ -24,7 +23,7 @@ type entraExtraConfig struct {
 
 type entraAdapter struct {
 	base        *baseOIDCClient
-	cfg         *identity.IdentityProvider
+	cfg         *IdentityProvider
 	graphClient *graph.EntraClient // nil if Graph resolution not configured
 }
 
@@ -33,7 +32,7 @@ type entraAdapter struct {
 
 
 
-func newEntraAdapter(base *baseOIDCClient, cfg *identity.IdentityProvider) (*entraAdapter, error) {
+func newEntraAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*entraAdapter, error) {
 	var extra entraExtraConfig
 	if len(cfg.ExtraConfig) > 0 {
 		if err := json.Unmarshal(cfg.ExtraConfig, &extra); err != nil {
@@ -45,7 +44,7 @@ func newEntraAdapter(base *baseOIDCClient, cfg *identity.IdentityProvider) (*ent
 	if extra.GraphTenantID != "" {
 		// Note: GraphSecretEnc arrives already encrypted in
 		// ExtraConfig. Decryption happens at the STORE layer
-		// (identity.Store.GetProvider equivalent), same pattern
+		// (Store.GetProvider equivalent), same pattern
 		// as ClientSecretEnc — the adapter factory should receive
 		// already-decrypted secrets, never handle encryption
 		// itself. Flagged: the wiring in the store layer (below)
@@ -63,7 +62,7 @@ func (a *entraAdapter) AuthCodeURL(state, nonce string) string {
 	return a.base.authCodeURL(state, nonce)
 }
 
-func (a *entraAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*identity.NormalizedIdentity, error) {
+func (a *entraAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
 	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
 	if err != nil {
 		return nil, err
@@ -100,7 +99,7 @@ func (a *entraAdapter) Exchange(ctx context.Context, code, expectedNonce string)
 		groups = resolved
 	}
 
-	return &identity.NormalizedIdentity{
+	return &NormalizedIdentity{
 		TenantID:   a.cfg.TenantID,
 		ProviderID: a.cfg.ID,
 		UserID:     sub,
@@ -114,7 +113,7 @@ func (a *entraAdapter) Exchange(ctx context.Context, code, expectedNonce string)
 
 
 
-func (a *entraAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]identity.User, error) {
+func (a *entraAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]User, error) {
 	token, err := a.getGraphToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get graph token: %w", err)
@@ -157,13 +156,13 @@ func (a *entraAdapter) SearchUsers(ctx context.Context, query string, limit int)
 		return nil, err
 	}
 
-	users := make([]identity.User, len(result.Value))
+	users := make([]User, len(result.Value))
 	for i, u := range result.Value {
 		email := u.Mail
 		if email == "" {
 			email = u.UserPrincipalName
 		}
-		users[i] = identity.User{
+		users[i] = User{
 			ID:       u.ID,
 			Email:    email,
 			Username: u.DisplayName,
@@ -173,7 +172,7 @@ func (a *entraAdapter) SearchUsers(ctx context.Context, query string, limit int)
 	return users, nil
 }
 
-func (a *entraAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]identity.Group, error) {
+func (a *entraAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]Group, error) {
 	token, err := a.getGraphToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get graph token: %w", err)
@@ -211,9 +210,9 @@ func (a *entraAdapter) SearchGroups(ctx context.Context, query string, limit int
 		return nil, err
 	}
 
-	groups := make([]identity.Group, len(result.Value))
+	groups := make([]Group, len(result.Value))
 	for i, g := range result.Value {
-		groups[i] = identity.Group{
+		groups[i] = Group{
 			ID:          g.ID,
 			Name:        g.DisplayName,
 			Description: g.Description,
@@ -288,3 +287,8 @@ func (a *entraAdapter) getGraphToken(ctx context.Context) (string, error) {
 func (a *entraAdapter) GetProviderType() string {
 	return a.base.GetProviderType()
 }
+
+func (b *entraAdapter) GetProviderID() string {
+	return b.base.GetProviderID()
+}
+

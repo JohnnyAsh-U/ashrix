@@ -14,10 +14,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/broker"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
-
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
@@ -58,24 +54,22 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 	r.Use(chimiddleware.Recoverer)
 	r.Use(middleware.SecurityHeaders)
 
-	//Identity configs and routes
-	identitySecretBox, err := broker.NewSecretBox([]byte(cfg.PKIConfig.IDPSecretEncryptionKey))
-	if err != nil {
-		fmt.Println("err", err)
-		os.Exit(1)
-	}
+
+	//IDP Routes
 	idpRepo := identity.NewPostgresRepository(dbQueries)
-	stateStore := broker.NewIDPStateStore(redisStore.Client(), "idp_")
-	clientCache := oidc.NewIdPResolverCache(idpRepo, redisStore.Client(), identitySecretBox)
-	tokenIssuer, err := broker.NewTokenIssuer(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix")
+	idpSession, err := identity.NewIDPSession(BaseDir,cfg.PKIConfig.PKIUnlockSecret, "ashrix",redisStore.Client(), "idp_")
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	idpService := identity.NewIDPService(
+		idpRepo, 
+		idpSession,
+		redisStore.Client(), 
+		[]byte(cfg.PKIConfig.IDPSecretEncryptionKey),
+	)
+	idpHandler := identity.NewIDPHandler(idpService, log)
 
-	// idpHandler := identity.NewIDPHandler(stateStore, tokenIssuer, clientCache, log)
-
-	// _= idpHandler
 
 	//Org routes
 	orgRepo := org.NewPostgresRepository(dbQueries)
@@ -119,6 +113,11 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 
 	r.Route("/api/v1", func(r chi.Router) {
 
+		r.Group(func(r chi.Router) {
+			r.Route("/authorize", idpHandler.Routes)
+		})
+
+		
 		r.Group(func(r chi.Router) {
 			r.Route("/auth", authHandler.Routes)
 			r.Route("/internal/gateways", gatewayHandler.WithoutAuthRoutes)

@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 )
 
 // Okta needs no adapter-specific behavior beyond the base client —
@@ -18,7 +16,7 @@ import (
 // without disturbing the factory or other adapters.
 type oktaAdapter struct {
 	base  *baseOIDCClient
-	cfg   *identity.IdentityProvider
+	cfg   *IdentityProvider
 	extra extraOktaConfig
 }
 
@@ -27,7 +25,7 @@ type extraOktaConfig struct {
 	APIToken string `json:"apiToken"`
 }
 
-func newOktaAdapter(base *baseOIDCClient, cfg *identity.IdentityProvider) (*oktaAdapter, error) {
+func newOktaAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*oktaAdapter, error) {
 	var extra extraOktaConfig
 	if len(cfg.ExtraConfig) > 0 {
 		if err := json.Unmarshal(cfg.ExtraConfig, &extra); err != nil {
@@ -41,7 +39,7 @@ func (a *oktaAdapter) AuthCodeURL(state, nonce string) string {
 	return a.base.authCodeURL(state, nonce)
 }
 
-func (a *oktaAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*identity.NormalizedIdentity, error) {
+func (a *oktaAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
 	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
 	if err != nil {
 		return nil, err
@@ -50,14 +48,14 @@ func (a *oktaAdapter) Exchange(ctx context.Context, code, expectedNonce string) 
 	if err != nil {
 		return nil, err
 	}
-	return &identity.NormalizedIdentity{
+	return &NormalizedIdentity{
 		TenantID: a.cfg.TenantID, ProviderID: a.cfg.ID,
 		UserID: sub, Email: email, Name: name, Groups: groups,
 		Provider: a.cfg.Type, AuthTime: time.Now(),
 	}, nil
 }
 
-func (a *oktaAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]identity.User, error) {
+func (a *oktaAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]User, error) {
     if limit <= 0 {
         limit = 20
     }
@@ -98,9 +96,9 @@ func (a *oktaAdapter) SearchUsers(ctx context.Context, query string, limit int) 
         return nil, err
     }
 
-    users := make([]identity.User, len(oktaUsers))
+    users := make([]User, len(oktaUsers))
     for i, u := range oktaUsers {
-        users[i] = identity.User{
+        users[i] = User{
             ID:       u.ID,
             Email:    u.Profile.Email,
             Username: fmt.Sprintf("%s %s", u.Profile.FirstName, u.Profile.LastName),
@@ -110,7 +108,7 @@ func (a *oktaAdapter) SearchUsers(ctx context.Context, query string, limit int) 
     return users, nil
 }
 
-func (a *oktaAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]identity.Group, error) {
+func (a *oktaAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]Group, error) {
     if limit <= 0 {
         limit = 20
     }
@@ -150,9 +148,9 @@ func (a *oktaAdapter) SearchGroups(ctx context.Context, query string, limit int)
         return nil, err
     }
 
-    groups := make([]identity.Group, len(oktaGroups))
+    groups := make([]Group, len(oktaGroups))
     for i, g := range oktaGroups {
-        groups[i] = identity.Group{
+        groups[i] = Group{
             ID:          g.ID,
             Name:        g.Profile.Name,
             Description: g.Profile.Description,
@@ -199,4 +197,7 @@ func (a *oktaAdapter) GetProviderType() string {
     return a.base.GetProviderType()
 }
 
+func (a *oktaAdapter) GetProviderID() string {
+	return a.base.GetProviderID()
+}
 

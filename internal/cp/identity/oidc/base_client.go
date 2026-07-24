@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 	oidclib "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 )
@@ -19,14 +19,14 @@ import (
 // inheritance, and composition is the correct fit here anyway,
 // since adapters need to override/extend behavior, not just reuse it.
 type baseOIDCClient struct {
-	cfg          *identity.IdentityProvider
+	cfg          *IdentityProvider
 	provider     *oidclib.Provider
 	oauth2Config oauth2.Config
 	httpClient *http.Client
 	verifier     *oidclib.IDTokenVerifier
 }
 
-func newBaseClient(ctx context.Context, cfg *identity.IdentityProvider, clientSecret string) (*baseOIDCClient, error) {
+func newBaseClient(ctx context.Context, cfg *IdentityProvider, clientSecret string) (*baseOIDCClient, error) {
 	provider, err := oidclib.NewProvider(ctx, cfg.IssuerURL)
 	if err != nil {
 		return nil, fmt.Errorf("OIDC discovery failed for %s: %w", cfg.IssuerURL, err)
@@ -60,15 +60,19 @@ func (b *baseOIDCClient) authCodeURL(state, nonce string, extra ...oauth2.AuthCo
 }
 
 
-func (b *baseOIDCClient) SearchUsers(ctx context.Context, query string, limit int) ([]identity.User, error) {
+func (b *baseOIDCClient) SearchUsers(ctx context.Context, query string, limit int) ([]User, error) {
 	return nil, nil
 }
-func (b *baseOIDCClient) SearchGroups(ctx context.Context, query string, limit int) ([]identity.Group, error) {
+func (b *baseOIDCClient) SearchGroups(ctx context.Context, query string, limit int) ([]Group, error) {
 	return nil, nil
 }
 func (b *baseOIDCClient) GetUserGroups(ctx context.Context, userID string) ([]string, error) {
 	return nil, nil
 }
+func (b *baseOIDCClient) GetProviderID() string {
+	return b.cfg.ID
+}
+
 
 // exchangeAndVerify does the genuinely universal part: code → token
 // → verified claims map. Returns raw claims — each adapter's own

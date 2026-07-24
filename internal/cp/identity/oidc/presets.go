@@ -3,14 +3,12 @@ package oidc
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 )
 
-func GooglePreset(tenantID, clientID, clientSecret, hostedDomain string) *identity.IdentityProvider {
-	return &identity.IdentityProvider{
+func GooglePreset(tenantID, clientID, clientSecret, hostedDomain string) *IdentityProvider {
+	return &IdentityProvider{
 		TenantID:    tenantID,
-		Type:        "oidc_google",
+		Type:        "google",
 		DisplayName: "Google",
 		Enabled:     true,
 		IssuerURL:   "https://accounts.google.com",
@@ -24,10 +22,10 @@ func GooglePreset(tenantID, clientID, clientSecret, hostedDomain string) *identi
 	}
 }
 
-func EntraPreset(tenantID, entraTenantID, clientID, clientSecret string) *identity.IdentityProvider {
-	return &identity.IdentityProvider{
+func EntraPreset(tenantID, entraTenantID, clientID, clientSecret string) *IdentityProvider {
+	return &IdentityProvider{
 		TenantID:    tenantID,
-		Type:        "oidc_entra",
+		Type:        "entra",
 		DisplayName: "Microsoft Entra ID",
 		Enabled:     true,
 		IssuerURL:   fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", entraTenantID),
@@ -46,17 +44,17 @@ func EntraPreset(tenantID, entraTenantID, clientID, clientSecret string) *identi
 	}
 }
 
-func OktaPreset(tenantID, oktaDomain, clientID, clientSecret, authServerID, oktaAPIToken string) *identity.IdentityProvider {
+func OktaPreset(tenantID, oktaDomain, clientID, clientSecret, authServerID, oktaAPIToken string) *IdentityProvider {
 	issuer := fmt.Sprintf("https://%s/oauth2/default", oktaDomain)
 	if authServerID != "" {
 		issuer = fmt.Sprintf("https://%s/oauth2/%s", oktaDomain, authServerID)
 	}
-	return &identity.IdentityProvider{
+	return &IdentityProvider{
 		TenantID:    tenantID,
-		Type:        "oidc_okta",
+		Type:        "okta",
 		DisplayName: "Okta",
 		Enabled:     true,
-		// OIDCConfig: identity.OIDCProviderConfig{
+		// OIDCConfig: OIDCProviderConfig{
 		IssuerURL:   issuer,
 		ClientID:    clientID,
 		Scopes:      []string{"openid", "email", "profile", "groups"},
@@ -72,13 +70,13 @@ func OktaPreset(tenantID, oktaDomain, clientID, clientSecret, authServerID, okta
 	}
 }
 
-func KeycloakPreset(tenantID, baseURL, realm, clientID, clientSecret, adminUser, adminPass string) *identity.IdentityProvider {
-	return &identity.IdentityProvider{
+func KeycloakPreset(tenantID, baseURL, realm, clientID, clientSecret, adminUser, adminPass string) *IdentityProvider {
+	return &IdentityProvider{
 		TenantID:    tenantID,
-		Type:        "oidc_keycloak",
+		Type:        "oidc",
 		DisplayName: "Keycloak",
 		Enabled:     true,
-		// OIDCConfig: identity.OIDCProviderConfig{
+		// OIDCConfig: OIDCProviderConfig{
 			IssuerURL:   fmt.Sprintf("%s/realms/%s", baseURL, realm),
 			ClientID:    clientID,
 			Scopes:      []string{"openid", "email", "profile", "groups"},
@@ -100,12 +98,12 @@ func GenericOIDCPreset(
 	tenantID, issuerURL, clientID, clientSecret string,
 	emailClaim, nameClaim, groupsClaim string,
 	extraClaims json.RawMessage,
-) *identity.IdentityProvider {
+) *IdentityProvider {
 	
 	
-	return &identity.IdentityProvider{
+	return &IdentityProvider{
 		TenantID:    tenantID,
-		Type:        "oidc_generic",
+		Type:        "generic",
 		DisplayName: "Custom OIDC Provider",
 		Enabled:     true,
 		IssuerURL: issuerURL,

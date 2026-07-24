@@ -1,23 +1,26 @@
 // broker/internal/broker/session.go
-package broker
+package identity
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"time"
-
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/pkg/pki"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
+	"os"
+	"path/filepath"
+	"time"
 )
 
 type BrokerClaims struct {
@@ -30,13 +33,26 @@ type BrokerClaims struct {
 	Provider string   `json:"provider"`
 }
 
-type TokenIssuer struct {
-	signingKey *ecdsa.PrivateKey
-	issuer     string
-	ttl        time.Duration
+type StateEntry struct {
+	Nonce        string `json:"nonce"`
+	AppID string `json:"app_id"`
+	TenantID     string `json:"tenant_id"`
+	ProviderID   string `json:"provider_id"`
+	PKCEVerifier string `json:"pkce_verifier"`
+	RedirectURI  string `json:"redirect_uri"`
 }
 
-func NewTokenIssuer(baseDir, encryptionSecret, issuer string) (*TokenIssuer, error) {
+type IDPSession struct {
+	signingKey *ecdsa.PrivateKey
+	issuer     string
+	tokenTTL   time.Duration
+
+	rdbClient   *redis.Client
+	stateTTL    time.Duration
+	statePrefix string
+}
+
+func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client, statePrefix string) (*IDPSession, error) {
 	fmt.Println("Initializing JWT PKI...")
 
 	jwtDir := filepath.Join(baseDir, "jwt")
@@ -80,19 +96,22 @@ func NewTokenIssuer(baseDir, encryptionSecret, issuer string) (*TokenIssuer, err
 		fmt.Println("✓ JWT signing key generated and saved successfully")
 	}
 
-	return &TokenIssuer{
-		signingKey: signingKey,
-		issuer:     issuer,
-		ttl:        15 * time.Minute,
+	return &IDPSession{
+		signingKey:  signingKey,
+		issuer:      issuer,
+		tokenTTL:    15 * time.Minute,
+		stateTTL:    10 * time.Minute,
+		rdbClient:   rdb,
+		statePrefix: statePrefix,
 	}, nil
 }
 
-func (t *TokenIssuer) Issue(identity *identity.NormalizedIdentity) (string, error) {
+func (t *IDPSession) CreateSession(identity *oidc.NormalizedIdentity) (string, error) {
 	claims := BrokerClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    t.issuer,
 			Subject:   identity.UserID,
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(t.ttl)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(t.tokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 		},
@@ -113,7 +132,7 @@ func (t *TokenIssuer) Issue(identity *identity.NormalizedIdentity) (string, erro
 }
 
 // For Gateway to verify; to be moved to gateway
-func (t *TokenIssuer) Verify(tokenString string) (*BrokerClaims, error) {
+func (t *IDPSession) VerifySession(tokenString string) (*BrokerClaims, error) {
 	claims := &BrokerClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(tok *jwt.Token) (interface{}, error) {
 		return &t.signingKey.PublicKey, nil
@@ -125,6 +144,72 @@ func (t *TokenIssuer) Verify(tokenString string) (*BrokerClaims, error) {
 		return nil, fmt.Errorf("invalid session token")
 	}
 	return claims, nil
+}
+
+// Create Nonce and state
+func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppID, redirectURI string) (state, code_challenge, nonce string, err error) {
+	state, err = randomToken(32)
+	if err != nil {
+		return "", "", "", err
+	}
+	nonce, err = randomToken(32)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	pkceVerifier, pkceChallenge, err := generatePKCE()
+	if err != nil {
+		return "", "", "", err
+	}
+
+	entry := StateEntry{
+		AppID: AppID,
+		Nonce:        nonce,
+		TenantID:     tenantID,
+		ProviderID:   providerID,
+		RedirectURI:  redirectURI,
+		PKCEVerifier: pkceVerifier,
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// SET with TTL, NX (only set if not already present — belt and
+	// suspenders against a random-generation collision, which is
+	// astronomically unlikely with 32 bytes of entropy but costs
+	// nothing to guard against explicitly)
+	ok, err := s.rdbClient.SetNX(ctx, stateKey(state), data, s.stateTTL).Result()
+	if err != nil {
+		return "", "", "", fmt.Errorf("redis setnx: %w", err)
+	}
+	if !ok {
+		return "", "", "", fmt.Errorf("state collision — retry")
+	}
+
+	return state, pkceChallenge, nonce, nil
+}
+
+// Consume validates and atomically deletes a state entry.
+// GETDEL is atomic in Redis 6.2+ — this is what makes it genuinely
+// single-use even under concurrent requests, which the earlier
+// in-memory mutex-based version also achieved, but this needs to
+// hold across multiple broker processes now.
+func (s *IDPSession) ConsumeState(ctx context.Context, state string) (*StateEntry, error) {
+	data, err := s.rdbClient.GetDel(ctx, stateKey(state)).Result()
+	if err == redis.Nil {
+		return nil, fmt.Errorf("unknown, expired, or already-used state")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("redis getdel: %w", err)
+	}
+
+	var entry StateEntry
+	if err := json.Unmarshal([]byte(data), &entry); err != nil {
+		return nil, fmt.Errorf("unmarshal state entry: %w", err)
+	}
+	return &entry, nil
 }
 
 // PublicKeyPEM should be exposed via a JWKS-style endpoint so
@@ -174,4 +259,27 @@ func wipeBytes(b []byte) {
 	for i := range b {
 		b[i] = 0
 	}
+}
+
+func stateKey(state string) string {
+	return "broker:oidc_state:" + state
+}
+
+func randomToken(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+func generatePKCE() (verifier string, challenge string, err error) {
+	verifier, err = randomToken(43)
+	if err != nil {
+		return "", "", err
+	}
+
+	hash := sha256.Sum256([]byte(verifier))
+	challenge = base64.URLEncoding.EncodeToString(hash[:])
+	return verifier, challenge, nil
 }

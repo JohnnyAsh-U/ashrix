@@ -8,15 +8,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 )
 
 type genericAdapter struct {
 	base *baseOIDCClient
-	cfg  *identity.IdentityProvider
+	cfg  *IdentityProvider
 }
 
-func newGenericAdapter(base *baseOIDCClient, cfg *identity.IdentityProvider) (*genericAdapter, error) {
+func newGenericAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*genericAdapter, error) {
 	return &genericAdapter{base: base, cfg: cfg}, nil
 }
 
@@ -24,7 +23,7 @@ func (a *genericAdapter) AuthCodeURL(state, nonce string) string {
 	return a.base.authCodeURL(state, nonce)
 }
 
-func (a *genericAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*identity.NormalizedIdentity, error) {
+func (a *genericAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
 	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
 	if err != nil {
 		return nil, err
@@ -33,7 +32,7 @@ func (a *genericAdapter) Exchange(ctx context.Context, code, expectedNonce strin
 	if err != nil {
 		return nil, err
 	}
-	return &identity.NormalizedIdentity{
+	return &NormalizedIdentity{
 		TenantID: a.cfg.TenantID, ProviderID: a.cfg.ID,
 		UserID: sub, Email: email, Name: name, Groups: groups,
 		Provider: a.cfg.Type, AuthTime: time.Now(),
@@ -41,11 +40,11 @@ func (a *genericAdapter) Exchange(ctx context.Context, code, expectedNonce strin
 }
 
 
-func (a *genericAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]identity.User, error) {
+func (a *genericAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]User, error) {
 	return nil, fmt.Errorf("user search not supported for generic provider")
 }
 
-func (a *genericAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]identity.Group, error) {
+func (a *genericAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]Group, error) {
 	return nil, fmt.Errorf("group search not supported for generic provider")
 }
 
@@ -54,4 +53,7 @@ func (a *genericAdapter) GetUserGroups(ctx context.Context, userID string) ([]st
 }
 func (a *genericAdapter) GetProviderType() string {
 	return a.base.GetProviderType()
+}
+func (b *genericAdapter) GetProviderID() string {
+	return b.base.GetProviderID()
 }

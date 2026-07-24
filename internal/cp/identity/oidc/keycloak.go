@@ -7,13 +7,11 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 )
 
 type keycloakAdapter struct {
 	base *baseOIDCClient
-	cfg  *identity.IdentityProvider
+	cfg  *IdentityProvider
 	extra KeycloakExtraConfig
 }
 
@@ -25,22 +23,22 @@ type KeycloakExtraConfig struct {
 }
 
 
-func newKeycloakAdapter(base *baseOIDCClient, cfg *identity.IdentityProvider) (*keycloakAdapter, error) {
+func newKeycloakAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*keycloakAdapter, error) {
 	
-    var extra KeycloakExtraConfig
-	if len(cfg.ExtraConfig) > 0 {
-		if err := json.Unmarshal(cfg.ExtraConfig, &extra); err != nil {
-			return nil, fmt.Errorf("keycloak extra_config invalid: %w", err)
-		}
-	}
-	return &keycloakAdapter{base: base, cfg: cfg, extra: extra}, nil
+    // var extra KeycloakExtraConfig
+	// if len(cfg.ExtraConfig) > 0 {
+	// 	if err := json.Unmarshal(cfg.ExtraConfig, &extra); err != nil {
+	// 		return nil, fmt.Errorf("keycloak extra_config invalid: %w", err)
+	// 	}
+	// }
+	return &keycloakAdapter{base: base, cfg: cfg, extra: KeycloakExtraConfig{}}, nil
 }
 
 func (a *keycloakAdapter) AuthCodeURL(state, nonce string) string {
 	return a.base.authCodeURL(state, nonce)
 }
 
-func (a *keycloakAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*identity.NormalizedIdentity, error) {
+func (a *keycloakAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
 	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
 	if err != nil {
 		return nil, err
@@ -49,7 +47,7 @@ func (a *keycloakAdapter) Exchange(ctx context.Context, code, expectedNonce stri
 	if err != nil {
 		return nil, err
 	}
-	return &identity.NormalizedIdentity{
+	return &NormalizedIdentity{
 		TenantID: a.cfg.TenantID, ProviderID: a.cfg.ID,
 		UserID: sub, Email: email, Name: name, Groups: groups,
 		Provider: a.cfg.Type, AuthTime: time.Now(),
@@ -57,7 +55,7 @@ func (a *keycloakAdapter) Exchange(ctx context.Context, code, expectedNonce stri
 }
 
 
-func (a *keycloakAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]identity.User, error) {
+func (a *keycloakAdapter) SearchUsers(ctx context.Context, query string, limit int) ([]User, error) {
     token, err := a.getAdminToken(ctx)
     if err != nil {
         return nil, err
@@ -88,9 +86,9 @@ func (a *keycloakAdapter) SearchUsers(ctx context.Context, query string, limit i
         return nil, err
     }
 
-    users := make([]identity.User, len(keycloakUsers))
+    users := make([]User, len(keycloakUsers))
     for i, u := range keycloakUsers {
-        users[i] = identity.User{
+        users[i] = User{
             ID:       u.ID,
             Email:    u.Email,
             Username: u.Username,
@@ -100,7 +98,7 @@ func (a *keycloakAdapter) SearchUsers(ctx context.Context, query string, limit i
     return users, nil
 }
 
-func (a *keycloakAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]identity.Group, error) {
+func (a *keycloakAdapter) SearchGroups(ctx context.Context, query string, limit int) ([]Group, error) {
     token, err := a.getAdminToken(ctx)
     if err != nil {
         return nil, err
@@ -130,9 +128,9 @@ func (a *keycloakAdapter) SearchGroups(ctx context.Context, query string, limit 
         return nil, err
     }
 
-    groups := make([]identity.Group, len(keycloakGroups))
+    groups := make([]Group, len(keycloakGroups))
     for i, g := range keycloakGroups {
-        groups[i] = identity.Group{
+        groups[i] = Group{
             ID:   g.ID,
             Name: g.Name,
         }
@@ -204,5 +202,9 @@ func (a *keycloakAdapter) getAdminToken(ctx context.Context) (string, error) {
 
 
 func (a *keycloakAdapter) GetProviderType() string {
-    return "keycloak"
+    return a.base.GetProviderType()
+}
+
+func (a *keycloakAdapter) GetProviderID() string {
+	return a.base.GetProviderID()
 }
