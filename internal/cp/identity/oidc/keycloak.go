@@ -25,21 +25,23 @@ type KeycloakExtraConfig struct {
 
 func newKeycloakAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*keycloakAdapter, error) {
 	
-    // var extra KeycloakExtraConfig
-	// if len(cfg.ExtraConfig) > 0 {
-	// 	if err := json.Unmarshal(cfg.ExtraConfig, &extra); err != nil {
-	// 		return nil, fmt.Errorf("keycloak extra_config invalid: %w", err)
-	// 	}
-	// }
+    var extra KeycloakExtraConfig
+	if len(cfg.ExtraConfig) > 0 {
+		if err := json.Unmarshal(cfg.ExtraConfig, &extra); err != nil {
+			return nil, fmt.Errorf("keycloak extra_config invalid: %w", err)
+		}
+	}
 	return &keycloakAdapter{base: base, cfg: cfg, extra: KeycloakExtraConfig{}}, nil
 }
 
-func (a *keycloakAdapter) AuthCodeURL(state, nonce string) string {
-	return a.base.authCodeURL(state, nonce)
+
+func (a *keycloakAdapter) AuthCodeURL(state, nonce,code_challenge string) string {
+	return a.base.authCodeURL(state, nonce, code_challenge)
 }
 
-func (a *keycloakAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
-	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
+
+func (a *keycloakAdapter) Exchange(ctx context.Context, code, expectedNonce, verifier string) (*NormalizedIdentity, error) {
+	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce, verifier)
 	if err != nil {
 		return nil, err
 	}

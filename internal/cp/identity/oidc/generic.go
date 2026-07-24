@@ -19,12 +19,12 @@ func newGenericAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*genericAda
 	return &genericAdapter{base: base, cfg: cfg}, nil
 }
 
-func (a *genericAdapter) AuthCodeURL(state, nonce string) string {
-	return a.base.authCodeURL(state, nonce)
+func (a *genericAdapter) AuthCodeURL(state, nonce,code_challenge string) string {
+	return a.base.authCodeURL(state, nonce, code_challenge)
 }
 
-func (a *genericAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
-	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
+func (a *genericAdapter) Exchange(ctx context.Context, code, expectedNonce,verifier string) (*NormalizedIdentity, error) {
+	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce, verifier)
 	if err != nil {
 		return nil, err
 	}

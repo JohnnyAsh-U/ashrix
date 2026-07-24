@@ -45,12 +45,13 @@ type IDPResolverProvider struct {
 }
 
 type APIIDPResolverResponse struct {
+	AppID string `json:"app_id"`
 	RedirectURI string `json:"redirect_uri"`
 	Providers   []IDPResolverProvider
 }
 
-
 type IDPLoginRequest struct {
 	RedirectURI string `json:"redirect_uri" validate:"required"`
 	ProviderID string `json:"provider_id" validate:"required"`
+	AppID string `json:"app_id"`
 }

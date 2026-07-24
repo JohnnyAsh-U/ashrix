@@ -11,28 +11,38 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
+
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
 type IDPService struct {
 	repo       Repository
+	appRepo    app.Repository
+	orgRepo    org.Repository
 	idpSession *IDPSession
 	cache      *redis.Client
 	mu         sync.RWMutex
+	cfg        *config.Config
 	adapters   map[string]oidc.ProviderAdapter
 	adapterMu  sync.RWMutex // Separate mutex for adapter operations
 	key        []byte       // 32 bytes, from KMS/Vault in production — for encrypting and decrypting the client_secret
 }
 
-func NewIDPService(repo Repository, idpSession *IDPSession, cache *redis.Client, key []byte) *IDPService {
+func NewIDPService(repo Repository, appRepo app.Repository, orgRepo org.Repository, idpSession *IDPSession, cache *redis.Client, cfg *config.Config, key []byte) *IDPService {
 
 	return &IDPService{
 		repo:       repo,
+		appRepo:    appRepo,
+		orgRepo:    orgRepo,
 		idpSession: idpSession,
 		cache:      cache,
+		cfg:        cfg,
 		adapters:   make(map[string]oidc.ProviderAdapter),
 		key:        key,
 	}
@@ -103,39 +113,119 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, orgID, appID uuid.UUID) 
 	return adapters, nil
 }
 
-func (r *IDPService) IsRedirectURIValidByIDP(ctx context.Context, IDPUUID uuid.UUID, redirectURI string) bool {
+func (r *IDPService) IsRedirectURIValidByIDP(ctx context.Context, IDPUUID uuid.UUID, redirectURI string) (bool, store.IdpConfig) {
 	//List all apps by the org of the idp config
 	IDPConfig, err := r.repo.GetIdentityConfigByID(ctx, IDPUUID)
 	if err != nil {
-		return false
+		return false, store.IdpConfig{}
 	}
 
-	appIDPs, err := r.repo.ListAppsByOrg(ctx, IDPConfig.OrgID)
+	appIDPs, err := r.appRepo.ListByOrg(ctx, IDPConfig.OrgID)
 	if err != nil {
-		return false
+		return false, store.IdpConfig{}
 	}
 
-	orgObj, err := r.repo.GetOrgByID(ctx, IDPConfig.OrgID)
+	orgObj, err := r.orgRepo.GetByID(ctx, IDPConfig.OrgID)
 
 	if err != nil {
-		return false
+		return false, store.IdpConfig{}
 	}
 
 	if len(appIDPs) == 0 {
-		return false
+		return false, store.IdpConfig{}
 	}
-	//TODO: CHECK FOR ORG IDP
+
+	//Check if the user has a special domain
+	domain := r.cfg.CPDomainUrl
+	if orgObj.CustomDomain.String != "" && orgObj.DomainVerified {
+		domain = orgObj.CustomDomain.String
+	}
 
 	for _, appIDP := range appIDPs {
-		AppURL := fmt.Sprintf("https://%s.%s", appIDP.Subdomain, orgObj.CustomDomain.String)
+		AppURL := fmt.Sprintf("https://%s.%s", appIDP.Subdomain, domain)
 		if strings.HasPrefix(redirectURI, AppURL) {
-			return true
+			return true, IDPConfig
 		}
 	}
-	return false
+	return false, store.IdpConfig{}
 }
 
-// func (r *IDPService)
+func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, AppId, RedirectURI string) (string, error) {
+	//Create the state, and build the OAUTh url
+	state, code_challenge, nonce, err := r.idpSession.CreateState(
+		ctx,
+		idp.OrgID.String(),
+		idp.ID.String(),
+		AppId,
+		RedirectURI,
+	)
+	identityProvider := &oidc.IdentityProvider{
+		ID:          idp.ID.String(),
+		TenantID:    idp.OrgID.String(),
+		Type:        idp.ProviderType,
+		DisplayName: idp.Name,
+		// OIDC specific fields from provider
+		IssuerURL:       idp.IssuerUrl,
+		ClientID:        idp.ClientID,     // Use app-specific client ID
+		ClientSecretEnc: idp.ClientSecret, // Use app-specific client secret
+		Scopes:          idp.Scopes,
+		EmailClaim:      idp.EmailClaim,
+		NameClaim:       idp.NameClaim,
+		GroupsClaim:     idp.GroupClaim,
+		ExtraConfig:     idp.ExtraConfig,
+	}
+
+	adapter, err := r.getOrCreateAdapter(ctx, identityProvider)
+
+	if err != nil {
+		return "", err
+	}
+
+	return adapter.AuthCodeURL(state, nonce, code_challenge), nil
+}
+
+
+func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (*oidc.NormalizedIdentity, string, error) {
+	// Get the state from the session
+	stateData, err := r.idpSession.ConsumeState(ctx, state)
+	if err != nil {
+		return &oidc.NormalizedIdentity{},"",fmt.Errorf("get state: %w", err)
+	}
+
+	//Get the OIDC Provider
+	providerID, err := uuid.Parse(stateData.ProviderID)
+	if err != nil {
+		return &oidc.NormalizedIdentity{},"", fmt.Errorf("provider parsing: %w", err)
+	}
+	idpConfig,err := r.repo.GetIdentityConfigByID(ctx, providerID)
+	if err != nil {
+		return &oidc.NormalizedIdentity{},"",fmt.Errorf("get provider: %w", err)
+	}
+	identityProvider := &oidc.IdentityProvider{
+		ID:          idpConfig.ID.String(),
+		TenantID:    idpConfig.OrgID.String(),
+		Type:        idpConfig.ProviderType,
+		DisplayName: idpConfig.Name,
+		// OIDC specific fields from provider
+		IssuerURL:       idpConfig.IssuerUrl,
+		ClientID:        idpConfig.ClientID,     // Use app-specific client ID
+		ClientSecretEnc: idpConfig.ClientSecret, // Use app-specific client secret
+		Scopes:          idpConfig.Scopes,
+		EmailClaim:      idpConfig.EmailClaim,
+		NameClaim:       idpConfig.NameClaim,
+		GroupsClaim:     idpConfig.GroupClaim,
+		ExtraConfig:     idpConfig.ExtraConfig,
+	}
+
+	adapter, err := r.getOrCreateAdapter(ctx, identityProvider)
+
+	identity, err := adapter.Exchange(ctx, code, stateData.Nonce, stateData.PKCEVerifier)
+	if err != nil {
+		return &oidc.NormalizedIdentity{},"",fmt.Errorf("exchange: %w", err)
+	}
+	
+	return identity,stateData.RedirectURI, nil
+}
 
 // getOrCreateAdapter retrieves an existing adapter from cache or creates a new one
 func (r *IDPService) getOrCreateAdapter(ctx context.Context, cfg *oidc.IdentityProvider) (oidc.ProviderAdapter, error) {

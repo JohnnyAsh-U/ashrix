@@ -37,6 +37,7 @@ func newBaseClient(ctx context.Context, cfg *IdentityProvider, clientSecret stri
 		ClientSecret: clientSecret,
 		Endpoint:     provider.Endpoint(),
 		Scopes:       cfg.Scopes,
+		RedirectURL: "http://localhost:8001/api/v1/authorize/callback",
 	}
 
 	verifier := provider.Verifier(&oidclib.Config{ClientID: cfg.ClientID})
@@ -54,9 +55,13 @@ func newBaseClient(ctx context.Context, cfg *IdentityProvider, clientSecret stri
 	}, nil
 }
 
-func (b *baseOIDCClient) authCodeURL(state, nonce string, extra ...oauth2.AuthCodeOption) string {
-	opts := append([]oauth2.AuthCodeOption{oidclib.Nonce(nonce)}, extra...)
-	return b.oauth2Config.AuthCodeURL(state, opts...)
+func (b *baseOIDCClient) authCodeURL(state, nonce, code_challenge string, extra ...oauth2.AuthCodeOption) string {
+	//Include PKCE
+	return b.oauth2Config.AuthCodeURL(state, append([]oauth2.AuthCodeOption{
+		oauth2.SetAuthURLParam("nonce", nonce),
+		oauth2.SetAuthURLParam("code_challenge", code_challenge),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+	}, extra...)...)
 }
 
 
@@ -78,8 +83,8 @@ func (b *baseOIDCClient) GetProviderID() string {
 // → verified claims map. Returns raw claims — each adapter's own
 // mapClaims takes it from there, since THAT part is where provider
 // differences actually live.
-func (b *baseOIDCClient) exchangeAndVerify(ctx context.Context, code, expectedNonce string) (map[string]interface{}, error) {
-	token, err := b.oauth2Config.Exchange(ctx, code)
+func (b *baseOIDCClient) exchangeAndVerify(ctx context.Context, code, expectedNonce, verifier string) (map[string]interface{}, error) {
+	token, err := b.oauth2Config.Exchange(ctx, code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return nil, fmt.Errorf("code exchange failed: %w", err)
 	}
@@ -94,7 +99,7 @@ func (b *baseOIDCClient) exchangeAndVerify(ctx context.Context, code, expectedNo
 		return nil, fmt.Errorf("id_token verification failed: %w", err)
 	}
 
-	var claims map[string]interface{}
+	var claims map[string]any
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, fmt.Errorf("claims parse failed: %w", err)
 	}

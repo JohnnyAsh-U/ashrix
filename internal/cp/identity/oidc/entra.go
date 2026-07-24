@@ -58,12 +58,12 @@ func newEntraAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*entraAdapter
 	return &entraAdapter{base: base, cfg: cfg, graphClient: graphClient}, nil
 }
 
-func (a *entraAdapter) AuthCodeURL(state, nonce string) string {
-	return a.base.authCodeURL(state, nonce)
+func (a *entraAdapter) AuthCodeURL(state, nonce, code_challenge string) string {
+	return a.base.authCodeURL(state, nonce, code_challenge)
 }
 
-func (a *entraAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
-	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
+func (a *entraAdapter) Exchange(ctx context.Context, code, expectedNonce,verifier string) (*NormalizedIdentity, error) {
+	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce, verifier)
 	if err != nil {
 		return nil, err
 	}

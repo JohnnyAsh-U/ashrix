@@ -16,14 +16,14 @@ type ProviderAdapter interface {
 	// providers need extra params beyond the OIDC standard
 	// (Google's hd hint for domain restriction, Entra's
 	// domain_hint) — each adapter adds its own.
-	AuthCodeURL(state, nonce string) string
+	AuthCodeURL(state, nonce, code_challenge string) string
 
 	GetProviderID() string
 
 	// Exchange trades the authorization code for tokens,
 	// verifies the ID token, and normalizes claims into the
 	// ONE shape everything downstream consumes.
-	Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error)
+	Exchange(ctx context.Context, code, expectedNonce, verifier string) (*NormalizedIdentity, error)
 
 	GetProviderType() string
 

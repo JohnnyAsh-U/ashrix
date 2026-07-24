@@ -35,7 +35,7 @@ type BrokerClaims struct {
 
 type StateEntry struct {
 	Nonce        string `json:"nonce"`
-	AppID string `json:"app_id"`
+	AppID        string `json:"app_id"`
 	TenantID     string `json:"tenant_id"`
 	ProviderID   string `json:"provider_id"`
 	PKCEVerifier string `json:"pkce_verifier"`
@@ -47,12 +47,11 @@ type IDPSession struct {
 	issuer     string
 	tokenTTL   time.Duration
 
-	rdbClient   *redis.Client
-	stateTTL    time.Duration
-	statePrefix string
+	rdbClient *redis.Client
+	stateTTL  time.Duration
 }
 
-func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client, statePrefix string) (*IDPSession, error) {
+func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client) (*IDPSession, error) {
 	fmt.Println("Initializing JWT PKI...")
 
 	jwtDir := filepath.Join(baseDir, "jwt")
@@ -97,12 +96,11 @@ func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client, 
 	}
 
 	return &IDPSession{
-		signingKey:  signingKey,
-		issuer:      issuer,
-		tokenTTL:    15 * time.Minute,
-		stateTTL:    10 * time.Minute,
-		rdbClient:   rdb,
-		statePrefix: statePrefix,
+		signingKey: signingKey,
+		issuer:     issuer,
+		tokenTTL:   15 * time.Minute,
+		stateTTL:   10 * time.Minute,
+		rdbClient:  rdb,
 	}, nil
 }
 
@@ -163,7 +161,7 @@ func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppI
 	}
 
 	entry := StateEntry{
-		AppID: AppID,
+		AppID:        AppID,
 		Nonce:        nonce,
 		TenantID:     tenantID,
 		ProviderID:   providerID,
@@ -187,6 +185,8 @@ func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppI
 	if !ok {
 		return "", "", "", fmt.Errorf("state collision — retry")
 	}
+
+	fmt.Println(stateKey(state), string(data), AppID)
 
 	return state, pkceChallenge, nonce, nil
 }
@@ -270,16 +270,16 @@ func randomToken(n int) (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 func generatePKCE() (verifier string, challenge string, err error) {
-	verifier, err = randomToken(43)
+	verifier, err = randomToken(32)
 	if err != nil {
 		return "", "", err
 	}
 
 	hash := sha256.Sum256([]byte(verifier))
-	challenge = base64.URLEncoding.EncodeToString(hash[:])
+	challenge = base64.RawURLEncoding.EncodeToString(hash[:])
 	return verifier, challenge, nil
 }

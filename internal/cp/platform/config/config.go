@@ -83,6 +83,9 @@ type Config struct {
 	RedisPassword string
 	RedisPoolSize int
 
+	//CP Domain name
+	CPDomainUrl string
+
 	// PKI
 	PKIConfig *PKIConfig
 }
@@ -159,6 +162,8 @@ func Load() (*Config, []error) {
 		RedisDB: int(mustInt(optional("REDIS_DB", "0"))),
 		RedisPassword: optional("REDIS_PASSWORD", ""),
 		RedisPoolSize: int(mustInt(optional("REDIS_POOL_SIZE", "2"))),
+
+		CPDomainUrl: optional("CP_DOMAIN_URL", "ashrix.io"),
 
 		PKIConfig:        pkiConfig,
 	}

@@ -35,12 +35,12 @@ func newOktaAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*oktaAdapter, 
 	return &oktaAdapter{base: base, cfg: cfg, extra: extra}, nil
 }
 
-func (a *oktaAdapter) AuthCodeURL(state, nonce string) string {
-	return a.base.authCodeURL(state, nonce)
+func (a *oktaAdapter) AuthCodeURL(state, nonce,code_challenge string) string {
+	return a.base.authCodeURL(state, nonce, code_challenge)
 }
 
-func (a *oktaAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
-	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
+func (a *oktaAdapter) Exchange(ctx context.Context, code, expectedNonce, verifier string) (*NormalizedIdentity, error) {
+	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce, verifier)
 	if err != nil {
 		return nil, err
 	}

@@ -30,7 +30,7 @@ func newGoogleAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*googleAdapt
 	return &googleAdapter{base: base, cfg: cfg, extra: extra}, nil
 }
 
-func (a *googleAdapter) AuthCodeURL(state, nonce string) string {
+func (a *googleAdapter) AuthCodeURL(state, nonce, code_challenge string) string {
 	var opts []oauth2.AuthCodeOption
 	if a.extra.HostedDomain != "" {
 		// Google-specific hint — restricts the account picker to
@@ -42,11 +42,11 @@ func (a *googleAdapter) AuthCodeURL(state, nonce string) string {
 		// claim check exists as the real gate, not this hint alone.
 		opts = append(opts, oauth2.SetAuthURLParam("hd", a.extra.HostedDomain))
 	}
-	return a.base.authCodeURL(state, nonce, opts...)
+	return a.base.authCodeURL(state, nonce, code_challenge, opts...)
 }
 
-func (a *googleAdapter) Exchange(ctx context.Context, code, expectedNonce string) (*NormalizedIdentity, error) {
-	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce)
+func (a *googleAdapter) Exchange(ctx context.Context, code, expectedNonce, verifier string) (*NormalizedIdentity, error) {
+	claims, err := a.base.exchangeAndVerify(ctx, code, expectedNonce, verifier)
 	if err != nil {
 		return nil, err
 	}
