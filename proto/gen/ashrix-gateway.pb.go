@@ -384,6 +384,218 @@ func (x *GatewayRenewCertResponse) GetExpiresAt() *timestamppb.Timestamp {
 	return nil
 }
 
+type ExchangeTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GatewayName   string                 `protobuf:"bytes,1,opt,name=gateway_name,json=gatewayName,proto3" json:"gateway_name,omitempty"`
+	TokenHash     string                 `protobuf:"bytes,2,opt,name=token_hash,json=tokenHash,proto3" json:"token_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangeTokenRequest) Reset() {
+	*x = ExchangeTokenRequest{}
+	mi := &file_ashrix_gateway_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeTokenRequest) ProtoMessage() {}
+
+func (x *ExchangeTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_gateway_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeTokenRequest.ProtoReflect.Descriptor instead.
+func (*ExchangeTokenRequest) Descriptor() ([]byte, []int) {
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ExchangeTokenRequest) GetGatewayName() string {
+	if x != nil {
+		return x.GatewayName
+	}
+	return ""
+}
+
+func (x *ExchangeTokenRequest) GetTokenHash() string {
+	if x != nil {
+		return x.TokenHash
+	}
+	return ""
+}
+
+type NormalizedIdentity struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TenantId      string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	ProviderId    string                 `protobuf:"bytes,2,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Email         string                 `protobuf:"bytes,4,opt,name=email,proto3" json:"email,omitempty"`
+	Name          string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
+	Groups        []string               `protobuf:"bytes,6,rep,name=groups,proto3" json:"groups,omitempty"`
+	Provider      string                 `protobuf:"bytes,7,opt,name=provider,proto3" json:"provider,omitempty"`
+	AuthTime      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=auth_time,json=authTime,proto3" json:"auth_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NormalizedIdentity) Reset() {
+	*x = NormalizedIdentity{}
+	mi := &file_ashrix_gateway_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NormalizedIdentity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NormalizedIdentity) ProtoMessage() {}
+
+func (x *NormalizedIdentity) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_gateway_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NormalizedIdentity.ProtoReflect.Descriptor instead.
+func (*NormalizedIdentity) Descriptor() ([]byte, []int) {
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *NormalizedIdentity) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *NormalizedIdentity) GetProviderId() string {
+	if x != nil {
+		return x.ProviderId
+	}
+	return ""
+}
+
+func (x *NormalizedIdentity) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *NormalizedIdentity) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *NormalizedIdentity) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *NormalizedIdentity) GetGroups() []string {
+	if x != nil {
+		return x.Groups
+	}
+	return nil
+}
+
+func (x *NormalizedIdentity) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *NormalizedIdentity) GetAuthTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AuthTime
+	}
+	return nil
+}
+
+type ExchangeTokenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	Identity      *NormalizedIdentity    `protobuf:"bytes,2,opt,name=identity,proto3" json:"identity,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,3,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangeTokenResponse) Reset() {
+	*x = ExchangeTokenResponse{}
+	mi := &file_ashrix_gateway_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeTokenResponse) ProtoMessage() {}
+
+func (x *ExchangeTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_gateway_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeTokenResponse.ProtoReflect.Descriptor instead.
+func (*ExchangeTokenResponse) Descriptor() ([]byte, []int) {
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ExchangeTokenResponse) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *ExchangeTokenResponse) GetIdentity() *NormalizedIdentity {
+	if x != nil {
+		return x.Identity
+	}
+	return nil
+}
+
+func (x *ExchangeTokenResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
 // GatewayEnvelope - Gateway => CP
 type GatewayEnvelope struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
@@ -401,7 +613,7 @@ type GatewayEnvelope struct {
 
 func (x *GatewayEnvelope) Reset() {
 	*x = GatewayEnvelope{}
-	mi := &file_ashrix_gateway_proto_msgTypes[4]
+	mi := &file_ashrix_gateway_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -413,7 +625,7 @@ func (x *GatewayEnvelope) String() string {
 func (*GatewayEnvelope) ProtoMessage() {}
 
 func (x *GatewayEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[4]
+	mi := &file_ashrix_gateway_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -426,7 +638,7 @@ func (x *GatewayEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayEnvelope.ProtoReflect.Descriptor instead.
 func (*GatewayEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{4}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GatewayEnvelope) GetGatewayId() string {
@@ -518,7 +730,7 @@ type CPEnvelope struct {
 
 func (x *CPEnvelope) Reset() {
 	*x = CPEnvelope{}
-	mi := &file_ashrix_gateway_proto_msgTypes[5]
+	mi := &file_ashrix_gateway_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -530,7 +742,7 @@ func (x *CPEnvelope) String() string {
 func (*CPEnvelope) ProtoMessage() {}
 
 func (x *CPEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[5]
+	mi := &file_ashrix_gateway_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -543,7 +755,7 @@ func (x *CPEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CPEnvelope.ProtoReflect.Descriptor instead.
 func (*CPEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{5}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CPEnvelope) GetNodeId() string {
@@ -651,7 +863,7 @@ type HelloMessage struct {
 
 func (x *HelloMessage) Reset() {
 	*x = HelloMessage{}
-	mi := &file_ashrix_gateway_proto_msgTypes[6]
+	mi := &file_ashrix_gateway_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -663,7 +875,7 @@ func (x *HelloMessage) String() string {
 func (*HelloMessage) ProtoMessage() {}
 
 func (x *HelloMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[6]
+	mi := &file_ashrix_gateway_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -676,7 +888,7 @@ func (x *HelloMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloMessage.ProtoReflect.Descriptor instead.
 func (*HelloMessage) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{6}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *HelloMessage) GetGatewayId() string {
@@ -727,7 +939,7 @@ type HeartbeatMessage struct {
 
 func (x *HeartbeatMessage) Reset() {
 	*x = HeartbeatMessage{}
-	mi := &file_ashrix_gateway_proto_msgTypes[7]
+	mi := &file_ashrix_gateway_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +951,7 @@ func (x *HeartbeatMessage) String() string {
 func (*HeartbeatMessage) ProtoMessage() {}
 
 func (x *HeartbeatMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[7]
+	mi := &file_ashrix_gateway_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +964,7 @@ func (x *HeartbeatMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatMessage.ProtoReflect.Descriptor instead.
 func (*HeartbeatMessage) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{7}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *HeartbeatMessage) GetSeq() int64 {
@@ -801,7 +1013,7 @@ type ConnectorsStatus struct {
 
 func (x *ConnectorsStatus) Reset() {
 	*x = ConnectorsStatus{}
-	mi := &file_ashrix_gateway_proto_msgTypes[8]
+	mi := &file_ashrix_gateway_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -813,7 +1025,7 @@ func (x *ConnectorsStatus) String() string {
 func (*ConnectorsStatus) ProtoMessage() {}
 
 func (x *ConnectorsStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[8]
+	mi := &file_ashrix_gateway_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -826,7 +1038,7 @@ func (x *ConnectorsStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorsStatus.ProtoReflect.Descriptor instead.
 func (*ConnectorsStatus) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{8}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ConnectorsStatus) GetConnectorId() string {
@@ -864,7 +1076,7 @@ type BundleAck struct {
 
 func (x *BundleAck) Reset() {
 	*x = BundleAck{}
-	mi := &file_ashrix_gateway_proto_msgTypes[9]
+	mi := &file_ashrix_gateway_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -876,7 +1088,7 @@ func (x *BundleAck) String() string {
 func (*BundleAck) ProtoMessage() {}
 
 func (x *BundleAck) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[9]
+	mi := &file_ashrix_gateway_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +1101,7 @@ func (x *BundleAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BundleAck.ProtoReflect.Descriptor instead.
 func (*BundleAck) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{9}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *BundleAck) GetMessageId() string {
@@ -947,7 +1159,7 @@ type HelloAck struct {
 
 func (x *HelloAck) Reset() {
 	*x = HelloAck{}
-	mi := &file_ashrix_gateway_proto_msgTypes[10]
+	mi := &file_ashrix_gateway_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -959,7 +1171,7 @@ func (x *HelloAck) String() string {
 func (*HelloAck) ProtoMessage() {}
 
 func (x *HelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[10]
+	mi := &file_ashrix_gateway_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -972,7 +1184,7 @@ func (x *HelloAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloAck.ProtoReflect.Descriptor instead.
 func (*HelloAck) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{10}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *HelloAck) GetServerVersion() string {
@@ -1024,7 +1236,7 @@ type PolicyBundle struct {
 
 func (x *PolicyBundle) Reset() {
 	*x = PolicyBundle{}
-	mi := &file_ashrix_gateway_proto_msgTypes[11]
+	mi := &file_ashrix_gateway_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1036,7 +1248,7 @@ func (x *PolicyBundle) String() string {
 func (*PolicyBundle) ProtoMessage() {}
 
 func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[11]
+	mi := &file_ashrix_gateway_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1049,7 +1261,7 @@ func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyBundle.ProtoReflect.Descriptor instead.
 func (*PolicyBundle) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{11}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PolicyBundle) GetVersion() string {
@@ -1107,7 +1319,7 @@ type TrustBundle struct {
 
 func (x *TrustBundle) Reset() {
 	*x = TrustBundle{}
-	mi := &file_ashrix_gateway_proto_msgTypes[12]
+	mi := &file_ashrix_gateway_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1119,7 +1331,7 @@ func (x *TrustBundle) String() string {
 func (*TrustBundle) ProtoMessage() {}
 
 func (x *TrustBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[12]
+	mi := &file_ashrix_gateway_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1132,7 +1344,7 @@ func (x *TrustBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrustBundle.ProtoReflect.Descriptor instead.
 func (*TrustBundle) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{12}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TrustBundle) GetVersion() string {
@@ -1184,7 +1396,7 @@ type CRLUpdate struct {
 
 func (x *CRLUpdate) Reset() {
 	*x = CRLUpdate{}
-	mi := &file_ashrix_gateway_proto_msgTypes[13]
+	mi := &file_ashrix_gateway_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1196,7 +1408,7 @@ func (x *CRLUpdate) String() string {
 func (*CRLUpdate) ProtoMessage() {}
 
 func (x *CRLUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_gateway_proto_msgTypes[13]
+	mi := &file_ashrix_gateway_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1209,7 +1421,7 @@ func (x *CRLUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CRLUpdate.ProtoReflect.Descriptor instead.
 func (*CRLUpdate) Descriptor() ([]byte, []int) {
-	return file_ashrix_gateway_proto_rawDescGZIP(), []int{13}
+	return file_ashrix_gateway_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CRLUpdate) GetVersion() string {
@@ -1282,7 +1494,25 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"\vcertificate\x18\x02 \x01(\tR\vcertificate\x12!\n" +
 	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x129\n" +
 	"\n" +
-	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x89\x02\n" +
+	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"X\n" +
+	"\x14ExchangeTokenRequest\x12!\n" +
+	"\fgateway_name\x18\x01 \x01(\tR\vgatewayName\x12\x1d\n" +
+	"\n" +
+	"token_hash\x18\x02 \x01(\tR\ttokenHash\"\x82\x02\n" +
+	"\x12NormalizedIdentity\x12\x1b\n" +
+	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x1f\n" +
+	"\vprovider_id\x18\x02 \x01(\tR\n" +
+	"providerId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05email\x18\x04 \x01(\tR\x05email\x12\x12\n" +
+	"\x04name\x18\x05 \x01(\tR\x04name\x12\x16\n" +
+	"\x06groups\x18\x06 \x03(\tR\x06groups\x12\x1a\n" +
+	"\bprovider\x18\a \x01(\tR\bprovider\x127\n" +
+	"\tauth_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bauthTime\"\x89\x01\n" +
+	"\x15ExchangeTokenResponse\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x125\n" +
+	"\bidentity\x18\x02 \x01(\v2\x19.proto.NormalizedIdentityR\bidentity\x12#\n" +
+	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"\x89\x02\n" +
 	"\x0fGatewayEnvelope\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x123\n" +
@@ -1369,8 +1599,9 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"BundleType\x12\x15\n" +
 	"\x11BUNDLE_TYPE_TRUST\x10\x00\x12\x16\n" +
 	"\x12BUNDLE_TYPE_POLICY\x10\x01\x12\x13\n" +
-	"\x0fBUNDLE_TYPE_CRL\x10\x022O\n" +
-	"\x13ControlPlaneService\x128\n" +
+	"\x0fBUNDLE_TYPE_CRL\x10\x022\x9b\x01\n" +
+	"\x13ControlPlaneService\x12J\n" +
+	"\rExchangeToken\x12\x1b.proto.ExchangeTokenRequest\x1a\x1c.proto.ExchangeTokenResponse\x128\n" +
 	"\aConnect\x12\x16.proto.GatewayEnvelope\x1a\x11.proto.CPEnvelope(\x010\x01BDZBgithub.com/JohnnyAsh-U/ashrix-api/proto/ashrix-gateway.proto;protob\x06proto3"
 
 var (
@@ -1386,7 +1617,7 @@ func file_ashrix_gateway_proto_rawDescGZIP() []byte {
 }
 
 var file_ashrix_gateway_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_ashrix_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_ashrix_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_ashrix_gateway_proto_goTypes = []any{
 	(MessagePriority)(0),             // 0: proto.MessagePriority
 	(BundleType)(0),                  // 1: proto.BundleType
@@ -1394,51 +1625,58 @@ var file_ashrix_gateway_proto_goTypes = []any{
 	(*GatewayEnrollResponse)(nil),    // 3: proto.GatewayEnrollResponse
 	(*GatewayRenewCertRequest)(nil),  // 4: proto.GatewayRenewCertRequest
 	(*GatewayRenewCertResponse)(nil), // 5: proto.GatewayRenewCertResponse
-	(*GatewayEnvelope)(nil),          // 6: proto.GatewayEnvelope
-	(*CPEnvelope)(nil),               // 7: proto.CPEnvelope
-	(*HelloMessage)(nil),             // 8: proto.HelloMessage
-	(*HeartbeatMessage)(nil),         // 9: proto.HeartbeatMessage
-	(*ConnectorsStatus)(nil),         // 10: proto.ConnectorsStatus
-	(*BundleAck)(nil),                // 11: proto.BundleAck
-	(*HelloAck)(nil),                 // 12: proto.HelloAck
-	(*PolicyBundle)(nil),             // 13: proto.PolicyBundle
-	(*TrustBundle)(nil),              // 14: proto.TrustBundle
-	(*CRLUpdate)(nil),                // 15: proto.CRLUpdate
-	(*timestamppb.Timestamp)(nil),    // 16: google.protobuf.Timestamp
+	(*ExchangeTokenRequest)(nil),     // 6: proto.ExchangeTokenRequest
+	(*NormalizedIdentity)(nil),       // 7: proto.NormalizedIdentity
+	(*ExchangeTokenResponse)(nil),    // 8: proto.ExchangeTokenResponse
+	(*GatewayEnvelope)(nil),          // 9: proto.GatewayEnvelope
+	(*CPEnvelope)(nil),               // 10: proto.CPEnvelope
+	(*HelloMessage)(nil),             // 11: proto.HelloMessage
+	(*HeartbeatMessage)(nil),         // 12: proto.HeartbeatMessage
+	(*ConnectorsStatus)(nil),         // 13: proto.ConnectorsStatus
+	(*BundleAck)(nil),                // 14: proto.BundleAck
+	(*HelloAck)(nil),                 // 15: proto.HelloAck
+	(*PolicyBundle)(nil),             // 16: proto.PolicyBundle
+	(*TrustBundle)(nil),              // 17: proto.TrustBundle
+	(*CRLUpdate)(nil),                // 18: proto.CRLUpdate
+	(*timestamppb.Timestamp)(nil),    // 19: google.protobuf.Timestamp
 }
 var file_ashrix_gateway_proto_depIdxs = []int32{
-	16, // 0: proto.GatewayEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
-	16, // 1: proto.GatewayEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
-	16, // 2: proto.GatewayRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
-	16, // 3: proto.GatewayRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
-	16, // 4: proto.GatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	8,  // 5: proto.GatewayEnvelope.hello:type_name -> proto.HelloMessage
-	9,  // 6: proto.GatewayEnvelope.heartbeat:type_name -> proto.HeartbeatMessage
-	11, // 7: proto.GatewayEnvelope.bundle_ack:type_name -> proto.BundleAck
-	0,  // 8: proto.CPEnvelope.message_priority:type_name -> proto.MessagePriority
-	16, // 9: proto.CPEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	12, // 10: proto.CPEnvelope.hello_ack:type_name -> proto.HelloAck
-	15, // 11: proto.CPEnvelope.crl_update:type_name -> proto.CRLUpdate
-	13, // 12: proto.CPEnvelope.policy_bundle:type_name -> proto.PolicyBundle
-	14, // 13: proto.CPEnvelope.trust_bundle:type_name -> proto.TrustBundle
-	10, // 14: proto.HeartbeatMessage.connector_status:type_name -> proto.ConnectorsStatus
-	16, // 15: proto.ConnectorsStatus.last_checked:type_name -> google.protobuf.Timestamp
-	1,  // 16: proto.BundleAck.bundle_type:type_name -> proto.BundleType
-	16, // 17: proto.HelloAck.server_time:type_name -> google.protobuf.Timestamp
-	16, // 18: proto.PolicyBundle.issued_at:type_name -> google.protobuf.Timestamp
-	16, // 19: proto.PolicyBundle.expires_at:type_name -> google.protobuf.Timestamp
-	16, // 20: proto.PolicyBundle.max_valid_until:type_name -> google.protobuf.Timestamp
-	16, // 21: proto.TrustBundle.issued_at:type_name -> google.protobuf.Timestamp
-	16, // 22: proto.TrustBundle.max_valid_until:type_name -> google.protobuf.Timestamp
-	16, // 23: proto.CRLUpdate.issued_at:type_name -> google.protobuf.Timestamp
-	16, // 24: proto.CRLUpdate.max_valid_until:type_name -> google.protobuf.Timestamp
-	6,  // 25: proto.ControlPlaneService.Connect:input_type -> proto.GatewayEnvelope
-	7,  // 26: proto.ControlPlaneService.Connect:output_type -> proto.CPEnvelope
-	26, // [26:27] is the sub-list for method output_type
-	25, // [25:26] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	19, // 0: proto.GatewayEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
+	19, // 1: proto.GatewayEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
+	19, // 2: proto.GatewayRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
+	19, // 3: proto.GatewayRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
+	19, // 4: proto.NormalizedIdentity.auth_time:type_name -> google.protobuf.Timestamp
+	7,  // 5: proto.ExchangeTokenResponse.identity:type_name -> proto.NormalizedIdentity
+	19, // 6: proto.GatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	11, // 7: proto.GatewayEnvelope.hello:type_name -> proto.HelloMessage
+	12, // 8: proto.GatewayEnvelope.heartbeat:type_name -> proto.HeartbeatMessage
+	14, // 9: proto.GatewayEnvelope.bundle_ack:type_name -> proto.BundleAck
+	0,  // 10: proto.CPEnvelope.message_priority:type_name -> proto.MessagePriority
+	19, // 11: proto.CPEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	15, // 12: proto.CPEnvelope.hello_ack:type_name -> proto.HelloAck
+	18, // 13: proto.CPEnvelope.crl_update:type_name -> proto.CRLUpdate
+	16, // 14: proto.CPEnvelope.policy_bundle:type_name -> proto.PolicyBundle
+	17, // 15: proto.CPEnvelope.trust_bundle:type_name -> proto.TrustBundle
+	13, // 16: proto.HeartbeatMessage.connector_status:type_name -> proto.ConnectorsStatus
+	19, // 17: proto.ConnectorsStatus.last_checked:type_name -> google.protobuf.Timestamp
+	1,  // 18: proto.BundleAck.bundle_type:type_name -> proto.BundleType
+	19, // 19: proto.HelloAck.server_time:type_name -> google.protobuf.Timestamp
+	19, // 20: proto.PolicyBundle.issued_at:type_name -> google.protobuf.Timestamp
+	19, // 21: proto.PolicyBundle.expires_at:type_name -> google.protobuf.Timestamp
+	19, // 22: proto.PolicyBundle.max_valid_until:type_name -> google.protobuf.Timestamp
+	19, // 23: proto.TrustBundle.issued_at:type_name -> google.protobuf.Timestamp
+	19, // 24: proto.TrustBundle.max_valid_until:type_name -> google.protobuf.Timestamp
+	19, // 25: proto.CRLUpdate.issued_at:type_name -> google.protobuf.Timestamp
+	19, // 26: proto.CRLUpdate.max_valid_until:type_name -> google.protobuf.Timestamp
+	6,  // 27: proto.ControlPlaneService.ExchangeToken:input_type -> proto.ExchangeTokenRequest
+	9,  // 28: proto.ControlPlaneService.Connect:input_type -> proto.GatewayEnvelope
+	8,  // 29: proto.ControlPlaneService.ExchangeToken:output_type -> proto.ExchangeTokenResponse
+	10, // 30: proto.ControlPlaneService.Connect:output_type -> proto.CPEnvelope
+	29, // [29:31] is the sub-list for method output_type
+	27, // [27:29] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_gateway_proto_init() }
@@ -1446,12 +1684,12 @@ func file_ashrix_gateway_proto_init() {
 	if File_ashrix_gateway_proto != nil {
 		return
 	}
-	file_ashrix_gateway_proto_msgTypes[4].OneofWrappers = []any{
+	file_ashrix_gateway_proto_msgTypes[7].OneofWrappers = []any{
 		(*GatewayEnvelope_Hello)(nil),
 		(*GatewayEnvelope_Heartbeat)(nil),
 		(*GatewayEnvelope_BundleAck)(nil),
 	}
-	file_ashrix_gateway_proto_msgTypes[5].OneofWrappers = []any{
+	file_ashrix_gateway_proto_msgTypes[8].OneofWrappers = []any{
 		(*CPEnvelope_HelloAck)(nil),
 		(*CPEnvelope_CrlUpdate)(nil),
 		(*CPEnvelope_PolicyBundle)(nil),
@@ -1463,7 +1701,7 @@ func file_ashrix_gateway_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_gateway_proto_rawDesc), len(file_ashrix_gateway_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   14,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

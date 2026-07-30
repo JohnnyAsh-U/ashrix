@@ -1,10 +1,12 @@
 package identity
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -30,6 +32,7 @@ func NewIDPHandler(idpService *IDPService, log *slog.Logger) *IDPHandler {
 // @Security BearerAuth
 // @Param X-ID header string true "Org ID"
 // @Param X-App-ID header string true "App ID"
+// @Param X-Gateway-URI header string true "App ID"
 // @Param redirect_uri query string true "Redirect URI"
 // @Success 201 {object} APIIDPResolverResponse
 // @Failure 400 {object} dto.AppError
@@ -40,9 +43,10 @@ func (i *IDPHandler) IDPResolverHandler(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	tenantID := r.Header.Get("X-ID")
 	appID := r.Header.Get("X-App-ID")
+	gatewayUri := r.Header.Get("X-Gateway-URI")
 	redirectURI := r.URL.Query().Get("redirect_uri")
 
-	if tenantID == "" || appID == "" || redirectURI == "" {
+	if tenantID == "" || appID == "" || redirectURI == "" || gatewayUri == "" {
 		dto.SendError(w, dto.NewBadRequestError("Not Valid"))
 		return
 	}
@@ -87,7 +91,7 @@ func (i *IDPHandler) IDPResolverHandler(w http.ResponseWriter, r *http.Request) 
 // @Produce json
 // @Security BearerAuth
 // @Param idpdetails body IDPLoginRequest true "IDP Details"
-// @Success 200 string
+// @Success 200 
 // @Failure 400 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
 // @Router /authorize/login [post]
@@ -118,7 +122,7 @@ func (i *IDPHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oidcUrl, err := i.idpService.BuildOAuthUrl(ctx, IdpConfig, req.AppID, req.RedirectURI)
+	oidcUrl, err := i.idpService.BuildOAuthUrl(ctx, IdpConfig, req.AppID,req.GatewayID, req.RedirectURI)
 
 	if err != nil {
 		dto.SendError(w, dto.NewNotFoundError("Not Valid Client"))
@@ -127,9 +131,6 @@ func (i *IDPHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	dto.SendSuccess(w, http.StatusCreated, oidcUrl)
 }
-
-
-
 
 func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -141,22 +142,16 @@ func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identity, redirectURI,token, err := i.idpService.ExchangeService(ctx, state, code)
+	redirectURI, gatewayURI, token, err := i.idpService.ExchangeService(ctx, state, code)
 	if err != nil {
 		dto.SendError(w, dto.NewAppError(500, dto.CodeForbidden, err.Error(), nil))
 		return
 	}
-	Response := struct {
-		RedirectURI string
-		Identity *oidc.NormalizedIdentity
-		Token string
 
-	}{
-		RedirectURI: redirectURI,
-		Identity: identity,
-		Token: token,
-	}
-	dto.SendSuccess(w, http.StatusCreated, Response)
+	//Redirect to Gateway with token
+	redirectUrl := fmt.Sprintf("%s/_auth/callback?state=%s&redirect_uri=%s", gatewayURI, url.QueryEscape(token), redirectURI)
+	dto.SendSuccess(w, http.StatusCreated, redirectUrl)
+	// http.Redirect(w,r,redirectUrl, http.StatusTemporaryRedirect)
 }
 
 func (h *IDPHandler) Routes(rg chi.Router) {

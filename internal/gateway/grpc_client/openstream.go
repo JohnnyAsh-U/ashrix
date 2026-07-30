@@ -29,6 +29,8 @@ func OpenStream(
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		)
 
+		
+
 		if err != nil {
 			return nil, nil, &FatalError{
 				UserMessage: fmt.Sprintf("Invalide CP target or TLS config: %v", err),

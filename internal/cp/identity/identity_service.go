@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
@@ -22,29 +23,40 @@ import (
 )
 
 type IDPService struct {
-	repo       Repository
-	appRepo    app.Repository
-	orgRepo    org.Repository
-	idpSession *IDPSession
-	cache      *redis.Client
-	mu         sync.RWMutex
-	cfg        *config.Config
-	adapters   map[string]oidc.ProviderAdapter
-	adapterMu  sync.RWMutex // Separate mutex for adapter operations
-	key        []byte       // 32 bytes, from KMS/Vault in production — for encrypting and decrypting the client_secret
+	repo        Repository
+	appRepo     app.Repository
+	orgRepo     org.Repository
+	gatewayRepo gateway.Repository
+	idpSession  *IDPSession
+	cache       *redis.Client
+	mu          sync.RWMutex
+	cfg         *config.Config
+	adapters    map[string]oidc.ProviderAdapter
+	adapterMu   sync.RWMutex // Separate mutex for adapter operations
+	key         []byte       // 32 bytes, from KMS/Vault in production — for encrypting and decrypting the client_secret
 }
 
-func NewIDPService(repo Repository, appRepo app.Repository, orgRepo org.Repository, idpSession *IDPSession, cache *redis.Client, cfg *config.Config, key []byte) *IDPService {
+func NewIDPService(
+	repo Repository,
+	appRepo app.Repository,
+	orgRepo org.Repository,
+	gateRepo gateway.Repository,
+	idpSession *IDPSession,
+	cache *redis.Client,
+	cfg *config.Config,
+	key []byte,
+) *IDPService {
 
 	return &IDPService{
-		repo:       repo,
-		appRepo:    appRepo,
-		orgRepo:    orgRepo,
-		idpSession: idpSession,
-		cache:      cache,
-		cfg:        cfg,
-		adapters:   make(map[string]oidc.ProviderAdapter),
-		key:        key,
+		repo:        repo,
+		appRepo:     appRepo,
+		orgRepo:     orgRepo,
+		gatewayRepo: gateRepo,
+		idpSession:  idpSession,
+		cache:       cache,
+		cfg:         cfg,
+		adapters:    make(map[string]oidc.ProviderAdapter),
+		key:         key,
 	}
 }
 
@@ -150,13 +162,14 @@ func (r *IDPService) IsRedirectURIValidByIDP(ctx context.Context, IDPUUID uuid.U
 	return false, store.IdpConfig{}
 }
 
-func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, AppId, RedirectURI string) (string, error) {
+func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, AppId, gatewayID, RedirectURI string) (string, error) {
 	//Create the state, and build the OAUTh url
 	state, code_challenge, nonce, err := r.idpSession.CreateState(
 		ctx,
 		idp.OrgID.String(),
 		idp.ID.String(),
 		AppId,
+		gatewayID,
 		RedirectURI,
 	)
 	identityProvider := &oidc.IdentityProvider{
@@ -184,22 +197,34 @@ func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, App
 	return adapter.AuthCodeURL(state, nonce, code_challenge), nil
 }
 
-
-func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (*oidc.NormalizedIdentity, string, string, error) {
+func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (string, string, string, error) {
 	// Get the state from the session
 	stateData, err := r.idpSession.ConsumeState(ctx, state)
 	if err != nil {
-		return &oidc.NormalizedIdentity{},"","",fmt.Errorf("get state: %w", err)
+		return "", "", "", fmt.Errorf("get state: %w", err)
 	}
 
 	//Get the OIDC Provider
 	providerID, err := uuid.Parse(stateData.ProviderID)
 	if err != nil {
-		return &oidc.NormalizedIdentity{},"","", fmt.Errorf("provider parsing: %w", err)
+		return "", "", "", fmt.Errorf("provider parsing: %w", err)
 	}
-	idpConfig,err := r.repo.GetIdentityConfigByID(ctx, providerID)
+
+	//Get the  Gateway
+	GatewayID, err := uuid.Parse(stateData.GatewayID)
 	if err != nil {
-		return &oidc.NormalizedIdentity{},"","",fmt.Errorf("get provider: %w", err)
+		return "", "", "", fmt.Errorf("gateway parsing: %w", err)
+	}
+
+	//Get the GatewayURL
+	gateway, err := r.gatewayRepo.GetGatewayByID(ctx, GatewayID)
+	if err != nil {
+		return "", "", "", fmt.Errorf("gateway error: %w", err)
+	}
+
+	idpConfig, err := r.repo.GetIdentityConfigByID(ctx, providerID)
+	if err != nil {
+		return "", "", "", fmt.Errorf("get provider: %w", err)
 	}
 	identityProvider := &oidc.IdentityProvider{
 		ID:          idpConfig.ID.String(),
@@ -221,14 +246,14 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (*
 
 	identity, err := adapter.Exchange(ctx, code, stateData.Nonce, stateData.PKCEVerifier)
 	if err != nil {
-		return &oidc.NormalizedIdentity{},"","",fmt.Errorf("exchange: %w", err)
+		return "", "", "", fmt.Errorf("exchange: %w", err)
 	}
-	
-	token, err := r.idpSession.CreateSession(identity)
+
+	token, err := r.idpSession.CreateSession(ctx, gateway.ID.String(), gateway.Name, identity)
 	if err != nil {
-		return &oidc.NormalizedIdentity{},"","",fmt.Errorf("get state: %w", err)
+		return "", "", "", fmt.Errorf("get state: %w", err)
 	}
-	return identity,stateData.RedirectURI, token, nil
+	return stateData.RedirectURI, gateway.PublicUrl, token, nil
 }
 
 // getOrCreateAdapter retrieves an existing adapter from cache or creates a new one

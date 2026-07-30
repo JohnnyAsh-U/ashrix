@@ -53,40 +53,41 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 	r.Use(middleware.LoggingMiddleware(log))
 	r.Use(chimiddleware.Recoverer)
 	r.Use(middleware.SecurityHeaders)
+	r.Use(chimiddleware.Timeout(30 * time.Second))
 
-
-		//Apps routes
+	//Apps routes
 	appRepo := app.NewPostgresRepository(dbQueries)
 	appService := app.NewService(appRepo)
 	appHandler := app.NewAppHandler(appService)
 
-
-		//Org routes
+	//Org routes
 	orgRepo := org.NewPostgresRepository(dbQueries)
 	orgService := org.NewService(orgRepo)
 	orgHandler := org.NewOrgHandler(orgService)
 
+	//Gateway routes
+	gatewayRepo := gateway.NewPostgresRepository(dbQueries)
+	gatewayService := gateway.NewService(gatewayRepo)
+	gatewayHandler := gateway.NewGatewayHandler(gatewayService, signer)
 
 	//IDP Routes
 	idpRepo := identity.NewPostgresRepository(dbQueries)
-	idpSession, err := identity.NewIDPSession(BaseDir,cfg.PKIConfig.PKIUnlockSecret, "ashrix",redisStore.Client())
+	idpSession, err := identity.NewIDPSession(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix", redisStore.Client())
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	idpService := identity.NewIDPService(
-		idpRepo, 
+		idpRepo,
 		appRepo,
 		orgRepo,
+		gatewayRepo,
 		idpSession,
-		redisStore.Client(), 
+		redisStore.Client(),
 		cfg,
 		[]byte(cfg.PKIConfig.IDPSecretEncryptionKey),
 	)
 	idpHandler := identity.NewIDPHandler(idpService, log)
-
-
-
 
 	//Auth routes
 	authRepo := auth.NewPostgresRepository(dbQueries)
@@ -103,16 +104,10 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 		cfg.JwtAccessSecret,
 	)
 
-	//Gateway routes
-	gatewayRepo := gateway.NewPostgresRepository(dbQueries)
-	gatewayService := gateway.NewService(gatewayRepo)
-	gatewayHandler := gateway.NewGatewayHandler(gatewayService, signer)
-
 	//Connectors routes
 	connectorRepo := connector.NewPostgresRepository(dbQueries)
 	connectorService := connector.NewService(connectorRepo)
 	connectorHandler := connector.NewConnectorHandler(connectorService, signer)
-
 
 	//Docs - date this in prod
 	r.Get("/docs/*", httpSwagger.Handler(
@@ -124,7 +119,6 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 		r.Group(func(r chi.Router) {
 			r.Route("/authorize", idpHandler.Routes)
 		})
-
 
 		r.Group(func(r chi.Router) {
 			r.Route("/auth", authHandler.Routes)

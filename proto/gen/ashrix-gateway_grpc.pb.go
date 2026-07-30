@@ -19,13 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ControlPlaneService_Connect_FullMethodName = "/proto.ControlPlaneService/Connect"
+	ControlPlaneService_ExchangeToken_FullMethodName = "/proto.ControlPlaneService/ExchangeToken"
+	ControlPlaneService_Connect_FullMethodName       = "/proto.ControlPlaneService/Connect"
 )
 
 // ControlPlaneServiceClient is the client API for ControlPlaneService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ControlPlaneServiceClient interface {
+	ExchangeToken(ctx context.Context, in *ExchangeTokenRequest, opts ...grpc.CallOption) (*ExchangeTokenResponse, error)
 	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GatewayEnvelope, CPEnvelope], error)
 }
 
@@ -35,6 +37,16 @@ type controlPlaneServiceClient struct {
 
 func NewControlPlaneServiceClient(cc grpc.ClientConnInterface) ControlPlaneServiceClient {
 	return &controlPlaneServiceClient{cc}
+}
+
+func (c *controlPlaneServiceClient) ExchangeToken(ctx context.Context, in *ExchangeTokenRequest, opts ...grpc.CallOption) (*ExchangeTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExchangeTokenResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_ExchangeToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *controlPlaneServiceClient) Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GatewayEnvelope, CPEnvelope], error) {
@@ -54,6 +66,7 @@ type ControlPlaneService_ConnectClient = grpc.BidiStreamingClient[GatewayEnvelop
 // All implementations must embed UnimplementedControlPlaneServiceServer
 // for forward compatibility.
 type ControlPlaneServiceServer interface {
+	ExchangeToken(context.Context, *ExchangeTokenRequest) (*ExchangeTokenResponse, error)
 	Connect(grpc.BidiStreamingServer[GatewayEnvelope, CPEnvelope]) error
 	mustEmbedUnimplementedControlPlaneServiceServer()
 }
@@ -65,6 +78,9 @@ type ControlPlaneServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedControlPlaneServiceServer struct{}
 
+func (UnimplementedControlPlaneServiceServer) ExchangeToken(context.Context, *ExchangeTokenRequest) (*ExchangeTokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExchangeToken not implemented")
+}
 func (UnimplementedControlPlaneServiceServer) Connect(grpc.BidiStreamingServer[GatewayEnvelope, CPEnvelope]) error {
 	return status.Error(codes.Unimplemented, "method Connect not implemented")
 }
@@ -89,6 +105,24 @@ func RegisterControlPlaneServiceServer(s grpc.ServiceRegistrar, srv ControlPlane
 	s.RegisterService(&ControlPlaneService_ServiceDesc, srv)
 }
 
+func _ControlPlaneService_ExchangeToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExchangeTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).ExchangeToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_ExchangeToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).ExchangeToken(ctx, req.(*ExchangeTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ControlPlaneService_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(ControlPlaneServiceServer).Connect(&grpc.GenericServerStream[GatewayEnvelope, CPEnvelope]{ServerStream: stream})
 }
@@ -102,7 +136,12 @@ type ControlPlaneService_ConnectServer = grpc.BidiStreamingServer[GatewayEnvelop
 var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.ControlPlaneService",
 	HandlerType: (*ControlPlaneServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ExchangeToken",
+			Handler:    _ControlPlaneService_ExchangeToken_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Connect",

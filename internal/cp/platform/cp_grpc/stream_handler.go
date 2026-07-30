@@ -1,17 +1,23 @@
 package cp_grpc
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"log/slog"
 
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type cpServer struct {
 	proto.UnimplementedControlPlaneServiceServer
+	redisClient *redis.Client
 	log *slog.Logger
 }
 
@@ -65,4 +71,31 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 			log.Printf("Unknown message")
 		}
 	}
+}
+
+func (t *cpServer) ExchangeToken(ctx context.Context, req *proto.ExchangeTokenRequest) (*proto.ExchangeTokenResponse, error) {
+	if req.TokenHash == "" || req.GatewayName == "" {
+		return nil, status.Error(codes.InvalidArgument, "token_hash required")
+	}
+	key := fmt.Sprintf("session:%s:%s", req.GatewayName, req.TokenHash)
+
+	data, err := t.redisClient.GetDel(ctx, key).Result()
+	if err == redis.Nil {
+		t.log.Warn("Token not found or already consumed", slog.Any("err", err))
+		return &proto.ExchangeTokenResponse{Valid: false, ErrorMessage: "Invalid or Expired token"}, nil
+	}
+
+	if err != nil {
+		t.log.Error("Redis getdel failed", slog.String("err", err.Error()))
+		return nil, status.Error(codes.Internal, "storage error")
+	}
+
+	var identity proto.NormalizedIdentity
+	if err := json.Unmarshal([]byte(data), &identity); err != nil {
+		t.log.Error("Corrupt identity data", slog.String("err", err.Error()))
+		return nil, status.Error(codes.Internal, "corrupt data")
+	}
+
+	t.log.Info("token exchanged", slog.String("user_id", identity.UserId))
+	return &proto.ExchangeTokenResponse{Valid: true, Identity: &identity}, nil
 }

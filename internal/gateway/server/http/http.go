@@ -3,22 +3,26 @@ package http_proxy
 import (
 	"fmt"
 	"io"
-	"time"
 	"net/http"
+	"time"
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
 // ProxyServer handles incoming user traffic and routes it to connectors.
 type ProxyServer struct {
 	http *http.Server
+	redisClient *redis.Client
 	log  *zap.Logger
+
 }
 
-func NewProxyServer(cfg *config.Config, registry *registry.Registry, log *zap.Logger) *ProxyServer {
+func NewProxyServer(cfg *config.Config, registry *registry.Registry,redisClient *redis.Client, log *zap.Logger) *ProxyServer {
 	r := chi.NewRouter()
 
 	// Central proxy handler
@@ -157,6 +161,9 @@ func NewProxyServer(cfg *config.Config, registry *registry.Registry, log *zap.Lo
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.HTTPPort),
 		Handler: r,
+		ReadTimeout: 10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout: 120 * time.Second,
 		// TLSConfig will be set by the main loop using GatewayPKI
 	}
 

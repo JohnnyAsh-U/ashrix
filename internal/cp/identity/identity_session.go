@@ -38,6 +38,7 @@ type StateEntry struct {
 	AppID        string `json:"app_id"`
 	TenantID     string `json:"tenant_id"`
 	ProviderID   string `json:"provider_id"`
+	GatewayID    string `json:"gateway_id"`
 	PKCEVerifier string `json:"pkce_verifier"`
 	RedirectURI  string `json:"redirect_uri"`
 }
@@ -104,29 +105,54 @@ func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client) 
 	}, nil
 }
 
-func (t *IDPSession) CreateSession(identity *oidc.NormalizedIdentity) (string, error) {
-	claims := BrokerClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    t.issuer,
-			Subject:   identity.UserID,
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(t.tokenTTL)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-		},
-		TenantID: identity.TenantID,
-		UserID:   identity.UserID,
-		Email:    identity.Email,
-		Name:     identity.Name,
-		Groups:   identity.Groups,
-		Provider: identity.Provider,
+func (t *IDPSession) CreateSession(ctx context.Context, gatewayID, gatewayName string, identity *oidc.NormalizedIdentity) (string, error) {
+
+	_, tokenHash, err := crypto.GenerateToken(32)
+	if err != nil {
+		return "", fmt.Errorf("Generation failed: %w", err)
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
-	signed, err := token.SignedString(t.signingKey)
+
+	data, err := json.Marshal(identity)
 	if err != nil {
-		return "", fmt.Errorf("sign broker token: %w", err)
+		return "", err
 	}
-	return signed, nil
+
+	// SET with TTL, NX (only set if not already present — belt and
+	// suspenders against a random-generation collision, which is
+	// astronomically unlikely with 32 bytes of entropy but costs
+	// nothing to guard against explicitly)
+	ok, err := t.rdbClient.SetNX(ctx, sessionKey(tokenHash, gatewayName), data, t.tokenTTL).Result()
+	if err != nil {
+		return "", fmt.Errorf("redis setnx: %w", err)
+	}
+	if !ok {
+		return "", fmt.Errorf("state collision — retry")
+	}
+
+	// claims := BrokerClaims{
+	// 	RegisteredClaims: jwt.RegisteredClaims{
+	// 		Issuer:    t.issuer,
+	// 		Subject:   identity.UserID,
+	// 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(t.tokenTTL)),
+	// 		IssuedAt:  jwt.NewNumericDate(time.Now()),
+	// 		NotBefore: jwt.NewNumericDate(time.Now()),
+	// 	},
+	// 	TenantID: identity.TenantID,
+	// 	UserID:   identity.UserID,
+	// 	Email:    identity.Email,
+	// 	Name:     identity.Name,
+	// 	Groups:   identity.Groups,
+	// 	Provider: identity.Provider,
+	// }
+
+	// token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	// signed, err := token.SignedString(t.signingKey)
+	// if err != nil {
+	// 	return "", fmt.Errorf("sign broker token: %w", err)
+	// }
+	// return signed, nil
+	return tokenHash, nil
 }
 
 // For Gateway to verify; to be moved to gateway
@@ -145,7 +171,7 @@ func (t *IDPSession) VerifySession(tokenString string) (*BrokerClaims, error) {
 }
 
 // Create Nonce and state
-func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppID, redirectURI string) (state, code_challenge, nonce string, err error) {
+func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppID, gatewayID, redirectURI string) (state, code_challenge, nonce string, err error) {
 	state, err = randomToken(32)
 	if err != nil {
 		return "", "", "", err
@@ -165,6 +191,7 @@ func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppI
 		Nonce:        nonce,
 		TenantID:     tenantID,
 		ProviderID:   providerID,
+		GatewayID:    gatewayID,
 		RedirectURI:  redirectURI,
 		PKCEVerifier: pkceVerifier,
 	}
@@ -185,8 +212,6 @@ func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppI
 	if !ok {
 		return "", "", "", fmt.Errorf("state collision — retry")
 	}
-
-	fmt.Println(stateKey(state), string(data), AppID)
 
 	return state, pkceChallenge, nonce, nil
 }
@@ -263,6 +288,10 @@ func wipeBytes(b []byte) {
 
 func stateKey(state string) string {
 	return "broker:oidc_state:" + state
+}
+
+func sessionKey(state, gatewayName string) string {
+	return fmt.Sprintf("session:%s:%s", gatewayName, state)
 }
 
 func randomToken(n int) (string, error) {

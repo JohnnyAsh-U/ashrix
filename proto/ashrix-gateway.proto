@@ -6,6 +6,7 @@ option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/ashrix-gateway.prot
 
 import "google/protobuf/timestamp.proto";
 
+
 // =============================================================================
 // Gateway Bootstrap Proto Types
 // =============================================================================
@@ -42,8 +43,37 @@ message GatewayRenewCertResponse {
 // =============================================================================
 
 service ControlPlaneService {
+  rpc ExchangeToken(ExchangeTokenRequest) returns (ExchangeTokenResponse);
   rpc Connect(stream GatewayEnvelope) returns (stream CPEnvelope);
 }
+
+// =============================================================================
+// Gateway Authentication Proto Types
+// =============================================================================
+
+
+message ExchangeTokenRequest {
+  string gateway_name = 1;
+  string token_hash   = 2;
+}
+
+message NormalizedIdentity {
+  string                    tenant_id   = 1;
+  string                    provider_id = 2;
+  string                    user_id     = 3;
+  string                    email       = 4;
+  string                    name        = 5;
+  repeated string           groups      = 6;
+  string                    provider    = 7;
+  google.protobuf.Timestamp auth_time   = 8;
+}
+
+message ExchangeTokenResponse {
+  bool               valid         = 1;
+  NormalizedIdentity identity      = 2;
+  string             error_message = 3;
+}
+
 
 // =============================================================================
 // Top Level Envelopes
@@ -108,16 +138,16 @@ message ConnectorsStatus {
 }
 
 enum BundleType {
-  BUNDLE_TYPE_TRUST       = 0; // CA trust bundle
-  BUNDLE_TYPE_POLICY      = 1; // access policy bundle
-  BUNDLE_TYPE_CRL         = 2; // certificate revocation list
+  BUNDLE_TYPE_TRUST  = 0; // CA trust bundle
+  BUNDLE_TYPE_POLICY = 1; // access policy bundle
+  BUNDLE_TYPE_CRL    = 2; // certificate revocation list
 }
 
 message BundleAck {
   string     message_id     = 1; //The CP Message being ack
   int64      bundle_version = 2; // version being acknowledged
   BundleType bundle_type    = 3;
-  string version = 6;
+  string     version        = 6;
   bool       applied        = 4; // true = successfully verified and applied
   string     error          = 5; // set if applied=false — reason for failure
 }

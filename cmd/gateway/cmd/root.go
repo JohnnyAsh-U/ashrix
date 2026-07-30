@@ -34,8 +34,16 @@ func init() {
 	// This guarantees Viper is loaded before start, stop, status, or register fire.
 	cobra.OnInitialize(initConfig)
 
+	rootCmd.PersistentFlags().String("redis-url", "redis://localhost:6379/1", "Redis Connection URL")
+	rootCmd.PersistentFlags().String("redis-password", "", "Redis Password")
+
+
 	viper.BindPFlag("data_dir", registerCmd.Flags().Lookup("data-dir"))
 	viper.BindPFlag("log_dir", registerCmd.Flags().Lookup("log-dir"))
+
+	viper.BindPFlag("redis_url", rootCmd.PersistentFlags().Lookup("redis-url"))
+	viper.BindPFlag("redis_password", rootCmd.PersistentFlags().Lookup("redis-password"))
+
 }
 
 func initConfig() {
