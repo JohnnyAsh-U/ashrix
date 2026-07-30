@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,7 @@ type StreamManager struct {
 	cm        *ConnectionManager
 	makeHello func() *pb.GatewayEnvelope // factory: fresh epoch/nonce every reconnect
 	// onMessage func(*pb.CPEnvelope)
+	onAuthError func(ctx context.Context) error // e.g. pki.PreflightRenew
 
 	pki *crypto.GatewayPKI
 	log *zap.Logger
@@ -40,16 +42,23 @@ func NewStreamManager(
 	cm *ConnectionManager,
 	makeHello func() *pb.GatewayEnvelope,
 	// onMessage func(*pb.CPEnvelope),
+	log *zap.Logger,
 	sendQueue int,
+	onAuthError func(ctx context.Context) error,
 ) *StreamManager {
 	if sendQueue <= 0 {
 		sendQueue = 64
 	}
+	// if log == nil {
+	// 	log = zap.NewNop()
+	// }
 	return &StreamManager{
 		cm:        cm,
 		makeHello: makeHello,
 		// onMessage: onMessage,
-		sendCh: make(chan *pb.GatewayEnvelope, sendQueue),
+		onAuthError: onAuthError,
+		log:         log,
+		sendCh:      make(chan *pb.GatewayEnvelope, sendQueue),
 	}
 }
 
@@ -68,10 +77,37 @@ func (sm *StreamManager) Run(ctx context.Context) {
 
 		err := sm.runSession(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			// TODO: increment metric stream_session_failed_total
+			sm.log.Warn("stream session ended", zap.Error(err))
 		}
 
 		sm.setStream(nil, false)
+
+		// ── Auth/cert error path ─────────────────────────────────────
+		if sm.isAuthError(err) && sm.onAuthError != nil {
+			sm.log.Warn("TLS/auth error detected — attempting cert renewal")
+
+			renewCtx, renewCancel := context.WithTimeout(ctx, 30*time.Second)
+			renewErr := sm.onAuthError(renewCtx)
+			renewCancel()
+
+			if renewErr != nil {
+				sm.log.Warn("cert renewal failed — retrying with backoff", zap.Error(renewErr))
+			} else {
+				sm.log.Info("cert renewed — forcing connection refresh")
+				// Tear down the old gRPC connection so the next dial
+				// performs a fresh TLS handshake with the new cert.
+				if closeErr := sm.cm.Close(); closeErr != nil {
+					sm.log.Debug("old conn close error", zap.Error(closeErr))
+				}
+				if refreshErr := sm.cm.RefreshConnection(ctx); refreshErr != nil {
+					sm.log.Error("failed to refresh connection after renewal", zap.Error(refreshErr))
+				} else {
+					sm.log.Info("reconnected with renewed cert — retrying stream immediately")
+					b.Reset()
+					continue
+				}
+			}
+		}
 
 		wait := b.NextBackOff()
 		select {
@@ -119,11 +155,6 @@ func (sm *StreamManager) runSession(ctx context.Context) error {
 	err = <-errCh
 	cancel()
 	<-errCh // drain the other side
-
-	// Reset backoff on clean(ish) session end so next reconnect is fast.
-	if errors.Is(err, context.Canceled) {
-		// intentional shutdown
-	}
 	return err
 }
 
@@ -217,7 +248,39 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		//             h.log.Error("forced rotation failed", zap.Error(err))
 		//         }
 		//     }()
+
+	default:
+		h.log.Debug("unhandled message type", zap.String("type", fmt.Sprintf("%T", p)))
+
 	}
+}
+
+func (sm *StreamManager) isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// gRPC status errors
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.Unauthenticated:
+			return true
+		case codes.Unavailable:
+			// TLS handshake failures often surface as Unavailable
+			msg := strings.ToLower(st.Message())
+			return strings.Contains(msg, "certificate") ||
+				strings.Contains(msg, "tls") ||
+				strings.Contains(msg, "handshake") ||
+				strings.Contains(msg, "bad certificate")
+		}
+		return false
+	}
+	// Raw errors from the transport / crypto/tls
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "certificate") ||
+		strings.Contains(errStr, "tls handshake") ||
+		strings.Contains(errStr, "bad certificate") ||
+		strings.Contains(errStr, "x509")
 }
 
 // Send is safe for concurrent HTTP handlers or background goroutines.

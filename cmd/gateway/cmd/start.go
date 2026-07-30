@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	// "math/rand"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
-	// "sync/atomic"
 	"syscall"
 	"time"
 
@@ -96,6 +94,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 		)
 	}
 
+	defer os.Remove(cfg.PIDFile)
+
 	//-----------------------------Writing PID File-----------------------------------------
 
 	// Write PID file immediately so stop/status work.
@@ -109,7 +109,6 @@ func runStart(cmd *cobra.Command, args []string) error {
 	); err != nil {
 		return fmt.Errorf("failed to write pid file: %w", err)
 	}
-	defer os.Remove(cfg.PIDFile)
 
 	//---------------------GATEWAY PKI INITIALIZING-------------------------
 
@@ -159,22 +158,22 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// rejects the cert, we check if connection is successful
 	// if cert expired we renew cert here
 
-	log.Info("connecting to Control Plane",
-		zap.String("cp_url", cfg.CPURL),
-	)
-	tlsConfig := pki.GetTLSConfig()
+	log.Info("connecting to Control Plane", zap.String("cp_url", cfg.CPURL))
 
+	// FIX: typo was "https//" (missing colon). Also handle scheme stripping properly.
+	cpHost := strings.TrimPrefix(cfg.CPURL, "http://")
+	cpHost = strings.TrimPrefix(cpHost, "https://")
+	cpHost = strings.TrimSuffix(cpHost, "/")
+	cpHost = strings.NewReplacer(":8001", ":9443").Replace(cpHost)
 
-	//Replace http or https with empty string
-	replacer := strings.NewReplacer(":8001", ":9443", "http://", "", "https//", "")
-
+	// Context that lives until shutdown
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// 2. Connection Manager (single source of truth)
-	cm := gateway_grpc.NewConnectionManager(replacer.Replace(cfg.CPURL), tlsConfig)
+	// 1. Connection Manager
+	cm := gateway_grpc.NewConnectionManager(cpHost, pki.GetTLSConfig())
 
-
-	// ── 3. Stream Manager (bidi stream + hello handshake) ─────────
+	// ── 2. Stream Manager (bidi stream + hello handshake) ─────────
 	// var epochCounter atomic.Uint64
 	sm := gateway_grpc.NewStreamManager(
 		cm,
@@ -192,46 +191,35 @@ func runStart(cmd *cobra.Command, args []string) error {
 				},
 			}
 		},
+		log,
 		128,
+		func(ctx context.Context) error {
+			return pki.PreflightRenew(ctx)
+		},
 	)
 
-	// ── 4. Safe Unary Client for HTTP handlers ────────────────────
-	// _ = gateway_grpc.NewSafeClient(cm)
+	// 3. Safe Unary Client (for HTTP handlers that need CP)
+	// safeClient := gateway_grpc.NewSafeClient(cm)
 
-	// ── 6. Establish initial connection ───────────────────────────
+	// 4. Establish initial connection
 	if err := cm.RefreshConnection(ctx); err != nil {
-		// log.Fatal("initial connection: %v", err)
+		log.Fatal("initial connection failed", zap.Error(err))
 	}
-	fmt.Println("Here")
 
-
-	// ── 7. Background loops ───────────────────────────────────────
+	// 5. Background loops
 	go sm.Run(ctx)
 	go cm.HealthCheckLoop(ctx, 10*time.Second)
 
-	// 3. Stream Manager (long-lived bidi stream)
-	// sm := gateway_grpc.NewStreamManager(cm, handleControlPlaneMessage, 128)
-	//-----------------Start Cert Rotator---------------------------------------------
-	//start cert rotator after cp connection confirmed alive
+	// 6. Start cert rotator after CP is confirmed alive
 	pki.StartRotator()
 	defer pki.Stop()
 
-	//-------------------Open Store BBOLT--------------------------------------------//
+	// 7. Open store
 	store, err := store.Open(cfg.DataDir, log)
 	if err != nil {
 		log.Fatal("failed to open store", zap.Error(err))
 	}
 	defer store.Close()
-
-	//---------------------GRPC CLIENT------------------------------------//
-	grpcConn, err := gateway_grpc.GRPCConn(ctx, replacer.Replace(cfg.CPURL), tlsConfig, pki, log)
-	if err != nil {
-		if fe, ok := errors.AsType[*gateway_grpc.FatalError](err); ok {
-			log.Fatal(fe.UserMessage)
-		}
-		log.Warn("failed to open stream on reconnect — will retry", zap.Error(err))
-	}
-	defer grpcConn.Close()
 
 	//--------------------Start Listeners--------------------
 
@@ -263,115 +251,23 @@ func runStart(cmd *cobra.Command, args []string) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
-	go func() {
-		sig := <-quit
-		log.Info("shutdown signal received", zap.String("signal", sig.String()))
+	sig := <-quit
+	log.Info("shutdown signal received", zap.String("signal", sig.String()))
 
-		// Stop listeners gracefully
-		grpcServer.Stop()
-		quicServer.Stop()
+	// Stop listeners gracefully
+	grpcServer.Stop()
+	quicServer.Stop()
+	// If your HTTP server has a Stop/Shutdown method, call it here:
+	// httpServer.Stop()
 
-		cancel()
-	}()
+	// Cancel context → StreamManager.Run and HealthCheckLoop exit
+	cancel()
 
-	//-------------------Reconnect Loop--------------------------------
+	// Close the gRPC connection explicitly
+	if err := cm.Close(); err != nil {
+		log.Error("failed to close CP connection", zap.Error(err))
+	}
+	// }()
 
-	// handler.Run() blocks until the stream dies.
-	// On disconnect, we reconnect unless shutdown was requested.
-	// attempt := 0
 	return nil
 }
-
-// for {
-// 	attempt++
-
-// 	//Open stream
-// 	stream, err := client.Connect(ctx)
-
-// 	if err == nil {
-// 		return conn,stream, nil
-// 	}
-
-// 	handler := gateway_grpc.NewStreamHandler(
-// 		cfg.GatewayID,
-// 		stream,
-// 		pki,
-// 		reg,
-// 		log,
-// 	)
-
-// 	// ---------------------Hello handshake---------------------
-// 	//CP confirms this gateway is known and trusted
-// 	helloCtx, helloCancel := context.WithTimeout(context.Background(), 10*time.Second)
-// 	err = gateway_grpc.SendHello(helloCtx, stream, cfg.GatewayID, log)
-// 	helloCancel()
-// 	if err != nil {
-// 		log.Fatal(err.Error())
-// 	}
-
-// 	log.Info("gateway started",
-// 		zap.String("cp_url", cfg.CPURL),
-// 		zap.String("data_dir", cfg.DataDir),
-// 		zap.Int("pid", pid),
-// 	)
-
-// 	streamErr := handler.Run(ctx)
-
-// 	//ctx was cancelled - clean shutdown requested
-// 	if ctx.Err() != nil {
-// 		log.Info("gateway shutting down cleanly")
-// 		break
-// 	}
-
-// 	// Permanent error — cannot recover, tell operator
-// 	if fatalErr, ok := errors.AsType[*gateway_grpc.FatalError](streamErr); ok {
-// 		log.Fatal(fatalErr.UserMessage)
-// 	}
-
-// 	// Transient error — reconnect with backoff
-// 	delay := reconnectDelay(attempt)
-// 	log.Warn("stream disconnected — reconnecting",
-// 		zap.Error(streamErr),
-// 		zap.Duration("retry_in", delay),
-// 		zap.Int("attempt", attempt),
-// 	)
-// 	pki.Stop()
-
-// 	select {
-// 	case <-time.After(delay):
-// 		// Backoff elapsed — try to reconnect
-// 	case <-ctx.Done():
-// 		// Shutdown signal arrived during backoff
-// 		log.Info("gateway shutting down during reconnect")
-// 		goto done
-// 	}
-
-// 	log.Info("redialing CP",
-// 		zap.String("cp_url", cfg.CPURL),
-// 		zap.Int("attempt", attempt),
-// 	)
-
-// 	pki.StartRotator()
-// 	// attempt = 0
-
-// 	log.Info("✓ reconnected to CP",
-// 		zap.String("gateway_id", cfg.GatewayID),
-// 	)
-// }
-
-// done:
-// 	log.Info("shutting down")
-// 	// // TODO: proxy.Shutdown(ctx)
-// 	return nil
-// }
-
-// reconnectDelay returns exponential backoff with a 60s cap.
-// Jittered to prevent thundering herd if many gateways disconnect simultaneously.
-// func reconnectDelay(attempt int) time.Duration {
-// 	base := min(
-// 		// 2s, 4s, 8s, 16s, 32s...
-// 		time.Duration(1<<attempt)*time.Second, 60*time.Second)
-// 	// Add up to 20% jitter
-// 	jitter := time.Duration(rand.Int63n(int64(base / 5)))
-// 	return base + jitter
-// }
