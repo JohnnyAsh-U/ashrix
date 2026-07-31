@@ -53,6 +53,5 @@ type APIIDPResolverResponse struct {
 type IDPLoginRequest struct {
 	// RedirectURI string `json:"redirect_uri" validate:"required"`
 	ProviderID string `json:"provider_id" validate:"required"`
-	AppID string `json:"app_id"`
 	GatewayID string `json:"gateway_id"`
 }

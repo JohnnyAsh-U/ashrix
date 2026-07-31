@@ -69,7 +69,7 @@ func (c *ConnectorTunnel) handleRequestStream(stream transport.Stream) {
 
 
 	// ── Build upstream URL ────────────────────────────────────────
-	upstream := fmt.Sprintf("%s%s", requestApp.Upstream, envelope.Path)
+	upstream := fmt.Sprintf("%s://%s%s",requestApp.Protocol, requestApp.Upstream, envelope.Path)
 	if envelope.Query != "" {
 		upstream += "?" + envelope.Query
 	}

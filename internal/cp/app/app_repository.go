@@ -10,6 +10,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, params store.CreateAppParams) (store.App, error)
 	GetByIDAndOrg(ctx context.Context, params store.GetAppByIDAndOrgParams) (store.App, error)
+	GetByID(ctx context.Context, appID uuid.UUID) (store.App, error)
 	ListByOrg(ctx context.Context, orgID uuid.UUID) ([]store.App, error)
 	Update(ctx context.Context, params store.UpdateAppParams) (store.App, error)
 	Delete(ctx context.Context, params store.DeleteAppParams) (store.App, error)
@@ -29,6 +30,10 @@ func (r *postgresRepository) Create(ctx context.Context, params store.CreateAppP
 
 func (r *postgresRepository) GetByIDAndOrg(ctx context.Context, params store.GetAppByIDAndOrgParams) (store.App, error) {
 	return r.q.GetAppByIDAndOrg(ctx, params)
+}
+
+func (r *postgresRepository) GetByID(ctx context.Context, appID uuid.UUID) (store.App, error) {
+	return r.q.GetAppByID(ctx, appID)
 }
 
 func (r *postgresRepository) ListByOrg(ctx context.Context, orgID uuid.UUID) ([]store.App, error) {

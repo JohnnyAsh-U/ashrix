@@ -79,7 +79,7 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 	}
 	idpService := identity.NewIDPService(
 		idpRepo,
-		// appRepo,
+		appRepo,
 		// orgRepo,
 		gatewayRepo,
 		idpSession,

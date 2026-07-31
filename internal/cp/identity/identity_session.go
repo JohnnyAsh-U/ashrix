@@ -35,7 +35,7 @@ type BrokerClaims struct {
 
 type StateEntry struct {
 	Nonce        string `json:"nonce"`
-	AppID        string `json:"app_id"`
+	// AppID        string `json:"app_id"`
 	TenantID     string `json:"tenant_id"`
 	ProviderID   string `json:"provider_id"`
 	GatewayID    string `json:"gateway_id"`
@@ -171,7 +171,7 @@ func (t *IDPSession) VerifySession(tokenString string) (*BrokerClaims, error) {
 }
 
 // Create Nonce and state
-func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppID, gatewayID string) (state, code_challenge, nonce string, err error) {
+func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, gatewayID string) (state, code_challenge, nonce string, err error) {
 	state, err = randomToken(32)
 	if err != nil {
 		return "", "", "", err
@@ -187,7 +187,7 @@ func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppI
 	}
 
 	entry := StateEntry{
-		AppID:        AppID,
+		// AppID:        AppID,
 		Nonce:        nonce,
 		TenantID:     tenantID,
 		ProviderID:   providerID,

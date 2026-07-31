@@ -14,7 +14,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
@@ -23,8 +23,8 @@ import (
 )
 
 type IDPService struct {
-	repo        Repository
-	// appRepo     app.Repository
+	repo    Repository
+	appRepo app.Repository
 	// orgRepo     org.Repository
 	gatewayRepo gateway.Repository
 	idpSession  *IDPSession
@@ -38,7 +38,7 @@ type IDPService struct {
 
 func NewIDPService(
 	repo Repository,
-	// appRepo app.Repository,
+	appRepo app.Repository,
 	// orgRepo org.Repository,
 	gateRepo gateway.Repository,
 	idpSession *IDPSession,
@@ -48,8 +48,8 @@ func NewIDPService(
 ) *IDPService {
 
 	return &IDPService{
-		repo:        repo,
-		// appRepo:     appRepo,
+		repo:    repo,
+		appRepo: appRepo,
 		// orgRepo:     orgRepo,
 		gatewayRepo: gateRepo,
 		idpSession:  idpSession,
@@ -62,12 +62,23 @@ func NewIDPService(
 
 // ResolveAppIDP resolves identity providers for a given tenant/app
 // It first checks for app-specific IDP configs, then falls back to tenant-level configs
-func (r *IDPService) ResolveAppIDP(ctx context.Context, orgID, appID uuid.UUID) ([]oidc.ProviderAdapter, error) {
+func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UUID) ([]oidc.ProviderAdapter, error) {
 
 	// First try to get app-specific IDP configs
 	appConfigs, err := r.repo.ListAppIdPConfigs(ctx, appID)
 	if err != nil {
 		return nil, fmt.Errorf("list app IDP configs: %w", err)
+	}
+
+	appObj, err := r.appRepo.GetByID(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("App Not Found: %w", err)
+	}
+
+	//Make sure the gateway  is either ashrix hosted or belongs to the tenant
+	isValid, err := r.CheckGatewayBelongsToTenant(ctx, gatewayID, appObj.OrgID)
+	if err != nil || !isValid {
+		return nil, fmt.Errorf("Gateway Not Found: %w", err)
 	}
 
 	var idpconfigs []store.IdpConfig
@@ -77,7 +88,7 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, orgID, appID uuid.UUID) 
 		idpconfigs = appConfigs
 	} else {
 		// Fall back to tenant-level configs
-		tenantConfigs, err := r.repo.ListIdentityConfigsForTenant(ctx, orgID)
+		tenantConfigs, err := r.repo.ListIdentityConfigsForTenant(ctx, appObj.OrgID)
 		if err != nil {
 			return nil, fmt.Errorf("list tenant IDP configs: %w", err)
 		}
@@ -125,6 +136,20 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, orgID, appID uuid.UUID) 
 	return adapters, nil
 }
 
+func (r *IDPService) CheckGatewayBelongsToTenant(ctx context.Context, gatewayID, OrgID uuid.UUID) (bool, error) {
+	//Get the GatewayURL
+
+	gateway, err := r.gatewayRepo.GetGatewayByID(ctx, gatewayID)
+	if err != nil {
+		return false, fmt.Errorf("gateway error: %w", err)
+	}
+	if gateway.Type == "ashrix-hosted" || gateway.OrgID == OrgID {
+		return true, nil
+	}
+	return false, fmt.Errorf("Gateway not found")
+
+}
+
 func (r *IDPService) GetIDPByID(ctx context.Context, IDPUUID uuid.UUID) (store.IdpConfig, error) {
 	//List all apps by the org of the idp config
 	IDPConfig, err := r.repo.GetIdentityConfigByID(ctx, IDPUUID)
@@ -162,13 +187,12 @@ func (r *IDPService) GetIDPByID(ctx context.Context, IDPUUID uuid.UUID) (store.I
 	return IDPConfig, nil
 }
 
-func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, AppId, gatewayID string) (string, error) {
+func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, gatewayID string) (string, error) {
 	//Create the state, and build the OAUTh url
 	state, code_challenge, nonce, err := r.idpSession.CreateState(
 		ctx,
 		idp.OrgID.String(),
 		idp.ID.String(),
-		AppId,
 		gatewayID,
 	)
 	identityProvider := &oidc.IdentityProvider{

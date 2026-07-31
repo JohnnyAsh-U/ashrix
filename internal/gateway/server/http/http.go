@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
@@ -110,26 +111,15 @@ func NewProxyServer(cfg *config.Config, grpcClient *gateway_grpc.SafeClient, reg
 
 		r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 
-			// Defensive nil checks to avoid runtime panics
-			if registry == nil {
-				if log != nil {
-					log.Error("registry is nil in proxy handler")
-				}
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-			if log == nil {
-				// No logger available; fail safely
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
+			connectorID, _ := r.Context().Value("ConnectorID").(string)
+			AppID, _ := r.Context().Value("AppID").(string)
 
 			// 1. Extract hostname
 			// 2. Identify Target Org/App
 			// 3. Verify Session Cookie
 			// 4. Check Policy
 			// 5. Proxy to Connector gRPC stream
-			entry, ok := registry.GetByConnectorID("4b9c6b29-997b-4eb2-bdc5-e35413731ccd")
+			entry, ok := registry.GetByConnectorID(connectorID)
 			if !ok || entry == nil {
 				log.Warn("no connector for this subdomain")
 				http.Error(w, "Application not found", http.StatusNotFound)
@@ -153,7 +143,7 @@ func NewProxyServer(cfg *config.Config, grpcClient *gateway_grpc.SafeClient, reg
 			//Write request envelope + body to stream
 			envelope := gen.RequestHeader{
 				Method:     r.Method,
-				AppId:      "367595d8-30c4-4b87-8660-ec1862d8c138",
+				AppId:      AppID,
 				Path:       r.URL.Path,
 				Query:      r.URL.RawQuery,
 				UserId:     "user-123",
@@ -282,11 +272,11 @@ func requireAuth(registry *registry.Registry, session *session.SessionManager, r
 				return
 			}
 
-			if !connector.IsRoutable() {
-				logger.Error("Connection Failed")
-				http.Error(w, "Connection NOT FOUND", http.StatusNotFound)
-				return
-			}
+			// if !connector.IsRoutable() {
+			// 	logger.Error("Connection Failed")
+			// 	http.Error(w, "Connection NOT FOUND", http.StatusNotFound)
+			// 	return
+			// }
 
 			var foundApp *gen.ConnectorApps
 
@@ -298,22 +288,31 @@ func requireAuth(registry *registry.Registry, session *session.SessionManager, r
 				}
 			}
 
+
 			if foundApp == nil {
 				logger.Error("No App")
 				http.Error(w, "App Not Found", http.StatusNotFound)
 				return
 			}
 
+			//Add Connector And App ID to the Context
+			// Inject claims into context for downstream handlers.
+			ctx := context.WithValue(r.Context(), "ConnectorID", connector.ConnectorID)
+			ctx = context.WithValue(ctx, "AppID", foundApp.Id)
+
 			//Check if public no session needed
 			if foundApp.IsPublic {
-				next.ServeHTTP(w, r)
+				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 
 			identity, err := session.Get(r)
 
+			fmt.Println(identity)
+
+
 			if err == nil {
-				ctx := context.WithValue(r.Context(), "identity", identity)
+				ctx := context.WithValue(ctx, "identity", identity)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
@@ -340,12 +339,12 @@ func requireAuth(registry *registry.Registry, session *session.SessionManager, r
 				return
 			}
 
-			//Set the headers
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("X-ID", connector.TenantID)
-			w.Header().Set("X-App-ID", foundApp.Id)
-			w.Header().Set("X-Gateway-URI", cfg.GatewayUrl)
+			//Set the params
+			params := url.Values{}
+			params.Set("aid", foundApp.Id)
+			params.Set("gid", cfg.GatewayID)
 
+			fmt.Println(connector.TenantID, foundApp.Id)
 			//Set the state in the cookies
 			http.SetCookie(w, &http.Cookie{
 				Name:     "state",
@@ -358,7 +357,7 @@ func requireAuth(registry *registry.Registry, session *session.SessionManager, r
 			})
 
 			//Build the cp auth url
-			authUrl := fmt.Sprintf("%s/api/v1/authorize/providers", cfg.CPURL)
+			authUrl := fmt.Sprintf("%s/api/v1/authorize/providers?%s", cfg.CPURL, params.Encode())
 
 			http.Redirect(w, r, authUrl, http.StatusTemporaryRedirect)
 		})

@@ -30,9 +30,8 @@ func NewIDPHandler(idpService *IDPService, log *slog.Logger) *IDPHandler {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param X-ID header string true "Org ID"
-// @Param X-App-ID header string true "App ID"
-// @Param X-Gateway-URI header string true "App ID"
+// @Param gid query string true "Gateway ID"
+// @Param aid query string true "App ID"
 // @Success 201 {object} APIIDPResolverResponse
 // @Failure 400 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
@@ -40,29 +39,27 @@ func NewIDPHandler(idpService *IDPService, log *slog.Logger) *IDPHandler {
 func (i *IDPHandler) IDPResolverHandler(w http.ResponseWriter, r *http.Request) {
 	// /login?id=X&app=Y
 	ctx := r.Context()
-	tenantID := r.Header.Get("X-ID")
-	appID := r.Header.Get("X-App-ID")
-	gatewayUri := r.Header.Get("X-Gateway-URI")
-	// redirectURI := r.URL.Query().Get("redirect_uri")
+	gatewayID := r.URL.Query().Get("gid")
+	appID := r.URL.Query().Get("aid")
 
-	if tenantID == "" || appID == "" || gatewayUri == "" {
+	if appID == "" || gatewayID == "" {
 		dto.SendError(w, dto.NewBadRequestError("Not Valid"))
 		return
 	}
-	tenantUUID, err := uuid.Parse(tenantID)
-	if err != nil {
-		dto.SendError(w, dto.NewBadRequestError("Not Valid Client App"))
-		return
-	}
-
 	appUUID, err := uuid.Parse(appID)
 	if err != nil {
 		dto.SendError(w, dto.NewBadRequestError("Not Valid Client App"))
 		return
 	}
 
+	gatewayUUID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		dto.SendError(w, dto.NewBadRequestError("Not Valid Client App"))
+		return
+	}
+
 	//Resolve the AppIDPProviders
-	adapters, err := i.idpService.ResolveAppIDP(ctx, tenantUUID, appUUID)
+	adapters, err := i.idpService.ResolveAppIDP(ctx, appUUID, gatewayUUID)
 	if err != nil {
 		dto.SendError(w, dto.NewNotFoundError("Not Found"))
 		return
@@ -121,7 +118,7 @@ func (i *IDPHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oidcUrl, err := i.idpService.BuildOAuthUrl(ctx, IdpConfig, req.AppID, req.GatewayID)
+	oidcUrl, err := i.idpService.BuildOAuthUrl(ctx, IdpConfig, req.GatewayID)
 
 	if err != nil {
 		dto.SendError(w, dto.NewNotFoundError("Not Valid Client"))

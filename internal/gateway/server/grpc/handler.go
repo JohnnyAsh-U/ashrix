@@ -85,7 +85,12 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	apps := make([]*gen.ConnectorApps, len(hello.Apps))
 	for i, a := range hello.Apps{
 		apps[i] = &gen.ConnectorApps{
-			Id: a.Id, Protocol: a.Protocol, Subdomain: a.Subdomain, Name: a.Name, Upstream: a.Upstream,
+			Id: a.Id, 
+			Protocol: a.Protocol, 
+			Subdomain: a.Subdomain, 
+			Name: a.Name, 
+			Upstream: a.Upstream,
+			IsPublic: a.IsPublic,
 		}
 	}
 
