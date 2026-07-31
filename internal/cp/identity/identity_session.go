@@ -107,7 +107,7 @@ func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client) 
 
 func (t *IDPSession) CreateSession(ctx context.Context, gatewayID, gatewayName string, identity *oidc.NormalizedIdentity) (string, error) {
 
-	_, tokenHash, err := crypto.GenerateToken(32)
+	token, tokenHash, err := crypto.GenerateToken(32)
 	if err != nil {
 		return "", fmt.Errorf("Generation failed: %w", err)
 	}
@@ -152,7 +152,7 @@ func (t *IDPSession) CreateSession(ctx context.Context, gatewayID, gatewayName s
 	// 	return "", fmt.Errorf("sign broker token: %w", err)
 	// }
 	// return signed, nil
-	return tokenHash, nil
+	return token, nil
 }
 
 // For Gateway to verify; to be moved to gateway

@@ -65,21 +65,22 @@ func NewProxyServer(cfg *config.Config, grpcClient *gateway_grpc.SafeClient, reg
 		//Read the user cookie
 		stateCookie, err := r.Cookie("state")
 		if err != nil || stateCookie.Value == "" {
-			http.Error(w, "Missing Parameter", http.StatusBadRequest)
+			http.Error(w, "Missing Parameter Cookie", http.StatusBadRequest)
 			return
 		}
 
 		//Verify and consule state
-		stateKey := fmt.Sprintf("oauth_state:%s", stateCookie)
+		stateKey := fmt.Sprintf("oauth_state:%s", stateCookie.Value)
 		stateData, err := redisClient.GetDel(r.Context(), stateKey).Result()
 		if err != nil {
-			http.Error(w, "Missing Parameter", http.StatusBadRequest)
+			http.Error(w, "Missing Parameter Redis", http.StatusBadRequest)
 			return
 		}
 
 		var statePayload map[string]string
 		json.Unmarshal([]byte(stateData), &statePayload)
 		redirectURI := statePayload["redirect_uri"]
+		// redirectURI := "http://app.ashrix.io:8000"
 
 		//Exchange token with CP via mTLS grpc
 		tokenStateFromCP := r.URL.Query().Get("state")
@@ -90,6 +91,8 @@ func NewProxyServer(cfg *config.Config, grpcClient *gateway_grpc.SafeClient, reg
 			TokenHash:   tokenHash,
 			GatewayName: cfg.GatewayName,
 		})
+
+		fmt.Println(err)
 
 		if err != nil {
 			http.Error(w, "Invalid Token", http.StatusBadRequest)
@@ -288,7 +291,6 @@ func requireAuth(registry *registry.Registry, session *session.SessionManager, r
 				}
 			}
 
-
 			if foundApp == nil {
 				logger.Error("No App")
 				http.Error(w, "App Not Found", http.StatusNotFound)
@@ -310,7 +312,6 @@ func requireAuth(registry *registry.Registry, session *session.SessionManager, r
 
 			fmt.Println(identity)
 
-
 			if err == nil {
 				ctx := context.WithValue(ctx, "identity", identity)
 				next.ServeHTTP(w, r.WithContext(ctx))
@@ -327,7 +328,7 @@ func requireAuth(registry *registry.Registry, session *session.SessionManager, r
 
 			//Set the present app url as redirect uri
 			redirectData, _ := json.Marshal(map[string]string{
-				"redirect_uri": r.URL.RequestURI(),
+				"redirect_uri": fmt.Sprintf("http://%s%s", r.Host, r.URL.RequestURI()),
 			})
 
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -347,9 +348,11 @@ func requireAuth(registry *registry.Registry, session *session.SessionManager, r
 			fmt.Println(connector.TenantID, foundApp.Id)
 			//Set the state in the cookies
 			http.SetCookie(w, &http.Cookie{
-				Name:     "state",
-				Value:    state,
-				Path:     "/",
+				Name:  "state",
+				Value: state,
+				Path:  "/",
+				// Domain: cfg.GatewayUrl,
+				Domain:   ".ashrix.io",
 				MaxAge:   int(600),
 				HttpOnly: true,
 				Secure:   cfg.CookieSecure,

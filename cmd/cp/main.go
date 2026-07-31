@@ -117,7 +117,7 @@ func main() {
 	httpServer := cp_http.InitializeHttpServer(BaseDir, cfg, dbQueries,redisStore, log, signer)
 
 	// Build and start gRPC server
-	grpcServer := cp_grpc.InitializeGRPCServer(cfg, cppki, log)
+	grpcServer := cp_grpc.InitializeGRPCServer(cfg, cppki, log, redisStore.Client())
 
 	// Graceful shutdown on SIGINT / SIGTERM
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

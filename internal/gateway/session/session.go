@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const sessionCookie = "__Host-session"
+const sessionCookie = "__Ashrix-session"
 
 type SessionManager struct {
 	redis  *redis.Client
@@ -26,6 +26,7 @@ func NewSessionManager(redis *redis.Client, ttl time.Duration, secure bool) *Ses
 
 func (sm *SessionManager) Get(r *http.Request) (*proto.NormalizedIdentity, error) {
 	cookie, err := r.Cookie(sessionCookie)
+	fmt.Println(cookie)
 	if err != nil || cookie.Value == "" {
 		return nil, fmt.Errorf("no session cookie")
 	}
@@ -59,6 +60,7 @@ func (sm *SessionManager) Create(w http.ResponseWriter, r *http.Request, identit
 		Name:     sessionCookie,
 		Value:    sid,
 		Path:     "/",
+		Domain: ".ashrix.io",
 		MaxAge:   int(sm.ttl.Seconds()),
 		HttpOnly: true,
 		Secure:   sm.secure,

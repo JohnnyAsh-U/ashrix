@@ -79,6 +79,7 @@ func (t *cpServer) ExchangeToken(ctx context.Context, req *proto.ExchangeTokenRe
 	}
 	key := fmt.Sprintf("session:%s:%s", req.GatewayName, req.TokenHash)
 
+	fmt.Println(key)
 	data, err := t.redisClient.GetDel(ctx, key).Result()
 	if err == redis.Nil {
 		t.log.Warn("Token not found or already consumed", slog.Any("err", err))

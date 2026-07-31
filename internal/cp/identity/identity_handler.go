@@ -138,16 +138,16 @@ func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gatewayURI, token, err := i.idpService.ExchangeService(ctx, state, code)
+	_, token, err := i.idpService.ExchangeService(ctx, state, code)
 	if err != nil {
 		dto.SendError(w, dto.NewAppError(500, dto.CodeForbidden, err.Error(), nil))
 		return
 	}
 
 	//Redirect to Gateway with token
-	redirectUrl := fmt.Sprintf("%s/_auth/callback?state=%s", gatewayURI, url.QueryEscape(token))
-	dto.SendSuccess(w, http.StatusCreated, redirectUrl)
-	// http.Redirect(w,r,redirectUrl, http.StatusTemporaryRedirect)
+	redirectUrl := fmt.Sprintf("%s/_auth/callback?state=%s", "http://gateway.ashrix.io:8000", url.QueryEscape(token))
+	// dto.SendSuccess(w, http.StatusCreated, redirectUrl)
+	http.Redirect(w,r,redirectUrl, http.StatusTemporaryRedirect)
 }
 
 func (h *IDPHandler) Routes(rg chi.Router) {
