@@ -16,7 +16,7 @@ type RedisLimiter struct {
 	window time.Duration
 }
 
-func New(client *redis.Client, rate int, window time.Duration) *RedisLimiter {
+func NewRedisLimiter(client *redis.Client, rate int, window time.Duration) *RedisLimiter {
 	return &RedisLimiter{client:client, rate:rate, window: window}
 }
 

@@ -18,6 +18,7 @@ type ManagementConn struct {
 	Conn        *grpc.ClientConn
 	Stream      pb.ConnectorService_ConnectClient
 	GatewayUrl  string
+	TenantID string
 	ConnectorID string
 	Apps        []*pb.ConnectorApps
 	StartedAt   time.Time
@@ -27,7 +28,7 @@ type ManagementConn struct {
 // dialManagement opens the gRPC management connection to the gateway.
 // This is ALWAYS gRPC — registration, heartbeat, cmd sync.
 // Separate from the tunnel transport which may be QUIC or WebSocket.
-func OpenStream(ctx context.Context, gatewayUrl string, connectorID string, tlsConfig *tls.Config, log *zap.Logger, apps []*pb.ConnectorApps) (*ManagementConn, error) {
+func OpenStream(ctx context.Context, gatewayUrl string, connectorID,TenantID string, tlsConfig *tls.Config, log *zap.Logger, apps []*pb.ConnectorApps) (*ManagementConn, error) {
 	log.Info("dialing management plane", zap.String("addr", gatewayUrl))
 
 	now := time.Now()
@@ -53,6 +54,7 @@ func OpenStream(ctx context.Context, gatewayUrl string, connectorID string, tlsC
 		log:         log,
 		GatewayUrl:  gatewayUrl,
 		ConnectorID: connectorID,
+		TenantID: TenantID,
 		StartedAt:   now,
 		Apps: apps,
 	}, nil
@@ -70,6 +72,7 @@ func (c *ManagementConn) Register(ctx context.Context) error {
 				ConnectorId: c.ConnectorID,
 				Version:     "1.0.0",
 				Transport:   "grpc",
+				TenantId: c.TenantID,
 				Apps: c.Apps,
 			},
 		},

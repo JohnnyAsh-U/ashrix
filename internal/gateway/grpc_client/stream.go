@@ -2,115 +2,226 @@ package gateway_grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
-	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/cenkalti/backoff/v4"
+	// "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-type StreamHandler struct {
-	gatewayID string
-	stream    proto.ControlPlaneService_ConnectClient
-	pki       *crypto.GatewayPKI
-	log       *zap.Logger
+// StreamManager maintains a single bidi stream to the control plane.
+// On any break it reconnects, sends a fresh Hello payload, and resumes.
+type StreamManager struct {
+	cm        *ConnectionManager
+	makeHello func() *pb.GatewayEnvelope // factory: fresh epoch/nonce every reconnect
+	// onMessage func(*pb.CPEnvelope)
+	onAuthError func(ctx context.Context) error // e.g. pki.PreflightRenew
+
+	pki *crypto.GatewayPKI
+	log *zap.Logger
 
 	registry *registry.Registry
 
-	//outbound queue - everything gateway sends to CP
-	outbound chan *proto.GatewayEnvelope
-	stopCh   chan struct{}
+	mu     sync.RWMutex
+	stream pb.ControlPlaneService_ConnectClient
+	active bool
+	sendCh chan *pb.GatewayEnvelope
 }
 
-func NewStreamHandler(
-	gatewayID string,
-	stream proto.ControlPlaneService_ConnectClient,
-	pki *crypto.GatewayPKI,
-	reg *registry.Registry,
+func NewStreamManager(
+	cm *ConnectionManager,
+	makeHello func() *pb.GatewayEnvelope,
+	// onMessage func(*pb.CPEnvelope),
 	log *zap.Logger,
-) *StreamHandler {
-	return &StreamHandler{
-		gatewayID: gatewayID,
-		stream:    stream,
-		pki:       pki,
-		registry: reg,
-		log:       log,
-		outbound:  make(chan *proto.GatewayEnvelope, 512),
-		stopCh:    make(chan struct{}),
+	sendQueue int,
+	onAuthError func(ctx context.Context) error,
+) *StreamManager {
+	if sendQueue <= 0 {
+		sendQueue = 64
+	}
+	// if log == nil {
+	// 	log = zap.NewNop()
+	// }
+	return &StreamManager{
+		cm:        cm,
+		makeHello: makeHello,
+		// onMessage: onMessage,
+		onAuthError: onAuthError,
+		log:         log,
+		sendCh:      make(chan *pb.GatewayEnvelope, sendQueue),
 	}
 }
 
-func (h *StreamHandler) Run(ctx context.Context) error {
-	// Start sender goroutine — reads from outbound channel, writes to stream
-	go h.sender(ctx)
+// Run blocks forever. It is the only function that should call runSession.
+func (sm *StreamManager) Run(ctx context.Context) {
+	b := backoff.NewExponentialBackOff()
+	b.MaxInterval = 30 * time.Second
+	b.MaxElapsedTime = 0 // retry forever
 
-	// // Start heartbeat goroutine
-	go h.heartbeater(ctx)
-
-	// // Receive loop — this is the main goroutine
-	return h.receiver(ctx)
-}
-
-func (h *StreamHandler) sender(ctx context.Context) {
 	for {
 		select {
-		case env := <-h.outbound:
-			env.GatewayId = h.gatewayID
-			env.SentAt = timestamppb.Now()
-
-			if err := h.stream.Send(env); err != nil {
-				h.log.Error("stream send error", zap.Error(err))
-				return
-			}
-		case <-h.stopCh:
+		case <-ctx.Done():
 			return
+		default:
+		}
+
+		err := sm.runSession(ctx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			sm.log.Warn("stream session ended", zap.Error(err))
+		}
+
+		sm.setStream(nil, false)
+
+		// ── Auth/cert error path ─────────────────────────────────────
+		if sm.isAuthError(err) && sm.onAuthError != nil {
+			sm.log.Warn("TLS/auth error detected — attempting cert renewal")
+
+			renewCtx, renewCancel := context.WithTimeout(ctx, 30*time.Second)
+			renewErr := sm.onAuthError(renewCtx)
+			renewCancel()
+
+			if renewErr != nil {
+				sm.log.Warn("cert renewal failed — retrying with backoff", zap.Error(renewErr))
+			} else {
+				sm.log.Info("cert renewed — forcing connection refresh")
+				// Tear down the old gRPC connection so the next dial
+				// performs a fresh TLS handshake with the new cert.
+				if closeErr := sm.cm.Close(); closeErr != nil {
+					sm.log.Debug("old conn close error", zap.Error(closeErr))
+				}
+				if refreshErr := sm.cm.RefreshConnection(ctx); refreshErr != nil {
+					sm.log.Error("failed to refresh connection after renewal", zap.Error(refreshErr))
+				} else {
+					sm.log.Info("reconnected with renewed cert — retrying stream immediately")
+					b.Reset()
+					continue
+				}
+			}
+		}
+
+		wait := b.NextBackOff()
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+	}
+}
+
+func (sm *StreamManager) runSession(ctx context.Context) error {
+	conn := sm.cm.CurrentConn()
+	if conn == nil {
+		return errors.New("no control plane connection")
+	}
+
+	client := pb.NewControlPlaneServiceClient(conn)
+	stream, err := client.Connect(ctx)
+	if err != nil {
+		return fmt.Errorf("open bidi stream: %w", err)
+	}
+
+	// ── 1. Hello payload (synchronous, must be first) ─────────────
+	// The server binds session state (identity, routing, rate-limits)
+	// to this specific stream. No other message may precede this.
+	if err := stream.Send(sm.makeHello()); err != nil {
+		return fmt.Errorf("hello payload: %w", err)
+	}
+
+	// ── 2. Publish stream only after hello succeeds ───────────────
+	// HTTP handlers may now enqueue messages via Send().
+	sm.setStream(stream, true)
+
+	// ── 3. Concurrent send / recv loops ───────────────────────────
+	sessCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go sm.heartbeater(ctx)
+
+	errCh := make(chan error, 2)
+	go func() { errCh <- sm.sendLoop(sessCtx, stream) }()
+	go func() { errCh <- sm.recvLoop(sessCtx, stream) }()
+
+	// If either direction breaks, tear down the entire session.
+	err = <-errCh
+	cancel()
+	<-errCh // drain the other side
+	return err
+}
+
+func (sm *StreamManager) sendLoop(ctx context.Context, stream pb.ControlPlaneService_ConnectClient) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case msg := <-sm.sendCh:
+			if err := stream.Send(msg); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func (sm *StreamManager) recvLoop(ctx context.Context, stream pb.ControlPlaneService_ConnectClient) error {
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		// Normal and HIGH priority handled in a goroutine
+		// so the receiver loop never blocks
+		go sm.handleMessage(ctx, msg)
+	}
+}
+
+func (h *StreamManager) heartbeater(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	var seq int64
+
+	for {
+		select {
+		case <-ticker.C:
+			seq++
+			h.Send(&pb.GatewayEnvelope{
+				Payload: &pb.GatewayEnvelope_Heartbeat{
+					Heartbeat: &pb.HeartbeatMessage{
+						Seq:               seq,
+						ActiveConnections: 3,
+						ActiveSessions:    3,
+						ConnectorCount:    4,
+					},
+				},
+			})
+		// case <-h.stop:
+		// 	return
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-// Send enqueues a message to CP. Non-blocking — drops if queue is full.
-// Use for access logs and metrics. For critical messages use SendPriority.
-func (h *StreamHandler) Send(env *proto.GatewayEnvelope) {
-	select {
-	case h.outbound <- env:
-	default:
-		h.log.Warn("outbound queue full — dropping message",
-			zap.String("type", fmt.Sprintf("%T", env.Payload)),
-		)
-	}
-}
-
-// ── Receiver — CP → Gateway ───────────────────────────────────────────────────
-
-func (h *StreamHandler) receiver(ctx context.Context) error {
-	for {
-		msg, err := h.stream.Recv()
-		if err != nil {
-			return fmt.Errorf("stream recv error: %w", err)
-		}
-
-		// Normal and HIGH priority handled in a goroutine
-		// so the receiver loop never blocks
-		go h.handleMessage(ctx, msg)
-	}
-}
-
-func (h *StreamHandler) handleMessage(ctx context.Context, msg *proto.CPEnvelope) {
+func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 	switch p := msg.Payload.(type) {
 
-	case *proto.CPEnvelope_HelloAck:
+	case *pb.CPEnvelope_HelloAck:
 		h.log.Info("hello acknowledged by CP",
 			zap.String("server_version", p.HelloAck.ServerVersion),
 			zap.Bool("needs_policy", p.HelloAck.NeedsPolicy),
 		)
 		// CP will push bundles immediately if NeedsPolicy/NeedsTrust/NeedsCRL are true
 
-	case *proto.CPEnvelope_TrustBundle:
+	case *pb.CPEnvelope_TrustBundle:
 		h.log.Info("trust bundle received",
 			zap.String("version", p.TrustBundle.Version),
 		)
@@ -119,7 +230,7 @@ func (h *StreamHandler) handleMessage(ctx context.Context, msg *proto.CPEnvelope
 		//     h.ack(msg.MessageId, "trust", p.TrustBundle.Version, false, err.Error())
 		//     return
 		// }
-		h.ack(msg.NodeId, proto.BundleType_BUNDLE_TYPE_POLICY, p.TrustBundle.Version, true, "")
+		h.ack(msg.NodeId, pb.BundleType_BUNDLE_TYPE_POLICY, p.TrustBundle.Version, true, "")
 
 		// case *pb.CPEnvelope_RotationCmd:
 		//     h.log.Info("rotation command received",
@@ -137,19 +248,76 @@ func (h *StreamHandler) handleMessage(ctx context.Context, msg *proto.CPEnvelope
 		//             h.log.Error("forced rotation failed", zap.Error(err))
 		//         }
 		//     }()
+
+	default:
+		h.log.Debug("unhandled message type", zap.String("type", fmt.Sprintf("%T", p)))
+
 	}
+}
+
+func (sm *StreamManager) isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// gRPC status errors
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.Unauthenticated:
+			return true
+		case codes.Unavailable:
+			// TLS handshake failures often surface as Unavailable
+			msg := strings.ToLower(st.Message())
+			return strings.Contains(msg, "certificate") ||
+				strings.Contains(msg, "tls") ||
+				strings.Contains(msg, "handshake") ||
+				strings.Contains(msg, "bad certificate")
+		}
+		return false
+	}
+	// Raw errors from the transport / crypto/tls
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "certificate") ||
+		strings.Contains(errStr, "tls handshake") ||
+		strings.Contains(errStr, "bad certificate") ||
+		strings.Contains(errStr, "x509")
+}
+
+// Send is safe for concurrent HTTP handlers or background goroutines.
+// It returns immediately; the message is queued for the next active stream.
+// If the queue is full (backpressure or disconnection), it fails fast.
+func (sm *StreamManager) Send(msg *pb.GatewayEnvelope) error {
+	select {
+	case sm.sendCh <- msg:
+		return nil
+	default:
+		return status.Error(codes.ResourceExhausted, "control plane stream backpressure")
+	}
+}
+
+func (sm *StreamManager) IsActive() bool {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return sm.active
+}
+
+func (sm *StreamManager) setStream(s pb.ControlPlaneService_ConnectClient, active bool) {
+	sm.mu.Lock()
+	sm.stream = s
+	sm.active = active
+	sm.mu.Unlock()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-func (h *StreamHandler) ack(
-	messageID string, bundleType proto.BundleType, version string,
+func (h *StreamManager) ack(
+	messageID string, bundleType pb.BundleType, version string,
 	applied bool,
 	errMsg string,
 ) {
-	h.Send(&proto.GatewayEnvelope{
-		Payload: &proto.GatewayEnvelope_BundleAck{
-			BundleAck: &proto.BundleAck{
+	h.Send(&pb.GatewayEnvelope{
+		Payload: &pb.GatewayEnvelope_BundleAck{
+			BundleAck: &pb.BundleAck{
 				MessageId:  messageID,
 				BundleType: bundleType,
 				Version:    version,
@@ -159,39 +327,6 @@ func (h *StreamHandler) ack(
 		},
 	})
 }
-
-// ── Heartbeat ─────────────────────────────────────────────────────────────────
-
-func (h *StreamHandler) heartbeater(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	var seq int64
-
-	for {
-		select {
-		case <-ticker.C:
-			seq++
-			h.Send(&proto.GatewayEnvelope{
-				Payload: &proto.GatewayEnvelope_Heartbeat{
-					Heartbeat: &proto.HeartbeatMessage{
-						Seq:               seq,
-						ActiveConnections: 3,
-						ActiveSessions:    3,
-						ConnectorCount:    4,
-					},
-				},
-			})
-		case <-h.stopCh:
-			return
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-
-
 
 // // handleSuspendCommand is the exact flow traced in our conversation:
 // // look up in shared registry, relay if connected, otherwise no-op
@@ -265,5 +400,3 @@ func (h *StreamHandler) heartbeater(ctx context.Context) {
 // 		h.log.Error("failed to relay resume to connector", zap.Error(err))
 // 	}
 // }
-
-

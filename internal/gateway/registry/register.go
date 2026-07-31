@@ -14,7 +14,7 @@ type ConnectorEntry struct {
 	ConnectorID      string
 	Apps             []*pb.ConnectorApps
 
-	// TenantID         string
+	TenantID         string
 	ManagementStream ManagementStream // live stream — nil if tunnel-only entry
 	ManagementConnAt time.Time
 	LastHeartbeat    time.Time
@@ -43,7 +43,7 @@ type Registry struct {
 func New() *Registry {
 	return &Registry{
 		connectors: make(map[string]*ConnectorEntry),
-		routing:    make(map[string]string),
+		routing:    make(map[string]string), //Subdomain to connectors
 	}
 }
 
@@ -69,6 +69,7 @@ func (r *Registry) getOrCreate(connectorID string) *ConnectorEntry {
 // connector's management stream registers successfully.
 func (r *Registry) AttachManagement(
 	connectorID string,
+	TenantID string,
 	apps []*pb.ConnectorApps,
 	stream ManagementStream,
 	state string,
@@ -78,6 +79,7 @@ func (r *Registry) AttachManagement(
 
 	entry := r.getOrCreate(connectorID)
 	entry.Apps = apps
+	entry.TenantID = TenantID
 	entry.ManagementStream = stream
 	entry.ManagementConnAt = time.Now()
 	entry.LastHeartbeat = time.Now()
@@ -152,14 +154,14 @@ func (r *Registry) removeIfFullyDetachedLocked(connectorID string, entry *Connec
 		return
 	}
 	for _, app := range entry.Apps {
-		delete(r.routing, app.Id)
+		delete(r.routing, app.Subdomain)
 	}
 	delete(r.connectors, connectorID)
 }
 
 func (r *Registry) rebuildRoutingLocked(entry *ConnectorEntry) {
 	for _, app := range entry.Apps {
-		r.routing[app.Id] = entry.ConnectorID
+		r.routing[app.Subdomain] = entry.ConnectorID
 	}
 }
 
@@ -179,6 +181,8 @@ func (e *ConnectorEntry) IsRoutable() bool {
 func (r *Registry) GetBySubdomain(subdomain string) (*ConnectorEntry, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	
 
 	connectorID, ok := r.routing[subdomain]
 	if !ok {
@@ -245,7 +249,7 @@ func (r *Registry) Register(entry *ConnectorEntry) {
 	r.connectors[entry.ConnectorID] = entry
 
 	for _, app := range entry.Apps {
-		r.routing[app.Id] = entry.ConnectorID
+		r.routing[app.Subdomain] = entry.ConnectorID
 		// Note: routing key should be subdomain in production —
 		// using app.Id here as placeholder since AppDef proto
 		// (from earlier tunnel.proto) doesn't have Subdomain yet.
@@ -267,7 +271,7 @@ func (r *Registry) Unregister(connectorID string) {
 	}
 
 	for _, app := range entry.Apps {
-		delete(r.routing, app.Id)
+		delete(r.routing, app.Subdomain)
 	}
 	delete(r.connectors, connectorID)
 }

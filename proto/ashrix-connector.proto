@@ -42,7 +42,8 @@ message ConnectorStatusResponse {
   string                 gateway_id   = 2;
   string                 gateway_url  = 3;
   string                 gateway_ip   = 4;
-  repeated ConnectorApps apps         = 5;
+  string                 tenant_id   = 5;
+  repeated ConnectorApps apps         = 6;
 }
 
 message ConnectorApps {
@@ -124,9 +125,10 @@ message ConnectorCmd {
 
 message ConnectorHello {
   string          connector_id = 1;
-  string          version      = 2;
-  repeated ConnectorApps apps         = 3;
-  string          transport    = 4; //quic, grpc, websocket
+  string          tenant_id = 2;
+  string          version      = 3;
+  repeated ConnectorApps apps         = 4;
+  string          transport    = 5; //quic, grpc, websocket
 }
 
 message ConnectorHeartbeat {

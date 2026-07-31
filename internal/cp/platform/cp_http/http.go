@@ -79,8 +79,8 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 	}
 	idpService := identity.NewIDPService(
 		idpRepo,
-		appRepo,
-		orgRepo,
+		// appRepo,
+		// orgRepo,
 		gatewayRepo,
 		idpSession,
 		redisStore.Client(),

@@ -3,11 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"math/rand"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/logger"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
@@ -19,6 +14,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"math/rand"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func init() {
@@ -51,7 +51,6 @@ func runStart() (err error) {
 		fmt.Fprintln(os.Stderr, "Storage Error", err)
 		os.Exit(1)
 	}
-
 
 	token := viper.GetString("token")
 	baseDir := viper.GetString("basedir")
@@ -131,6 +130,7 @@ func runStart() (err error) {
 
 	tlsConfig := result.PKI.TLSConfig()
 	connectorID := result.Status.ConnectorId
+	tenantID := result.Status.TenantId
 	apps := result.Status.Apps
 
 	//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
@@ -142,7 +142,8 @@ func runStart() (err error) {
 		GatewayGRPCAddr: result.Status.GatewayIp + ":9444",
 		GatewayWSURL:    "wss://" + result.Status.GatewayIp + "/ws",
 		ConnectorID:     connectorID,
-		TLSConfig:       tlsConfig,
+		// T
+		TLSConfig: tlsConfig,
 	}
 
 	attempt := 0
@@ -153,7 +154,7 @@ func runStart() (err error) {
 		attempt++
 
 		log.Info("Opening management stream with gateway", zap.String("addr", gRPCURL), zap.Int("attempt", attempt))
-		streamConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tlsConfig, log, apps)
+		streamConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tenantID, tlsConfig, log, apps)
 		if err != nil {
 			log.Error("Failed to open Gateway stream", zap.String("cp_url", gRPCURL), zap.Error(err))
 			select {

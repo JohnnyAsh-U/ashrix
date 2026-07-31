@@ -8,24 +8,24 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"strings"
+	// "strings"
 	"sync"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
 type IDPService struct {
 	repo        Repository
-	appRepo     app.Repository
-	orgRepo     org.Repository
+	// appRepo     app.Repository
+	// orgRepo     org.Repository
 	gatewayRepo gateway.Repository
 	idpSession  *IDPSession
 	cache       *redis.Client
@@ -38,8 +38,8 @@ type IDPService struct {
 
 func NewIDPService(
 	repo Repository,
-	appRepo app.Repository,
-	orgRepo org.Repository,
+	// appRepo app.Repository,
+	// orgRepo org.Repository,
 	gateRepo gateway.Repository,
 	idpSession *IDPSession,
 	cache *redis.Client,
@@ -49,8 +49,8 @@ func NewIDPService(
 
 	return &IDPService{
 		repo:        repo,
-		appRepo:     appRepo,
-		orgRepo:     orgRepo,
+		// appRepo:     appRepo,
+		// orgRepo:     orgRepo,
 		gatewayRepo: gateRepo,
 		idpSession:  idpSession,
 		cache:       cache,
@@ -125,44 +125,44 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, orgID, appID uuid.UUID) 
 	return adapters, nil
 }
 
-func (r *IDPService) IsRedirectURIValidByIDP(ctx context.Context, IDPUUID uuid.UUID, redirectURI string) (bool, store.IdpConfig) {
+func (r *IDPService) GetIDPByID(ctx context.Context, IDPUUID uuid.UUID) (store.IdpConfig, error) {
 	//List all apps by the org of the idp config
 	IDPConfig, err := r.repo.GetIdentityConfigByID(ctx, IDPUUID)
 	if err != nil {
-		return false, store.IdpConfig{}
+		return store.IdpConfig{}, err
 	}
 
-	appIDPs, err := r.appRepo.ListByOrg(ctx, IDPConfig.OrgID)
-	if err != nil {
-		return false, store.IdpConfig{}
-	}
+	// appIDPs, err := r.appRepo.ListByOrg(ctx, IDPConfig.OrgID)
+	// if err != nil {
+	// 	return false, store.IdpConfig{}
+	// }
 
-	orgObj, err := r.orgRepo.GetByID(ctx, IDPConfig.OrgID)
+	// _, err = r.orgRepo.GetByID(ctx, IDPConfig.OrgID)
 
-	if err != nil {
-		return false, store.IdpConfig{}
-	}
+	// if err != nil {
+	// 	return false, store.IdpConfig{}
+	// }
 
-	if len(appIDPs) == 0 {
-		return false, store.IdpConfig{}
-	}
+	// if len(appIDPs) == 0 {
+	// 	return false, store.IdpConfig{}
+	// }
 
 	//Check if the user has a special domain
-	domain := r.cfg.CPDomainUrl
-	if orgObj.CustomDomain.String != "" && orgObj.DomainVerified {
-		domain = orgObj.CustomDomain.String
-	}
+	// domain := r.cfg.CPDomainUrl
+	// if orgObj.CustomDomain.String != "" && orgObj.DomainVerified {
+	// 	domain = orgObj.CustomDomain.String
+	// }
 
-	for _, appIDP := range appIDPs {
-		AppURL := fmt.Sprintf("https://%s.%s", appIDP.Subdomain, domain)
-		if strings.HasPrefix(redirectURI, AppURL) {
-			return true, IDPConfig
-		}
-	}
-	return false, store.IdpConfig{}
+	// for _, appIDP := range appIDPs {
+	// 	AppURL := fmt.Sprintf("https://%s.%s", appIDP.Subdomain, domain)
+	// 	if strings.HasPrefix(redirectURI, AppURL) {
+	// 		return true, IDPConfig
+	// 	}
+	// }
+	return IDPConfig, nil
 }
 
-func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, AppId, gatewayID, RedirectURI string) (string, error) {
+func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, AppId, gatewayID string) (string, error) {
 	//Create the state, and build the OAUTh url
 	state, code_challenge, nonce, err := r.idpSession.CreateState(
 		ctx,
@@ -170,7 +170,6 @@ func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, App
 		idp.ID.String(),
 		AppId,
 		gatewayID,
-		RedirectURI,
 	)
 	identityProvider := &oidc.IdentityProvider{
 		ID:          idp.ID.String(),
@@ -197,34 +196,34 @@ func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, App
 	return adapter.AuthCodeURL(state, nonce, code_challenge), nil
 }
 
-func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (string, string, string, error) {
+func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (string, string, error) {
 	// Get the state from the session
 	stateData, err := r.idpSession.ConsumeState(ctx, state)
 	if err != nil {
-		return "", "", "", fmt.Errorf("get state: %w", err)
+		return "", "", fmt.Errorf("get state: %w", err)
 	}
 
 	//Get the OIDC Provider
 	providerID, err := uuid.Parse(stateData.ProviderID)
 	if err != nil {
-		return "", "", "", fmt.Errorf("provider parsing: %w", err)
+		return "", "", fmt.Errorf("provider parsing: %w", err)
 	}
 
 	//Get the  Gateway
 	GatewayID, err := uuid.Parse(stateData.GatewayID)
 	if err != nil {
-		return "", "", "", fmt.Errorf("gateway parsing: %w", err)
+		return "", "", fmt.Errorf("gateway parsing: %w", err)
 	}
 
 	//Get the GatewayURL
 	gateway, err := r.gatewayRepo.GetGatewayByID(ctx, GatewayID)
 	if err != nil {
-		return "", "", "", fmt.Errorf("gateway error: %w", err)
+		return "", "", fmt.Errorf("gateway error: %w", err)
 	}
 
 	idpConfig, err := r.repo.GetIdentityConfigByID(ctx, providerID)
 	if err != nil {
-		return "", "", "", fmt.Errorf("get provider: %w", err)
+		return "", "", fmt.Errorf("get provider: %w", err)
 	}
 	identityProvider := &oidc.IdentityProvider{
 		ID:          idpConfig.ID.String(),
@@ -246,14 +245,14 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (s
 
 	identity, err := adapter.Exchange(ctx, code, stateData.Nonce, stateData.PKCEVerifier)
 	if err != nil {
-		return "", "", "", fmt.Errorf("exchange: %w", err)
+		return "", "", fmt.Errorf("exchange: %w", err)
 	}
 
 	token, err := r.idpSession.CreateSession(ctx, gateway.ID.String(), gateway.Name, identity)
 	if err != nil {
-		return "", "", "", fmt.Errorf("get state: %w", err)
+		return "", "", fmt.Errorf("get state: %w", err)
 	}
-	return stateData.RedirectURI, gateway.PublicUrl, token, nil
+	return gateway.PublicUrl, token, nil
 }
 
 // getOrCreateAdapter retrieves an existing adapter from cache or creates a new one

@@ -40,7 +40,7 @@ type StateEntry struct {
 	ProviderID   string `json:"provider_id"`
 	GatewayID    string `json:"gateway_id"`
 	PKCEVerifier string `json:"pkce_verifier"`
-	RedirectURI  string `json:"redirect_uri"`
+	// RedirectURI  string `json:"redirect_uri"`
 }
 
 type IDPSession struct {
@@ -171,7 +171,7 @@ func (t *IDPSession) VerifySession(tokenString string) (*BrokerClaims, error) {
 }
 
 // Create Nonce and state
-func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppID, gatewayID, redirectURI string) (state, code_challenge, nonce string, err error) {
+func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppID, gatewayID string) (state, code_challenge, nonce string, err error) {
 	state, err = randomToken(32)
 	if err != nil {
 		return "", "", "", err
@@ -192,7 +192,7 @@ func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, AppI
 		TenantID:     tenantID,
 		ProviderID:   providerID,
 		GatewayID:    gatewayID,
-		RedirectURI:  redirectURI,
+		// RedirectURI:  redirectURI,
 		PKCEVerifier: pkceVerifier,
 	}
 

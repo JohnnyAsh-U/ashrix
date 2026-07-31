@@ -528,6 +528,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		GatewayId:   ConnectorRow.GatewayID.String(),
 		GatewayUrl:  GatewayRow.PublicUrl,
 		GatewayIp: GatewayRow.IpAddress,
+		TenantId: ConnectorRow.OrgID.String(),
 		Apps:        appsResp,
 	}, nil
 }

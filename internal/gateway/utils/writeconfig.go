@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 )
 
-func WriteConfig(cpURL, gatewayID, dataDir, configDir, logDir string) error {
-	
+func WriteConfig(cpURL, gatewayID, gatewayName, gatewayUrl, dataDir, configDir, logDir string) error {
+
 	configPath := filepath.Join(configDir, "gateway.yaml")
 
 	config := fmt.Sprintf(`
@@ -21,18 +21,23 @@ cp_url: %s
 # Gateway ID — assigned by CP on registration, do not edit manually
 gateway_id: "%s"
 
+# Gateway Name — assigned by CP on registration, do not edit manually
+gateway_name: "%s"
+
+# Gateway URL — assigned by CP on registration, do not edit manually
+gateway_url: "%s"
+
 # Where the gateway stores its identity (key, cert, pid file)
 # Must be writable by the gateway process user
 data_dir: %s
 # Where the app stores its logs and audit logs
 log_dir: %s
-`, cpURL, gatewayID, dataDir, logDir,
-)
+`, cpURL, gatewayID, gatewayName, gatewayUrl, dataDir, logDir,
+	)
 
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
-
 
 	tmpFile, err := os.CreateTemp(configDir, "gateway-*.yaml")
 	if err != nil {

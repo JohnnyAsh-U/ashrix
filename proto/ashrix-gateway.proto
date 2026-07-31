@@ -19,9 +19,11 @@ message GatewayEnrollRequest {
 
 message GatewayEnrollResponse {
   string                    gateway_id   = 1;
-  string                    certificate  = 2;
-  string                    trust_bundle = 3;
-  google.protobuf.Timestamp expires_at   = 4;
+  string                    gateway_name  = 2;
+  string                    gateway_url = 3;
+  string                    certificate  = 4;
+  string                    trust_bundle = 5;
+  google.protobuf.Timestamp expires_at   = 6;
 }
 
 message GatewayRenewCertRequest {

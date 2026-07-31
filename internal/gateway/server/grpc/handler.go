@@ -90,7 +90,7 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	}
 
 	//Attach management - does not touch tunnel fields per correct registry
-	entry := s.registry.AttachManagement(connectorID,apps,stream, "active")
+	entry := s.registry.AttachManagement(connectorID, hello.TenantId, apps,stream, "active")
 	defer s.registry.DetachManagement(connectorID)
 
 

@@ -183,9 +183,11 @@ func (x *GatewayEnrollRequest) GetTimestamp() *timestamppb.Timestamp {
 type GatewayEnrollResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	GatewayId     string                 `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
-	Certificate   string                 `protobuf:"bytes,2,opt,name=certificate,proto3" json:"certificate,omitempty"`
-	TrustBundle   string                 `protobuf:"bytes,3,opt,name=trust_bundle,json=trustBundle,proto3" json:"trust_bundle,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	GatewayName   string                 `protobuf:"bytes,2,opt,name=gateway_name,json=gatewayName,proto3" json:"gateway_name,omitempty"`
+	GatewayUrl    string                 `protobuf:"bytes,3,opt,name=gateway_url,json=gatewayUrl,proto3" json:"gateway_url,omitempty"`
+	Certificate   string                 `protobuf:"bytes,4,opt,name=certificate,proto3" json:"certificate,omitempty"`
+	TrustBundle   string                 `protobuf:"bytes,5,opt,name=trust_bundle,json=trustBundle,proto3" json:"trust_bundle,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -223,6 +225,20 @@ func (*GatewayEnrollResponse) Descriptor() ([]byte, []int) {
 func (x *GatewayEnrollResponse) GetGatewayId() string {
 	if x != nil {
 		return x.GatewayId
+	}
+	return ""
+}
+
+func (x *GatewayEnrollResponse) GetGatewayName() string {
+	if x != nil {
+		return x.GatewayName
+	}
+	return ""
+}
+
+func (x *GatewayEnrollResponse) GetGatewayUrl() string {
+	if x != nil {
+		return x.GatewayUrl
 	}
 	return ""
 }
@@ -1474,14 +1490,17 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"\x14GatewayEnrollRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x17\n" +
 	"\acsr_pem\x18\x02 \x01(\tR\x06csrPem\x128\n" +
-	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xb6\x01\n" +
+	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xfa\x01\n" +
 	"\x15GatewayEnrollResponse\x12\x1d\n" +
 	"\n" +
-	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12 \n" +
-	"\vcertificate\x18\x02 \x01(\tR\vcertificate\x12!\n" +
-	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x129\n" +
+	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12!\n" +
+	"\fgateway_name\x18\x02 \x01(\tR\vgatewayName\x12\x1f\n" +
+	"\vgateway_url\x18\x03 \x01(\tR\n" +
+	"gatewayUrl\x12 \n" +
+	"\vcertificate\x18\x04 \x01(\tR\vcertificate\x12!\n" +
+	"\ftrust_bundle\x18\x05 \x01(\tR\vtrustBundle\x129\n" +
 	"\n" +
-	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xa9\x01\n" +
+	"expires_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xa9\x01\n" +
 	"\x17GatewayRenewCertRequest\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x1c\n" +

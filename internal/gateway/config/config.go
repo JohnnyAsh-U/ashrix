@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -11,6 +12,8 @@ type Config struct {
 	CPURL     string
 	Token     string
 	GatewayID string
+	GatewayName string
+	GatewayUrl string
 	DataDir   string
 	LogDir    string
 	PIDFile   string
@@ -19,6 +22,8 @@ type Config struct {
 	QUICPort  string
 	RedisAddr string
 	RedisPassword string
+	SessionTTL time.Duration
+	CookieSecure bool
 }
 
 // Load reads gateway configuration from environment variables.
@@ -26,8 +31,10 @@ func LoadFromViper() (*Config, error) {
 	viper.SetDefault("http_port", "8000")
 	viper.SetDefault("grpc_port", "9444")
 	viper.SetDefault("quic_port", "9445")
+	viper.SetDefault("session_ttl", "8h")
+	viper.SetDefault("cookie_secure", "false")
 
-	fmt.Println("khf"+viper.GetString("redis_password"))
+	fmt.Println(viper.GetDuration("session_ttl"))
 
 	
 
@@ -35,6 +42,8 @@ func LoadFromViper() (*Config, error) {
 		CPURL:     viper.GetString("cp_url"),
 		Token:     viper.GetString("token"),
 		GatewayID: viper.GetString("gateway_id"),
+		GatewayName: viper.GetString("gateway_name"),
+		GatewayUrl: viper.GetString("gateway_url"),
 		LogDir:    viper.GetString("log_dir"),
 		DataDir:   viper.GetString("data_dir"),
 		PIDFile:   filepath.Join(viper.GetString("data_dir"), "gateway.pid"),
@@ -43,6 +52,8 @@ func LoadFromViper() (*Config, error) {
 		QUICPort:  viper.GetString("quic_port"),
 		RedisAddr: viper.GetString("redis_url"),
 		RedisPassword: viper.GetString("redis_password"),
+		SessionTTL: viper.GetDuration("session_ttl"),
+		CookieSecure: viper.GetBool("cookie_secure"),
 	}
 
 	return cfg, nil

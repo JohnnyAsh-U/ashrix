@@ -199,7 +199,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	)
 
 	// 3. Safe Unary Client (for HTTP handlers that need CP)
-	// safeClient := gateway_grpc.NewSafeClient(cm)
+	grpcClient := gateway_grpc.NewSafeClient(cm)
 
 	// 4. Establish initial connection
 	if err := cm.RefreshConnection(ctx); err != nil {
@@ -226,7 +226,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Instantiate new servers
 	grpcServer := grpc.NewGRPCServer(cfg, pki.GetTLSConfig(), log, reg, regPendingCmd)
 	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log, reg)
-	httpServer := http_proxy.NewProxyServer(cfg, reg, redisStore.Client(), log)
+	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), log)
 
 	// Start servers in background
 	go func() {

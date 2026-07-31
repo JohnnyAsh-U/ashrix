@@ -292,7 +292,8 @@ type ConnectorStatusResponse struct {
 	GatewayId     string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
 	GatewayUrl    string                 `protobuf:"bytes,3,opt,name=gateway_url,json=gatewayUrl,proto3" json:"gateway_url,omitempty"`
 	GatewayIp     string                 `protobuf:"bytes,4,opt,name=gateway_ip,json=gatewayIp,proto3" json:"gateway_ip,omitempty"`
-	Apps          []*ConnectorApps       `protobuf:"bytes,5,rep,name=apps,proto3" json:"apps,omitempty"`
+	TenantId      string                 `protobuf:"bytes,5,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Apps          []*ConnectorApps       `protobuf:"bytes,6,rep,name=apps,proto3" json:"apps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -351,6 +352,13 @@ func (x *ConnectorStatusResponse) GetGatewayUrl() string {
 func (x *ConnectorStatusResponse) GetGatewayIp() string {
 	if x != nil {
 		return x.GatewayIp
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
 	}
 	return ""
 }
@@ -987,9 +995,10 @@ func (x *ConnectorCmd) GetPayload() string {
 type ConnectorHello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
-	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Apps          []*ConnectorApps       `protobuf:"bytes,3,rep,name=apps,proto3" json:"apps,omitempty"`
-	Transport     string                 `protobuf:"bytes,4,opt,name=transport,proto3" json:"transport,omitempty"` //quic, grpc, websocket
+	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Apps          []*ConnectorApps       `protobuf:"bytes,4,rep,name=apps,proto3" json:"apps,omitempty"`
+	Transport     string                 `protobuf:"bytes,5,opt,name=transport,proto3" json:"transport,omitempty"` //quic, grpc, websocket
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1027,6 +1036,13 @@ func (*ConnectorHello) Descriptor() ([]byte, []int) {
 func (x *ConnectorHello) GetConnectorId() string {
 	if x != nil {
 		return x.ConnectorId
+	}
+	return ""
+}
+
+func (x *ConnectorHello) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
 	}
 	return ""
 }
@@ -1265,7 +1281,7 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\vcertificate\x18\x02 \x01(\tR\vcertificate\x12!\n" +
 	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x129\n" +
 	"\n" +
-	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xc5\x01\n" +
+	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xe2\x01\n" +
 	"\x17ConnectorStatusResponse\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1d\n" +
 	"\n" +
@@ -1273,8 +1289,9 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\vgateway_url\x18\x03 \x01(\tR\n" +
 	"gatewayUrl\x12\x1d\n" +
 	"\n" +
-	"gateway_ip\x18\x04 \x01(\tR\tgatewayIp\x12(\n" +
-	"\x04apps\x18\x05 \x03(\v2\x14.proto.ConnectorAppsR\x04apps\"\xa6\x01\n" +
+	"gateway_ip\x18\x04 \x01(\tR\tgatewayIp\x12\x1b\n" +
+	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12(\n" +
+	"\x04apps\x18\x06 \x03(\v2\x14.proto.ConnectorAppsR\x04apps\"\xa6\x01\n" +
 	"\rConnectorApps\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
@@ -1329,12 +1346,13 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\apayload\":\n" +
 	"\fConnectorCmd\x12\x10\n" +
 	"\x03cmd\x18\x01 \x01(\tR\x03cmd\x12\x18\n" +
-	"\apayload\x18\x02 \x01(\tR\apayload\"\x95\x01\n" +
+	"\apayload\x18\x02 \x01(\tR\apayload\"\xb2\x01\n" +
 	"\x0eConnectorHello\x12!\n" +
-	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x12(\n" +
-	"\x04apps\x18\x03 \x03(\v2\x14.proto.ConnectorAppsR\x04apps\x12\x1c\n" +
-	"\ttransport\x18\x04 \x01(\tR\ttransport\"\xc2\x01\n" +
+	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12(\n" +
+	"\x04apps\x18\x04 \x03(\v2\x14.proto.ConnectorAppsR\x04apps\x12\x1c\n" +
+	"\ttransport\x18\x05 \x01(\tR\ttransport\"\xc2\x01\n" +
 	"\x12ConnectorHeartbeat\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12!\n" +
 	"\ftunnel_state\x18\x02 \x01(\tR\vtunnelState\x12)\n" +

@@ -185,6 +185,8 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 
 	return gen.GatewayEnrollResponse{
 		GatewayId: gateway.ID.String(),
+		GatewayName: gateway.Name,
+		GatewayUrl: gateway.PublicUrl,
 		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
 		TrustBundle: string(signer.TrustBundle()),
 		ExpiresAt:   timestamppb.New(gatewayCRT.NotAfter),

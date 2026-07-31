@@ -171,7 +171,7 @@ func runRegister(cmd *cobra.Command, args []string) error {
 	
 	configDir := filepath.Join(Home, "/.ashrix/gateway")
 
-	writeErr := utils.WriteConfig(cfg.CPURL, apiResp.Data.GatewayId, cfg.DataDir, configDir, cfg.LogDir)
+	writeErr := utils.WriteConfig(cfg.CPURL, apiResp.Data.GatewayId, apiResp.Data.GatewayName,apiResp.Data.GatewayUrl, cfg.DataDir, configDir, cfg.LogDir)
 
 	if writeErr != nil {
 		return writeErr
