@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
@@ -23,7 +26,15 @@ type GRPCServer struct {
 }
 
 // InitializeGRPCServer sets up the gRPC server with TLS.
-func InitializeGRPCServer(cfg *config.Config, cp crypto.ControlPlaneCrypto, log *slog.Logger, redisClient *redis.Client) *GRPCServer {
+func InitializeGRPCServer(
+	cfg *config.Config,
+	cp crypto.ControlPlaneCrypto,
+	log *slog.Logger,
+	redisClient *redis.Client,
+	registry *registry.GatewayRegistry,
+	signer pki.CASigner,
+	policyStore policy.Repository,
+) *GRPCServer {
 	// Get TLS configuration from the crypto package
 	tlsConfig := crypto.NewServerTLSConfig(cp)
 	creds := credentials.NewTLS(tlsConfig)
@@ -42,8 +53,13 @@ func InitializeGRPCServer(cfg *config.Config, cp crypto.ControlPlaneCrypto, log 
 		}),
 	)
 
-	
-	proto.RegisterControlPlaneServiceServer(s, &cpServer{log: log, redisClient: redisClient})
+	proto.RegisterControlPlaneServiceServer(s, &cpServer{
+		policyStore: policyStore,
+		registry:    registry,
+		signer:      signer,
+		log:         log,
+		redisClient: redisClient,
+	})
 
 	return &GRPCServer{
 		srv:  s,

@@ -15,10 +15,12 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_http"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/redis"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/logger"
 	"github.com/joho/godotenv"
 )
@@ -43,8 +45,8 @@ func main() {
 	}
 
 	// Initialize context
-    // ctx, cancel := context.WithCancel(context.Background())
-    // defer cancel()
+	// ctx, cancel := context.WithCancel(context.Background())
+	// defer cancel()
 
 	// Structured logger — JSON in production, text in dev
 	log := logger.New(cfg.ENV)
@@ -62,21 +64,21 @@ func main() {
 	//Initializing the dbQueries
 	dbQueries := store.New(db)
 
-	 // Initialize Redis
-    redisStore, err := redis.NewRedisStore(
-        context.Background(),
-        cfg.RedisAddr,
-        cfg.RedisPassword,
-        cfg.RedisDB,
-        cfg.RedisPoolSize,
-    )
+	// Initialize Redis
+	redisStore, err := redis.NewRedisStore(
+		context.Background(),
+		cfg.RedisAddr,
+		cfg.RedisPassword,
+		cfg.RedisDB,
+		cfg.RedisPoolSize,
+	)
 
 	log.Info("Redis connected")
 
-    if err != nil {
-        log.Error("Failed to connect to Redis: %w", slog.String("err", err.Error()))
-    }
-    defer redisStore.Close()
+	if err != nil {
+		log.Error("Failed to connect to Redis: %w", slog.String("err", err.Error()))
+	}
+	defer redisStore.Close()
 
 	//Initializing Directory for Ashrix
 	home, err := os.UserHomeDir()
@@ -86,10 +88,9 @@ func main() {
 	BaseDir := filepath.Join(home, ".ashrix")
 	log.Info("Ashrix base directory Initialized")
 	if err := os.MkdirAll(BaseDir, 0700); err != nil {
-		log.Error("Creating JWT directory: %w", slog.String("err",err.Error()))
+		log.Error("Creating JWT directory: %w", slog.String("err", err.Error()))
 		os.Exit(1) // Fail hard if Dir initialization fails
 	}
-	
 
 	// Initializing PKI Root CA and Intermediate CA
 	// Pass db.Queries to the PKI signer for database-backed CA certificate management
@@ -110,14 +111,31 @@ func main() {
 		log.Error("Failed to inintialize CP PKI")
 	}
 
+	//Initializing Gateway GRPC Connection Registry
+	gatewayRegistry := registry.NewGatewayRegistry()
+	log.Info("Gateway Registry Initialized")
+
+
+	//Initializing PolicyStoreRepo
+	policyStore := policy.NewRepository(db, dbQueries)
+	log.Info("Policy Store Initialized")
+
+
+	//Initialising Policy Distributor
+	_ = policy.NewPolicyDistributor(gatewayRegistry, policyStore, signer, log)
+	log.Info("Policy Distributor Initialized")
+
+
 	//Runing gRPC and Http concurrently
 	quit := make(chan os.Signal, 2)
 
 	// Build and start HTTP server
-	httpServer := cp_http.InitializeHttpServer(BaseDir, cfg, dbQueries,redisStore, log, signer)
+	httpServer := cp_http.InitializeHttpServer(BaseDir, cfg, dbQueries, redisStore, log, signer)
 
 	// Build and start gRPC server
-	grpcServer := cp_grpc.InitializeGRPCServer(cfg, cppki, log, redisStore.Client())
+	grpcServer := cp_grpc.InitializeGRPCServer(
+		cfg, cppki, log, redisStore.Client(), gatewayRegistry, signer, policyStore,
+	)
 
 	// Graceful shutdown on SIGINT / SIGTERM
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

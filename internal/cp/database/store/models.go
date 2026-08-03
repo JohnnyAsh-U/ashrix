@@ -6,6 +6,7 @@ package store
 
 import (
 	"encoding/json"
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -177,6 +178,13 @@ type Gateway struct {
 	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
 }
 
+type GatewayPolicyAck struct {
+	GatewayID uuid.UUID `json:"gateway_id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	Version   int64     `json:"version"`
+	AckedAt   time.Time `json:"acked_at"`
+}
+
 type IdpConfig struct {
 	ID           uuid.UUID          `json:"id"`
 	OrgID        uuid.UUID          `json:"org_id"`
@@ -216,24 +224,67 @@ type PasswordResetToken struct {
 }
 
 type Policy struct {
-	ID        uuid.UUID          `json:"id"`
-	AppID     uuid.UUID          `json:"app_id"`
-	OrgID     uuid.UUID          `json:"org_id"`
-	Name      string             `json:"name"`
-	Priority  int32              `json:"priority"`
-	IsActive  bool               `json:"is_active"`
-	CreatedAt time.Time          `json:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at"`
-	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+	ID          uuid.UUID   `json:"id"`
+	OrgID       uuid.UUID   `json:"org_id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Effect      string      `json:"effect"`
+	Priority    pgtype.Int4 `json:"priority"`
+	Enabled     bool        `json:"enabled"`
+	Version     int64       `json:"version"`
+	CreatedBy   uuid.UUID   `json:"created_by"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
-type PolicyRule struct {
-	ID        uuid.UUID `json:"id"`
-	PolicyID  uuid.UUID `json:"policy_id"`
-	Effect    string    `json:"effect"`
-	RuleType  string    `json:"rule_type"`
-	Value     string    `json:"value"`
-	CreatedAt time.Time `json:"created_at"`
+type PolicyAuditLog struct {
+	ID          int64       `json:"id"`
+	OrgID       uuid.UUID   `json:"org_id"`
+	PolicyID    pgtype.Text `json:"policy_id"`
+	Action      string      `json:"action"`
+	ActorID     string      `json:"actor_id"`
+	ActorEmail  pgtype.Text `json:"actor_email"`
+	OldState    []byte      `json:"old_state"`
+	NewState    []byte      `json:"new_state"`
+	IpAddress   *netip.Addr `json:"ip_address"`
+	UserAgent   pgtype.Text `json:"user_agent"`
+	PerformedAt time.Time   `json:"performed_at"`
+}
+
+type PolicyCondition struct {
+	PolicyID      uuid.UUID       `json:"policy_id"`
+	ConditionTree json.RawMessage `json:"condition_tree"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+type PolicyMutation struct {
+	Version      int64           `json:"version"`
+	OrgID        uuid.UUID       `json:"org_id"`
+	PolicyID     uuid.UUID       `json:"policy_id"`
+	Op           string          `json:"op"`
+	RuleSnapshot json.RawMessage `json:"rule_snapshot"`
+	MutatedBy    pgtype.UUID     `json:"mutated_by"`
+	MutatedAt    time.Time       `json:"mutated_at"`
+}
+
+type PolicyResource struct {
+	PolicyID      uuid.UUID `json:"policy_id"`
+	ResourceType  string    `json:"resource_type"`
+	ResourceValue string    `json:"resource_value"`
+}
+
+type PolicySubject struct {
+	PolicyID     uuid.UUID `json:"policy_id"`
+	SubjectType  string    `json:"subject_type"`
+	SubjectValue string    `json:"subject_value"`
+}
+
+type PolicyVersion struct {
+	Version     int64     `json:"version"`
+	OrgID       uuid.UUID `json:"org_id"`
+	BundleHash  string    `json:"bundle_hash"`
+	PolicyCount int32     `json:"policy_count"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type Revocation struct {
@@ -244,4 +295,14 @@ type Revocation struct {
 	Reason    pgtype.Text `json:"reason"`
 	CreatedAt time.Time   `json:"created_at"`
 	ExpiresAt time.Time   `json:"expires_at"`
+}
+
+type Schedule struct {
+	ID        uuid.UUID       `json:"id"`
+	OrgID     uuid.UUID       `json:"org_id"`
+	Name      string          `json:"name"`
+	Timezone  string          `json:"timezone"`
+	Rules     json.RawMessage `json:"rules"`
+	CreatedBy uuid.UUID       `json:"created_by"`
+	CreatedAt time.Time       `json:"created_at"`
 }

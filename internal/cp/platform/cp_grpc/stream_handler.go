@@ -8,6 +8,9 @@ import (
 	"log"
 	"log/slog"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
@@ -17,16 +20,20 @@ import (
 
 type cpServer struct {
 	proto.UnimplementedControlPlaneServiceServer
+
+	registry    *registry.GatewayRegistry
 	redisClient *redis.Client
-	log *slog.Logger
+	signer      pki.CASigner
+	policyStore policy.Repository
+	log         *slog.Logger
 }
 
-//Connect handles the bidirectional stream from a gateway
+// Connect handles the bidirectional stream from a gateway
 func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error {
 	fmt.Println("Said Hello")
 	for {
 		msg, err := stream.Recv()
-		if err == io.EOF{
+		if err == io.EOF {
 			log.Fatal("Gateway Disconnected Cleanly")
 			return nil
 		}
@@ -35,7 +42,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 			return nil
 		}
 		fmt.Println(err)
-		switch p:= msg.Payload.(type) {
+		switch p := msg.Payload.(type) {
 		case *proto.GatewayEnvelope_Hello:
 			log.Println("Gateway Connected", p.Hello.GatewayId)
 
@@ -43,7 +50,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 				Payload: &proto.CPEnvelope_HelloAck{
 					HelloAck: &proto.HelloAck{
 						ServerVersion: "1.0.0",
-						ServerTime: timestamppb.Now(),
+						ServerTime:    timestamppb.Now(),
 					},
 				},
 			}
@@ -58,7 +65,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 				Payload: &proto.CPEnvelope_HelloAck{
 					HelloAck: &proto.HelloAck{
 						ServerVersion: "1.0.0",
-						ServerTime: timestamppb.Now(),
+						ServerTime:    timestamppb.Now(),
 					},
 				},
 			}

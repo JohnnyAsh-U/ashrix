@@ -7,132 +7,15 @@ package store
 
 import (
 	"context"
+	"encoding/json"
+	"net/netip"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const checkPriorityConflict = `-- name: CheckPriorityConflict :one
-SELECT EXISTS (
-    SELECT 1 FROM policies
-    WHERE app_id   = $1
-      AND priority = $2
-      AND id      != $3       -- exclude self on update (pass gen_random_uuid() for create)
-      AND deleted_at IS NULL
-) AS conflict
-`
-
-type CheckPriorityConflictParams struct {
-	AppID    uuid.UUID `json:"app_id"`
-	Priority int32     `json:"priority"`
-	ID       uuid.UUID `json:"id"`
-}
-
-// Call before CreatePolicy or UpdatePolicy to prevent duplicate priority.
-func (q *Queries) CheckPriorityConflict(ctx context.Context, arg CheckPriorityConflictParams) (bool, error) {
-	row := q.db.QueryRow(ctx, checkPriorityConflict, arg.AppID, arg.Priority, arg.ID)
-	var conflict bool
-	err := row.Scan(&conflict)
-	return conflict, err
-}
-
-const createPolicy = `-- name: CreatePolicy :one
-
-INSERT INTO policies (app_id, org_id, name, priority)
-VALUES ($1, $2, $3, $4)
-RETURNING id, app_id, org_id, name, priority, is_active, created_at, updated_at, deleted_at
-`
-
-type CreatePolicyParams struct {
-	AppID    uuid.UUID `json:"app_id"`
-	OrgID    uuid.UUID `json:"org_id"`
-	Name     string    `json:"name"`
-	Priority int32     `json:"priority"`
-}
-
-// =================================================================
-// POLICIES
-// Evaluated in priority order (lowest first).
-// First matching policy wins — OR logic between policies.
-// =================================================================
-func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error) {
-	row := q.db.QueryRow(ctx, createPolicy,
-		arg.AppID,
-		arg.OrgID,
-		arg.Name,
-		arg.Priority,
-	)
-	var i Policy
-	err := row.Scan(
-		&i.ID,
-		&i.AppID,
-		&i.OrgID,
-		&i.Name,
-		&i.Priority,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
-}
-
-const createPolicyRule = `-- name: CreatePolicyRule :one
-
-INSERT INTO policy_rules (policy_id, effect, rule_type, value)
-VALUES ($1, $2, $3, $4)
-RETURNING id, policy_id, effect, rule_type, value, created_at
-`
-
-type CreatePolicyRuleParams struct {
-	PolicyID uuid.UUID `json:"policy_id"`
-	Effect   string    `json:"effect"`
-	RuleType string    `json:"rule_type"`
-	Value    string    `json:"value"`
-}
-
-// =================================================================
-// POLICY RULES
-// Flat rules. AND logic implicit within a policy.
-// All rules in a policy must match for the policy to apply.
-// =================================================================
-func (q *Queries) CreatePolicyRule(ctx context.Context, arg CreatePolicyRuleParams) (PolicyRule, error) {
-	row := q.db.QueryRow(ctx, createPolicyRule,
-		arg.PolicyID,
-		arg.Effect,
-		arg.RuleType,
-		arg.Value,
-	)
-	var i PolicyRule
-	err := row.Scan(
-		&i.ID,
-		&i.PolicyID,
-		&i.Effect,
-		&i.RuleType,
-		&i.Value,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const deleteAllRulesForPolicy = `-- name: DeleteAllRulesForPolicy :exec
-DELETE FROM policy_rules
-WHERE policy_id = $1
-`
-
-// Called before rebuilding a policy's rules on full update.
-func (q *Queries) DeleteAllRulesForPolicy(ctx context.Context, policyID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteAllRulesForPolicy, policyID)
-	return err
-}
-
-const deletePolicy = `-- name: DeletePolicy :one
-UPDATE policies
-SET deleted_at = now(),
-    updated_at = now()
-WHERE id         = $1
-  AND org_id     = $2
-  AND deleted_at IS NULL
-RETURNING id, app_id, org_id, name, priority, is_active, created_at, updated_at, deleted_at
+const deletePolicy = `-- name: DeletePolicy :exec
+DELETE FROM policies WHERE id = $1 AND org_id = $2
 `
 
 type DeletePolicyParams struct {
@@ -140,131 +23,357 @@ type DeletePolicyParams struct {
 	OrgID uuid.UUID `json:"org_id"`
 }
 
-// Soft delete. Rules are cascade-orphaned but retained for audit.
-func (q *Queries) DeletePolicy(ctx context.Context, arg DeletePolicyParams) (Policy, error) {
-	row := q.db.QueryRow(ctx, deletePolicy, arg.ID, arg.OrgID)
-	var i Policy
-	err := row.Scan(
-		&i.ID,
-		&i.AppID,
-		&i.OrgID,
-		&i.Name,
-		&i.Priority,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
+func (q *Queries) DeletePolicy(ctx context.Context, arg DeletePolicyParams) error {
+	_, err := q.db.Exec(ctx, deletePolicy, arg.ID, arg.OrgID)
+	return err
 }
 
-const deletePolicyRule = `-- name: DeletePolicyRule :one
-DELETE FROM policy_rules
-WHERE id        = $1
-  AND policy_id = $2
-RETURNING id, policy_id, effect, rule_type, value, created_at
+const deletePolicyCondition = `-- name: DeletePolicyCondition :exec
+DELETE FROM policy_conditions WHERE policy_id = $1
 `
 
-type DeletePolicyRuleParams struct {
-	ID       uuid.UUID `json:"id"`
-	PolicyID uuid.UUID `json:"policy_id"`
+func (q *Queries) DeletePolicyCondition(ctx context.Context, policyID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePolicyCondition, policyID)
+	return err
 }
 
-func (q *Queries) DeletePolicyRule(ctx context.Context, arg DeletePolicyRuleParams) (PolicyRule, error) {
-	row := q.db.QueryRow(ctx, deletePolicyRule, arg.ID, arg.PolicyID)
-	var i PolicyRule
-	err := row.Scan(
-		&i.ID,
-		&i.PolicyID,
-		&i.Effect,
-		&i.RuleType,
-		&i.Value,
-		&i.CreatedAt,
-	)
-	return i, err
+const deletePolicyResources = `-- name: DeletePolicyResources :exec
+DELETE FROM policy_resources WHERE policy_id = $1
+`
+
+func (q *Queries) DeletePolicyResources(ctx context.Context, policyID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePolicyResources, policyID)
+	return err
+}
+
+const deletePolicySubjects = `-- name: DeletePolicySubjects :exec
+DELETE FROM policy_subjects WHERE policy_id = $1
+`
+
+func (q *Queries) DeletePolicySubjects(ctx context.Context, policyID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePolicySubjects, policyID)
+	return err
+}
+
+const getLatestPolicyVersion = `-- name: GetLatestPolicyVersion :one
+SELECT COALESCE(MAX(version), 0)::bigint AS version
+FROM policy_mutations
+WHERE org_id = $1
+`
+
+func (q *Queries) GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getLatestPolicyVersion, orgID)
+	var version int64
+	err := row.Scan(&version)
+	return version, err
+}
+
+const getMutationsSince = `-- name: GetMutationsSince :many
+SELECT version, org_id, policy_id, op, rule_snapshot, mutated_by, mutated_at
+FROM policy_mutations
+WHERE org_id = $1 AND version > $2
+ORDER BY version ASC
+`
+
+type GetMutationsSinceParams struct {
+	OrgID   uuid.UUID `json:"org_id"`
+	Version int64     `json:"version"`
+}
+
+func (q *Queries) GetMutationsSince(ctx context.Context, arg GetMutationsSinceParams) ([]PolicyMutation, error) {
+	rows, err := q.db.Query(ctx, getMutationsSince, arg.OrgID, arg.Version)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PolicyMutation{}
+	for rows.Next() {
+		var i PolicyMutation
+		if err := rows.Scan(
+			&i.Version,
+			&i.OrgID,
+			&i.PolicyID,
+			&i.Op,
+			&i.RuleSnapshot,
+			&i.MutatedBy,
+			&i.MutatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getPolicyByID = `-- name: GetPolicyByID :one
-SELECT id, app_id, org_id, name, priority, is_active, created_at, updated_at, deleted_at FROM policies
-WHERE id         = $1
-  AND deleted_at IS NULL
+SELECT 
+    p.id, p.org_id, p.name, p.description, p.effect, p.priority, 
+    p.enabled, p.version, p.created_by, p.created_at, p.updated_at
+FROM policies p
+WHERE p.id = $1 AND p.org_id = $2
 `
 
-func (q *Queries) GetPolicyByID(ctx context.Context, id uuid.UUID) (Policy, error) {
-	row := q.db.QueryRow(ctx, getPolicyByID, id)
-	var i Policy
-	err := row.Scan(
-		&i.ID,
-		&i.AppID,
-		&i.OrgID,
-		&i.Name,
-		&i.Priority,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
-}
-
-const getPolicyByIDAndOrg = `-- name: GetPolicyByIDAndOrg :one
-SELECT id, app_id, org_id, name, priority, is_active, created_at, updated_at, deleted_at FROM policies
-WHERE id         = $1
-  AND org_id     = $2
-  AND deleted_at IS NULL
-`
-
-type GetPolicyByIDAndOrgParams struct {
+type GetPolicyByIDParams struct {
 	ID    uuid.UUID `json:"id"`
 	OrgID uuid.UUID `json:"org_id"`
 }
 
-func (q *Queries) GetPolicyByIDAndOrg(ctx context.Context, arg GetPolicyByIDAndOrgParams) (Policy, error) {
-	row := q.db.QueryRow(ctx, getPolicyByIDAndOrg, arg.ID, arg.OrgID)
+func (q *Queries) GetPolicyByID(ctx context.Context, arg GetPolicyByIDParams) (Policy, error) {
+	row := q.db.QueryRow(ctx, getPolicyByID, arg.ID, arg.OrgID)
 	var i Policy
 	err := row.Scan(
 		&i.ID,
-		&i.AppID,
 		&i.OrgID,
 		&i.Name,
+		&i.Description,
+		&i.Effect,
 		&i.Priority,
-		&i.IsActive,
+		&i.Enabled,
+		&i.Version,
+		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const getPolicyRuleByID = `-- name: GetPolicyRuleByID :one
-SELECT id, policy_id, effect, rule_type, value, created_at FROM policy_rules
-WHERE id = $1
+const getPolicyCondition = `-- name: GetPolicyCondition :one
+SELECT policy_id, condition_tree, updated_at
+FROM policy_conditions
+WHERE policy_id = $1
 `
 
-func (q *Queries) GetPolicyRuleByID(ctx context.Context, id uuid.UUID) (PolicyRule, error) {
-	row := q.db.QueryRow(ctx, getPolicyRuleByID, id)
-	var i PolicyRule
+func (q *Queries) GetPolicyCondition(ctx context.Context, policyID uuid.UUID) (PolicyCondition, error) {
+	row := q.db.QueryRow(ctx, getPolicyCondition, policyID)
+	var i PolicyCondition
+	err := row.Scan(&i.PolicyID, &i.ConditionTree, &i.UpdatedAt)
+	return i, err
+}
+
+const getPolicyResources = `-- name: GetPolicyResources :many
+SELECT policy_id, resource_type, resource_value
+FROM policy_resources
+WHERE policy_id = $1
+`
+
+func (q *Queries) GetPolicyResources(ctx context.Context, policyID uuid.UUID) ([]PolicyResource, error) {
+	rows, err := q.db.Query(ctx, getPolicyResources, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PolicyResource{}
+	for rows.Next() {
+		var i PolicyResource
+		if err := rows.Scan(&i.PolicyID, &i.ResourceType, &i.ResourceValue); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPolicySubjects = `-- name: GetPolicySubjects :many
+SELECT policy_id, subject_type, subject_value
+FROM policy_subjects
+WHERE policy_id = $1
+`
+
+func (q *Queries) GetPolicySubjects(ctx context.Context, policyID uuid.UUID) ([]PolicySubject, error) {
+	rows, err := q.db.Query(ctx, getPolicySubjects, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PolicySubject{}
+	for rows.Next() {
+		var i PolicySubject
+		if err := rows.Scan(&i.PolicyID, &i.SubjectType, &i.SubjectValue); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertPolicy = `-- name: InsertPolicy :one
+INSERT INTO policies (
+    id, org_id, name, description, effect, priority, enabled, version, created_by
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, org_id, name, description, effect, priority, enabled, version, created_by, created_at, updated_at
+`
+
+type InsertPolicyParams struct {
+	ID          uuid.UUID   `json:"id"`
+	OrgID       uuid.UUID   `json:"org_id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Effect      string      `json:"effect"`
+	Priority    pgtype.Int4 `json:"priority"`
+	Enabled     bool        `json:"enabled"`
+	Version     int64       `json:"version"`
+	CreatedBy   uuid.UUID   `json:"created_by"`
+}
+
+func (q *Queries) InsertPolicy(ctx context.Context, arg InsertPolicyParams) (Policy, error) {
+	row := q.db.QueryRow(ctx, insertPolicy,
+		arg.ID,
+		arg.OrgID,
+		arg.Name,
+		arg.Description,
+		arg.Effect,
+		arg.Priority,
+		arg.Enabled,
+		arg.Version,
+		arg.CreatedBy,
+	)
+	var i Policy
 	err := row.Scan(
 		&i.ID,
-		&i.PolicyID,
+		&i.OrgID,
+		&i.Name,
+		&i.Description,
 		&i.Effect,
-		&i.RuleType,
-		&i.Value,
+		&i.Priority,
+		&i.Enabled,
+		&i.Version,
+		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const listAllPoliciesByOrg = `-- name: ListAllPoliciesByOrg :many
-SELECT id, app_id, org_id, name, priority, is_active, created_at, updated_at, deleted_at FROM policies
-WHERE org_id     = $1
-  AND deleted_at IS NULL
-ORDER BY app_id, priority ASC
+const insertPolicyAuditLog = `-- name: InsertPolicyAuditLog :exec
+INSERT INTO policy_audit_log (
+    org_id, policy_id, action, actor_id, actor_email, old_state, new_state, ip_address, user_agent
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
 
-// Used by dashboard to display all policies across all apps.
-func (q *Queries) ListAllPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error) {
-	rows, err := q.db.Query(ctx, listAllPoliciesByOrg, orgID)
+type InsertPolicyAuditLogParams struct {
+	OrgID      uuid.UUID   `json:"org_id"`
+	PolicyID   pgtype.Text `json:"policy_id"`
+	Action     string      `json:"action"`
+	ActorID    string      `json:"actor_id"`
+	ActorEmail pgtype.Text `json:"actor_email"`
+	OldState   []byte      `json:"old_state"`
+	NewState   []byte      `json:"new_state"`
+	IpAddress  *netip.Addr `json:"ip_address"`
+	UserAgent  pgtype.Text `json:"user_agent"`
+}
+
+func (q *Queries) InsertPolicyAuditLog(ctx context.Context, arg InsertPolicyAuditLogParams) error {
+	_, err := q.db.Exec(ctx, insertPolicyAuditLog,
+		arg.OrgID,
+		arg.PolicyID,
+		arg.Action,
+		arg.ActorID,
+		arg.ActorEmail,
+		arg.OldState,
+		arg.NewState,
+		arg.IpAddress,
+		arg.UserAgent,
+	)
+	return err
+}
+
+const insertPolicyCondition = `-- name: InsertPolicyCondition :exec
+INSERT INTO policy_conditions (policy_id, condition_tree)
+VALUES ($1, $2)
+ON CONFLICT (policy_id) DO UPDATE SET condition_tree = EXCLUDED.condition_tree, updated_at = NOW()
+`
+
+type InsertPolicyConditionParams struct {
+	PolicyID      uuid.UUID       `json:"policy_id"`
+	ConditionTree json.RawMessage `json:"condition_tree"`
+}
+
+func (q *Queries) InsertPolicyCondition(ctx context.Context, arg InsertPolicyConditionParams) error {
+	_, err := q.db.Exec(ctx, insertPolicyCondition, arg.PolicyID, arg.ConditionTree)
+	return err
+}
+
+const insertPolicyMutation = `-- name: InsertPolicyMutation :one
+INSERT INTO policy_mutations (org_id, policy_id, op, rule_snapshot, mutated_by)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING version
+`
+
+type InsertPolicyMutationParams struct {
+	OrgID        uuid.UUID       `json:"org_id"`
+	PolicyID     uuid.UUID       `json:"policy_id"`
+	Op           string          `json:"op"`
+	RuleSnapshot json.RawMessage `json:"rule_snapshot"`
+	MutatedBy    pgtype.UUID     `json:"mutated_by"`
+}
+
+func (q *Queries) InsertPolicyMutation(ctx context.Context, arg InsertPolicyMutationParams) (int64, error) {
+	row := q.db.QueryRow(ctx, insertPolicyMutation,
+		arg.OrgID,
+		arg.PolicyID,
+		arg.Op,
+		arg.RuleSnapshot,
+		arg.MutatedBy,
+	)
+	var version int64
+	err := row.Scan(&version)
+	return version, err
+}
+
+const insertPolicyResource = `-- name: InsertPolicyResource :exec
+INSERT INTO policy_resources (policy_id, resource_type, resource_value)
+VALUES ($1, $2, $3)
+ON CONFLICT (policy_id, resource_type, resource_value) DO NOTHING
+`
+
+type InsertPolicyResourceParams struct {
+	PolicyID      uuid.UUID `json:"policy_id"`
+	ResourceType  string    `json:"resource_type"`
+	ResourceValue string    `json:"resource_value"`
+}
+
+func (q *Queries) InsertPolicyResource(ctx context.Context, arg InsertPolicyResourceParams) error {
+	_, err := q.db.Exec(ctx, insertPolicyResource, arg.PolicyID, arg.ResourceType, arg.ResourceValue)
+	return err
+}
+
+const insertPolicySubject = `-- name: InsertPolicySubject :exec
+INSERT INTO policy_subjects (policy_id, subject_type, subject_value)
+VALUES ($1, $2, $3)
+ON CONFLICT (policy_id, subject_type, subject_value) DO NOTHING
+`
+
+type InsertPolicySubjectParams struct {
+	PolicyID     uuid.UUID `json:"policy_id"`
+	SubjectType  string    `json:"subject_type"`
+	SubjectValue string    `json:"subject_value"`
+}
+
+func (q *Queries) InsertPolicySubject(ctx context.Context, arg InsertPolicySubjectParams) error {
+	_, err := q.db.Exec(ctx, insertPolicySubject, arg.PolicyID, arg.SubjectType, arg.SubjectValue)
+	return err
+}
+
+const listPoliciesByOrg = `-- name: ListPoliciesByOrg :many
+SELECT 
+    p.id, p.org_id, p.name, p.description, p.effect, p.priority, 
+    p.enabled, p.version, p.created_by, p.created_at, p.updated_at
+FROM policies p
+WHERE p.org_id = $1
+ORDER BY p.effect DESC, p.priority DESC, p.id
+`
+
+func (q *Queries) ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error) {
+	rows, err := q.db.Query(ctx, listPoliciesByOrg, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -274,123 +383,16 @@ func (q *Queries) ListAllPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]
 		var i Policy
 		if err := rows.Scan(
 			&i.ID,
-			&i.AppID,
 			&i.OrgID,
 			&i.Name,
+			&i.Description,
+			&i.Effect,
 			&i.Priority,
-			&i.IsActive,
+			&i.Enabled,
+			&i.Version,
+			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.DeletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPoliciesByApp = `-- name: ListPoliciesByApp :many
-SELECT id, app_id, org_id, name, priority, is_active, created_at, updated_at, deleted_at FROM policies
-WHERE app_id     = $1
-  AND is_active  = true
-  AND deleted_at IS NULL
-ORDER BY priority ASC
-`
-
-// Returns active policies in priority order.
-// Used by Gateway policy sync to build local eval bundle.
-func (q *Queries) ListPoliciesByApp(ctx context.Context, appID uuid.UUID) ([]Policy, error) {
-	rows, err := q.db.Query(ctx, listPoliciesByApp, appID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Policy{}
-	for rows.Next() {
-		var i Policy
-		if err := rows.Scan(
-			&i.ID,
-			&i.AppID,
-			&i.OrgID,
-			&i.Name,
-			&i.Priority,
-			&i.IsActive,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listRulesByPolicies = `-- name: ListRulesByPolicies :many
-SELECT id, policy_id, effect, rule_type, value, created_at FROM policy_rules
-WHERE policy_id = ANY($1::uuid[])
-ORDER BY policy_id, created_at ASC
-`
-
-// Batch fetch for policy sync — all rules for multiple policies at once.
-// Avoids N+1 when syncing a full app policy bundle.
-func (q *Queries) ListRulesByPolicies(ctx context.Context, dollar_1 []uuid.UUID) ([]PolicyRule, error) {
-	rows, err := q.db.Query(ctx, listRulesByPolicies, dollar_1)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []PolicyRule{}
-	for rows.Next() {
-		var i PolicyRule
-		if err := rows.Scan(
-			&i.ID,
-			&i.PolicyID,
-			&i.Effect,
-			&i.RuleType,
-			&i.Value,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listRulesByPolicy = `-- name: ListRulesByPolicy :many
-SELECT id, policy_id, effect, rule_type, value, created_at FROM policy_rules
-WHERE policy_id = $1
-ORDER BY created_at ASC
-`
-
-// Core of the policy sync bundle. Called per policy.
-func (q *Queries) ListRulesByPolicy(ctx context.Context, policyID uuid.UUID) ([]PolicyRule, error) {
-	rows, err := q.db.Query(ctx, listRulesByPolicy, policyID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []PolicyRule{}
-	for rows.Next() {
-		var i PolicyRule
-		if err := rows.Scan(
-			&i.ID,
-			&i.PolicyID,
-			&i.Effect,
-			&i.RuleType,
-			&i.Value,
-			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -403,44 +405,53 @@ func (q *Queries) ListRulesByPolicy(ctx context.Context, policyID uuid.UUID) ([]
 }
 
 const updatePolicy = `-- name: UpdatePolicy :one
-UPDATE policies
-SET name       = $3,
-    priority   = $4,
-    is_active  = $5,
-    updated_at = now()
-WHERE id         = $1
-  AND org_id     = $2
-  AND deleted_at IS NULL
-RETURNING id, app_id, org_id, name, priority, is_active, created_at, updated_at, deleted_at
+UPDATE policies SET
+    name = COALESCE($3, name),
+    description = COALESCE($4, description),
+    effect = COALESCE($5, effect),
+    priority = COALESCE($6, priority),
+    enabled = COALESCE($7, enabled),
+    version = $2,
+    updated_at = NOW()
+WHERE id = $1 AND org_id = $8
+RETURNING id, org_id, name, description, effect, priority, enabled, version, created_by, created_at, updated_at
 `
 
 type UpdatePolicyParams struct {
-	ID       uuid.UUID `json:"id"`
-	OrgID    uuid.UUID `json:"org_id"`
-	Name     string    `json:"name"`
-	Priority int32     `json:"priority"`
-	IsActive bool      `json:"is_active"`
+	ID          uuid.UUID   `json:"id"`
+	Version     int64       `json:"version"`
+	Name        pgtype.Text `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Effect      pgtype.Text `json:"effect"`
+	Priority    pgtype.Int4 `json:"priority"`
+	Enabled     pgtype.Bool `json:"enabled"`
+	OrgID       pgtype.UUID `json:"org_id"`
 }
 
 func (q *Queries) UpdatePolicy(ctx context.Context, arg UpdatePolicyParams) (Policy, error) {
 	row := q.db.QueryRow(ctx, updatePolicy,
 		arg.ID,
-		arg.OrgID,
+		arg.Version,
 		arg.Name,
+		arg.Description,
+		arg.Effect,
 		arg.Priority,
-		arg.IsActive,
+		arg.Enabled,
+		arg.OrgID,
 	)
 	var i Policy
 	err := row.Scan(
 		&i.ID,
-		&i.AppID,
 		&i.OrgID,
 		&i.Name,
+		&i.Description,
+		&i.Effect,
 		&i.Priority,
-		&i.IsActive,
+		&i.Enabled,
+		&i.Version,
+		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.DeletedAt,
 	)
 	return i, err
 }

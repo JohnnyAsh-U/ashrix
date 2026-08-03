@@ -42,7 +42,7 @@ CREATE TABLE idp_configs (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id          UUID        NOT NULL REFERENCES orgs(id),
     name            TEXT        NOT NULL,        -- human label: "Google Workspace"
-    provider_type   TEXT        NOT NULL CHECK (provider_type IN ('google', 'okta', 'entra', 'oidc','keycloak', 'generic' 'saml')),
+    provider_type   TEXT        NOT NULL CHECK (provider_type IN ('google', 'okta', 'entra', 'oidc','keycloak', 'generic', 'saml')),
     client_id       TEXT        NOT NULL,
     client_secret   TEXT        NOT NULL,        -- AES-256-GCM encrypted, never plaintext
     issuer_url      TEXT        NOT NULL,        -- OIDC discovery base URL
@@ -143,8 +143,7 @@ CREATE TABLE gateways (
     status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'healthy', 'degraded', 'offline')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     enrolled_at TIMESTAMPTZ,
-    revoked_at      TIMESTAMPTZ,
-    
+    revoked_at      TIMESTAMPTZ,    
     UNIQUE (org_id, name)
 );
 
@@ -208,43 +207,226 @@ CREATE TABLE app_idp_mappings (
     UNIQUE(app_id, idp_id)
 );
 
--- -----------------------------------------------------------------
+-- ============================================================
 -- POLICIES
--- Many per app. Evaluated in priority order (lowest number first).
--- First matching policy wins — OR logic between policies.
--- Within a policy, all rules must match — AND logic between rules.
--- -----------------------------------------------------------------
-CREATE TABLE policies (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    app_id        UUID        NOT NULL REFERENCES apps(id),
-    org_id        UUID        NOT NULL REFERENCES orgs(id),
-    name          TEXT        NOT NULL,
-    priority      INTEGER     NOT NULL DEFAULT 10,
-    is_active     BOOLEAN     NOT NULL DEFAULT true,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at    TIMESTAMPTZ,
+-- DESIGN PRINCIPLE:
+--   - Normalize subjects and resources (queryable, enforceable FKs)
+--   - Keep conditions as JSONB (evaluated as a unit, deeply nested)
+--   - Keep mutation log as denormalized snapshots (distribution)
 
-    UNIQUE (app_id, priority)                    -- no two policies share same priority on same app
+-- =================================================================
+
+-- -----------------------------------------------------------
+-- POLICY_MUTATIONS — Append-only changelog (unchanged)
+-- -----------------------------------------------------------
+-- The snapshot here is DENORMALIZED — it captures the full
+-- policy state (subjects, resources, conditions) as one JSONB
+-- document. This is the distribution format, not the query format.
+-- -----------------------------------------------------------
+
+CREATE TABLE policy_mutations (
+    version         BIGSERIAL PRIMARY KEY,
+    org_id       UUID NOT NULL REFERENCES orgs(id),
+    policy_id       UUID NOT NULL,
+    op              VARCHAR(10) NOT NULL CHECK (op IN ('UPSERT', 'DELETE')),
+
+    -- DENORMALIZED snapshot: full policy state at this version.
+    -- Built by joining policies + policy_subjects + policy_resources
+    -- + policy_conditions at write time. Used for delta computation
+    -- and as a historical record.
+    rule_snapshot   JSONB NOT NULL,
+
+    mutated_by      UUID NULL REFERENCES admins(id),
+    mutated_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
+CREATE INDEX idx_mutations_tenant_version
+    ON policy_mutations(org_id, version);
 
--- -----------------------------------------------------------------
--- POLICY RULES
--- Flat rules. AND logic implicit within a policy.
--- effect: allow | deny
--- rule_type + value pairs:
---   group  + "engineering"
---   email  + "james@company.com"
---   ip     + "196.10.0.0/16"
--- -----------------------------------------------------------------
-CREATE TABLE policy_rules (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    policy_id     UUID        NOT NULL REFERENCES policies(id),
-    effect        TEXT        NOT NULL CHECK (effect IN ('allow', 'deny')),
-    rule_type     TEXT        NOT NULL CHECK (rule_type IN ('group', 'email', 'ip')),
-    value         TEXT        NOT NULL,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE INDEX idx_mutations_policy
+    ON policy_mutations(policy_id, version);
+
+-- =================================================================
+-- Policy Precedence in strict effect order: 
+--   - (1) all explicit DENY policies, 
+--   - (2) all explicit ALLOW policies, 
+--   - (3) default DENY. 
+-- Within each effect class, evaluation order is deterministic but not user-configurable in MVP. 
+-- A matched DENY cannot be overridden by an ALLOW.
+-- ============================================================
+
+
+CREATE TABLE policies (
+    id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id       UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    effect          VARCHAR(10) NOT NULL CHECK (effect IN ('ALLOW', 'DENY')),
+    priority        INT DEFAULT 0 CHECK (priority >= 0 AND priority <= 100),
+    enabled         BOOLEAN DEFAULT TRUE NOT NULL,
+
+    -- Links to the mutation that created this version
+    version         BIGINT NOT NULL REFERENCES policy_mutations(version),
+
+    created_by      UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+
+    created_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX idx_policies_orgs
+    ON policies(org_id);
+
+CREATE INDEX idx_policies_org_enabled
+    ON policies(org_id, enabled);
+
+CREATE INDEX idx_policies_compile_order
+    ON policies(org_id, effect DESC, priority DESC, id);
+
+-- -----------------------------------------------------------
+-- POLICY_SUBJECTS — Normalized subject references
+-- -----------------------------------------------------------
+-- Why normalized? So you can query:
+--   "Which policies reference group 'engineering'?"
+--   "Delete group X and remove all references."
+--   "Rename group X to Y across all policies."
+-- -----------------------------------------------------------
+CREATE TABLE policy_subjects (
+    policy_id       UUID NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
+    subject_type    VARCHAR(20) NOT NULL CHECK (subject_type IN ('group', 'user')),
+    subject_value   VARCHAR(255) NOT NULL,
+
+    PRIMARY KEY (policy_id, subject_type, subject_value)
+);
+
+-- Fast lookup: "which policies use group 'engineering'?"
+CREATE INDEX idx_subjects_lookup
+    ON policy_subjects(subject_type, subject_value, policy_id);
+
+-- Fast lookup: "all subjects for policy X"
+CREATE INDEX idx_subjects_policy
+    ON policy_subjects(policy_id);
+
+
+-- -----------------------------------------------------------
+-- POLICY_RESOURCES — Normalized resource references
+-- -----------------------------------------------------------
+-- Same rationale as subjects. Resources are queried independently.
+-- -----------------------------------------------------------
+
+CREATE TABLE policy_resources (
+    policy_id       UUID NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
+    resource_type   VARCHAR(20) NOT NULL CHECK (resource_type IN ('app', 'path', 'method')),
+    resource_value  VARCHAR(255) NOT NULL,
+
+    PRIMARY KEY (policy_id, resource_type, resource_value)
+);
+
+CREATE INDEX idx_resources_lookup
+    ON policy_resources(resource_type, resource_value, policy_id);
+
+CREATE INDEX idx_resources_policy
+    ON policy_resources(policy_id);
+
+-- -----------------------------------------------------------
+-- SCHEDULES — Reusable time windows
+-- -----------------------------------------------------------
+-- Policies reference schedules by name instead of embedding
+-- time rules. This lets an admin change "business hours" in
+-- one place and have 20 policies update automatically.
+-- -----------------------------------------------------------
+
+CREATE TABLE schedules (
+    id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id       UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    name            VARCHAR(255) NOT NULL,
+    timezone        VARCHAR(64) DEFAULT 'UTC' NOT NULL,
+
+    -- Array of daily rules:
+    -- [
+    --   {"day": "monday", "start": "09:00", "end": "18:00"},
+    --   {"day": "tuesday", "start": "09:00", "end": "18:00"}
+    -- ]
+    rules           JSONB NOT NULL DEFAULT '[]',
+
+    created_by      UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+    created_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX idx_schedules_tenant
+    ON schedules(org_id);
+
+
+-- -----------------------------------------------------------
+-- POLICY_CONDITIONS — JSONB condition tree
+-- -----------------------------------------------------------
+-- Conditions are NOT normalized because:
+--   1. They are evaluated as a single unit (all must match)
+--   2. They are deeply nested and evolve (new condition types)
+--   3. You never query "which policies have block_tor=true?" independently
+--   4. The condition tree is a document, not a relation
+-- -----------------------------------------------------------
+
+CREATE TABLE policy_conditions (
+    policy_id       UUID PRIMARY KEY REFERENCES policies(id) ON DELETE CASCADE,
+    condition_tree  JSONB NOT NULL DEFAULT '{}',
+    -- Example:
+    -- {
+    --   "mfa": { "required": true, "min_level": "totp" },
+    --   "device": { "postures": ["compliant"] },
+    --   "network": {
+    --     "allowed_countries": ["CI", "GH"],
+    --     "blocked_countries": [],
+    --     "allowed_cidrs": ["102.68.0.0/16"],
+    --     "block_tor": true
+    --   },
+    --   "time": { "schedule_name": "business-hours" }
+    -- }
+
+    updated_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- GIN index for partial condition queries (if needed later)
+CREATE INDEX idx_conditions_gin
+    ON policy_conditions USING GIN(condition_tree);
+
+-- -----------------------------------------------------------
+-- AUDIT, VERSIONS, ACKS 
+-- -----------------------------------------------------------
+
+CREATE TABLE policy_audit_log (
+    id        BIGSERIAL PRIMARY KEY,
+    org_id       UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    policy_id       VARCHAR(255),
+    action          VARCHAR(50) NOT NULL,
+    actor_id        VARCHAR(255) NOT NULL,
+    actor_email     VARCHAR(255),
+    old_state       JSONB,
+    new_state       JSONB,
+    ip_address      INET,
+    user_agent      TEXT,
+    performed_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX idx_audit_tenant_time
+    ON policy_audit_log(org_id, performed_at DESC);
+
+
+
+CREATE TABLE policy_versions (
+    version         BIGSERIAL PRIMARY KEY,
+    org_id       UUID NOT NULL REFERENCES orgs(id),
+    bundle_hash     VARCHAR(64) NOT NULL,
+    policy_count    INT NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE gateway_policy_acks (
+    gateway_id      UUID NOT NULL REFERENCES gateways(id),
+    org_id       UUID NOT NULL REFERENCES orgs(id),
+    version         BIGINT NOT NULL REFERENCES policy_versions(version),
+    acked_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (gateway_id, org_id, version)
 );
 
 
@@ -423,13 +605,6 @@ CREATE INDEX idx_apps_org_subdomain
     ON apps (org_id, subdomain)
     WHERE deleted_at IS NULL;
 
--- Policy sync: Gateway pulls policies for its org
-CREATE INDEX idx_policies_app
-    ON policies (app_id)
-    WHERE deleted_at IS NULL AND is_active = true;
-
-CREATE INDEX idx_policy_rules_policy
-    ON policy_rules (policy_id);
 
 -- -- Revocation polling by Gateway
 -- CREATE INDEX idx_revocations_org_time
@@ -499,15 +674,29 @@ DROP INDEX IF EXISTS idx_csr_pending;
 DROP INDEX IF EXISTS idx_component_certs_component;
 DROP INDEX IF EXISTS idx_component_certs_expiry;
 DROP INDEX IF EXISTS idx_revocations_org_time;
-DROP INDEX IF EXISTS idx_policy_rules_policy;
-DROP INDEX IF EXISTS idx_policies_app;
+
+DROP INDEX IF EXISTS idx_mutations_tenant_version;
+DROP INDEX IF EXISTS idx_mutations_policy;
+DROP INDEX IF EXISTS idx_policies_orgs;
+DROP INDEX IF EXISTS idx_policies_org_enabled;
+DROP INDEX IF EXISTS idx_policies_compile_order;
+DROP INDEX IF EXISTS idx_subjects_lookup;
+DROP INDEX IF EXISTS idx_subjects_policy;
+
+DROP INDEX IF EXISTS idx_schedules_tenant;
+
+
 DROP INDEX IF EXISTS idx_apps_org_subdomain;
 DROP INDEX IF EXISTS idx_connectors_gateway;
 DROP INDEX IF EXISTS idx_connectors_token;
 DROP INDEX IF EXISTS idx_gateways_org;
 DROP INDEX IF EXISTS idx_gateways_token;
 DROP INDEX IF EXISTS idx_admin_sessions_admin;
+DROP INDEX IF EXISTS idx_resources_lookup;
+DROP INDEX IF EXISTS idx_resources_policy;
 DROP INDEX IF EXISTS idx_admin_sessions_token;
+DROP INDEX IF EXISTS idx_conditions_gin;
+DROP INDEX IF EXISTS idx_audit_tenant_time;
 
 
 DROP TABLE IF EXISTS access_logs;
@@ -517,14 +706,171 @@ DROP TABLE IF EXISTS csr_requests;
 DROP TABLE IF EXISTS component_certificates;
 DROP TABLE IF EXISTS ca_certificates;
 DROP TABLE IF EXISTS revocations;
-DROP TABLE IF EXISTS policy_rules;
+
+
+
+DROP TABLE IF EXISTS gateway_policy_acks;
+DROP TABLE IF EXISTS policy_versions;
+DROP TABLE IF EXISTS policy_audit_log;
+DROP TABLE IF EXISTS policy_subjects;
+DROP TABLE IF EXISTS policy_resources;
+DROP TABLE IF EXISTS policy_conditions;
 DROP TABLE IF EXISTS policies;
+DROP TABLE IF EXISTS policy_mutations;
+DROP TABLE IF EXISTS schedules;
+
+
+
+
+DROP TABLE IF EXISTS app_idp_mappings;
 DROP TABLE IF EXISTS apps;
 DROP TABLE IF EXISTS connectors;
 DROP TABLE IF EXISTS gateways;
 
 
 DROP TABLE IF EXISTS admin_sessions;
+DROP TABLE IF EXISTS admin_setup_tokens;
+DROP TABLE IF EXISTS password_reset_tokens;
 DROP TABLE IF EXISTS admins;
 DROP TABLE IF EXISTS idp_configs;
 DROP TABLE IF EXISTS orgs;
+
+
+
+
+
+-- -----------------------------------------------------------
+-- 7. ATOMIC CREATION TRANSACTION (revised)
+-- -----------------------------------------------------------
+-- Now inserts into 5 tables atomically:
+--   1. policy_mutations (gets version)
+--   2. policies (core metadata)
+--   3. policy_subjects (normalized subjects)
+--   4. policy_resources (normalized resources)
+--   5. policy_conditions (JSONB tree)
+--   6. policy_audit_log
+-- -----------------------------------------------------------
+
+/*
+BEGIN;
+
+-- 1. Mutation log (denormalized snapshot)
+INSERT INTO policy_mutations (tenant_id, policy_id, op, rule_snapshot, mutated_by)
+VALUES ('acme', 'pol-001', 'UPSERT', '{
+  "policy_id": "pol-001",
+  "tenant_id": "acme",
+  "name": "Engineers to Jenkins",
+  "effect": "ALLOW",
+  "subjects": [
+    {"type": "group", "value": "engineering"},
+    {"type": "group", "value": "oncall"}
+  ],
+  "resources": [
+    {"type": "app", "value": "jenkins-prod"},
+    {"type": "path", "value": "/*"}
+  ],
+  "conditions": {
+    "mfa": {"required": true},
+    "network": {"allowed_countries": ["CI", "GH"]}
+  }
+}'::jsonb, 'admin-001')
+RETURNING version;  -- e.g., 1842
+
+-- 2. Policies table (normalized live view)
+INSERT INTO policies (policy_id, tenant_id, name, effect, priority, enabled, version, created_by)
+VALUES ('pol-001', 'acme', 'Engineers to Jenkins', 'ALLOW', 0, TRUE, 1842, 'admin-001');
+
+-- 3. Subjects (normalized, queryable)
+INSERT INTO policy_subjects (policy_id, subject_type, subject_value)
+VALUES
+  ('pol-001', 'group', 'engineering'),
+  ('pol-001', 'group', 'oncall');
+
+-- 4. Resources (normalized, queryable)
+INSERT INTO policy_resources (policy_id, resource_type, resource_value)
+VALUES
+  ('pol-001', 'app', 'jenkins-prod'),
+  ('pol-001', 'path', '/*');
+
+-- 5. Conditions (JSONB document)
+INSERT INTO policy_conditions (policy_id, condition_tree)
+VALUES ('pol-001', '{"mfa":{"required":true},"network":{"allowed_countries":["CI","GH"]}}'::jsonb);
+
+-- 6. Audit log
+INSERT INTO policy_audit_log (tenant_id, policy_id, action, actor_id, new_state)
+VALUES ('acme', 'pol-001', 'CREATE', 'admin-001', '{...snapshot...}'::jsonb);
+
+COMMIT;
+*/
+
+-- -----------------------------------------------------------
+-- 8. QUERY PATTERNS
+-- -----------------------------------------------------------
+
+-- Q1: List all policies for tenant (admin UI)
+-- Requires JOIN but PostgreSQL handles this well for <10K rows
+/*
+SELECT
+  p.policy_id, p.name, p.effect, p.priority, p.enabled,
+  COALESCE(jsonb_agg(DISTINCT jsonb_build_object('type', ps.subject_type, 'value', ps.subject_value)) FILTER (WHERE ps.policy_id IS NOT NULL), '[]') AS subjects,
+  COALESCE(jsonb_agg(DISTINCT jsonb_build_object('type', pr.resource_type, 'value', pr.resource_value)) FILTER (WHERE pr.policy_id IS NOT NULL), '[]') AS resources,
+  pc.condition_tree AS conditions
+FROM policies p
+LEFT JOIN policy_subjects ps ON ps.policy_id = p.policy_id
+LEFT JOIN policy_resources pr ON pr.policy_id = p.policy_id
+LEFT JOIN policy_conditions pc ON pc.policy_id = p.policy_id
+WHERE p.tenant_id = 'acme' AND p.enabled = TRUE
+GROUP BY p.policy_id, pc.condition_tree
+ORDER BY p.effect DESC, p.priority DESC, p.policy_id;
+*/
+
+-- Q2: "Which policies reference group 'engineering'?" (fast, indexed)
+/*
+SELECT DISTINCT p.policy_id, p.name, p.effect
+FROM policies p
+JOIN policy_subjects ps ON ps.policy_id = p.policy_id
+WHERE ps.subject_type = 'group' AND ps.subject_value = 'engineering';
+-- Uses idx_subjects_lookup: O(log n)
+*/
+
+-- Q3: "Delete group 'engineering' and clean up references"
+/*
+DELETE FROM policy_subjects
+WHERE subject_type = 'group' AND subject_value = 'engineering';
+-- CASCADE: if a policy has no subjects left, you may want to disable it
+*/
+
+-- Q4: "Rename group 'engineering' to 'platform-engineering'"
+/*
+UPDATE policy_subjects
+SET subject_value = 'platform-engineering'
+WHERE subject_type = 'group' AND subject_value = 'engineering';
+*/
+
+-- Q5: Compile bundle for distribution (same as before, just with JOINs)
+/*
+SELECT
+  p.policy_id, p.tenant_id, p.name, p.effect, p.priority, p.enabled, p.version,
+  COALESCE(jsonb_agg(DISTINCT ps.subject_value) FILTER (WHERE ps.subject_type = 'group'), '[]') AS subject_groups,
+  COALESCE(jsonb_agg(DISTINCT ps.subject_value) FILTER (WHERE ps.subject_type = 'user'), '[]') AS subject_users,
+  COALESCE(jsonb_agg(DISTINCT pr.resource_value) FILTER (WHERE pr.resource_type = 'app'), '[]') AS resource_apps,
+  COALESCE(jsonb_agg(DISTINCT pr.resource_value) FILTER (WHERE pr.resource_type = 'path'), '[]') AS resource_paths,
+  COALESCE(jsonb_agg(DISTINCT pr.resource_value) FILTER (WHERE pr.resource_type = 'method'), '[]') AS resource_methods,
+  pc.condition_tree AS conditions
+FROM policies p
+LEFT JOIN policy_subjects ps ON ps.policy_id = p.policy_id
+LEFT JOIN policy_resources pr ON pr.policy_id = p.policy_id
+LEFT JOIN policy_conditions pc ON pc.policy_id = p.policy_id
+WHERE p.tenant_id = 'acme' AND p.enabled = TRUE
+GROUP BY p.policy_id, pc.condition_tree
+ORDER BY p.effect DESC, p.priority DESC, p.policy_id;
+*/
+
+-- Q6: Delta computation (unchanged — reads mutation log only)
+/*
+SELECT version, policy_id, op, rule_snapshot
+FROM policy_mutations
+WHERE tenant_id = 'acme' AND version > 1839
+ORDER BY version ASC;
+*/
+

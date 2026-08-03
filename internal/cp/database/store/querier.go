@@ -21,8 +21,6 @@ type Querier interface {
 	// Uses pgx COPY protocol for high-throughput batch inserts.
 	// Gateway drains its local buffer to CP every 10s.
 	BulkCreateAccessLogs(ctx context.Context, arg []BulkCreateAccessLogsParams) (int64, error)
-	// Call before CreatePolicy or UpdatePolicy to prevent duplicate priority.
-	CheckPriorityConflict(ctx context.Context, arg CheckPriorityConflictParams) (bool, error)
 	// Dashboard summary counts.
 	CountAccessLogsByResult(ctx context.Context, arg CountAccessLogsByResultParams) (CountAccessLogsByResultRow, error)
 	// Used before revoking an owner — must always have at least one.
@@ -83,18 +81,6 @@ type Querier interface {
 	CreateOrg(ctx context.Context, arg CreateOrgParams) (Org, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	// =================================================================
-	// POLICIES
-	// Evaluated in priority order (lowest first).
-	// First matching policy wins — OR logic between policies.
-	// =================================================================
-	CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error)
-	// =================================================================
-	// POLICY RULES
-	// Flat rules. AND logic implicit within a policy.
-	// All rules in a policy must match for the policy to apply.
-	// =================================================================
-	CreatePolicyRule(ctx context.Context, arg CreatePolicyRuleParams) (PolicyRule, error)
-	// =================================================================
 	// REVOCATIONS
 	// CP writes. Gateway polls. CP never touches traffic path.
 	// =================================================================
@@ -102,8 +88,6 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AdminSession, error)
 	CreateSetupToken(ctx context.Context, arg CreateSetupTokenParams) (AdminSetupToken, error)
 	DeactivateCACert(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	// Called before rebuilding a policy's rules on full update.
-	DeleteAllRulesForPolicy(ctx context.Context, policyID uuid.UUID) error
 	// Soft delete. Policies referencing this app remain for audit history.
 	DeleteApp(ctx context.Context, arg DeleteAppParams) (App, error)
 	// Housekeeping. Run periodically via background job.
@@ -113,9 +97,10 @@ type Querier interface {
 	DeleteIDPConfig(ctx context.Context, arg DeleteIDPConfigParams) (IdpConfig, error)
 	// Soft delete only. Hard delete is a manual ops action.
 	DeleteOrg(ctx context.Context, id uuid.UUID) (Org, error)
-	// Soft delete. Rules are cascade-orphaned but retained for audit.
-	DeletePolicy(ctx context.Context, arg DeletePolicyParams) (Policy, error)
-	DeletePolicyRule(ctx context.Context, arg DeletePolicyRuleParams) (PolicyRule, error)
+	DeletePolicy(ctx context.Context, arg DeletePolicyParams) error
+	DeletePolicyCondition(ctx context.Context, policyID uuid.UUID) error
+	DeletePolicyResources(ctx context.Context, policyID uuid.UUID) error
+	DeletePolicySubjects(ctx context.Context, policyID uuid.UUID) error
 	EnrollConnector(ctx context.Context, tokenHash string) (Connector, error)
 	EnrollGateway(ctx context.Context, tokenHash string) (Gateway, error)
 	GetActiveCACert(ctx context.Context, arg GetActiveCACertParams) (GetActiveCACertRow, error)
@@ -155,23 +140,30 @@ type Querier interface {
 	GetIDPConfigByID(ctx context.Context, id uuid.UUID) (IdpConfig, error)
 	// Always scope to org — never allow cross-org access.
 	GetIDPConfigByIDAndOrg(ctx context.Context, arg GetIDPConfigByIDAndOrgParams) (IdpConfig, error)
+	GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error)
+	GetMutationsSince(ctx context.Context, arg GetMutationsSinceParams) ([]PolicyMutation, error)
 	// Used by Gateway to resolve incoming hostname to org (v2)
 	GetOrgByCustomDomain(ctx context.Context, customDomain pgtype.Text) (Org, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (Org, error)
 	GetOrgBySlug(ctx context.Context, slug string) (Org, error)
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
-	GetPolicyByID(ctx context.Context, id uuid.UUID) (Policy, error)
-	GetPolicyByIDAndOrg(ctx context.Context, arg GetPolicyByIDAndOrgParams) (Policy, error)
-	GetPolicyRuleByID(ctx context.Context, id uuid.UUID) (PolicyRule, error)
+	GetPolicyByID(ctx context.Context, arg GetPolicyByIDParams) (Policy, error)
+	GetPolicyCondition(ctx context.Context, policyID uuid.UUID) (PolicyCondition, error)
+	GetPolicyResources(ctx context.Context, policyID uuid.UUID) ([]PolicyResource, error)
+	GetPolicySubjects(ctx context.Context, policyID uuid.UUID) ([]PolicySubject, error)
 	GetSetupToken(ctx context.Context, tokenHash string) (AdminSetupToken, error)
 	GetValidCompCert(ctx context.Context, arg GetValidCompCertParams) (GetValidCompCertRow, error)
 	InsertCACert(ctx context.Context, arg InsertCACertParams) (uuid.UUID, error)
+	InsertPolicy(ctx context.Context, arg InsertPolicyParams) (Policy, error)
+	InsertPolicyAuditLog(ctx context.Context, arg InsertPolicyAuditLogParams) error
+	InsertPolicyCondition(ctx context.Context, arg InsertPolicyConditionParams) error
+	InsertPolicyMutation(ctx context.Context, arg InsertPolicyMutationParams) (int64, error)
+	InsertPolicyResource(ctx context.Context, arg InsertPolicyResourceParams) error
+	InsertPolicySubject(ctx context.Context, arg InsertPolicySubjectParams) error
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
 	ListActiveCACerts(ctx context.Context) ([]ListActiveCACertsRow, error)
 	ListAdminsByOrg(ctx context.Context, orgID pgtype.UUID) ([]Admin, error)
-	// Used by dashboard to display all policies across all apps.
-	ListAllPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)
 	ListAppIdPs(ctx context.Context, appID uuid.UUID) ([]IdpConfig, error)
 	ListAppsByConnector(ctx context.Context, connectorID pgtype.UUID) ([]App, error)
 	ListAppsByOrg(ctx context.Context, orgID uuid.UUID) ([]App, error)
@@ -191,18 +183,11 @@ type Querier interface {
 	ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
 	ListIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error)
 	ListPendingCSRs(ctx context.Context) ([]CsrRequest, error)
-	// Returns active policies in priority order.
-	// Used by Gateway policy sync to build local eval bundle.
-	ListPoliciesByApp(ctx context.Context, appID uuid.UUID) ([]Policy, error)
+	ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)
 	// Gateway polls this on every sync cycle.
 	// Returns only non-expired revocations created after last_seen_at.
 	// Gateway passes its last sync timestamp to get only new entries.
 	ListRevocationsSince(ctx context.Context, arg ListRevocationsSinceParams) ([]Revocation, error)
-	// Batch fetch for policy sync — all rules for multiple policies at once.
-	// Avoids N+1 when syncing a full app policy bundle.
-	ListRulesByPolicies(ctx context.Context, dollar_1 []uuid.UUID) ([]PolicyRule, error)
-	// Core of the policy sync bundle. Called per policy.
-	ListRulesByPolicy(ctx context.Context, policyID uuid.UUID) ([]PolicyRule, error)
 	MarkCSRRejected(ctx context.Context, id uuid.UUID) (CsrRequest, error)
 	MarkCSRSigned(ctx context.Context, arg MarkCSRSignedParams) (CsrRequest, error)
 	// Called after owner completes SSO binding confirmation flow.
