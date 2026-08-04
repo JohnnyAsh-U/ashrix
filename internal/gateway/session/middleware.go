@@ -85,7 +85,7 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			fmt.Println(identity)
 
 			if err == nil {
-				ctx := context.WithValue(ctx, Identitiy, identity)
+				ctx := context.WithValue(ctx, Identity, identity)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}

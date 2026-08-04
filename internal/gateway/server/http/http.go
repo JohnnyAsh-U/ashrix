@@ -7,8 +7,9 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	gateway_grpc "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/grpc_client"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/posture"
-
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5"
@@ -24,6 +25,9 @@ type ProxyServer struct {
 }
 
 func NewProxyServer(cfg *config.Config, grpcClient *gateway_grpc.SafeClient, registry *registry.Registry, redisClient *redis.Client, log *zap.Logger) *ProxyServer {
+
+	//Policy Engine takes Store as args to load the policies into the engine
+	engine := policy.NewEngine()
 
 	sessions := session.NewSessionManager(redisClient, cfg.SessionTTL, cfg.CookieSecure)
 	rateLimiter := session.NewRedisLimiter(redisClient, 10, time.Minute)
@@ -52,12 +56,16 @@ func NewProxyServer(cfg *config.Config, grpcClient *gateway_grpc.SafeClient, reg
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.ClientIPFromHeader("X-Real-IP"))
+	r.Use(logging.AccessLogMiddleware(log)) // <-- add here
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
+	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig())) // <-- updated
 	r.Use(chimiddleware.Timeout(30 * time.Second))
-	
+
 	r.Use(session.SessionMiddleware(registry, sessions, redisClient, cfg, log))
-	r.Use(posture.Middleware(collector, log))
+	r.Use(posture.PostureMiddleware(collector, log))
+	r.Use(RateLimiterMiddleware(DefaultRateLimiterConfig(redisClient), log)) // ← after session
+	r.Use(policy.PolicyMiddleware(engine, cfg, log))
 
 	r.Get("/health", handler.Health)
 	r.Get("/logout", handler.Logout)

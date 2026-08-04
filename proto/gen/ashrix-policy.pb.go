@@ -22,6 +22,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type EffectEnum int32
+
+const (
+	EffectEnum_Effect_ENUM_UNSPECIFIED EffectEnum = 0
+	EffectEnum_Effect_ENUM_ALLOW       EffectEnum = 1
+	EffectEnum_Effect_ENUM_DENY        EffectEnum = 2
+)
+
+// Enum value maps for EffectEnum.
+var (
+	EffectEnum_name = map[int32]string{
+		0: "Effect_ENUM_UNSPECIFIED",
+		1: "Effect_ENUM_ALLOW",
+		2: "Effect_ENUM_DENY",
+	}
+	EffectEnum_value = map[string]int32{
+		"Effect_ENUM_UNSPECIFIED": 0,
+		"Effect_ENUM_ALLOW":       1,
+		"Effect_ENUM_DENY":        2,
+	}
+)
+
+func (x EffectEnum) Enum() *EffectEnum {
+	p := new(EffectEnum)
+	*p = x
+	return p
+}
+
+func (x EffectEnum) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EffectEnum) Descriptor() protoreflect.EnumDescriptor {
+	return file_ashrix_policy_proto_enumTypes[0].Descriptor()
+}
+
+func (EffectEnum) Type() protoreflect.EnumType {
+	return &file_ashrix_policy_proto_enumTypes[0]
+}
+
+func (x EffectEnum) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use EffectEnum.Descriptor instead.
+func (EffectEnum) EnumDescriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{0}
+}
+
 type ScheduleRule struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Day           string                 `protobuf:"bytes,1,opt,name=day,proto3" json:"day,omitempty"`
@@ -85,7 +134,7 @@ func (x *ScheduleRule) GetEnd() string {
 type Schedule struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ScheduleId    string                 `protobuf:"bytes,1,opt,name=schedule_id,json=scheduleId,proto3" json:"schedule_id,omitempty"`
-	OrgId         string                 `protobuf:"bytes,2,opt,name=org_id,json=orgId,proto3" json:"org_id,omitempty"`
+	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Rules         []*ScheduleRule        `protobuf:"bytes,4,rep,name=rules,proto3" json:"rules,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -129,9 +178,9 @@ func (x *Schedule) GetScheduleId() string {
 	return ""
 }
 
-func (x *Schedule) GetOrgId() string {
+func (x *Schedule) GetTenantId() string {
 	if x != nil {
-		return x.OrgId
+		return x.TenantId
 	}
 	return ""
 }
@@ -150,6 +199,586 @@ func (x *Schedule) GetRules() []*ScheduleRule {
 	return nil
 }
 
+type TimeCondition struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ScheduleName  string                 `protobuf:"bytes,1,opt,name=schedule_name,json=scheduleName,proto3" json:"schedule_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TimeCondition) Reset() {
+	*x = TimeCondition{}
+	mi := &file_ashrix_policy_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TimeCondition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TimeCondition) ProtoMessage() {}
+
+func (x *TimeCondition) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_policy_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TimeCondition.ProtoReflect.Descriptor instead.
+func (*TimeCondition) Descriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *TimeCondition) GetScheduleName() string {
+	if x != nil {
+		return x.ScheduleName
+	}
+	return ""
+}
+
+type DeviceCondition struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Postures      []string               `protobuf:"bytes,1,rep,name=postures,proto3" json:"postures,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeviceCondition) Reset() {
+	*x = DeviceCondition{}
+	mi := &file_ashrix_policy_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeviceCondition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeviceCondition) ProtoMessage() {}
+
+func (x *DeviceCondition) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_policy_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeviceCondition.ProtoReflect.Descriptor instead.
+func (*DeviceCondition) Descriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DeviceCondition) GetPostures() []string {
+	if x != nil {
+		return x.Postures
+	}
+	return nil
+}
+
+type NetworkCondition struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	AllowedCountries []string               `protobuf:"bytes,1,rep,name=allowed_countries,json=allowedCountries,proto3" json:"allowed_countries,omitempty"`
+	BlockedCountries []string               `protobuf:"bytes,2,rep,name=blocked_countries,json=blockedCountries,proto3" json:"blocked_countries,omitempty"`
+	AllowedCidrs     []string               `protobuf:"bytes,3,rep,name=allowed_cidrs,json=allowedCidrs,proto3" json:"allowed_cidrs,omitempty"`
+	BlockedCidrs     []string               `protobuf:"bytes,4,rep,name=blocked_cidrs,json=blockedCidrs,proto3" json:"blocked_cidrs,omitempty"`
+	BlockTor         bool                   `protobuf:"varint,5,opt,name=block_tor,json=blockTor,proto3" json:"block_tor,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *NetworkCondition) Reset() {
+	*x = NetworkCondition{}
+	mi := &file_ashrix_policy_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkCondition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkCondition) ProtoMessage() {}
+
+func (x *NetworkCondition) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_policy_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkCondition.ProtoReflect.Descriptor instead.
+func (*NetworkCondition) Descriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *NetworkCondition) GetAllowedCountries() []string {
+	if x != nil {
+		return x.AllowedCountries
+	}
+	return nil
+}
+
+func (x *NetworkCondition) GetBlockedCountries() []string {
+	if x != nil {
+		return x.BlockedCountries
+	}
+	return nil
+}
+
+func (x *NetworkCondition) GetAllowedCidrs() []string {
+	if x != nil {
+		return x.AllowedCidrs
+	}
+	return nil
+}
+
+func (x *NetworkCondition) GetBlockedCidrs() []string {
+	if x != nil {
+		return x.BlockedCidrs
+	}
+	return nil
+}
+
+func (x *NetworkCondition) GetBlockTor() bool {
+	if x != nil {
+		return x.BlockTor
+	}
+	return false
+}
+
+type MFACondition struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Required      bool                   `protobuf:"varint,1,opt,name=required,proto3" json:"required,omitempty"`
+	MinLevel      string                 `protobuf:"bytes,2,opt,name=min_level,json=minLevel,proto3" json:"min_level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MFACondition) Reset() {
+	*x = MFACondition{}
+	mi := &file_ashrix_policy_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MFACondition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MFACondition) ProtoMessage() {}
+
+func (x *MFACondition) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_policy_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MFACondition.ProtoReflect.Descriptor instead.
+func (*MFACondition) Descriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *MFACondition) GetRequired() bool {
+	if x != nil {
+		return x.Required
+	}
+	return false
+}
+
+func (x *MFACondition) GetMinLevel() string {
+	if x != nil {
+		return x.MinLevel
+	}
+	return ""
+}
+
+type PolicyConditions struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mfa           *MFACondition          `protobuf:"bytes,1,opt,name=mfa,proto3" json:"mfa,omitempty"`
+	Device        *DeviceCondition       `protobuf:"bytes,2,opt,name=device,proto3" json:"device,omitempty"`
+	Network       *NetworkCondition      `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
+	Time          *TimeCondition         `protobuf:"bytes,4,opt,name=time,proto3" json:"time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PolicyConditions) Reset() {
+	*x = PolicyConditions{}
+	mi := &file_ashrix_policy_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PolicyConditions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PolicyConditions) ProtoMessage() {}
+
+func (x *PolicyConditions) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_policy_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PolicyConditions.ProtoReflect.Descriptor instead.
+func (*PolicyConditions) Descriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *PolicyConditions) GetMfa() *MFACondition {
+	if x != nil {
+		return x.Mfa
+	}
+	return nil
+}
+
+func (x *PolicyConditions) GetDevice() *DeviceCondition {
+	if x != nil {
+		return x.Device
+	}
+	return nil
+}
+
+func (x *PolicyConditions) GetNetwork() *NetworkCondition {
+	if x != nil {
+		return x.Network
+	}
+	return nil
+}
+
+func (x *PolicyConditions) GetTime() *TimeCondition {
+	if x != nil {
+		return x.Time
+	}
+	return nil
+}
+
+type SubjectSelector struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []string               `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	Groups        []string               `protobuf:"bytes,2,rep,name=groups,proto3" json:"groups,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubjectSelector) Reset() {
+	*x = SubjectSelector{}
+	mi := &file_ashrix_policy_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubjectSelector) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubjectSelector) ProtoMessage() {}
+
+func (x *SubjectSelector) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_policy_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubjectSelector.ProtoReflect.Descriptor instead.
+func (*SubjectSelector) Descriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *SubjectSelector) GetUsers() []string {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+func (x *SubjectSelector) GetGroups() []string {
+	if x != nil {
+		return x.Groups
+	}
+	return nil
+}
+
+type ResourceSelector struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AppIds        []string               `protobuf:"bytes,1,rep,name=app_ids,json=appIds,proto3" json:"app_ids,omitempty"`
+	Paths         []string               `protobuf:"bytes,2,rep,name=paths,proto3" json:"paths,omitempty"`
+	Methods       []string               `protobuf:"bytes,3,rep,name=methods,proto3" json:"methods,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResourceSelector) Reset() {
+	*x = ResourceSelector{}
+	mi := &file_ashrix_policy_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResourceSelector) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResourceSelector) ProtoMessage() {}
+
+func (x *ResourceSelector) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_policy_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResourceSelector.ProtoReflect.Descriptor instead.
+func (*ResourceSelector) Descriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ResourceSelector) GetAppIds() []string {
+	if x != nil {
+		return x.AppIds
+	}
+	return nil
+}
+
+func (x *ResourceSelector) GetPaths() []string {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+func (x *ResourceSelector) GetMethods() []string {
+	if x != nil {
+		return x.Methods
+	}
+	return nil
+}
+
+type PolicyRule struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PolicyId      string                 `protobuf:"bytes,1,opt,name=policy_id,json=policyId,proto3" json:"policy_id,omitempty"`
+	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Effect        EffectEnum             `protobuf:"varint,4,opt,name=effect,proto3,enum=proto.EffectEnum" json:"effect,omitempty"`
+	Priority      int32                  `protobuf:"varint,5,opt,name=priority,proto3" json:"priority,omitempty"`
+	Subject       *SubjectSelector       `protobuf:"bytes,6,opt,name=subject,proto3" json:"subject,omitempty"`
+	Resource      *ResourceSelector      `protobuf:"bytes,7,opt,name=resource,proto3" json:"resource,omitempty"`
+	Conditions    *PolicyConditions      `protobuf:"bytes,8,opt,name=conditions,proto3" json:"conditions,omitempty"`
+	Enabled       bool                   `protobuf:"varint,9,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Version       int64                  `protobuf:"varint,10,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PolicyRule) Reset() {
+	*x = PolicyRule{}
+	mi := &file_ashrix_policy_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PolicyRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PolicyRule) ProtoMessage() {}
+
+func (x *PolicyRule) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_policy_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PolicyRule.ProtoReflect.Descriptor instead.
+func (*PolicyRule) Descriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *PolicyRule) GetPolicyId() string {
+	if x != nil {
+		return x.PolicyId
+	}
+	return ""
+}
+
+func (x *PolicyRule) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *PolicyRule) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PolicyRule) GetEffect() EffectEnum {
+	if x != nil {
+		return x.Effect
+	}
+	return EffectEnum_Effect_ENUM_UNSPECIFIED
+}
+
+func (x *PolicyRule) GetPriority() int32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
+}
+
+func (x *PolicyRule) GetSubject() *SubjectSelector {
+	if x != nil {
+		return x.Subject
+	}
+	return nil
+}
+
+func (x *PolicyRule) GetResource() *ResourceSelector {
+	if x != nil {
+		return x.Resource
+	}
+	return nil
+}
+
+func (x *PolicyRule) GetConditions() *PolicyConditions {
+	if x != nil {
+		return x.Conditions
+	}
+	return nil
+}
+
+func (x *PolicyRule) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *PolicyRule) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+type PolicyBundle struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       int64                  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	IssuedAt      int64                  `protobuf:"varint,3,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
+	Rules         []*PolicyRule          `protobuf:"bytes,4,rep,name=rules,proto3" json:"rules,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PolicyBundle) Reset() {
+	*x = PolicyBundle{}
+	mi := &file_ashrix_policy_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PolicyBundle) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PolicyBundle) ProtoMessage() {}
+
+func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_policy_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PolicyBundle.ProtoReflect.Descriptor instead.
+func (*PolicyBundle) Descriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *PolicyBundle) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *PolicyBundle) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *PolicyBundle) GetIssuedAt() int64 {
+	if x != nil {
+		return x.IssuedAt
+	}
+	return 0
+}
+
+func (x *PolicyBundle) GetRules() []*PolicyRule {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
+}
+
 var File_ashrix_policy_proto protoreflect.FileDescriptor
 
 const file_ashrix_policy_proto_rawDesc = "" +
@@ -158,13 +787,63 @@ const file_ashrix_policy_proto_rawDesc = "" +
 	"\fScheduleRule\x12\x10\n" +
 	"\x03day\x18\x01 \x01(\tR\x03day\x12\x14\n" +
 	"\x05start\x18\x02 \x01(\tR\x05start\x12\x10\n" +
-	"\x03end\x18\x03 \x01(\tR\x03end\"\x81\x01\n" +
+	"\x03end\x18\x03 \x01(\tR\x03end\"\x87\x01\n" +
 	"\bSchedule\x12\x1f\n" +
 	"\vschedule_id\x18\x01 \x01(\tR\n" +
-	"scheduleId\x12\x15\n" +
-	"\x06org_id\x18\x02 \x01(\tR\x05orgId\x12\x12\n" +
+	"scheduleId\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12)\n" +
-	"\x05rules\x18\x04 \x03(\v2\x13.proto.ScheduleRuleR\x05rulesBCZAgithub.com/JohnnyAsh-U/ashrix-api/proto/ashrix-policy.proto;protob\x06proto3"
+	"\x05rules\x18\x04 \x03(\v2\x13.proto.ScheduleRuleR\x05rules\"4\n" +
+	"\rTimeCondition\x12#\n" +
+	"\rschedule_name\x18\x01 \x01(\tR\fscheduleName\"-\n" +
+	"\x0fDeviceCondition\x12\x1a\n" +
+	"\bpostures\x18\x01 \x03(\tR\bpostures\"\xd3\x01\n" +
+	"\x10NetworkCondition\x12+\n" +
+	"\x11allowed_countries\x18\x01 \x03(\tR\x10allowedCountries\x12+\n" +
+	"\x11blocked_countries\x18\x02 \x03(\tR\x10blockedCountries\x12#\n" +
+	"\rallowed_cidrs\x18\x03 \x03(\tR\fallowedCidrs\x12#\n" +
+	"\rblocked_cidrs\x18\x04 \x03(\tR\fblockedCidrs\x12\x1b\n" +
+	"\tblock_tor\x18\x05 \x01(\bR\bblockTor\"G\n" +
+	"\fMFACondition\x12\x1a\n" +
+	"\brequired\x18\x01 \x01(\bR\brequired\x12\x1b\n" +
+	"\tmin_level\x18\x02 \x01(\tR\bminLevel\"\xc6\x01\n" +
+	"\x10PolicyConditions\x12%\n" +
+	"\x03mfa\x18\x01 \x01(\v2\x13.proto.MFAConditionR\x03mfa\x12.\n" +
+	"\x06device\x18\x02 \x01(\v2\x16.proto.DeviceConditionR\x06device\x121\n" +
+	"\anetwork\x18\x03 \x01(\v2\x17.proto.NetworkConditionR\anetwork\x12(\n" +
+	"\x04time\x18\x04 \x01(\v2\x14.proto.TimeConditionR\x04time\"?\n" +
+	"\x0fSubjectSelector\x12\x14\n" +
+	"\x05users\x18\x01 \x03(\tR\x05users\x12\x16\n" +
+	"\x06groups\x18\x02 \x03(\tR\x06groups\"[\n" +
+	"\x10ResourceSelector\x12\x17\n" +
+	"\aapp_ids\x18\x01 \x03(\tR\x06appIds\x12\x14\n" +
+	"\x05paths\x18\x02 \x03(\tR\x05paths\x12\x18\n" +
+	"\amethods\x18\x03 \x03(\tR\amethods\"\xf5\x02\n" +
+	"\n" +
+	"PolicyRule\x12\x1b\n" +
+	"\tpolicy_id\x18\x01 \x01(\tR\bpolicyId\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12)\n" +
+	"\x06effect\x18\x04 \x01(\x0e2\x11.proto.EffectEnumR\x06effect\x12\x1a\n" +
+	"\bpriority\x18\x05 \x01(\x05R\bpriority\x120\n" +
+	"\asubject\x18\x06 \x01(\v2\x16.proto.SubjectSelectorR\asubject\x123\n" +
+	"\bresource\x18\a \x01(\v2\x17.proto.ResourceSelectorR\bresource\x127\n" +
+	"\n" +
+	"conditions\x18\b \x01(\v2\x17.proto.PolicyConditionsR\n" +
+	"conditions\x12\x18\n" +
+	"\aenabled\x18\t \x01(\bR\aenabled\x12\x18\n" +
+	"\aversion\x18\n" +
+	" \x01(\x03R\aversion\"\x8b\x01\n" +
+	"\fPolicyBundle\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1b\n" +
+	"\tissued_at\x18\x03 \x01(\x03R\bissuedAt\x12'\n" +
+	"\x05rules\x18\x04 \x03(\v2\x11.proto.PolicyRuleR\x05rules*V\n" +
+	"\n" +
+	"EffectEnum\x12\x1b\n" +
+	"\x17Effect_ENUM_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11Effect_ENUM_ALLOW\x10\x01\x12\x14\n" +
+	"\x10Effect_ENUM_DENY\x10\x02BCZAgithub.com/JohnnyAsh-U/ashrix-api/proto/ashrix-policy.proto;protob\x06proto3"
 
 var (
 	file_ashrix_policy_proto_rawDescOnce sync.Once
@@ -178,18 +857,38 @@ func file_ashrix_policy_proto_rawDescGZIP() []byte {
 	return file_ashrix_policy_proto_rawDescData
 }
 
-var file_ashrix_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_ashrix_policy_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_ashrix_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_ashrix_policy_proto_goTypes = []any{
-	(*ScheduleRule)(nil), // 0: proto.ScheduleRule
-	(*Schedule)(nil),     // 1: proto.Schedule
+	(EffectEnum)(0),          // 0: proto.EffectEnum
+	(*ScheduleRule)(nil),     // 1: proto.ScheduleRule
+	(*Schedule)(nil),         // 2: proto.Schedule
+	(*TimeCondition)(nil),    // 3: proto.TimeCondition
+	(*DeviceCondition)(nil),  // 4: proto.DeviceCondition
+	(*NetworkCondition)(nil), // 5: proto.NetworkCondition
+	(*MFACondition)(nil),     // 6: proto.MFACondition
+	(*PolicyConditions)(nil), // 7: proto.PolicyConditions
+	(*SubjectSelector)(nil),  // 8: proto.SubjectSelector
+	(*ResourceSelector)(nil), // 9: proto.ResourceSelector
+	(*PolicyRule)(nil),       // 10: proto.PolicyRule
+	(*PolicyBundle)(nil),     // 11: proto.PolicyBundle
 }
 var file_ashrix_policy_proto_depIdxs = []int32{
-	0, // 0: proto.Schedule.rules:type_name -> proto.ScheduleRule
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	1,  // 0: proto.Schedule.rules:type_name -> proto.ScheduleRule
+	6,  // 1: proto.PolicyConditions.mfa:type_name -> proto.MFACondition
+	4,  // 2: proto.PolicyConditions.device:type_name -> proto.DeviceCondition
+	5,  // 3: proto.PolicyConditions.network:type_name -> proto.NetworkCondition
+	3,  // 4: proto.PolicyConditions.time:type_name -> proto.TimeCondition
+	0,  // 5: proto.PolicyRule.effect:type_name -> proto.EffectEnum
+	8,  // 6: proto.PolicyRule.subject:type_name -> proto.SubjectSelector
+	9,  // 7: proto.PolicyRule.resource:type_name -> proto.ResourceSelector
+	7,  // 8: proto.PolicyRule.conditions:type_name -> proto.PolicyConditions
+	10, // 9: proto.PolicyBundle.rules:type_name -> proto.PolicyRule
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_policy_proto_init() }
@@ -202,13 +901,14 @@ func file_ashrix_policy_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_policy_proto_rawDesc), len(file_ashrix_policy_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   2,
+			NumEnums:      1,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_ashrix_policy_proto_goTypes,
 		DependencyIndexes: file_ashrix_policy_proto_depIdxs,
+		EnumInfos:         file_ashrix_policy_proto_enumTypes,
 		MessageInfos:      file_ashrix_policy_proto_msgTypes,
 	}.Build()
 	File_ashrix_policy_proto = out.File

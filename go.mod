@@ -3,6 +3,7 @@ module github.com/JohnnyAsh-U/ashrix-api
 go 1.26.3
 
 require (
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/getlantern/systray v1.2.2
 	github.com/go-chi/chi/v5 v5.3.0
@@ -16,12 +17,14 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
+	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/pquerna/otp v1.5.0
 	github.com/quic-go/quic-go v0.60.0
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/sqweek/dialog v0.0.0-20260123140253-64c163d53aac
+	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
 	go.etcd.io/bbolt v1.5.0
@@ -37,9 +40,10 @@ require (
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf // indirect
+	github.com/alicebob/miniredis/v2 v2.38.0 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/getlantern/context v0.0.0-20190109183933-c447772a6520 // indirect
@@ -76,10 +80,10 @@ require (
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/oschwald/geoip2-golang v1.13.0 // indirect
 	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
@@ -89,6 +93,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/swaggo/files v0.0.0-20220610200504-28940afbdbfe // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
@@ -101,4 +106,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

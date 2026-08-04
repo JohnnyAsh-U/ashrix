@@ -16,10 +16,8 @@ type contextKey string
 var (
 	ConnectorID contextKey = "ConnectorID"
 	AppID contextKey = "AppID"
-	Identitiy contextKey = "Identity"
+	Identity contextKey = "Identity"
 )
-
-var postureContextKey = ""
 
 
 func ConnectorIDFromCtx(ctx context.Context) string {
@@ -33,6 +31,6 @@ func AppIDFromCtx(ctx context.Context) string {
 }
 
 func IdentityFromCtx(ctx context.Context) *gen.NormalizedIdentity {
-	id, _ := ctx.Value(Identitiy).(*gen.NormalizedIdentity)
+	id, _ := ctx.Value(Identity).(*gen.NormalizedIdentity)
 	return id
 }

@@ -14,7 +14,7 @@ import (
 // Chi middleware that collects posture and stores it in context.
 // ============================================================
 
-func Middleware(collector *Collector, log *zap.Logger) func(http.Handler) http.Handler {
+func PostureMiddleware(collector *Collector, log *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Skip posture collection for health checks and auth callbacks

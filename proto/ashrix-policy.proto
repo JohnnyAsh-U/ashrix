@@ -6,20 +6,84 @@ option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/ashrix-policy.proto
 
 import "google/protobuf/timestamp.proto";
 
-
 // =============================================================================
 // Policy Messages
 // =============================================================================
 
 message ScheduleRule {
-  string day = 1;
+  string day   = 1;
   string start = 2;
-  string end = 3;
+  string end   = 3;
 }
 
 message Schedule {
-    string schedule_id = 1;
-    string org_id = 2;
-    string name = 3;
-    repeated ScheduleRule rules = 4;
+  string                schedule_id = 1;
+  string                tenant_id   = 2;
+  string                name        = 3;
+  repeated ScheduleRule rules       = 4;
+}
+
+message TimeCondition {
+  string schedule_name = 1;
+}
+
+message DeviceCondition {
+  repeated string postures = 1;
+}
+
+message NetworkCondition {
+  repeated string allowed_countries = 1;
+  repeated string blocked_countries = 2;
+  repeated string allowed_cidrs     = 3;
+  repeated string blocked_cidrs     = 4;
+  bool            block_tor         = 5;
+}
+
+message MFACondition {
+  bool   required  = 1;
+  string min_level = 2;
+}
+
+message PolicyConditions {
+  MFACondition     mfa     = 1;
+  DeviceCondition  device  = 2;
+  NetworkCondition network = 3;
+  TimeCondition    time    = 4;
+}
+
+message SubjectSelector {
+  repeated string users  = 1;
+  repeated string groups = 2;
+}
+
+message ResourceSelector {
+  repeated string app_ids  = 1;
+  repeated string paths   = 2;
+  repeated string methods = 3;
+}
+
+enum EffectEnum {
+  Effect_ENUM_UNSPECIFIED = 0;
+  Effect_ENUM_ALLOW       = 1;
+  Effect_ENUM_DENY        = 2;
+}
+
+message PolicyRule {
+  string           policy_id  = 1;
+  string           tenant_id  = 2;
+  string           name       = 3;
+  EffectEnum       effect     = 4;
+  int32            priority   = 5;
+  SubjectSelector  subject    = 6;
+  ResourceSelector resource   = 7;
+  PolicyConditions conditions = 8;
+  bool             enabled    = 9;
+  int64            version    = 10;
+}
+
+message PolicyBundle {
+  int64               version   = 1;
+  string              tenant_id = 2;
+  int64               issued_at = 3;
+  repeated PolicyRule rules     = 4;
 }
