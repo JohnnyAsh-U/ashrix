@@ -50,50 +50,50 @@ type Repository interface {
 // DOMAIN TYPES
 // -----------------------------------------------------------
 
-type Effect string
+// type Effect string
 
-const (
-	EffectAllow Effect = "ALLOW"
-	EffectDeny  Effect = "DENY"
-)
+// const (
+// 	EffectAllow Effect = "ALLOW"
+// 	EffectDeny  Effect = "DENY"
+// )
 
-type Subject struct {
-	Type  string `json:"type"`  // "group" or "user"
-	Value string `json:"value"` // "engineering", "u-123"
-}
+// type Subject struct {
+// 	Type  string `json:"type"`  // "group" or "user"
+// 	Value string `json:"value"` // "engineering", "u-123"
+// }
 
-type Resource struct {
-	Type  string `json:"type"`  // "app", "path", "method"
-	Value string `json:"value"` // "jenkins-prod", "/*", "GET"
-}
+// type Resource struct {
+// 	Type  string `json:"type"`  // "app", "path", "method"
+// 	Value string `json:"value"` // "jenkins-prod", "/*", "GET"
+// }
 
-type Conditions struct {
-	MFA     *MFACondition     `json:"mfa,omitempty"`
-	Device  *DeviceCondition  `json:"device,omitempty"`
-	Network *NetworkCondition `json:"network,omitempty"`
-	Time    *TimeCondition    `json:"time,omitempty"`
-}
+// type Conditions struct {
+// 	MFA     *MFACondition     `json:"mfa,omitempty"`
+// 	Device  *DeviceCondition  `json:"device,omitempty"`
+// 	Network *NetworkCondition `json:"network,omitempty"`
+// 	Time    *TimeCondition    `json:"time,omitempty"`
+// }
 
-type MFACondition struct {
-	Required bool   `json:"required"`
-	MinLevel string `json:"min_level,omitempty"`
-}
+// type MFACondition struct {
+// 	Required bool   `json:"required"`
+// 	MinLevel string `json:"min_level,omitempty"`
+// }
 
-type DeviceCondition struct {
-	Postures []string `json:"postures"`
-}
+// type DeviceCondition struct {
+// 	Postures []string `json:"postures"`
+// }
 
-type NetworkCondition struct {
-	AllowedCountries []string `json:"allowed_countries,omitempty"`
-	BlockedCountries []string `json:"blocked_countries,omitempty"`
-	AllowedCIDRs     []string `json:"allowed_cidrs,omitempty"`
-	BlockedCIDRs     []string `json:"blocked_cidrs,omitempty"`
-	BlockTor         bool     `json:"block_tor,omitempty"`
-}
+// type NetworkCondition struct {
+// 	AllowedCountries []string `json:"allowed_countries,omitempty"`
+// 	BlockedCountries []string `json:"blocked_countries,omitempty"`
+// 	AllowedCIDRs     []string `json:"allowed_cidrs,omitempty"`
+// 	BlockedCIDRs     []string `json:"blocked_cidrs,omitempty"`
+// 	BlockTor         bool     `json:"block_tor,omitempty"`
+// }
 
-type TimeCondition struct {
-	ScheduleName string `json:"schedule_name"`
-}
+// type TimeCondition struct {
+// 	ScheduleName string `json:"schedule_name"`
+// }
 
 // Policy is the domain model for a complete policy with all relations.
 type Policy struct {

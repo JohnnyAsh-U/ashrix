@@ -221,16 +221,16 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		)
 		// CP will push bundles immediately if NeedsPolicy/NeedsTrust/NeedsCRL are true
 
-	case *pb.CPEnvelope_TrustBundle:
+	case *pb.CPEnvelope_BundleUpdate:
 		h.log.Info("trust bundle received",
-			zap.String("version", p.TrustBundle.Version),
+			zap.String("version", "3"),
 		)
 		// if err := h.pki.ApplyTrustBundle(p.TrustBundle); err != nil {
 		//     h.log.Error("failed to apply trust bundle", zap.Error(err))
 		//     h.ack(msg.MessageId, "trust", p.TrustBundle.Version, false, err.Error())
 		//     return
 		// }
-		h.ack(msg.NodeId, pb.BundleType_BUNDLE_TYPE_POLICY, p.TrustBundle.Version, true, "")
+		h.ack("kd", pb.BundleTypes_BUNDLE_TYPE_POLICY,"9", true, "")
 
 		// case *pb.CPEnvelope_RotationCmd:
 		//     h.log.Info("rotation command received",
@@ -311,7 +311,7 @@ func (sm *StreamManager) setStream(s pb.ControlPlaneService_ConnectClient, activ
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 func (h *StreamManager) ack(
-	messageID string, bundleType pb.BundleType, version string,
+	messageID string, bundleType pb.BundleTypes, version string,
 	applied bool,
 	errMsg string,
 ) {

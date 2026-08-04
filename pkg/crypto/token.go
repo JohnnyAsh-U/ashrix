@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
 )
 
 func GenerateToken(n int) (raw string, hash string, err error) {
@@ -17,6 +18,17 @@ func GenerateToken(n int) (raw string, hash string, err error) {
 	h := sha256.Sum256([]byte(raw))
 	hash = hex.EncodeToString(h[:])
 	return raw, hash, nil
+}
+
+// GenerateToken creates a cryptographically random URL-safe token.
+// Used for session tokens, enrollment tokens, verification tokens.
+// Returns the raw token (store its hash, never the raw value).
+func GenerateOnlyToken(byteLen int) (string, error) {
+	b := make([]byte, byteLen)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		return "", fmt.Errorf("generate token: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 

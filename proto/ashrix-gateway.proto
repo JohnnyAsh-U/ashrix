@@ -76,6 +76,31 @@ message ExchangeTokenResponse {
   string             error_message = 3;
 }
 
+// =============================================================================
+// Bundle Proto Types
+// =============================================================================
+
+enum BundleTypes {
+  BUNDLE_TYPE_UNSPECIFIED = 0;
+  BUNDLE_TYPE_TRUST       = 1; // CA trust bundle
+  BUNDLE_TYPE_POLICY      = 2; // access policy bundle
+  BUNDLE_TYPE_CRL         = 3; // certificate revocation list
+  BUNDLE_TYPE_CONFIG      = 4; // runtime config bundle
+}
+
+
+message SignedPayload {
+  int64      version    = 1; // monotonically increasing — reject if <= node's current version
+  bytes      payload    = 2; // serialized inner message (TrustBundle, PolicyBundle, etc.)
+  bytes      signature  = 3; // ECDSA-P384 over SHA256(version_bytes || payload)
+  google.protobuf.Timestamp issued_at  = 4;
+  google.protobuf.Timestamp expires_at = 5; // short TTL — reject if now > expires_at
+}
+
+message BundleUpdate {
+  BundleTypes    type    = 1;
+  SignedPayload payload = 2;
+}
 
 // =============================================================================
 // Top Level Envelopes
@@ -95,15 +120,11 @@ message GatewayEnvelope {
 
 //CPEnvelope - CP => Gateway
 message CPEnvelope {
-  string                    node_id          = 1;
-  MessagePriority           message_priority = 2;
-  google.protobuf.Timestamp sent_at          = 3;
+  google.protobuf.Timestamp sent_at          = 1;
 
   oneof payload {
     HelloAck     hello_ack     = 10;
-    CRLUpdate    crl_update    = 11;
-    PolicyBundle policy_bundle = 12;
-    TrustBundle  trust_bundle  = 13;
+    BundleUpdate    bundle_update    = 11;
   }
 }
 
@@ -139,16 +160,10 @@ message ConnectorsStatus {
   google.protobuf.Timestamp last_checked = 3;
 }
 
-enum BundleType {
-  BUNDLE_TYPE_TRUST  = 0; // CA trust bundle
-  BUNDLE_TYPE_POLICY = 1; // access policy bundle
-  BUNDLE_TYPE_CRL    = 2; // certificate revocation list
-}
-
 message BundleAck {
   string     message_id     = 1; //The CP Message being ack
   int64      bundle_version = 2; // version being acknowledged
-  BundleType bundle_type    = 3;
+  BundleTypes bundle_type    = 3;
   string     version        = 6;
   bool       applied        = 4; // true = successfully verified and applied
   string     error          = 5; // set if applied=false — reason for failure
@@ -191,3 +206,19 @@ message CRLUpdate {
   google.protobuf.Timestamp max_valid_until  = 6;
   bool                      full_replacement = 7;
 }
+
+// message Command {
+//   string      command_id = 1; // idempotency key — node acks this; safe to redeliver
+//   CommandType type       = 2;
+//   string      reason     = 3; // human-readable — why CP issued this
+//   SignedPayload signed_command = 4;
+//   // signed_command contains the command params serialized and CP-signed.
+//   // Connectors verify this before acting — a compromised gateway cannot forge commands.
+
+//   oneof params {
+//     RotateCertParams     rotate_cert     = 5;
+//     ForceReconnectParams force_reconnect = 6;
+//     DrainParams          drain           = 7;
+//     RevokeParams         revoke          = 8;
+//   }
+// }
