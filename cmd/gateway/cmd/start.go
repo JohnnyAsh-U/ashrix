@@ -153,7 +153,6 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	log.Info("Initialising Registry...")
 
-
 	//--------------------------Open Policy Store -----------------------------------------------//
 
 	log.Info("Initialising Policy Store And Engine...")
@@ -164,15 +163,18 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load CP public key (embedded in binary)
-	verifier := store.NewSignatureVerifier()
+	verifier, err := store.RootPublicKey()
+	if err != nil {
+		log.Error("failed to open policy store", zap.String("error", err.Error()))
+		os.Exit(1)
+	}
 
+	
 	//Policy Engine takes Store as args to load the policies into the engine
-	engine := policy.NewEngine(policyStore, verifier)
-
+	engine := policy.NewEngine(context.Background(), policyStore, verifier, log)
 
 	defer policyStore.Close()
 	log.Info("Initialising Policy And Engine Done...")
-
 
 	//-----------------------Load TLS and Open stream -----------------------------------------------
 	// This is the real liveness check - If CP is unreachable or

@@ -7,11 +7,12 @@ import (
 	// "fmt"
 	"log/slog"
 	"sync"
+
 	// "time"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	// "github.com/google/uuid"
 	// "google.golang.org/grpc/encoding/proto"
@@ -25,7 +26,7 @@ import (
 type PolicyDistributor struct {
 	registry    *registry.GatewayRegistry
 	policyStore Repository
-	signer      pki.CASigner
+	bundleSigner      crypto.BundleSigning
 	log *slog.Logger
 
 	// Cache of compiled bundles by tenant
@@ -37,13 +38,13 @@ type PolicyDistributor struct {
 func NewPolicyDistributor(
 	reg *registry.GatewayRegistry, 
 	store Repository, 
-	signer pki.CASigner,
+	signer crypto.BundleSigning,
 	log *slog.Logger,
 	) *PolicyDistributor {
 	return &PolicyDistributor{
 		registry:    reg,
 		policyStore: store,
-		signer:      signer,
+		bundleSigner:      signer,
 		log: log,
 		bundleCache: make(map[string]*pb.SignedPayload),
 	}

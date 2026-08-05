@@ -94,7 +94,7 @@ func main() {
 
 	// Initializing PKI Root CA and Intermediate CA
 	// Pass db.Queries to the PKI signer for database-backed CA certificate management
-	signer, err := pki.NewSigner(BaseDir, cfg.PKIConfig, dbQueries)
+	CASigner, err := pki.NewSigner(BaseDir, cfg.PKIConfig, dbQueries)
 	if err != nil {
 		log.Error("Failed to Initialized PKI", slog.String("err", err.Error()))
 		os.Exit(1) // Fail hard if PKI initialization fails
@@ -104,13 +104,22 @@ func main() {
 	cppki, cperr := crypto.ControlPlanePKIIntializer(
 		BaseDir,
 		cfg.PKIConfig.PKIUnlockSecret,
-		signer,
+		CASigner,
 		dbQueries,
 	)
 
 	if cperr != nil {
 		log.Error("Failed to inintialize CP PKI")
 	}
+
+	//Initialize Bundle Signing Keys
+	bundleSigner, err := crypto.BundleSigningKeys(BaseDir)
+	if err != nil {
+		log.Error("Failed to Initialize Bundle Signing Keys", slog.String("err", err.Error()))
+		os.Exit(1)
+	}
+
+	// fmt.Println(bundleSigner.GetPublicKeyString())
 
 	//Initializing Gateway GRPC Connection Registry
 	gatewayRegistry := registry.NewGatewayRegistry()
@@ -123,7 +132,7 @@ func main() {
 
 
 	//Initialising Policy Distributor
-	_ = policy.NewPolicyDistributor(gatewayRegistry, policyStore, signer, log)
+	_ = policy.NewPolicyDistributor(gatewayRegistry, policyStore, bundleSigner, log)
 	log.Info("Policy Distributor Initialized")
 
 
@@ -131,11 +140,11 @@ func main() {
 	quit := make(chan os.Signal, 2)
 
 	// Build and start HTTP server
-	httpServer := cp_http.InitializeHttpServer(BaseDir, cfg, dbQueries, redisStore, log, signer)
+	httpServer := cp_http.InitializeHttpServer(BaseDir, cfg, dbQueries, redisStore, log, CASigner)
 
 	// Build and start gRPC server
 	grpcServer := cp_grpc.InitializeGRPCServer(
-		cfg, cppki, log, redisStore.Client(), gatewayRegistry, signer, policyStore,
+		cfg, cppki, log, redisStore.Client(), gatewayRegistry, CASigner, policyStore,
 	)
 
 	// Graceful shutdown on SIGINT / SIGTERM

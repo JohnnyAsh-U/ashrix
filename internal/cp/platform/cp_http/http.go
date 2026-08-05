@@ -29,11 +29,11 @@ import (
 type Server struct {
 	http   *http.Server
 	log    *slog.Logger
-	signer pki.CASigner
+	CASigner pki.CASigner
 }
 
 // New wires together all dependencies and builds the router.
-func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Queries, redisStore *redis.RedisStore, log *slog.Logger, signer pki.CASigner) *Server {
+func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Queries, redisStore *redis.RedisStore, log *slog.Logger, CASigner pki.CASigner) *Server {
 
 	//Mailer config
 	mailer := utils.NewMailerService(cfg)
@@ -68,7 +68,7 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 	//Gateway routes
 	gatewayRepo := gateway.NewPostgresRepository(dbQueries)
 	gatewayService := gateway.NewService(gatewayRepo)
-	gatewayHandler := gateway.NewGatewayHandler(gatewayService, signer)
+	gatewayHandler := gateway.NewGatewayHandler(gatewayService, CASigner)
 
 	//IDP Routes
 	idpRepo := identity.NewPostgresRepository(dbQueries)
@@ -107,7 +107,7 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 	//Connectors routes
 	connectorRepo := connector.NewPostgresRepository(dbQueries)
 	connectorService := connector.NewService(connectorRepo)
-	connectorHandler := connector.NewConnectorHandler(connectorService, signer)
+	connectorHandler := connector.NewConnectorHandler(connectorService, CASigner)
 
 	//Docs - date this in prod
 	r.Get("/docs/*", httpSwagger.Handler(

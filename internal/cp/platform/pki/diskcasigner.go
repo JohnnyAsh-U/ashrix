@@ -298,7 +298,7 @@ func encodeCertPEM(cert *x509.Certificate) []byte {
 }
 
 func generateRootCA(rootCAKeyPath, rootCACertPath, secret, context string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
-	key, _, err := pki.GenerateSigningKey(rootCAKeyPath, rootCACertPath, secret, context)
+	key, _, err := pki.GenerateCertificateSigningKey(rootCAKeyPath, rootCACertPath, secret, context)
 	if err != nil { // Added error check for GenerateSigningKey
 		return nil, nil, fmt.Errorf("failed to generate signing key for root CA: %w", err)
 	}
@@ -340,7 +340,7 @@ func generateRootCA(rootCAKeyPath, rootCACertPath, secret, context string) (*ecd
 
 func generateIntermediateCA(intermediateKeyPath, intermediateCertPath, secret string, rootKey *ecdsa.PrivateKey, rootCert *x509.Certificate) (*ecdsa.PrivateKey, *x509.Certificate, error) {
 
-	key, pub, err := pki.GenerateSigningKey(intermediateKeyPath, intermediateCertPath, secret, "intermediate")
+	key, pub, err := pki.GenerateCertificateSigningKey(intermediateKeyPath, intermediateCertPath, secret, "intermediate")
 	if err != nil { // Added error check for GenerateSigningKey
 		return nil, nil, fmt.Errorf("failed to generate signing key for intermediate CA: %w", err)
 	}

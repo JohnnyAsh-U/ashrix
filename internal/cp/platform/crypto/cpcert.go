@@ -48,17 +48,6 @@ type ControlPlanePKI struct {
 
 }
 
-type Bundle struct {
-	Version  string    `json:"version"`
-	Payload  []byte    `json:"payload"`
-	IssuedAt time.Time `json:"issued_at"`
-	Nonce    string    `json:"nonce"`
-}
-
-type SignedBundle struct {
-	Bundle    Bundle `json:"bundle"`
-	Signature string `json:"signature"`
-}
 
 func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigner, dbQueries *store.Queries) (ControlPlaneCrypto, error) {
 	fmt.Println("Initializing Control Plane PKI...")
@@ -244,7 +233,7 @@ func bundleDigest(b Bundle) ([]byte, error) {
 
 func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASigner) (*x509.Certificate, error) {
 
-	key, _, err := pki_utils.GenerateSigningKey(keyPath, certPath, secret, "cp")
+	key, _, err := pki_utils.GenerateCertificateSigningKey(keyPath, certPath, secret, "cp")
 
 	if err != nil {
 		return nil, err

@@ -2,6 +2,7 @@ package pki
 
 import (
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
@@ -18,7 +19,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 )
 
-func GenerateSigningKey(privateKeyPath, publicKeyPath, secret, context string) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
+func GenerateCertificateSigningKey(privateKeyPath, publicKeyPath, secret, context string) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Generating signing key: %w", err)
@@ -40,6 +41,31 @@ func GenerateSigningKey(privateKeyPath, publicKeyPath, secret, context string) (
 	fmt.Printf("  ✓ Signing key generated\n")
 	return key, &key.PublicKey, nil
 }
+
+//Generate Ed25519 Private Key and Save it to the file
+func GenerateEd25519Key(privateKeyPath string, secret, context string) (ed25519.PrivateKey, error) {
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("Generating signing key: %w", err)
+	}
+
+	if err := encryptAndWriteEd25519Key(privateKeyPath, privateKey, secret, context); err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("  ✓ Signing key generated\n")
+	return privateKey, nil
+}
+
+//Load Ed25519 Private key
+func LoadEd25519Key(keyPath, secret, context string) (ed25519.PrivateKey, error) {
+	key, err := decryptAndLoadEd25519Key(keyPath, secret, context)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
 
 func LoadKeyAndCert(keyPath, certPath, secret, context string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	key, err := decryptAndLoadKey(keyPath, secret, context)
@@ -232,6 +258,7 @@ func encryptAndWriteKey(path string, key *ecdsa.PrivateKey, secret, context stri
 	return writeFile(path, encrypted, 0600)
 }
 
+
 func decryptAndLoadKey(path, secret, context string) (*ecdsa.PrivateKey, error) {
 	encrypted, err := os.ReadFile(path)
 	if err != nil {
@@ -250,6 +277,56 @@ func decryptAndLoadKey(path, secret, context string) (*ecdsa.PrivateKey, error) 
 	return x509.ParseECPrivateKey(block.Bytes)
 }
 
+func encryptAndWriteEd25519Key(path string, key ed25519.PrivateKey, secret, context string) error {
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return fmt.Errorf("marshaling Ed25519 private key: %w", err)
+	}
+	defer wipeBytes(keyDER)
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
+	defer wipeBytes(keyPEM)
+
+	encrypted, err := crypto.AesgcmEncrypt(keyPEM, secret, context)
+	if err != nil {
+		return err
+	}
+
+	return writeFile(path, encrypted, 0600)
+}
+
+func decryptAndLoadEd25519Key(path, secret, context string) (ed25519.PrivateKey, error) {
+	encrypted, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	keyPEM, err := crypto.AesgcmDecrypt(encrypted, secret, context)
+	if err != nil {
+		return nil, err
+	}
+	defer wipeBytes(keyPEM)
+
+	block, _ := pem.Decode(keyPEM)
+	if block == nil {
+		return nil, errors.New("failed to decode decrypted key PEM")
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing Ed25519 private key: %w", err)
+	}
+
+	edKey, ok := key.(ed25519.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("expected Ed25519 private key, got %T", key)
+	}
+
+	return edKey, nil
+}
 // writeFile writes atomically via temp file + rename.
 // No partial writes are ever visible to other processes.
 func writeFile(path string, data []byte, mode os.FileMode) error {

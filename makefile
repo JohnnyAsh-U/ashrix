@@ -58,6 +58,13 @@ proto:
 	buf generate
 
 
+#====================================
+# INSPECT BBOLT DB
+#===================================
+.PHONY: db
+db-inspect:
+	go run ./cmd/gateway/main.go db inspect
+
 # ----- Generate Docs --------------
 
 .PHONY: docs
