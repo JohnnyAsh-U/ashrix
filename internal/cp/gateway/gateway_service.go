@@ -50,7 +50,7 @@ func mapToGatewayResponse(g store.Gateway) GatewayResponse {
 }
 
 // CreateGateway creates a new gateway.
-func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name, IPAdress,PublicURL string) (GatewayResponse, *dto.AppError) {
+func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name, IPAdress, PublicURL string) (GatewayResponse, *dto.AppError) {
 
 	//Check if the Org is same as the Admin
 	AdminOrgId := middleware.OrgIDFromCtx(ctx)
@@ -66,7 +66,7 @@ func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name, IPAd
 		OrgID:     orgID,
 		Name:      name,
 		TokenHash: utils.HashToken(token),
-		Type: "ashrix_hosted",
+		Type:      "ashrix_hosted",
 		PublicUrl: PublicURL,
 		IpAddress: IPAdress,
 	}
@@ -92,7 +92,7 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 }
 
 // ReEnrollGateway re-create a gateway.
-func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdress,PublicURL string) (GatewayResponse, *dto.AppError) {
+func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdress, PublicURL string) (GatewayResponse, *dto.AppError) {
 
 	gatewayRes, err := s.repo.GetGatewayByID(ctx, id)
 
@@ -138,7 +138,6 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 		return gen.GatewayEnrollResponse{}, dto.NewBadRequestError("Not Valid CSR: " + err.Error())
 	}
 
-
 	//Validate the CSR fields
 	if len(certReq.Subject.OrganizationalUnit) == 0 || certReq.Subject.OrganizationalUnit[0] != "Gateway" {
 		return gen.GatewayEnrollResponse{}, dto.NewUnauthorizedError("Not a gateway")
@@ -161,9 +160,9 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 
 	// Register component cert
 	_, err = s.repo.CreateGatewayCert(ctx, store.RegisterCompCertParams{
-		OrgID:         gateway.OrgID,
+		OrgID:         pgtype.UUID{Valid: true, Bytes: gateway.OrgID},
 		ComponentType: "gateway",
-		ComponentID:   gateway.ID,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: gateway.ID},
 		CaID:          caCertRecord.ID,
 		CertPem:       string(pki_utils.MarshalCert(gatewayCRT)),
 		SerialNumber:  gatewayCRT.SerialNumber.String(),
@@ -183,10 +182,23 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 		return gen.GatewayEnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to enroll gateway", err.Error())
 	}
 
+	//Get the CP Public key from the Cert in the db
+	cPCert, err := s.repo.GetActiveComponentCertByType(ctx, "cp")
+	if err != nil {
+		return gen.GatewayEnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active CP certificate", err.Error())
+	}
+
+	pubkey, err := pki_utils.ParsePublicKeyFromCert([]byte(cPCert.CertPem))
+	if err != nil {
+		return gen.GatewayEnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active CP certificate", "invalid cert PEM: "+cPCert.CertPem)
+	}
+	
+
 	return gen.GatewayEnrollResponse{
-		GatewayId: gateway.ID.String(),
+		GatewayId:   gateway.ID.String(),
 		GatewayName: gateway.Name,
-		GatewayUrl: gateway.PublicUrl,
+		GatewayUrl:  gateway.PublicUrl,
+		CpPubKey:    string(pki_utils.MarshalPubKey(pubkey)),
 		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
 		TrustBundle: string(signer.TrustBundle()),
 		ExpiresAt:   timestamppb.New(gatewayCRT.NotAfter),
@@ -199,7 +211,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	if timeNow-timestamp > 60 {
 		return gen.GatewayRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp Expired")
 	}
-	
+
 	// get gateway
 	gateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
 	if err != nil {
@@ -212,7 +224,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	// get active cert
 	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "gateway",
-		ComponentID:   gatewayID,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -228,17 +240,16 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	}
 
 	// verify signature
-	verified := pki_utils.VerifyPossessionProof	(pubkey, []byte(csr), gatewayID.String(), timestamp, signature)
+	verified := pki_utils.VerifyPossessionProof(pubkey, []byte(csr), gatewayID.String(), timestamp, signature)
 	if !verified {
 		return gen.GatewayRenewCertResponse{}, dto.NewUnauthorizedError("Signature verification failed")
 	}
 
-		//Check timestamp is within 60 secsy
+	//Check timestamp is within 60 secsy
 	timeNow = time.Now().Unix()
 	if timeNow-timestamp > 60 {
 		return gen.GatewayRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp Expired")
 	}
-
 
 	// Issue new cert
 	// get active intermediate CA
@@ -252,7 +263,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 
 	//Revoke the current cert of the gateway
 	_, err = s.repo.RevokeGatewayCert(ctx, store.RevokeCompCertParams{
-		ComponentID:   gatewayID,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 		ComponentType: "gateway",
 		RevokeReason:  pgtype.Text{String: "superseded", Valid: true},
 	})
@@ -272,7 +283,6 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 		return gen.GatewayRenewCertResponse{}, dto.NewUnauthorizedError("Not a gateway")
 	}
 
-
 	// Issue new cert
 	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gatewayID.String())
 	if err != nil {
@@ -281,8 +291,8 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 
 	//Register the cert
 	_, err = s.repo.CreateGatewayCert(ctx, store.RegisterCompCertParams{
-		OrgID:         gateway.OrgID,
-		ComponentID:   gatewayID,
+		OrgID:         pgtype.UUID{Valid: true, Bytes: gateway.OrgID},
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 		ComponentType: "gateway",
 		CaID:          caCertRecord.ID,
 		CertPem:       string(pki_utils.MarshalCert(gatewayCRT)),
@@ -336,7 +346,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, co
 	// Fetch active component certificate
 	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: componentType,
-		ComponentID:   gatewayID,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -348,7 +358,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, co
 
 	// Revoke component cert
 	params := store.RevokeCompCertParams{
-		ComponentID:   gatewayID,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 		ComponentType: componentType,
 		RevokeReason:  pgtype.Text{String: revokeReason, Valid: true},
 	}
@@ -424,12 +434,12 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 	// Revoke the active component certificate if it exists
 	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "gateway",
-		ComponentID:   id,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
 	})
 	if err == nil {
 		// Cert found, revoke it
 		_, err = s.repo.RevokeGatewayCert(ctx, store.RevokeCompCertParams{
-			ComponentID:   id,
+			ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
 			ComponentType: "gateway",
 			RevokeReason:  pgtype.Text{String: "cessationOfOperation", Valid: true},
 		})
@@ -457,5 +467,3 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 
 	return mapToGatewayResponse(revokedGateway), nil
 }
-
-

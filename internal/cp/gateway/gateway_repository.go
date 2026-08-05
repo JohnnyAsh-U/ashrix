@@ -27,6 +27,7 @@ type Repository interface {
 	// New methods
 	RevokeGatewayCert(ctx context.Context, params store.RevokeCompCertParams) (store.ComponentCertificate, error)
 	GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error)
+	GetActiveComponentCertByType(ctx context.Context, componentType string) (store.ComponentCertificate, error)
 	CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error)
 	CreateRevocation(ctx context.Context, params store.CreateRevocationParams) (store.Revocation, error)
 }
@@ -90,6 +91,10 @@ func (r *postgresRepository) CreateGatewayCert(ctx context.Context, params store
 
 func (r *postgresRepository) GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error) {
 	return r.q.GetActiveComponentCert(ctx, params)
+}
+
+func (r *postgresRepository) GetActiveComponentCertByType(ctx context.Context, componentType string) (store.ComponentCertificate, error) {
+	return r.q.GetActiveComponentCertByType(ctx, componentType)
 }
 
 func (r *postgresRepository) CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error) {

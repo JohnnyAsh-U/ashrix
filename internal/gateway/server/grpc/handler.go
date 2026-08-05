@@ -30,18 +30,15 @@ type Server struct {
 	gen.UnimplementedConnectorServiceServer
 
 	registry *registry.Registry
-	pending  *registry.PendingCommands
 	log      *zap.Logger
 }
 
 func New(
 	reg *registry.Registry,
-	pending *registry.PendingCommands,
 	log *zap.Logger,
 ) *Server {
 	return &Server{
 		registry: reg,
-		pending:  pending,
 		log:      log,
 	}
 }

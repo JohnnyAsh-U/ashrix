@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
@@ -16,9 +17,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // =============================================================================
@@ -40,6 +44,8 @@ type ControlPlanePKI struct {
 	ControlPlaneKey      *ecdsa.PrivateKey
 	ControlPlaneCert     *x509.Certificate
 	CAPool               *x509.CertPool
+	db                   *store.Queries // Database queries for CA certificates
+
 }
 
 type Bundle struct {
@@ -54,7 +60,7 @@ type SignedBundle struct {
 	Signature string `json:"signature"`
 }
 
-func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigner) (ControlPlaneCrypto, error) {
+func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigner, dbQueries *store.Queries) (ControlPlaneCrypto, error) {
 	fmt.Println("Initializing Control Plane PKI...")
 	CPPKIDir := filepath.Join(baseDir, "pki", "cp")
 
@@ -84,9 +90,43 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 		}
 		fmt.Println("→ Control Plane Key and Cert not found")
 		fmt.Println("Requesting one...")
-		_, err := generateControlPlaneCERT(cpKeyPath, cpCertPath, secret, signer)
+		cert, err := generateControlPlaneCERT(cpKeyPath, cpCertPath, secret, signer)
 		if err != nil {
 			return nil, err
+		}
+		//Get the activate
+		context := context.Background()
+		dbRootCertRecord, err := dbQueries.GetActiveCACert(context, store.GetActiveCACertParams{Name: "Ashrix Intermediate CA", Type: "intermediate"})
+
+		//Get existing cp component cert id
+		dbCPComponentCertRecords, err := dbQueries.GetActiveComponentCertByType(context, "cp")
+		//Revoke any Existing cp component cert
+		_, err = dbQueries.RevokeComponentCertificate(context, store.RevokeComponentCertificateParams{
+			ID:           dbCPComponentCertRecords.ID,
+			RevokeReason: pgtype.Text{String: "superseded", Valid: true},
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("%v", err)
+		}
+
+		// Register component cert
+		_, err = dbQueries.CreateComponentCertificate(context, store.CreateComponentCertificateParams{
+			OrgID:         pgtype.UUID{Valid: false},
+			ComponentType: "cp",
+			ComponentID:   pgtype.UUID{Valid: false},
+			CaID:          dbRootCertRecord.ID,
+			CertPem:       string(pki_utils.MarshalCert(cert)),
+			SerialNumber:  cert.SerialNumber.String(),
+			Subject:       cert.Subject.CommonName,
+			San:           cert.DNSNames,
+			IssuedAt:      cert.NotBefore,
+			ExpiresAt:     cert.NotAfter,
+			RotationOf:    pgtype.UUID{Valid: false},
+		})
+		fmt.Println(err)
+		if err != nil {
+			return nil, fmt.Errorf("%v", err)
 		}
 	}
 	cpKey, cpCert, err := pki_utils.LoadKeyAndCert(cpKeyPath, cpCertPath, secret, "cp")
@@ -103,9 +143,6 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 	pool := x509.NewCertPool()
 	pool.AddCert(signer.RootCert())
 	pool.AddCert(signer.IntermediateCert())
-
-	fmt.Println(cpCert.NotAfter, cpCert.NotBefore)
-
 
 	fmt.Println("Control Plane PKI Intializing Done...")
 
@@ -242,11 +279,16 @@ func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASig
 	fmt.Println("Control Plane CSR Request Done ...")
 	fmt.Println("CA Sigining Control Plane CSR...")
 
-	Cert, err := signer.IssueCert(certReq, 356 * 24*time.Hour, certReq.Subject.CommonName)
+	Cert, err := signer.IssueCert(certReq, 356*24*time.Hour, certReq.Subject.CommonName)
 
 	if err := pki_utils.WriteCert(certPath, Cert); err != nil {
 		return nil, err
 	}
 	fmt.Printf("  ✓ Control Plane Cert generated. Valid until: %s\n", Cert.NotAfter.Format("2006-01-02"))
 	return Cert, nil
+}
+
+type NullUUID struct {
+	UUID  uuid.UUID
+	Valid bool
 }

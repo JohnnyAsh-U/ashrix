@@ -160,9 +160,9 @@ func (s *Service) EnrollConnector(ctx context.Context, token, csr string, signer
 
 	// Register component cert
 	_, err = s.repo.CreateConnectorCert(ctx, store.RegisterCompCertParams{
-		OrgID:         conn.OrgID,
+		OrgID:         pgtype.UUID{Valid: true, Bytes: conn.OrgID},
 		ComponentType: "connector",
-		ComponentID:   conn.ID,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: conn.ID},
 		CaID:          caCertRecord.ID,
 		CertPem:       string(pki_utils.MarshalCert(connCRT)),
 		SerialNumber:  connCRT.SerialNumber.String(),
@@ -209,7 +209,7 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 	// get active cert
 	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "connector",
-		ComponentID:   connector.ID,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: connector.ID},
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -248,7 +248,7 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 
 	//Revoke the current cert of the gateway
 	_, err = s.repo.RevokeConnectorCert(ctx, store.RevokeCompCertParams{
-		ComponentID:   connectorID,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorID},
 		ComponentType: "connector",
 		RevokeReason:  pgtype.Text{String: "superseded", Valid: true},
 	})
@@ -276,8 +276,8 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 
 	//Register the cert
 	_, err = s.repo.CreateConnectorCert(ctx, store.RegisterCompCertParams{
-		OrgID:         connector.OrgID,
-		ComponentID:   connectorID,
+		OrgID:         pgtype.UUID{Valid: true, Bytes: connector.OrgID},
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorID},
 		ComponentType: "connector",
 		CaID:          caCertRecord.ID,
 		CertPem:       string(pki_utils.MarshalCert(connCRT)),
@@ -330,7 +330,7 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 	// Fetch active component certificate
 	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: componentType,
-		ComponentID:   connectorId,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorId},
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -342,7 +342,7 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 
 	// Revoke component cert
 	params := store.RevokeCompCertParams{
-		ComponentID:   connectorId,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorId},
 		ComponentType: componentType,
 		RevokeReason:  pgtype.Text{String: revokeReason, Valid: true},
 	}
@@ -418,12 +418,12 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 	// Revoke the active component certificate if it exists
 	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "connector",
-		ComponentID:   id,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
 	})
 	if err == nil {
 		// Cert found, revoke it
 		_, err = s.repo.RevokeConnectorCert(ctx, store.RevokeCompCertParams{
-			ComponentID:   id,
+			ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
 			ComponentType: "connector",
 			RevokeReason:  pgtype.Text{String: "cessationOfOperation", Valid: true},
 		})
@@ -472,7 +472,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 	// Revoke the active component certificate if it exists
 	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "connector",
-		ComponentID:   connectorID,
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorID},
 	})
 
 	if err != nil {

@@ -91,28 +91,39 @@ func ParsePublicKey(pubKey []byte) (*ecdsa.PublicKey, error) {
 
 // ParsePublicKeyFromCert extracts an ECDSA public key from a PEM-encoded certificate.
 func ParsePublicKeyFromCert(certPEM []byte) (*ecdsa.PublicKey, error) {
-    block, _ := pem.Decode(certPEM)
-    if block == nil || block.Type != "CERTIFICATE" {
-        return nil, fmt.Errorf("failed to decode PEM block containing certificate")
-    }
+	block, _ := pem.Decode(certPEM)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return nil, fmt.Errorf("failed to decode PEM block containing certificate")
+	}
 
-    cert, err := x509.ParseCertificate(block.Bytes)
-    if err != nil {
-        return nil, fmt.Errorf("failed to parse certificate: %w", err)
-    }
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+	}
 
-    ecdsaPubKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
-    if !ok {
-        return nil, fmt.Errorf("certificate public key is not of type ECDSA")
-    }
+	ecdsaPubKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("certificate public key is not of type ECDSA")
+	}
 
-    return ecdsaPubKey, nil
+	return ecdsaPubKey, nil
 }
 
 func MarshalCert(cert *x509.Certificate) []byte {
 	return pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: cert.Raw,
+	})
+}
+
+func MarshalPubKey(pubKey *ecdsa.PublicKey) []byte {
+	pubKeyBytes, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		return nil
+	}
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubKeyBytes,
 	})
 }
 
@@ -168,8 +179,7 @@ func VerifySignature(pubKey *ecdsa.PublicKey, data []byte, signature []byte) boo
 	return ecdsa.VerifyASN1(pubKey, data, signature)
 }
 
-
-// VerifyPossessionProof is a helper that reconstructs the expected hash 
+// VerifyPossessionProof is a helper that reconstructs the expected hash
 // and verifies the base64-encoded signature.
 func VerifyPossessionProof(
 	pubKey *ecdsa.PublicKey,

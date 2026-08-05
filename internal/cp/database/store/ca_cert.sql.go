@@ -74,20 +74,20 @@ AND revoked_at IS NULL
 `
 
 type GetValidCompCertParams struct {
-	ComponentType string    `json:"component_type"`
-	ComponentID   uuid.UUID `json:"component_id"`
+	ComponentType string      `json:"component_type"`
+	ComponentID   pgtype.UUID `json:"component_id"`
 }
 
 type GetValidCompCertRow struct {
-	ID            uuid.UUID `json:"id"`
-	OrgID         uuid.UUID `json:"org_id"`
-	ComponentType string    `json:"component_type"`
-	ComponentID   uuid.UUID `json:"component_id"`
-	CertPem       string    `json:"cert_pem"`
-	SerialNumber  string    `json:"serial_number"`
-	Subject       string    `json:"subject"`
-	San           []string  `json:"san"`
-	IssuedAt      time.Time `json:"issued_at"`
+	ID            uuid.UUID   `json:"id"`
+	OrgID         pgtype.UUID `json:"org_id"`
+	ComponentType string      `json:"component_type"`
+	ComponentID   pgtype.UUID `json:"component_id"`
+	CertPem       string      `json:"cert_pem"`
+	SerialNumber  string      `json:"serial_number"`
+	Subject       string      `json:"subject"`
+	San           []string    `json:"san"`
+	IssuedAt      time.Time   `json:"issued_at"`
 }
 
 func (q *Queries) GetValidCompCert(ctx context.Context, arg GetValidCompCertParams) (GetValidCompCertRow, error) {
@@ -193,9 +193,9 @@ RETURNING id, org_id, component_type, component_id, ca_id, cert_pem, serial_numb
 `
 
 type RegisterCompCertParams struct {
-	OrgID         uuid.UUID   `json:"org_id"`
+	OrgID         pgtype.UUID `json:"org_id"`
 	ComponentType string      `json:"component_type"`
-	ComponentID   uuid.UUID   `json:"component_id"`
+	ComponentID   pgtype.UUID `json:"component_id"`
 	CaID          uuid.UUID   `json:"ca_id"`
 	CertPem       string      `json:"cert_pem"`
 	SerialNumber  string      `json:"serial_number"`
@@ -255,7 +255,7 @@ RETURNING id, org_id, component_type, component_id, ca_id, cert_pem, serial_numb
 `
 
 type RevokeCompCertParams struct {
-	ComponentID   uuid.UUID   `json:"component_id"`
+	ComponentID   pgtype.UUID `json:"component_id"`
 	ComponentType string      `json:"component_type"`
 	RevokeReason  pgtype.Text `json:"revoke_reason"`
 }

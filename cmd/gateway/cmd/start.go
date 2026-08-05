@@ -16,11 +16,12 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
 	gateway_grpc "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/grpc_client"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/store"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -149,9 +150,29 @@ func runStart(cmd *cobra.Command, args []string) error {
 	//---------------------------Initialize and Load Registry------------------------------//
 
 	reg := registry.New()
-	regPendingCmd := registry.NewPendingCommands()
 
 	log.Info("Initialising Registry...")
+
+
+	//--------------------------Open Policy Store -----------------------------------------------//
+
+	log.Info("Initialising Policy Store And Engine...")
+	policyStore, err := store.OpenBoltStore(cfg.DataDir)
+	if err != nil {
+		log.Error("failed to open policy store", zap.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	// Load CP public key (embedded in binary)
+	verifier := store.NewSignatureVerifier()
+
+	//Policy Engine takes Store as args to load the policies into the engine
+	engine := policy.NewEngine(policyStore, verifier)
+
+
+	defer policyStore.Close()
+	log.Info("Initialising Policy And Engine Done...")
+
 
 	//-----------------------Load TLS and Open stream -----------------------------------------------
 	// This is the real liveness check - If CP is unreachable or
@@ -214,19 +235,12 @@ func runStart(cmd *cobra.Command, args []string) error {
 	pki.StartRotator()
 	defer pki.Stop()
 
-	// 7. Open store
-	store, err := store.Open(cfg.DataDir, log)
-	if err != nil {
-		log.Fatal("failed to open store", zap.Error(err))
-	}
-	defer store.Close()
-
 	//--------------------Start Listeners--------------------
 
 	// Instantiate new servers
-	grpcServer := grpc.NewGRPCServer(cfg, pki.GetTLSConfig(), log, reg, regPendingCmd)
+	grpcServer := grpc.NewGRPCServer(cfg, pki.GetTLSConfig(), log, reg)
 	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log, reg)
-	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), log)
+	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), log, engine)
 
 	// Start servers in background
 	go func() {

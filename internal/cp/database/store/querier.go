@@ -47,14 +47,39 @@ type Querier interface {
 	// CERTIFICATES — CA
 	// =================================================================
 	CreateCACertificate(ctx context.Context, arg CreateCACertificateParams) (CaCertificate, error)
+	// -- =================================================================
+	// -- CSR REQUESTS
+	// -- =================================================================
+	// -- name: CreateCSRRequest :one
+	// INSERT INTO csr_requests (org_id, component_type, component_id, csr_pem)
+	// VALUES ($1, $2, $3, $4)
+	// RETURNING *;
+	// -- name: GetCSRRequest :one
+	// SELECT * FROM csr_requests
+	// WHERE id = $1;
+	// -- name: MarkCSRSigned :one
+	// UPDATE csr_requests
+	// SET status         = 'signed',
+	//     signed_cert_id = $2,
+	//     processed_at   = now()
+	// WHERE id           = $1
+	//   AND status       = 'pending'
+	// RETURNING *;
+	// -- name: MarkCSRRejected :one
+	// UPDATE csr_requests
+	// SET status       = 'rejected',
+	//     processed_at = now()
+	// WHERE id         = $1
+	//   AND status     = 'pending'
+	// RETURNING *;
+	// -- name: ListPendingCSRs :many
+	// SELECT * FROM csr_requests
+	// WHERE status = 'pending'
+	// ORDER BY created_at ASC;
 	// =================================================================
 	// CRL ENTRIES
 	// =================================================================
 	CreateCRLEntry(ctx context.Context, arg CreateCRLEntryParams) (CrlEntry, error)
-	// =================================================================
-	// CSR REQUESTS
-	// =================================================================
-	CreateCSRRequest(ctx context.Context, arg CreateCSRRequestParams) (CsrRequest, error)
 	// =================================================================
 	// CERTIFICATES — COMPONENTS
 	// =================================================================
@@ -108,6 +133,8 @@ type Querier interface {
 	GetActiveCACertByType(ctx context.Context, type_ string) (CaCertificate, error)
 	// Returns the current valid cert for a gateway or connector.
 	GetActiveComponentCert(ctx context.Context, arg GetActiveComponentCertParams) (ComponentCertificate, error)
+	// Returns all valid certs of a given type.
+	GetActiveComponentCertByType(ctx context.Context, componentType string) (ComponentCertificate, error)
 	GetAdminByEmail(ctx context.Context, email string) (Admin, error)
 	// Used at password login. Returns record regardless of sso_only
 	// so caller can check sso_only and reject if needed.
@@ -127,7 +154,6 @@ type Querier interface {
 	GetAppBySubdomain(ctx context.Context, arg GetAppBySubdomainParams) (App, error)
 	// Gateway calls this to check if a presented cert is revoked.
 	GetCRLEntryBySerial(ctx context.Context, serialNumber string) (CrlEntry, error)
-	GetCSRRequest(ctx context.Context, id uuid.UUID) (CsrRequest, error)
 	GetConnectorByID(ctx context.Context, id uuid.UUID) (Connector, error)
 	GetConnectorByIDAndOrg(ctx context.Context, arg GetConnectorByIDAndOrgParams) (Connector, error)
 	// Called on connector → gateway auth.
@@ -182,14 +208,11 @@ type Querier interface {
 	ListExpiringComponentCerts(ctx context.Context, dollar_1 pgtype.Text) ([]ComponentCertificate, error)
 	ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
 	ListIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error)
-	ListPendingCSRs(ctx context.Context) ([]CsrRequest, error)
 	ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)
 	// Gateway polls this on every sync cycle.
 	// Returns only non-expired revocations created after last_seen_at.
 	// Gateway passes its last sync timestamp to get only new entries.
 	ListRevocationsSince(ctx context.Context, arg ListRevocationsSinceParams) ([]Revocation, error)
-	MarkCSRRejected(ctx context.Context, id uuid.UUID) (CsrRequest, error)
-	MarkCSRSigned(ctx context.Context, arg MarkCSRSignedParams) (CsrRequest, error)
 	// Called after owner completes SSO binding confirmation flow.
 	MarkIDPConfigVerified(ctx context.Context, arg MarkIDPConfigVerifiedParams) (IdpConfig, error)
 	MarkPasswordResetTokenUsed(ctx context.Context, id uuid.UUID) error

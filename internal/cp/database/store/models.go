@@ -113,9 +113,9 @@ type CaCertificate struct {
 
 type ComponentCertificate struct {
 	ID            uuid.UUID          `json:"id"`
-	OrgID         uuid.UUID          `json:"org_id"`
+	OrgID         pgtype.UUID        `json:"org_id"`
 	ComponentType string             `json:"component_type"`
-	ComponentID   uuid.UUID          `json:"component_id"`
+	ComponentID   pgtype.UUID        `json:"component_id"`
 	CaID          uuid.UUID          `json:"ca_id"`
 	CertPem       string             `json:"cert_pem"`
 	SerialNumber  string             `json:"serial_number"`
@@ -148,18 +148,6 @@ type CrlEntry struct {
 	SerialNumber string    `json:"serial_number"`
 	RevokedAt    time.Time `json:"revoked_at"`
 	Reason       string    `json:"reason"`
-}
-
-type CsrRequest struct {
-	ID            uuid.UUID          `json:"id"`
-	OrgID         uuid.UUID          `json:"org_id"`
-	ComponentType string             `json:"component_type"`
-	ComponentID   uuid.UUID          `json:"component_id"`
-	CsrPem        string             `json:"csr_pem"`
-	Status        string             `json:"status"`
-	SignedCertID  pgtype.UUID        `json:"signed_cert_id"`
-	CreatedAt     time.Time          `json:"created_at"`
-	ProcessedAt   pgtype.Timestamptz `json:"processed_at"`
 }
 
 type Gateway struct {

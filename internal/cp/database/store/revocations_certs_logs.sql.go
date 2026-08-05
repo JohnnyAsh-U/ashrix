@@ -212,6 +212,13 @@ func (q *Queries) CreateCACertificate(ctx context.Context, arg CreateCACertifica
 
 const createCRLEntry = `-- name: CreateCRLEntry :one
 
+
+
+
+
+
+
+
 INSERT INTO crl_entries (cert_id, serial_number, reason)
 VALUES ($1, $2, $3)
 RETURNING id, cert_id, serial_number, revoked_at, reason
@@ -223,6 +230,43 @@ type CreateCRLEntryParams struct {
 	Reason       string    `json:"reason"`
 }
 
+// -- =================================================================
+// -- CSR REQUESTS
+// -- =================================================================
+// -- name: CreateCSRRequest :one
+// INSERT INTO csr_requests (org_id, component_type, component_id, csr_pem)
+// VALUES ($1, $2, $3, $4)
+// RETURNING *;
+// -- name: GetCSRRequest :one
+// SELECT * FROM csr_requests
+// WHERE id = $1;
+// -- name: MarkCSRSigned :one
+// UPDATE csr_requests
+// SET status         = 'signed',
+//
+//	signed_cert_id = $2,
+//	processed_at   = now()
+//
+// WHERE id           = $1
+//
+//	AND status       = 'pending'
+//
+// RETURNING *;
+// -- name: MarkCSRRejected :one
+// UPDATE csr_requests
+// SET status       = 'rejected',
+//
+//	processed_at = now()
+//
+// WHERE id         = $1
+//
+//	AND status     = 'pending'
+//
+// RETURNING *;
+// -- name: ListPendingCSRs :many
+// SELECT * FROM csr_requests
+// WHERE status = 'pending'
+// ORDER BY created_at ASC;
 // =================================================================
 // CRL ENTRIES
 // =================================================================
@@ -239,45 +283,6 @@ func (q *Queries) CreateCRLEntry(ctx context.Context, arg CreateCRLEntryParams) 
 	return i, err
 }
 
-const createCSRRequest = `-- name: CreateCSRRequest :one
-
-INSERT INTO csr_requests (org_id, component_type, component_id, csr_pem)
-VALUES ($1, $2, $3, $4)
-RETURNING id, org_id, component_type, component_id, csr_pem, status, signed_cert_id, created_at, processed_at
-`
-
-type CreateCSRRequestParams struct {
-	OrgID         uuid.UUID `json:"org_id"`
-	ComponentType string    `json:"component_type"`
-	ComponentID   uuid.UUID `json:"component_id"`
-	CsrPem        string    `json:"csr_pem"`
-}
-
-// =================================================================
-// CSR REQUESTS
-// =================================================================
-func (q *Queries) CreateCSRRequest(ctx context.Context, arg CreateCSRRequestParams) (CsrRequest, error) {
-	row := q.db.QueryRow(ctx, createCSRRequest,
-		arg.OrgID,
-		arg.ComponentType,
-		arg.ComponentID,
-		arg.CsrPem,
-	)
-	var i CsrRequest
-	err := row.Scan(
-		&i.ID,
-		&i.OrgID,
-		&i.ComponentType,
-		&i.ComponentID,
-		&i.CsrPem,
-		&i.Status,
-		&i.SignedCertID,
-		&i.CreatedAt,
-		&i.ProcessedAt,
-	)
-	return i, err
-}
-
 const createComponentCertificate = `-- name: CreateComponentCertificate :one
 
 INSERT INTO component_certificates (
@@ -290,9 +295,9 @@ RETURNING id, org_id, component_type, component_id, ca_id, cert_pem, serial_numb
 `
 
 type CreateComponentCertificateParams struct {
-	OrgID         uuid.UUID   `json:"org_id"`
+	OrgID         pgtype.UUID `json:"org_id"`
 	ComponentType string      `json:"component_type"`
-	ComponentID   uuid.UUID   `json:"component_id"`
+	ComponentID   pgtype.UUID `json:"component_id"`
 	CaID          uuid.UUID   `json:"ca_id"`
 	CertPem       string      `json:"cert_pem"`
 	SerialNumber  string      `json:"serial_number"`
@@ -418,13 +423,45 @@ LIMIT 1
 `
 
 type GetActiveComponentCertParams struct {
-	ComponentType string    `json:"component_type"`
-	ComponentID   uuid.UUID `json:"component_id"`
+	ComponentType string      `json:"component_type"`
+	ComponentID   pgtype.UUID `json:"component_id"`
 }
 
 // Returns the current valid cert for a gateway or connector.
 func (q *Queries) GetActiveComponentCert(ctx context.Context, arg GetActiveComponentCertParams) (ComponentCertificate, error) {
 	row := q.db.QueryRow(ctx, getActiveComponentCert, arg.ComponentType, arg.ComponentID)
+	var i ComponentCertificate
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.ComponentType,
+		&i.ComponentID,
+		&i.CaID,
+		&i.CertPem,
+		&i.SerialNumber,
+		&i.Subject,
+		&i.San,
+		&i.IssuedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.RevokeReason,
+		&i.RotationOf,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getActiveComponentCertByType = `-- name: GetActiveComponentCertByType :one
+SELECT id, org_id, component_type, component_id, ca_id, cert_pem, serial_number, subject, san, issued_at, expires_at, revoked_at, revoke_reason, rotation_of, created_at FROM component_certificates
+WHERE component_type = $1
+  AND revoked_at IS NULL
+ORDER BY issued_at DESC
+LIMIT 1
+`
+
+// Returns all valid certs of a given type.
+func (q *Queries) GetActiveComponentCertByType(ctx context.Context, componentType string) (ComponentCertificate, error) {
+	row := q.db.QueryRow(ctx, getActiveComponentCertByType, componentType)
 	var i ComponentCertificate
 	err := row.Scan(
 		&i.ID,
@@ -461,28 +498,6 @@ func (q *Queries) GetCRLEntryBySerial(ctx context.Context, serialNumber string) 
 		&i.SerialNumber,
 		&i.RevokedAt,
 		&i.Reason,
-	)
-	return i, err
-}
-
-const getCSRRequest = `-- name: GetCSRRequest :one
-SELECT id, org_id, component_type, component_id, csr_pem, status, signed_cert_id, created_at, processed_at FROM csr_requests
-WHERE id = $1
-`
-
-func (q *Queries) GetCSRRequest(ctx context.Context, id uuid.UUID) (CsrRequest, error) {
-	row := q.db.QueryRow(ctx, getCSRRequest, id)
-	var i CsrRequest
-	err := row.Scan(
-		&i.ID,
-		&i.OrgID,
-		&i.ComponentType,
-		&i.ComponentID,
-		&i.CsrPem,
-		&i.Status,
-		&i.SignedCertID,
-		&i.CreatedAt,
-		&i.ProcessedAt,
 	)
 	return i, err
 }
@@ -938,42 +953,6 @@ func (q *Queries) ListExpiringComponentCerts(ctx context.Context, dollar_1 pgtyp
 	return items, nil
 }
 
-const listPendingCSRs = `-- name: ListPendingCSRs :many
-SELECT id, org_id, component_type, component_id, csr_pem, status, signed_cert_id, created_at, processed_at FROM csr_requests
-WHERE status = 'pending'
-ORDER BY created_at ASC
-`
-
-func (q *Queries) ListPendingCSRs(ctx context.Context) ([]CsrRequest, error) {
-	rows, err := q.db.Query(ctx, listPendingCSRs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CsrRequest{}
-	for rows.Next() {
-		var i CsrRequest
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrgID,
-			&i.ComponentType,
-			&i.ComponentID,
-			&i.CsrPem,
-			&i.Status,
-			&i.SignedCertID,
-			&i.CreatedAt,
-			&i.ProcessedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRevocationsSince = `-- name: ListRevocationsSince :many
 SELECT id, org_id, type, target_id, reason, created_at, expires_at FROM revocations
 WHERE org_id     = $1
@@ -1016,64 +995,6 @@ func (q *Queries) ListRevocationsSince(ctx context.Context, arg ListRevocationsS
 		return nil, err
 	}
 	return items, nil
-}
-
-const markCSRRejected = `-- name: MarkCSRRejected :one
-UPDATE csr_requests
-SET status       = 'rejected',
-    processed_at = now()
-WHERE id         = $1
-  AND status     = 'pending'
-RETURNING id, org_id, component_type, component_id, csr_pem, status, signed_cert_id, created_at, processed_at
-`
-
-func (q *Queries) MarkCSRRejected(ctx context.Context, id uuid.UUID) (CsrRequest, error) {
-	row := q.db.QueryRow(ctx, markCSRRejected, id)
-	var i CsrRequest
-	err := row.Scan(
-		&i.ID,
-		&i.OrgID,
-		&i.ComponentType,
-		&i.ComponentID,
-		&i.CsrPem,
-		&i.Status,
-		&i.SignedCertID,
-		&i.CreatedAt,
-		&i.ProcessedAt,
-	)
-	return i, err
-}
-
-const markCSRSigned = `-- name: MarkCSRSigned :one
-UPDATE csr_requests
-SET status         = 'signed',
-    signed_cert_id = $2,
-    processed_at   = now()
-WHERE id           = $1
-  AND status       = 'pending'
-RETURNING id, org_id, component_type, component_id, csr_pem, status, signed_cert_id, created_at, processed_at
-`
-
-type MarkCSRSignedParams struct {
-	ID           uuid.UUID   `json:"id"`
-	SignedCertID pgtype.UUID `json:"signed_cert_id"`
-}
-
-func (q *Queries) MarkCSRSigned(ctx context.Context, arg MarkCSRSignedParams) (CsrRequest, error) {
-	row := q.db.QueryRow(ctx, markCSRSigned, arg.ID, arg.SignedCertID)
-	var i CsrRequest
-	err := row.Scan(
-		&i.ID,
-		&i.OrgID,
-		&i.ComponentType,
-		&i.ComponentID,
-		&i.CsrPem,
-		&i.Status,
-		&i.SignedCertID,
-		&i.CreatedAt,
-		&i.ProcessedAt,
-	)
-	return i, err
 }
 
 const purgeExpiredRevocations = `-- name: PurgeExpiredRevocations :exec

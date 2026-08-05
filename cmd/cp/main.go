@@ -105,6 +105,7 @@ func main() {
 		BaseDir,
 		cfg.PKIConfig.PKIUnlockSecret,
 		signer,
+		dbQueries,
 	)
 
 	if cperr != nil {

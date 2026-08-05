@@ -6,7 +6,6 @@ option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/ashrix-gateway.prot
 
 import "google/protobuf/timestamp.proto";
 
-
 // =============================================================================
 // Gateway Bootstrap Proto Types
 // =============================================================================
@@ -19,11 +18,12 @@ message GatewayEnrollRequest {
 
 message GatewayEnrollResponse {
   string                    gateway_id   = 1;
-  string                    gateway_name  = 2;
-  string                    gateway_url = 3;
+  string                    gateway_name = 2;
+  string                    gateway_url  = 3;
   string                    certificate  = 4;
   string                    trust_bundle = 5;
-  google.protobuf.Timestamp expires_at   = 6;
+  string                    cp_pub_key   = 6;
+  google.protobuf.Timestamp expires_at   = 7;
 }
 
 message GatewayRenewCertRequest {
@@ -52,7 +52,6 @@ service ControlPlaneService {
 // =============================================================================
 // Gateway Authentication Proto Types
 // =============================================================================
-
 
 message ExchangeTokenRequest {
   string gateway_name = 1;
@@ -88,17 +87,16 @@ enum BundleTypes {
   BUNDLE_TYPE_CONFIG      = 4; // runtime config bundle
 }
 
-
 message SignedPayload {
-  int64      version    = 1; // monotonically increasing — reject if <= node's current version
-  bytes      payload    = 2; // serialized inner message (TrustBundle, PolicyBundle, etc.)
-  bytes      signature  = 3; // ECDSA-P384 over SHA256(version_bytes || payload)
+  int64                     version    = 1; // monotonically increasing — reject if <= node's current version
+  bytes                     payload    = 2; // serialized inner message (TrustBundle, PolicyBundle, etc.)
+  bytes                     signature  = 3; // ECDSA-P384 over SHA256(version_bytes || payload)
   google.protobuf.Timestamp issued_at  = 4;
   google.protobuf.Timestamp expires_at = 5; // short TTL — reject if now > expires_at
 }
 
 message BundleUpdate {
-  BundleTypes    type    = 1;
+  BundleTypes   type    = 1;
   SignedPayload payload = 2;
 }
 
@@ -120,11 +118,11 @@ message GatewayEnvelope {
 
 //CPEnvelope - CP => Gateway
 message CPEnvelope {
-  google.protobuf.Timestamp sent_at          = 1;
+  google.protobuf.Timestamp sent_at = 1;
 
   oneof payload {
     HelloAck     hello_ack     = 10;
-    BundleUpdate    bundle_update    = 11;
+    BundleUpdate bundle_update = 11;
   }
 }
 
@@ -161,12 +159,12 @@ message ConnectorsStatus {
 }
 
 message BundleAck {
-  string     message_id     = 1; //The CP Message being ack
-  int64      bundle_version = 2; // version being acknowledged
+  string      message_id     = 1; //The CP Message being ack
+  int64       bundle_version = 2; // version being acknowledged
   BundleTypes bundle_type    = 3;
-  string     version        = 6;
-  bool       applied        = 4; // true = successfully verified and applied
-  string     error          = 5; // set if applied=false — reason for failure
+  string      version        = 6;
+  bool        applied        = 4; // true = successfully verified and applied
+  string      error          = 5; // set if applied=false — reason for failure
 }
 
 // =============================================================================

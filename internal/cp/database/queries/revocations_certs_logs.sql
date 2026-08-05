@@ -68,6 +68,14 @@ WHERE component_type = $1
 ORDER BY issued_at DESC
 LIMIT 1;
 
+-- name: GetActiveComponentCertByType :one
+-- Returns all valid certs of a given type.
+SELECT * FROM component_certificates
+WHERE component_type = $1
+  AND revoked_at IS NULL
+ORDER BY issued_at DESC
+LIMIT 1;
+
 -- name: ListExpiringComponentCerts :many
 -- Used by background job to alert before expiry.
 -- Returns certs expiring within the next $1 days.
@@ -85,40 +93,40 @@ WHERE id          = $1
 RETURNING *;
 
 
--- =================================================================
--- CSR REQUESTS
--- =================================================================
+-- -- =================================================================
+-- -- CSR REQUESTS
+-- -- =================================================================
 
--- name: CreateCSRRequest :one
-INSERT INTO csr_requests (org_id, component_type, component_id, csr_pem)
-VALUES ($1, $2, $3, $4)
-RETURNING *;
+-- -- name: CreateCSRRequest :one
+-- INSERT INTO csr_requests (org_id, component_type, component_id, csr_pem)
+-- VALUES ($1, $2, $3, $4)
+-- RETURNING *;
 
--- name: GetCSRRequest :one
-SELECT * FROM csr_requests
-WHERE id = $1;
+-- -- name: GetCSRRequest :one
+-- SELECT * FROM csr_requests
+-- WHERE id = $1;
 
--- name: MarkCSRSigned :one
-UPDATE csr_requests
-SET status         = 'signed',
-    signed_cert_id = $2,
-    processed_at   = now()
-WHERE id           = $1
-  AND status       = 'pending'
-RETURNING *;
+-- -- name: MarkCSRSigned :one
+-- UPDATE csr_requests
+-- SET status         = 'signed',
+--     signed_cert_id = $2,
+--     processed_at   = now()
+-- WHERE id           = $1
+--   AND status       = 'pending'
+-- RETURNING *;
 
--- name: MarkCSRRejected :one
-UPDATE csr_requests
-SET status       = 'rejected',
-    processed_at = now()
-WHERE id         = $1
-  AND status     = 'pending'
-RETURNING *;
+-- -- name: MarkCSRRejected :one
+-- UPDATE csr_requests
+-- SET status       = 'rejected',
+--     processed_at = now()
+-- WHERE id         = $1
+--   AND status     = 'pending'
+-- RETURNING *;
 
--- name: ListPendingCSRs :many
-SELECT * FROM csr_requests
-WHERE status = 'pending'
-ORDER BY created_at ASC;
+-- -- name: ListPendingCSRs :many
+-- SELECT * FROM csr_requests
+-- WHERE status = 'pending'
+-- ORDER BY created_at ASC;
 
 
 -- =================================================================

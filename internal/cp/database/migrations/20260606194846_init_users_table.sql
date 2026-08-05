@@ -476,9 +476,9 @@ CREATE TABLE ca_certificates (
 -- -----------------------------------------------------------------
 CREATE TABLE component_certificates (
     id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id              UUID        NOT NULL REFERENCES orgs(id),
-    component_type      TEXT        NOT NULL CHECK (component_type IN ('gateway', 'connector')),
-    component_id        UUID        NOT NULL,    -- gateway_id or connector_id
+    org_id              UUID        REFERENCES orgs(id),
+    component_type      TEXT        NOT NULL CHECK (component_type IN ('cp','gateway', 'connector')),
+    component_id        UUID,    -- gateway_id or connector_id or cp
     ca_id               UUID        NOT NULL REFERENCES ca_certificates(id),
     cert_pem            TEXT        NOT NULL,    -- public cert only
     serial_number       TEXT        NOT NULL UNIQUE,
@@ -498,17 +498,17 @@ CREATE TABLE component_certificates (
 -- Gateway/connector submits a CSR. CP signs it and returns the cert.
 -- CSR submission gated by valid enrollment token — never unauthenticated.
 -- -----------------------------------------------------------------
-CREATE TABLE csr_requests (
-    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id          UUID        NOT NULL REFERENCES orgs(id),
-    component_type  TEXT        NOT NULL CHECK (component_type IN ('gateway', 'connector')),
-    component_id    UUID        NOT NULL,
-    csr_pem         TEXT        NOT NULL,        -- the raw CSR from the component
-    status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'signed', 'rejected')),
-    signed_cert_id  UUID        REFERENCES component_certificates(id),
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    processed_at    TIMESTAMPTZ
-);
+-- CREATE TABLE csr_requests (
+--     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+--     org_id          UUID        NOT NULL REFERENCES orgs(id),
+--     component_type  TEXT        NOT NULL CHECK (component_type IN ('gateway', 'connector')),
+--     component_id    UUID        NOT NULL,
+--     csr_pem         TEXT        NOT NULL,        -- the raw CSR from the component
+--     status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'signed', 'rejected')),
+--     signed_cert_id  UUID        REFERENCES component_certificates(id),
+--     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+--     processed_at    TIMESTAMPTZ
+-- );
 
 
 -- -----------------------------------------------------------------
@@ -621,9 +621,9 @@ CREATE INDEX idx_component_certs_component
     WHERE revoked_at IS NULL;
 
 -- Pending CSR queue
-CREATE INDEX idx_csr_pending
-    ON csr_requests (status)
-    WHERE status = 'pending';
+-- CREATE INDEX idx_csr_pending
+--     ON csr_requests (status)
+--     WHERE status = 'pending';
 
 -- CRL lookup by serial (Gateway cert validation)
 CREATE INDEX idx_crl_serial
@@ -702,7 +702,7 @@ DROP INDEX IF EXISTS idx_audit_tenant_time;
 DROP TABLE IF EXISTS access_logs;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS crl_entries;
-DROP TABLE IF EXISTS csr_requests;
+-- DROP TABLE IF EXISTS csr_requests;
 DROP TABLE IF EXISTS component_certificates;
 DROP TABLE IF EXISTS ca_certificates;
 DROP TABLE IF EXISTS revocations;

@@ -24,10 +24,14 @@ type ProxyServer struct {
 	log  *zap.Logger
 }
 
-func NewProxyServer(cfg *config.Config, grpcClient *gateway_grpc.SafeClient, registry *registry.Registry, redisClient *redis.Client, log *zap.Logger) *ProxyServer {
-
-	//Policy Engine takes Store as args to load the policies into the engine
-	engine := policy.NewEngine()
+func NewProxyServer(
+	cfg *config.Config, 
+	grpcClient *gateway_grpc.SafeClient, 
+	registry *registry.Registry, 
+	redisClient *redis.Client, 
+	log *zap.Logger,
+	engine *policy.PolicyEngine,
+) *ProxyServer {
 
 	sessions := session.NewSessionManager(redisClient, cfg.SessionTTL, cfg.CookieSecure)
 	rateLimiter := session.NewRedisLimiter(redisClient, 10, time.Minute)

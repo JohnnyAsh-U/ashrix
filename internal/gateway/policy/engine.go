@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
@@ -15,7 +16,9 @@ type PolicyEngine struct {
 	scheduleCache map[string]*proto.Schedule
 }
 
-func NewEngine() *PolicyEngine {
+func NewEngine(store *store.BoltStore, sigVerifier *store.SignatureVerifier) *PolicyEngine {
+
+	//Load from store, verify policies, and Compile
 	return &PolicyEngine{
 		index:         NewIndex(),
 		scheduleCache: make(map[string]*proto.Schedule),

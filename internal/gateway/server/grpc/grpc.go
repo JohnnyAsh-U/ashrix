@@ -20,7 +20,7 @@ type GRPCServer struct {
 }
 
 
-func NewGRPCServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger, registry *registry.Registry, pendingCmd *registry.PendingCommands) *GRPCServer {
+func NewGRPCServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger, registry *registry.Registry) *GRPCServer {
 	// Enforce mTLS by requiring client certificates
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
@@ -28,7 +28,7 @@ func NewGRPCServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger, r
 	s := grpc.NewServer(grpc.Creds(creds))
 
 	// TODO: Register your gRPC handlers here
-	gen.RegisterConnectorServiceServer(s, &Server{registry: registry, log: log, pending: pendingCmd})
+	gen.RegisterConnectorServiceServer(s, &Server{registry: registry, log: log})
 
 	return &GRPCServer{
 		server: s,
