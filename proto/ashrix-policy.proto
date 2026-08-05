@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package proto;
 
-option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/ashrix-policy.proto;proto";
+option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/gen;proto";
 
 import "google/protobuf/timestamp.proto";
 
@@ -57,33 +57,49 @@ message SubjectSelector {
 }
 
 message ResourceSelector {
-  repeated string app_ids  = 1;
+  repeated string app_ids = 1;
   repeated string paths   = 2;
   repeated string methods = 3;
 }
 
 enum EffectEnum {
-  Effect_ENUM_UNSPECIFIED = 0;
-  Effect_ENUM_ALLOW       = 1;
-  Effect_ENUM_DENY        = 2;
+  EFFECT_ENUM_UNSPECIFIED = 0;
+  EFFECT_ENUM_ALLOW       = 1;
+  EFFECT_ENUM_DENY        = 2;
+}
+
+enum OperationEnum {
+  OPERATION_ENUM_UNSPECIFIED = 0;
+  OPERATION_ENUM_UPSERT      = 1;
+  OPERATION_ENUM_DELETE      = 2;
 }
 
 message PolicyRule {
-  string           policy_id  = 1;
-  string           tenant_id  = 2;
-  string           name       = 3;
-  EffectEnum       effect     = 4;
-  int32            priority   = 5;
-  SubjectSelector  subject    = 6;
-  ResourceSelector resource   = 7;
-  PolicyConditions conditions = 8;
-  bool             enabled    = 9;
-  int64            version    = 10;
+  string                    policy_id   = 1;
+  string                    tenant_id   = 2;
+  string                    name        = 3;
+  string                    description = 4;
+  EffectEnum                effect      = 5;
+  int32                     priority    = 6;
+  SubjectSelector           subject     = 7;
+  ResourceSelector          resource    = 8;
+  PolicyConditions          conditions  = 9;
+  bool                      enabled     = 10;
+  int64                     version     = 11;
+  google.protobuf.Timestamp created_at  = 12;
 }
 
-message PolicyBundle {
-  int64               version   = 1;
-  string              tenant_id = 2;
-  int64               issued_at = 3;
-  repeated PolicyRule rules     = 4;
+message PolicyRecord {
+  // --- Envelope metadata (signed) ---
+  int64         sequence   = 1;  // STRICTLY monotonic per policy_id
+  OperationEnum operation = 2;  // UPSERT, DELETE
+  int64         timestamp = 3;  // epoch ms
+
+  // --- Payload ---
+  // For DELETE, this can be a minimal rule with just policy_id + tenant_id,
+  // or the last known rule. The signature still covers it.
+  PolicyRule rule = 4;
+
+  // Signs: H(sequence || operation || timestamp || canonical_hash(rule))
+  bytes signature = 5;
 }

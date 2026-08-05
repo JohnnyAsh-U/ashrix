@@ -171,7 +171,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	
 	//Policy Engine takes Store as args to load the policies into the engine
-	engine := policy.NewEngine(context.Background(), policyStore, verifier, log)
+	engine, err := policy.NewEngine(context.Background(), policyStore, verifier,cfg.GatewayID, log)
+	if err != nil {
+		log.Fatal("failed to initialize policy engine", zap.Error(err))
+	}
 
 	defer policyStore.Close()
 	log.Info("Initialising Policy And Engine Done...")

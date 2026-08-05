@@ -31,7 +31,7 @@ type PolicyDistributor struct {
 
 	// Cache of compiled bundles by tenant
 	// Key: "tenant_id:version"
-	bundleCache map[string]*pb.SignedPayload
+	bundleCache map[string]*pb.PolicyBundle
 	mu          sync.RWMutex
 }
 
@@ -46,7 +46,7 @@ func NewPolicyDistributor(
 		policyStore: store,
 		bundleSigner:      signer,
 		log: log,
-		bundleCache: make(map[string]*pb.SignedPayload),
+		bundleCache: make(map[string]*pb.PolicyBundle),
 	}
 }
 

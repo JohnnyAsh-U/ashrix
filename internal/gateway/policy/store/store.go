@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	ErrNotFound     = errors.New("policy not found")
-	ErrHashMismatch = errors.New("policy state hash mismatch")
-	ErrSigInvalid   = errors.New("signature verification failed")
+	ErrNotFound      = errors.New("policy not found")
+	ErrHashMismatch  = errors.New("policy state hash mismatch")
+	ErrStaleSequence = errors.New("stale policy sequence")
+	ErrSigInvalid = errors.New("signature verification failed")
 )
 
 const (
@@ -64,42 +65,21 @@ func OpenBoltStore(dataDir string) (*BoltStore, error) {
 
 func (s *BoltStore) Close() error { return s.db.Close() }
 
-// ---------------------------------------------------------------------
-// Reads
-// ---------------------------------------------------------------------
-
-// LoadAll returns all live policies (without signatures). Used to build engine index.
-func (s *BoltStore) LoadAll(ctx context.Context) ([]*pb.PolicyRule, error) {
-	var out []*pb.PolicyRule
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(bucketPolicies))
-		return b.ForEach(func(k, v []byte) error {
-			var rec StoredPolicyRecord
-			if err := json.Unmarshal(v, &rec); err != nil {
-				return fmt.Errorf("unmarshal policy %s: %w", k, err)
-			}
-			rule, err := unmarshalRule(rec.Rule)
-			if err != nil {
-				return fmt.Errorf("unmarshal proto rule %s: %w", k, err)
-			}
-			out = append(out, rule)
-			return nil
-		})
-	})
-	return out, err
+func policyKey(tenantID, policyID string) []byte {
+	return []byte(tenantID + "/" + policyID)
 }
 
 // LoadAllRecords returns full records including signatures. Used during bootstrap verification.
-func (s *BoltStore) LoadAllRecords(ctx context.Context) ([]PolicyRecord, error) {
-	var out []PolicyRecord
+func (s *BoltStore) LoadAllRecords(ctx context.Context) ([]*pb.PolicyRecord, error) {
+	var out []*pb.PolicyRecord
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucketPolicies))
 		return b.ForEach(func(k, v []byte) error {
-			rec, err := decodeRecord(v)
-			if err != nil {
-				return fmt.Errorf("decode policy %s: %w", k, err)
+			rec := new(pb.PolicyRecord)
+			if err := proto.Unmarshal(v, rec); err != nil {
+				return fmt.Errorf("decode %s: %w", k, err)
 			}
-			out = append(out, *rec)
+			out = append(out, rec)
 			return nil
 		})
 	})
@@ -107,20 +87,40 @@ func (s *BoltStore) LoadAllRecords(ctx context.Context) ([]PolicyRecord, error) 
 }
 
 // GetRecord returns a single policy with its signature and metadata.
-func (s *BoltStore) GetRecord(ctx context.Context, id string) (*PolicyRecord, error) {
-	var rec *PolicyRecord
+func (s *BoltStore) GetRecord(ctx context.Context, id string) (*pb.PolicyRecord, error) {
+	var rec *pb.PolicyRecord
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucketPolicies))
 		v := b.Get([]byte(id))
 		if v == nil {
 			return ErrNotFound
 		}
-		var err error
-		rec, err = decodeRecord(v)
-		return err
+		rec = new(pb.PolicyRecord)
+		if err := proto.Unmarshal(v, rec); err != nil {
+			return err
+		}
+		return nil
 	})
 	return rec, err
 }
+
+// // GetRecord returns a single verified policy.
+// func (s *BoltStore) GetRecord(ctx context.Context, tenantID, policyID string) (*pb.PolicyRecord, error) {
+// 	var rec *pb.PolicyRecord
+// 	err := s.db.View(func(tx *bbolt.Tx) error {
+// 		b := tx.Bucket([]byte(bucketPolicies))
+// 		v := b.Get(policyKey(tenantID, policyID))
+// 		if v == nil {
+// 			return ErrNotFound
+// 		}
+// 		rec = new(pb.PolicyRecord)
+// 		if err := proto.Unmarshal(v, rec); err != nil {
+// 			return err
+// 		}
+// 		return s.verify(rec)
+// 	})
+// 	return rec, err
+// }
 
 // GetCheckpoint returns the last sync checkpoint. Zero value if first boot.
 func (s *BoltStore) GetCheckpoint(ctx context.Context) (SyncCheckpoint, error) {
@@ -159,56 +159,72 @@ func (s *BoltStore) ListTombstones(ctx context.Context) (map[string]TombstoneRec
 
 // ApplyDelta performs all mutations and the checkpoint update inside a single
 // bbolt transaction. Either everything commits or nothing does.
-func (s *BoltStore) ApplyDelta(ctx context.Context, upserts []PolicyRecord, deleteIDs []string, checkpoint SyncCheckpoint) error {
+func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRecord, checkpoint SyncCheckpoint) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		polB := tx.Bucket([]byte(bucketPolicies))
 		tombB := tx.Bucket([]byte(bucketTombstones))
 		metaB := tx.Bucket([]byte(bucketSyncMeta))
 
 		// Upserts
-		for _, pr := range upserts {
-			ruleBytes, err := proto.Marshal(pr.Rule)
-			if err != nil {
-				return fmt.Errorf("marshal rule %s: %w", pr.ID, err)
-			}
-			rec := StoredPolicyRecord{
-				ID:        pr.ID,
-				Version:   pr.Version,
-				Rule:      ruleBytes,
-				Signature: pr.Signature,
-				// CPKeyID:   pr.CPID,
-				StoredAt: time.Now().UTC(),
-			}
-			data, err := json.Marshal(rec)
-			if err != nil {
-				return err
-			}
-			if err := polB.Put([]byte(pr.ID), data); err != nil {
-				return err
-			}
-		}
-
-		// Deletions (soft delete → tombstone)
-		for _, id := range deleteIDs {
-			// Fetch existing version for the tombstone
-			var lastVersion int64
-			if v := polB.Get([]byte(id)); v != nil {
-				var rec StoredPolicyRecord
-				_ = json.Unmarshal(v, &rec)
-				lastVersion = rec.Version
+		for _, record := range policyRecords {
+			//If operation is upsert
+			// Defensive: every record must carry at least policy_id + tenant_id
+			if record.Rule == nil || record.Rule.PolicyId == "" {
+				return fmt.Errorf("record missing policy_id")
 			}
 
-			if err := polB.Delete([]byte(id)); err != nil {
-				return err
+			key := policyKey(record.Rule.TenantId, record.Rule.PolicyId)
+
+			// 2. Replay / rollback protection: sequence must increase
+			if v := polB.Get(key); v != nil {
+				existing := new(pb.PolicyRecord)
+				if err := proto.Unmarshal(v, existing); err != nil {
+					return fmt.Errorf("decode existing %s: %w", key, err)
+				}
+				if record.Sequence <= existing.Sequence {
+					return fmt.Errorf("policy %s: %w (stored=%d, incoming=%d)",
+						key, ErrStaleSequence, existing.Sequence, record.Sequence)
+				}
 			}
-			tomb := TombstoneRecord{
-				ID:        id,
-				DeletedAt: time.Now().UTC(),
-				Version:   lastVersion,
+			if v := tombB.Get(key); v != nil {
+				var tomb TombstoneRecord
+				if err := json.Unmarshal(v, &tomb); err == nil {
+					if record.Sequence <= tomb.Version {
+						return fmt.Errorf("policy %s: %w (deleted at sequence %d, incoming=%d)",
+							key, ErrStaleSequence, tomb.Version, record.Sequence)
+					}
+				}
 			}
-			data, _ := json.Marshal(tomb)
-			if err := tombB.Put([]byte(id), data); err != nil {
-				return err
+			// 3. Apply operation
+			switch record.Operation {
+			case pb.OperationEnum_OPERATION_ENUM_UPSERT:
+				data, err := proto.Marshal(record)
+				if err != nil {
+					return fmt.Errorf("marshal %s: %w", key, err)
+				}
+				if err := polB.Put(key, data); err != nil {
+					return err
+				}
+
+			case pb.OperationEnum_OPERATION_ENUM_DELETE:
+				// Remove active policy
+				if err := polB.Delete(key); err != nil {
+					return err
+				}
+				// Tombstone for delta sync
+				tomb := TombstoneRecord{
+					ID:        record.Rule.PolicyId,
+					DeletedAt: time.Now().UTC(),
+					Version:   record.Sequence,
+				}
+				data, _ := json.Marshal(tomb)
+				if err := tombB.Put(key, data); err != nil {
+					return err
+				}
+
+			default:
+				return fmt.Errorf("unknown operation %v for %s", record.Operation, key)
+
 			}
 		}
 
@@ -222,32 +238,16 @@ func (s *BoltStore) ApplyDelta(ctx context.Context, upserts []PolicyRecord, dele
 }
 
 // ---------------------------------------------------------------------
-// Helpers
+// Admin / Debug
 // ---------------------------------------------------------------------
 
-func unmarshalRule(b []byte) (*pb.PolicyRule, error) {
-	var r pb.PolicyRule
-	if err := proto.Unmarshal(b, &r); err != nil {
-		return nil, err
-	}
-	return &r, nil
-}
-
-func decodeRecord(v []byte) (*PolicyRecord, error) {
-	var rec StoredPolicyRecord
-	if err := json.Unmarshal(v, &rec); err != nil {
-		return nil, err
-	}
-	rule, err := unmarshalRule(rec.Rule)
-	if err != nil {
-		return nil, err
-	}
-	return &PolicyRecord{
-		ID:        rec.ID,
-		Version:   rec.Version,
-		Rule:      rule,
-		Signature: rec.Signature,
-		CPKeyID:   rec.CPKeyID,
-		StoredAt:  rec.StoredAt,
-	}, nil
+// DeleteAll wipes every policy (use with caution).
+func (s *BoltStore) DeleteAll(ctx context.Context) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		if err := tx.DeleteBucket([]byte(bucketPolicies)); err != nil {
+			return err
+		}
+		_, err := tx.CreateBucket([]byte(bucketPolicies))
+		return err
+	})
 }

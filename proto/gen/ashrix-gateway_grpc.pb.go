@@ -26,8 +26,15 @@ const (
 // ControlPlaneServiceClient is the client API for ControlPlaneService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// =============================================================================
+// Control Plane Service
+// =============================================================================
+// This Exchange and connect
 type ControlPlaneServiceClient interface {
+	// Exchange
 	ExchangeToken(ctx context.Context, in *ExchangeTokenRequest, opts ...grpc.CallOption) (*ExchangeTokenResponse, error)
+	// Connect
 	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GatewayEnvelope, CPEnvelope], error)
 }
 
@@ -65,8 +72,15 @@ type ControlPlaneService_ConnectClient = grpc.BidiStreamingClient[GatewayEnvelop
 // ControlPlaneServiceServer is the server API for ControlPlaneService service.
 // All implementations must embed UnimplementedControlPlaneServiceServer
 // for forward compatibility.
+//
+// =============================================================================
+// Control Plane Service
+// =============================================================================
+// This Exchange and connect
 type ControlPlaneServiceServer interface {
+	// Exchange
 	ExchangeToken(context.Context, *ExchangeTokenRequest) (*ExchangeTokenResponse, error)
+	// Connect
 	Connect(grpc.BidiStreamingServer[GatewayEnvelope, CPEnvelope]) error
 	mustEmbedUnimplementedControlPlaneServiceServer()
 }

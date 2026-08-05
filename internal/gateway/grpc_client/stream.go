@@ -221,8 +221,8 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		)
 		// CP will push bundles immediately if NeedsPolicy/NeedsTrust/NeedsCRL are true
 
-	case *pb.CPEnvelope_BundleUpdate:
-		h.log.Info("trust bundle received",
+	case *pb.CPEnvelope_PolicyBundle:
+		h.log.Info("policy bundle received",
 			zap.String("version", "3"),
 		)
 		// if err := h.pki.ApplyTrustBundle(p.TrustBundle); err != nil {
@@ -230,7 +230,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		//     h.ack(msg.MessageId, "trust", p.TrustBundle.Version, false, err.Error())
 		//     return
 		// }
-		h.ack("kd", pb.BundleTypes_BUNDLE_TYPE_POLICY,"9", true, "")
+		// h.ack("kd", pb.BundleTypes_BUNDLE_TYPE_POLICY,"9", true, "")
 
 		// case *pb.CPEnvelope_RotationCmd:
 		//     h.log.Info("rotation command received",
@@ -310,23 +310,23 @@ func (sm *StreamManager) setStream(s pb.ControlPlaneService_ConnectClient, activ
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-func (h *StreamManager) ack(
-	messageID string, bundleType pb.BundleTypes, version string,
-	applied bool,
-	errMsg string,
-) {
-	h.Send(&pb.GatewayEnvelope{
-		Payload: &pb.GatewayEnvelope_BundleAck{
-			BundleAck: &pb.BundleAck{
-				MessageId:  messageID,
-				BundleType: bundleType,
-				Version:    version,
-				Applied:    applied,
-				Error:      errMsg,
-			},
-		},
-	})
-}
+// func (h *StreamManager) ack(
+// 	messageID string, bundleType pb.BundleTypes, version string,
+// 	applied bool,
+// 	errMsg string,
+// ) {
+// 	h.Send(&pb.GatewayEnvelope{
+// 		Payload: &pb.GatewayEnvelope_BundleAck{
+// 			BundleAck: &pb.BundleAck{
+// 				MessageId:  messageID,
+// 				BundleType: bundleType,
+// 				Version:    version,
+// 				Applied:    applied,
+// 				Error:      errMsg,
+// 			},
+// 		},
+// 	})
+// }
 
 // // handleSuspendCommand is the exact flow traced in our conversation:
 // // look up in shared registry, relay if connected, otherwise no-op

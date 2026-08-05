@@ -9,7 +9,7 @@ package proto
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	_ "google.golang.org/protobuf/types/known/timestamppb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -25,22 +25,22 @@ const (
 type EffectEnum int32
 
 const (
-	EffectEnum_Effect_ENUM_UNSPECIFIED EffectEnum = 0
-	EffectEnum_Effect_ENUM_ALLOW       EffectEnum = 1
-	EffectEnum_Effect_ENUM_DENY        EffectEnum = 2
+	EffectEnum_EFFECT_ENUM_UNSPECIFIED EffectEnum = 0
+	EffectEnum_EFFECT_ENUM_ALLOW       EffectEnum = 1
+	EffectEnum_EFFECT_ENUM_DENY        EffectEnum = 2
 )
 
 // Enum value maps for EffectEnum.
 var (
 	EffectEnum_name = map[int32]string{
-		0: "Effect_ENUM_UNSPECIFIED",
-		1: "Effect_ENUM_ALLOW",
-		2: "Effect_ENUM_DENY",
+		0: "EFFECT_ENUM_UNSPECIFIED",
+		1: "EFFECT_ENUM_ALLOW",
+		2: "EFFECT_ENUM_DENY",
 	}
 	EffectEnum_value = map[string]int32{
-		"Effect_ENUM_UNSPECIFIED": 0,
-		"Effect_ENUM_ALLOW":       1,
-		"Effect_ENUM_DENY":        2,
+		"EFFECT_ENUM_UNSPECIFIED": 0,
+		"EFFECT_ENUM_ALLOW":       1,
+		"EFFECT_ENUM_DENY":        2,
 	}
 )
 
@@ -69,6 +69,55 @@ func (x EffectEnum) Number() protoreflect.EnumNumber {
 // Deprecated: Use EffectEnum.Descriptor instead.
 func (EffectEnum) EnumDescriptor() ([]byte, []int) {
 	return file_ashrix_policy_proto_rawDescGZIP(), []int{0}
+}
+
+type OperationEnum int32
+
+const (
+	OperationEnum_OPERATION_ENUM_UNSPECIFIED OperationEnum = 0
+	OperationEnum_OPERATION_ENUM_UPSERT      OperationEnum = 1
+	OperationEnum_OPERATION_ENUM_DELETE      OperationEnum = 2
+)
+
+// Enum value maps for OperationEnum.
+var (
+	OperationEnum_name = map[int32]string{
+		0: "OPERATION_ENUM_UNSPECIFIED",
+		1: "OPERATION_ENUM_UPSERT",
+		2: "OPERATION_ENUM_DELETE",
+	}
+	OperationEnum_value = map[string]int32{
+		"OPERATION_ENUM_UNSPECIFIED": 0,
+		"OPERATION_ENUM_UPSERT":      1,
+		"OPERATION_ENUM_DELETE":      2,
+	}
+)
+
+func (x OperationEnum) Enum() *OperationEnum {
+	p := new(OperationEnum)
+	*p = x
+	return p
+}
+
+func (x OperationEnum) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (OperationEnum) Descriptor() protoreflect.EnumDescriptor {
+	return file_ashrix_policy_proto_enumTypes[1].Descriptor()
+}
+
+func (OperationEnum) Type() protoreflect.EnumType {
+	return &file_ashrix_policy_proto_enumTypes[1]
+}
+
+func (x OperationEnum) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use OperationEnum.Descriptor instead.
+func (OperationEnum) EnumDescriptor() ([]byte, []int) {
+	return file_ashrix_policy_proto_rawDescGZIP(), []int{1}
 }
 
 type ScheduleRule struct {
@@ -600,13 +649,15 @@ type PolicyRule struct {
 	PolicyId      string                 `protobuf:"bytes,1,opt,name=policy_id,json=policyId,proto3" json:"policy_id,omitempty"`
 	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Effect        EffectEnum             `protobuf:"varint,4,opt,name=effect,proto3,enum=proto.EffectEnum" json:"effect,omitempty"`
-	Priority      int32                  `protobuf:"varint,5,opt,name=priority,proto3" json:"priority,omitempty"`
-	Subject       *SubjectSelector       `protobuf:"bytes,6,opt,name=subject,proto3" json:"subject,omitempty"`
-	Resource      *ResourceSelector      `protobuf:"bytes,7,opt,name=resource,proto3" json:"resource,omitempty"`
-	Conditions    *PolicyConditions      `protobuf:"bytes,8,opt,name=conditions,proto3" json:"conditions,omitempty"`
-	Enabled       bool                   `protobuf:"varint,9,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	Version       int64                  `protobuf:"varint,10,opt,name=version,proto3" json:"version,omitempty"`
+	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	Effect        EffectEnum             `protobuf:"varint,5,opt,name=effect,proto3,enum=proto.EffectEnum" json:"effect,omitempty"`
+	Priority      int32                  `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`
+	Subject       *SubjectSelector       `protobuf:"bytes,7,opt,name=subject,proto3" json:"subject,omitempty"`
+	Resource      *ResourceSelector      `protobuf:"bytes,8,opt,name=resource,proto3" json:"resource,omitempty"`
+	Conditions    *PolicyConditions      `protobuf:"bytes,9,opt,name=conditions,proto3" json:"conditions,omitempty"`
+	Enabled       bool                   `protobuf:"varint,10,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Version       int64                  `protobuf:"varint,11,opt,name=version,proto3" json:"version,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -662,11 +713,18 @@ func (x *PolicyRule) GetName() string {
 	return ""
 }
 
+func (x *PolicyRule) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
 func (x *PolicyRule) GetEffect() EffectEnum {
 	if x != nil {
 		return x.Effect
 	}
-	return EffectEnum_Effect_ENUM_UNSPECIFIED
+	return EffectEnum_EFFECT_ENUM_UNSPECIFIED
 }
 
 func (x *PolicyRule) GetPriority() int32 {
@@ -711,30 +769,43 @@ func (x *PolicyRule) GetVersion() int64 {
 	return 0
 }
 
-type PolicyBundle struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Version       int64                  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
-	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	IssuedAt      int64                  `protobuf:"varint,3,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
-	Rules         []*PolicyRule          `protobuf:"bytes,4,rep,name=rules,proto3" json:"rules,omitempty"`
+func (x *PolicyRule) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type PolicyRecord struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// --- Envelope metadata (signed) ---
+	Sequence  int64         `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`                            // STRICTLY monotonic per policy_id
+	Operation OperationEnum `protobuf:"varint,2,opt,name=operation,proto3,enum=proto.OperationEnum" json:"operation,omitempty"` // UPSERT, DELETE
+	Timestamp int64         `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`                          // epoch ms
+	// --- Payload ---
+	// For DELETE, this can be a minimal rule with just policy_id + tenant_id,
+	// or the last known rule. The signature still covers it.
+	Rule *PolicyRule `protobuf:"bytes,4,opt,name=rule,proto3" json:"rule,omitempty"`
+	// Signs: H(sequence || operation || timestamp || canonical_hash(rule))
+	Signature     []byte `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PolicyBundle) Reset() {
-	*x = PolicyBundle{}
+func (x *PolicyRecord) Reset() {
+	*x = PolicyRecord{}
 	mi := &file_ashrix_policy_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PolicyBundle) String() string {
+func (x *PolicyRecord) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PolicyBundle) ProtoMessage() {}
+func (*PolicyRecord) ProtoMessage() {}
 
-func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
+func (x *PolicyRecord) ProtoReflect() protoreflect.Message {
 	mi := &file_ashrix_policy_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -746,35 +817,42 @@ func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PolicyBundle.ProtoReflect.Descriptor instead.
-func (*PolicyBundle) Descriptor() ([]byte, []int) {
+// Deprecated: Use PolicyRecord.ProtoReflect.Descriptor instead.
+func (*PolicyRecord) Descriptor() ([]byte, []int) {
 	return file_ashrix_policy_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *PolicyBundle) GetVersion() int64 {
+func (x *PolicyRecord) GetSequence() int64 {
 	if x != nil {
-		return x.Version
+		return x.Sequence
 	}
 	return 0
 }
 
-func (x *PolicyBundle) GetTenantId() string {
+func (x *PolicyRecord) GetOperation() OperationEnum {
 	if x != nil {
-		return x.TenantId
+		return x.Operation
 	}
-	return ""
+	return OperationEnum_OPERATION_ENUM_UNSPECIFIED
 }
 
-func (x *PolicyBundle) GetIssuedAt() int64 {
+func (x *PolicyRecord) GetTimestamp() int64 {
 	if x != nil {
-		return x.IssuedAt
+		return x.Timestamp
 	}
 	return 0
 }
 
-func (x *PolicyBundle) GetRules() []*PolicyRule {
+func (x *PolicyRecord) GetRule() *PolicyRule {
 	if x != nil {
-		return x.Rules
+		return x.Rule
+	}
+	return nil
+}
+
+func (x *PolicyRecord) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
 	}
 	return nil
 }
@@ -818,32 +896,40 @@ const file_ashrix_policy_proto_rawDesc = "" +
 	"\x10ResourceSelector\x12\x17\n" +
 	"\aapp_ids\x18\x01 \x03(\tR\x06appIds\x12\x14\n" +
 	"\x05paths\x18\x02 \x03(\tR\x05paths\x12\x18\n" +
-	"\amethods\x18\x03 \x03(\tR\amethods\"\xf5\x02\n" +
+	"\amethods\x18\x03 \x03(\tR\amethods\"\xd2\x03\n" +
 	"\n" +
 	"PolicyRule\x12\x1b\n" +
 	"\tpolicy_id\x18\x01 \x01(\tR\bpolicyId\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12)\n" +
-	"\x06effect\x18\x04 \x01(\x0e2\x11.proto.EffectEnumR\x06effect\x12\x1a\n" +
-	"\bpriority\x18\x05 \x01(\x05R\bpriority\x120\n" +
-	"\asubject\x18\x06 \x01(\v2\x16.proto.SubjectSelectorR\asubject\x123\n" +
-	"\bresource\x18\a \x01(\v2\x17.proto.ResourceSelectorR\bresource\x127\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12)\n" +
+	"\x06effect\x18\x05 \x01(\x0e2\x11.proto.EffectEnumR\x06effect\x12\x1a\n" +
+	"\bpriority\x18\x06 \x01(\x05R\bpriority\x120\n" +
+	"\asubject\x18\a \x01(\v2\x16.proto.SubjectSelectorR\asubject\x123\n" +
+	"\bresource\x18\b \x01(\v2\x17.proto.ResourceSelectorR\bresource\x127\n" +
 	"\n" +
-	"conditions\x18\b \x01(\v2\x17.proto.PolicyConditionsR\n" +
+	"conditions\x18\t \x01(\v2\x17.proto.PolicyConditionsR\n" +
 	"conditions\x12\x18\n" +
-	"\aenabled\x18\t \x01(\bR\aenabled\x12\x18\n" +
-	"\aversion\x18\n" +
-	" \x01(\x03R\aversion\"\x8b\x01\n" +
-	"\fPolicyBundle\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x1b\n" +
-	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1b\n" +
-	"\tissued_at\x18\x03 \x01(\x03R\bissuedAt\x12'\n" +
-	"\x05rules\x18\x04 \x03(\v2\x11.proto.PolicyRuleR\x05rules*V\n" +
+	"\aenabled\x18\n" +
+	" \x01(\bR\aenabled\x12\x18\n" +
+	"\aversion\x18\v \x01(\x03R\aversion\x129\n" +
+	"\n" +
+	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xc1\x01\n" +
+	"\fPolicyRecord\x12\x1a\n" +
+	"\bsequence\x18\x01 \x01(\x03R\bsequence\x122\n" +
+	"\toperation\x18\x02 \x01(\x0e2\x14.proto.OperationEnumR\toperation\x12\x1c\n" +
+	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\x12%\n" +
+	"\x04rule\x18\x04 \x01(\v2\x11.proto.PolicyRuleR\x04rule\x12\x1c\n" +
+	"\tsignature\x18\x05 \x01(\fR\tsignature*V\n" +
 	"\n" +
 	"EffectEnum\x12\x1b\n" +
-	"\x17Effect_ENUM_UNSPECIFIED\x10\x00\x12\x15\n" +
-	"\x11Effect_ENUM_ALLOW\x10\x01\x12\x14\n" +
-	"\x10Effect_ENUM_DENY\x10\x02BCZAgithub.com/JohnnyAsh-U/ashrix-api/proto/ashrix-policy.proto;protob\x06proto3"
+	"\x17EFFECT_ENUM_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11EFFECT_ENUM_ALLOW\x10\x01\x12\x14\n" +
+	"\x10EFFECT_ENUM_DENY\x10\x02*e\n" +
+	"\rOperationEnum\x12\x1e\n" +
+	"\x1aOPERATION_ENUM_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15OPERATION_ENUM_UPSERT\x10\x01\x12\x19\n" +
+	"\x15OPERATION_ENUM_DELETE\x10\x02B3Z1github.com/JohnnyAsh-U/ashrix-api/proto/gen;protob\x06proto3"
 
 var (
 	file_ashrix_policy_proto_rawDescOnce sync.Once
@@ -857,38 +943,42 @@ func file_ashrix_policy_proto_rawDescGZIP() []byte {
 	return file_ashrix_policy_proto_rawDescData
 }
 
-var file_ashrix_policy_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_ashrix_policy_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_ashrix_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_ashrix_policy_proto_goTypes = []any{
-	(EffectEnum)(0),          // 0: proto.EffectEnum
-	(*ScheduleRule)(nil),     // 1: proto.ScheduleRule
-	(*Schedule)(nil),         // 2: proto.Schedule
-	(*TimeCondition)(nil),    // 3: proto.TimeCondition
-	(*DeviceCondition)(nil),  // 4: proto.DeviceCondition
-	(*NetworkCondition)(nil), // 5: proto.NetworkCondition
-	(*MFACondition)(nil),     // 6: proto.MFACondition
-	(*PolicyConditions)(nil), // 7: proto.PolicyConditions
-	(*SubjectSelector)(nil),  // 8: proto.SubjectSelector
-	(*ResourceSelector)(nil), // 9: proto.ResourceSelector
-	(*PolicyRule)(nil),       // 10: proto.PolicyRule
-	(*PolicyBundle)(nil),     // 11: proto.PolicyBundle
+	(EffectEnum)(0),               // 0: proto.EffectEnum
+	(OperationEnum)(0),            // 1: proto.OperationEnum
+	(*ScheduleRule)(nil),          // 2: proto.ScheduleRule
+	(*Schedule)(nil),              // 3: proto.Schedule
+	(*TimeCondition)(nil),         // 4: proto.TimeCondition
+	(*DeviceCondition)(nil),       // 5: proto.DeviceCondition
+	(*NetworkCondition)(nil),      // 6: proto.NetworkCondition
+	(*MFACondition)(nil),          // 7: proto.MFACondition
+	(*PolicyConditions)(nil),      // 8: proto.PolicyConditions
+	(*SubjectSelector)(nil),       // 9: proto.SubjectSelector
+	(*ResourceSelector)(nil),      // 10: proto.ResourceSelector
+	(*PolicyRule)(nil),            // 11: proto.PolicyRule
+	(*PolicyRecord)(nil),          // 12: proto.PolicyRecord
+	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
 }
 var file_ashrix_policy_proto_depIdxs = []int32{
-	1,  // 0: proto.Schedule.rules:type_name -> proto.ScheduleRule
-	6,  // 1: proto.PolicyConditions.mfa:type_name -> proto.MFACondition
-	4,  // 2: proto.PolicyConditions.device:type_name -> proto.DeviceCondition
-	5,  // 3: proto.PolicyConditions.network:type_name -> proto.NetworkCondition
-	3,  // 4: proto.PolicyConditions.time:type_name -> proto.TimeCondition
+	2,  // 0: proto.Schedule.rules:type_name -> proto.ScheduleRule
+	7,  // 1: proto.PolicyConditions.mfa:type_name -> proto.MFACondition
+	5,  // 2: proto.PolicyConditions.device:type_name -> proto.DeviceCondition
+	6,  // 3: proto.PolicyConditions.network:type_name -> proto.NetworkCondition
+	4,  // 4: proto.PolicyConditions.time:type_name -> proto.TimeCondition
 	0,  // 5: proto.PolicyRule.effect:type_name -> proto.EffectEnum
-	8,  // 6: proto.PolicyRule.subject:type_name -> proto.SubjectSelector
-	9,  // 7: proto.PolicyRule.resource:type_name -> proto.ResourceSelector
-	7,  // 8: proto.PolicyRule.conditions:type_name -> proto.PolicyConditions
-	10, // 9: proto.PolicyBundle.rules:type_name -> proto.PolicyRule
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	9,  // 6: proto.PolicyRule.subject:type_name -> proto.SubjectSelector
+	10, // 7: proto.PolicyRule.resource:type_name -> proto.ResourceSelector
+	8,  // 8: proto.PolicyRule.conditions:type_name -> proto.PolicyConditions
+	13, // 9: proto.PolicyRule.created_at:type_name -> google.protobuf.Timestamp
+	1,  // 10: proto.PolicyRecord.operation:type_name -> proto.OperationEnum
+	11, // 11: proto.PolicyRecord.rule:type_name -> proto.PolicyRule
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_policy_proto_init() }
@@ -901,7 +991,7 @@ func file_ashrix_policy_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_policy_proto_rawDesc), len(file_ashrix_policy_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
