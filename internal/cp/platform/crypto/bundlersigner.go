@@ -1,18 +1,12 @@
 package crypto
 
 import (
-	// "crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
-
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 )
@@ -22,24 +16,11 @@ import (
 // =============================================================================
 
 type BundleSigning interface {
-	SignBundle(version string, payload []byte) (*SignedBundle, error)
-	VerifyBundle(sb *SignedBundle) error
+	SignBundle(payload []byte) ([]byte)
 	GetPublicKey() ed25519.PublicKey
 	GetPublicKeyString() (string, error)
 }
 
-
-type Bundle struct {
-	Version  string    `json:"version"`
-	Payload  []byte    `json:"payload"`
-	IssuedAt time.Time `json:"issued_at"`
-	Nonce    string    `json:"nonce"`
-}
-
-type SignedBundle struct {
-	Bundle    Bundle `json:"bundle"`
-	Signature string `json:"signature"`
-}
 
 type BundleSigner struct {
 	BundleSigningKey *ed25519.PrivateKey
@@ -116,58 +97,8 @@ func (b *BundleSigner) GetPublicKeyString() (string, error) {
 
 //Signing Implementation
 
-func (b *BundleSigner) SignBundle(version string, payload []byte) (*SignedBundle, error) {
-	if b.BundleSigningKey == nil {
-		return nil, fmt.Errorf("bundle signing key not initialized")
-	}
-
-	nonce := make([]byte, 16)
-	if _, err := rand.Read(nonce); err != nil {
-		return nil, fmt.Errorf("generate nonce: %w", err)
-	}
-
-	bundle := Bundle{
-		Version:  version,
-		Payload:  payload,
-		IssuedAt: time.Now().UTC(),
-		Nonce:    base64.StdEncoding.EncodeToString(nonce),
-	}
-
-	data, err := json.Marshal(bundle)
-	if err != nil {
-		return nil, fmt.Errorf("marshal bundle: %w", err)
-	}
-
-	signature := ed25519.Sign(*b.BundleSigningKey, data)
-
-	return &SignedBundle{
-		Bundle:    bundle,
-		Signature: base64.StdEncoding.EncodeToString(signature),
-	}, nil
-}
-
-
-func (b *BundleSigner) VerifyBundle(sb *SignedBundle) error {
-	if b.BundleSigningKey == nil {
-		return fmt.Errorf("bundle signing key not initialized")
-	}
-
-	pub := b.BundleSigningKey.Public().(ed25519.PublicKey)
-
-	data, err := json.Marshal(sb.Bundle)
-	if err != nil {
-		return fmt.Errorf("marshal bundle: %w", err)
-	}
-
-	sig, err := base64.StdEncoding.DecodeString(sb.Signature)
-	if err != nil {
-		return fmt.Errorf("decode signature: %w", err)
-	}
-
-	if !ed25519.Verify(pub, data, sig) {
-		return fmt.Errorf("bundle signature invalid")
-	}
-
-	return nil
+func (b *BundleSigner) SignBundle(payload []byte) ([]byte) {
+	signature := ed25519.Sign(*b.BundleSigningKey, payload)
+	return signature
 }
 

@@ -1,336 +1,474 @@
 package policy
 
 import (
-	// "context"
-	// "encoding/binary"
-	// "encoding/json"
-	// "fmt"
+	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
-	// "time"
-
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	// "github.com/google/uuid"
-	// "google.golang.org/grpc/encoding/proto"
+	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+
+
 // ============================================================
-// When a policy changes, the distributor compiles the new bundle
-// and pushes it to all relevant gateways.
+// Policy Distributor — compiles signed bundles and pushes to gateways
 // ============================================================
 
 type PolicyDistributor struct {
 	registry    *registry.GatewayRegistry
 	policyStore Repository
-	bundleSigner      crypto.BundleSigning
-	log *slog.Logger
+	signer      crypto.BundleSigning // raw key access for Ed25519 signing
+	log         *slog.Logger
 
-	// Cache of compiled bundles by tenant
-	// Key: "tenant_id:version"
+	// Cache of compiled bundles by org. Key: "orgID:version"
 	bundleCache map[string]*pb.PolicyBundle
 	mu          sync.RWMutex
 }
 
 func NewPolicyDistributor(
-	reg *registry.GatewayRegistry, 
-	store Repository, 
+	reg *registry.GatewayRegistry,
+	store Repository,
 	signer crypto.BundleSigning,
 	log *slog.Logger,
-	) *PolicyDistributor {
+) *PolicyDistributor {
 	return &PolicyDistributor{
 		registry:    reg,
 		policyStore: store,
-		bundleSigner:      signer,
-		log: log,
+		signer:      signer,
+		log:         log,
 		bundleCache: make(map[string]*pb.PolicyBundle),
 	}
 }
 
+// Distribute is called after any policy mutation. It compiles the latest
+// snapshot, signs it, caches it, and pushes to all connected gateways.
+func (d *PolicyDistributor) Distribute(ctx context.Context, orgID uuid.UUID) error {
+	bundle, version, err := d.compileSnapshotBundle(ctx, orgID)
+	if err != nil {
+		return fmt.Errorf("compile bundle for org %s: %w", orgID, err)
+	}
 
-// // LatestVersion returns the latest known policy version for a tenant.
-// func (d *PolicyDistributor) LatestVersion(tenantID string) uint64 {
-// 	// Query from database or in-memory tracker
-// 	// Implementation depends on your version tracking
-// 	return 0 // placeholder
-// }
-// // Distribute is called after a policy is created/updated/deleted.
-// // It compiles the new bundle and sends it to all gateways for the tenant.
-// func (d *PolicyDistributor) Distribute(ctx context.Context, tenantID uuid.UUID) error {
-// 	// 1. Compile the latest policy bundle for this tenant
-// 	bundle, version, err := d.compileBundle(ctx, tenantID)
-// 	if err != nil {
-// 		return fmt.Errorf("compile bundle for tenant %s: %w", tenantID, err)
-// 	}
+	cacheKey := fmt.Sprintf("%s:%d", orgID, version)
+	d.mu.Lock()
+	d.bundleCache[cacheKey] = bundle
+	d.mu.Unlock()
 
-// 	// 2. Sign the bundle
-// 	signed, err := d.signBundle(bundle, version)
-// 	if err != nil {
-// 		return fmt.Errorf("sign bundle: %w", err)
-// 	}
+	gateways := d.registry.GetConnectionsForTenant(orgID.String())
+	if len(gateways) == 0 {
+		d.log.Info("no connected gateways for org", "org_id", orgID, "version", version)
+		return nil
+	}
 
-// 	// 3. Cache the signed bundle
-// 	cacheKey := fmt.Sprintf("%s:%d", tenantID, version)
-// 	d.mu.Lock()
-// 	d.bundleCache[cacheKey] = signed
-// 	d.mu.Unlock()
+	var wg sync.WaitGroup
+	for _, gw := range gateways {
+		wg.Add(1)
+		go func(conn *registry.GatewayConn) {
+			defer wg.Done()
+			if err := d.sendBundle(ctx, conn, bundle); err != nil {
+				d.log.Error("failed to push bundle", "gateway_id", conn.GatewayID, "error", err)
+			}
+		}(gw)
+	}
+	wg.Wait()
 
-// 	// 4. Find all connected gateways for this tenant
-// 	gateways := d.registry.GetConnectionsForTenant(tenantID.String())
-// 	if len(gateways) == 0 {
-// 		d.log.Info("no connected gateways for tenant %s, bundle %d queued for later delivery", tenantID, version)
-// 		// The bundle will be delivered when gateways reconnect
-// 		return nil
-// 	}
+	return nil
+}
 
-// 	// 5. Send to each gateway (concurrently)
-// 	var wg sync.WaitGroup
-// 	for _, gw := range gateways {
-// 		wg.Add(1)
-// 		go func(conn *registry.GatewayConn) {
-// 			defer wg.Done()
-// 			if err := d.pushToGateway(ctx, conn, tenantID, signed); err != nil {
-// 				d.log.Info("failed to push bundle to gateway %s: %v", conn.GatewayID, err)
-// 			}
-// 		}(gw)
-// 	}
-// 	wg.Wait()
+// PushToGateway sends the latest full snapshot to a single gateway.
+// Use this when a gateway reconnects and HelloAck.needs_policy=true.
+func (d *PolicyDistributor) PushToGateway(ctx context.Context, conn *registry.GatewayConn, orgID uuid.UUID) error {
+	bundle, _, err := d.compileSnapshotBundle(ctx, orgID)
+	if err != nil {
+		return fmt.Errorf("compile snapshot: %w", err)
+	}
+	return d.sendBundle(ctx, conn, bundle)
+}
 
-// 	return nil
-// }
+// PushDelta sends only mutations since sinceVersion. Falls back to snapshot
+// if delta computation fails.
+func (d *PolicyDistributor) PushDelta(ctx context.Context, conn *registry.GatewayConn, orgID uuid.UUID, sinceVersion int64) error {
+	bundle, err := d.compileDeltaBundle(ctx, orgID, sinceVersion)
+	if err != nil {
+		d.log.Warn("delta compilation failed, falling back to snapshot", "error", err)
+		return d.PushToGateway(ctx, conn, orgID)
+	}
+	return d.sendBundle(ctx, conn, bundle)
+}
 
-// // PushToGateway sends the latest policy bundle to a specific gateway.
-// // Used when a gateway reconnects and is behind on policy.
-// func (d *PolicyDistributor) PushToGateway(conn *registry.GatewayConn, tenantID uuid.UUID) error {
-// 	ctx := context.Background()
+// ---------------------------------------------------------------------
+// Bundle compilation
+// ---------------------------------------------------------------------
 
-// 	// Compile latest bundle
-// 	bundle, version, err := d.compileBundle(ctx, tenantID)
-// 	if err != nil {
-// 		return err
-// 	}
+func (d *PolicyDistributor) compileSnapshotBundle(ctx context.Context, orgID uuid.UUID) (*pb.PolicyBundle, int64, error) {
+	policies, err := d.policyStore.ListByOrg(ctx, orgID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list policies: %w", err)
+	}
 
-// 	signed, err := d.signBundle(bundle, version)
-// 	if err != nil {
-// 		return err
-// 	}
+	version, err := d.policyStore.GetLatestVersion(ctx, orgID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get latest version: %w", err)
+	}
 
-// 	return d.pushToGateway(ctx, conn, tenantID, signed)
-// }
+	now := time.Now().UTC()
+	issuedAt := now.UnixMilli()
+	records := make([]*pb.PolicyRecord, 0, len(policies))
 
-// func (d *PolicyDistributor) pushToGateway(ctx context.Context, conn *registry.GatewayConn, tenantID uuid.UUID, signed *pb.SignedPayload) error {
-// 	// Determine if we should send a delta or full snapshot
-// 	currentVersion := conn.CurrentPolicyVersion
-// 	targetVersion := signed.Version
+	for _, p := range policies {
+		record := policyToRecord(p, issuedAt)
+		if err := d.signRecord(record); err != nil {
+			return nil, 0, fmt.Errorf("sign record %s: %w", p.ID, err)
+		}
+		records = append(records, record)
+	}
 
-// 	if currentVersion > 0 && currentVersion < targetVersion {
-// 		// Try delta first
-// 		delta, err := d.computeDelta(ctx, tenantID, currentVersion, targetVersion)
-// 		if err == nil && delta != nil {
-// 			msg := &pb.CPEnvelope{
-// 				Payload: &pb.CPEnvelope_BundleUpdate{
-// 					BundleUpdate: delta,
-// 				},
-// 			}
-// 			return conn.Send(msg)
-// 		}
-// 		// Fall through to snapshot if delta computation fails
-// 	}
+	bundle := &pb.PolicyBundle{
+		Version:   version,
+		IssuedAt:  issuedAt,
+		Records:   records,
+		Signature: nil, // signed below
+	}
 
-// 	// Send full snapshot
-// 	msg := &pb.CPEnvelope{
-// 		Payload: &pb.CPEnvelope_BundleUpdate{
-// 			BundleUpdate: signed,
-// 		},
-// 	}
-// 	return conn.Send(msg)
-// }
+	if err := d.signBundle(bundle); err != nil {
+		return nil, 0, fmt.Errorf("sign bundle: %w", err)
+	}
 
-// func (d *PolicyDistributor) compileBundle(ctx context.Context, tenantID uuid.UUID) (*proto.PolicyBundle, uint64, error) {
-// 	// Read all active policies for the tenant
-// 	policies, err := d.policyStore.ListByOrg(ctx, tenantID)
-// 	if err != nil {
-// 		return nil, 0, err
-// 	}
+	return bundle, version, nil
+}
 
-// 	// Get the latest mutation version for this tenant
-// 	var version uint64
-// 	// ... query from policy_versions table or max(policies.version)
+func (d *PolicyDistributor) compileDeltaBundle(ctx context.Context, orgID uuid.UUID, sinceVersion int64) (*pb.PolicyBundle, error) {
+	mutations, err := d.policyStore.GetMutationsSince(ctx, orgID, sinceVersion)
+	if err != nil {
+		return nil, fmt.Errorf("get mutations: %w", err)
+	}
+	if len(mutations) == 0 {
+		return nil, fmt.Errorf("no mutations since %d", sinceVersion)
+	}
 
-// 	bundle := &proto.PolicyBundle{
-// 		Version:  version,
-// 		TenantId: tenantID,
-// 		IssuedAt: uint64(time.Now().Unix()),
-// 	}
+	now := time.Now().UTC().UnixMilli()
+	records := make([]*pb.PolicyRecord, 0, len(mutations))
 
-// 	for _, p := range policies {
-// 		rule := &pb.PolicyRule{
-// 			PolicyId:    p.PolicyID,
-// 			TenantId:    p.TenantID,
-// 			Name:        p.Name,
-// 			Effect:      pb.Effect(pb.Effect_value[string(p.Effect)]),
-// 			Priority:    int32(p.Priority),
-// 			Subject:     &pb.SubjectSelector{Users: p.Subject.Users, Groups: p.Subject.Groups},
-// 			Resource:    &pb.ResourceSelector{Apps: p.Resource.Apps, Paths: p.Resource.Paths, Methods: p.Resource.Methods},
-// 			Enabled:     p.Enabled,
-// 			Version:     uint64(p.Version),
-// 		}
+	for _, m := range mutations {
+		record, err := mutationToRecord(m)
+		if err != nil {
+			return nil, fmt.Errorf("convert mutation v%d: %w", m.Version, err)
+		}
+		// Override timestamp to bundle issuance time for snapshot consistency
+		record.Timestamp = now
+		if err := d.signRecord(record); err != nil {
+			return nil, fmt.Errorf("sign mutation v%d: %w", m.Version, err)
+		}
+		records = append(records, record)
+	}
 
-// 		// Convert conditions
-// 		if p.Conditions.MFA != nil {
-// 			rule.Conditions = &pb.PolicyConditions{
-// 				Mfa: &pb.MFACondition{
-// 					Required: p.Conditions.MFA.Required,
-// 					MinLevel: p.Conditions.MFA.MinLevel,
-// 				},
-// 			}
-// 		}
-// 		if p.Conditions.Device != nil {
-// 			if rule.Conditions == nil { rule.Conditions = &pb.PolicyConditions{} }
-// 			rule.Conditions.Device = &pb.DeviceCondition{Postures: p.Conditions.Device.Postures}
-// 		}
-// 		if p.Conditions.Network != nil {
-// 			if rule.Conditions == nil { rule.Conditions = &pb.PolicyConditions{} }
-// 			nc := p.Conditions.Network
-// 			rule.Conditions.Network = &pb.NetworkCondition{
-// 				AllowedCountries: nc.AllowedCountries,
-// 				BlockedCountries: nc.BlockedCountries,
-// 				AllowedCidrs:     nc.AllowedCIDRs,
-// 				BlockedCidrs:     nc.BlockedCIDRs,
-// 				BlockTor:         nc.BlockTor,
-// 			}
-// 		}
-// 		if p.Conditions.Time != nil {
-// 			if rule.Conditions == nil { rule.Conditions = &pb.PolicyConditions{} }
-// 			rule.Conditions.Time = &pb.TimeCondition{ScheduleName: p.Conditions.Time.ScheduleName}
-// 		}
+	latestVersion := mutations[len(mutations)-1].Version
+	bundle := &pb.PolicyBundle{
+		Version:   latestVersion,
+		IssuedAt:  now,
+		Records:   records,
+		Signature: nil,
+	}
 
-// 		bundle.Rules = append(bundle.Rules, rule)
-// 	}
+	if err := d.signBundle(bundle); err != nil {
+		return nil, fmt.Errorf("sign delta bundle: %w", err)
+	}
 
-// 	return bundle, version, nil
-// }
+	return bundle, nil
+}
 
-// func (d *PolicyDistributor) signBundle(bundle *proto.PolicyBundle, version uint64) (*proto.SignedPayload, error) {
-// 	// Serialize to protobuf bytes
-// 	payload, err := proto.Mar(bundle)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+// ---------------------------------------------------------------------
+// Signing (must exactly match gateway verification in store/verify.go)
+// ---------------------------------------------------------------------
 
-// 	// Sign: ECDSA over (version || payload)
-// 	toSign := append(binary.BigEndian.AppendUint64(nil, version), payload...)
-// 	sig, err := d.signer.Sign(toSign)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func (d *PolicyDistributor) signRecord(record *pb.PolicyRecord) error {
+	payload := recordSigningPayload(record)
+	sig := d.signer.SignBundle(payload)
+	record.Signature = sig
+	return nil
+}
 
-// 	return &proto.SignedPayload{
-// 		Version:     version,
-// 		Payload:     payload,
-// 		Signature:   sig,
-// 		IssuedAt:    uint64(time.Now().Unix()),
-// 		ExpiresAt:   uint64(time.Now().Add(24 * time.Hour).Unix()),
-// 		PayloadType: "policy_bundle",
-// 	}, nil
-// }
+func (d *PolicyDistributor) signBundle(bundle *pb.PolicyBundle) error {
+	payload := bundleSigningPayload(bundle)
+	sig := d.signer.SignBundle(payload)
+	bundle.Signature = sig
+	return nil
+}
+
+// recordSigningPayload mirrors the gateway's RecordSigningPayload exactly.
+func recordSigningPayload(record *pb.PolicyRecord) []byte {
+	h := sha256.New()
+	binary.Write(h, binary.BigEndian, record.Sequence)
+	binary.Write(h, binary.BigEndian, int32(record.Operation))
+	binary.Write(h, binary.BigEndian, record.Timestamp)
+	h.Write(canonicalRuleHash(record.Rule))
+	return h.Sum(nil)
+}
+
+// bundleSigningPayload mirrors the gateway's BundleSigningPayload exactly.
+func bundleSigningPayload(bundle *pb.PolicyBundle) []byte {
+	h := sha256.New()
+	binary.Write(h, binary.BigEndian, bundle.Version)
+	binary.Write(h, binary.BigEndian, bundle.IssuedAt)
+	binary.Write(h, binary.BigEndian, int64(len(bundle.Records)))
+	for _, rec := range bundle.Records {
+		h.Write(rec.Signature)
+	}
+	return h.Sum(nil)
+}
+
+// canonicalRuleHash mirrors the gateway's canonicalRuleHash.
+func canonicalRuleHash(rule *pb.PolicyRule) []byte {
+	if rule == nil {
+		h := sha256.Sum256([]byte{0x00})
+		return h[:]
+	}
+	h := sha256.New()
+	// Use deterministic proto marshal. This MUST match the gateway exactly.
+	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(rule)
+	if err != nil {
+		panic(fmt.Sprintf("marshal rule: %v", err))
+	}
+	h.Write(b)
+	return h.Sum(nil)
+}
+
+// ---------------------------------------------------------------------
+// Transport
+// ---------------------------------------------------------------------
+
+func (d *PolicyDistributor) sendBundle(ctx context.Context, conn *registry.GatewayConn, bundle *pb.PolicyBundle) error {
+	msg := &pb.CPEnvelope{
+		SentAt: timestamppb.Now(),
+		Payload: &pb.CPEnvelope_PolicyBundle{
+			PolicyBundle: bundle,
+		},
+	}
+	return conn.Send(msg)
+}
+
+// ---------------------------------------------------------------------
+// Domain → Proto conversion
+// ---------------------------------------------------------------------
+
+func policyToRecord(p Policy, timestamp int64) *pb.PolicyRecord {
+	rule := &pb.PolicyRule{
+		PolicyId:    p.ID.String(),
+		TenantId:    p.OrgID.String(),
+		Name:        p.Name,
+		Description: p.Description,
+		Priority:    p.Priority,
+		Enabled:     p.Enabled,
+		Version:     p.Version,
+		CreatedAt:   timestamppb.New(p.CreatedAt),
+	}
+
+	switch p.Effect {
+	case EffectAllow:
+		rule.Effect = pb.EffectEnum_EFFECT_ENUM_ALLOW
+	case EffectDeny:
+		rule.Effect = pb.EffectEnum_EFFECT_ENUM_DENY
+	}
+
+	users, groups := partitionSubjects(p.Subjects)
+	rule.Subject = &pb.SubjectSelector{Users: users, Groups: groups}
+
+	apps, paths, methods := partitionResources(p.Resources)
+	rule.Resource = &pb.ResourceSelector{AppIds: apps, Paths: paths, Methods: methods}
+
+	rule.Conditions = conditionsToProto(p.Conditions)
+
+	return &pb.PolicyRecord{
+		Sequence:  p.Sequence,
+		Operation: pb.OperationEnum_OPERATION_ENUM_UPSERT,
+		Timestamp: timestamp,
+		Rule:      rule,
+	}
+}
+
+func mutationToRecord(m Mutation) (*pb.PolicyRecord, error) {
+	rule, err := snapshotToRule(m.Snapshot, m.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	op := pb.OperationEnum_OPERATION_ENUM_UNSPECIFIED
+	switch m.Op {
+	case "UPSERT":
+		op = pb.OperationEnum_OPERATION_ENUM_UPSERT
+	case "DELETE":
+		op = pb.OperationEnum_OPERATION_ENUM_DELETE
+	}
+
+	return &pb.PolicyRecord{
+		Sequence:  m.Sequence,
+		Operation: op,
+		Timestamp: m.RecordTimestamp,
+		Rule:      rule,
+	}, nil
+}
+
+func snapshotToRule(snapshot map[string]interface{}, version int64) (*pb.PolicyRule, error) {
+	rule := &pb.PolicyRule{
+		PolicyId:    getString(snapshot, "policy_id"),
+		TenantId:    getString(snapshot, "tenant_id"),
+		Name:        getString(snapshot, "name"),
+		Description: getString(snapshot, "description"),
+		Version:     version,
+		Enabled:     getBool(snapshot, "enabled"),
+	}
+
+	if eff, ok := snapshot["effect"].(string); ok {
+		switch eff {
+		case "ALLOW":
+			rule.Effect = pb.EffectEnum_EFFECT_ENUM_ALLOW
+		case "DENY":
+			rule.Effect = pb.EffectEnum_EFFECT_ENUM_DENY
+		}
+	}
+
+	if p, ok := snapshot["priority"].(float64); ok {
+		rule.Priority = int32(p)
+	}
+
+	if subj, ok := snapshot["subject"].(map[string]interface{}); ok {
+		rule.Subject = &pb.SubjectSelector{
+			Users:  getStringSlice(subj, "users"),
+			Groups: getStringSlice(subj, "groups"),
+		}
+	}
+
+	if res, ok := snapshot["resource"].(map[string]interface{}); ok {
+		rule.Resource = &pb.ResourceSelector{
+			AppIds:  getStringSlice(res, "app_ids"),
+			Paths:   getStringSlice(res, "paths"),
+			Methods: getStringSlice(res, "methods"),
+		}
+	}
+
+	if conds, ok := snapshot["conditions"].(map[string]interface{}); ok {
+		rule.Conditions = mapToConditions(conds)
+	}
+
+	if ca, ok := snapshot["created_at"].(string); ok {
+		if t, err := time.Parse(time.RFC3339Nano, ca); err == nil {
+			rule.CreatedAt = timestamppb.New(t)
+		}
+	}
+
+	return rule, nil
+}
+
+func conditionsToProto(c Conditions) *pb.PolicyConditions {
+	if c.MFA == nil && c.Device == nil && c.Network == nil && c.Time == nil {
+		return nil
+	}
+	pc := &pb.PolicyConditions{}
+	if c.MFA != nil {
+		pc.Mfa = &pb.MFACondition{Required: c.MFA.Required, MinLevel: c.MFA.MinLevel}
+	}
+	if c.Device != nil {
+		pc.Device = &pb.DeviceCondition{Postures: c.Device.Postures}
+	}
+	if c.Network != nil {
+		pc.Network = &pb.NetworkCondition{
+			AllowedCountries: c.Network.AllowedCountries,
+			BlockedCountries: c.Network.BlockedCountries,
+			AllowedCidrs:     c.Network.AllowedCIDRs,
+			BlockedCidrs:     c.Network.BlockedCIDRs,
+			BlockTor:         c.Network.BlockTor,
+		}
+	}
+	if c.Time != nil {
+		pc.Time = &pb.TimeCondition{ScheduleName: c.Time.ScheduleName}
+	}
+	return pc
+}
+
+func mapToConditions(m map[string]interface{}) *pb.PolicyConditions {
+	pc := &pb.PolicyConditions{}
+
+	if mfa, ok := m["mfa"].(map[string]interface{}); ok {
+		pc.Mfa = &pb.MFACondition{
+			Required: getBool(mfa, "required"),
+			MinLevel: getString(mfa, "min_level"),
+		}
+	}
+	if dev, ok := m["device"].(map[string]interface{}); ok {
+		pc.Device = &pb.DeviceCondition{
+			Postures: getStringSlice(dev, "postures"),
+		}
+	}
+	if net, ok := m["network"].(map[string]interface{}); ok {
+		pc.Network = &pb.NetworkCondition{
+			AllowedCountries: getStringSlice(net, "allowed_countries"),
+			BlockedCountries: getStringSlice(net, "blocked_countries"),
+			AllowedCidrs:     getStringSlice(net, "allowed_cidrs"),
+			BlockedCidrs:     getStringSlice(net, "blocked_cidrs"),
+			BlockTor:         getBool(net, "block_tor"),
+		}
+	}
+	if tm, ok := m["time"].(map[string]interface{}); ok {
+		pc.Time = &pb.TimeCondition{
+			ScheduleName: getString(tm, "schedule_name"),
+		}
+	}
+
+	if pc.Mfa == nil && pc.Device == nil && pc.Network == nil && pc.Time == nil {
+		return nil
+	}
+	return pc
+}
+
+// ---------------------------------------------------------------------
+// JSON helpers
+// ---------------------------------------------------------------------
+
+func getString(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+func getBool(m map[string]interface{}, key string) bool {
+	if v, ok := m[key].(bool); ok {
+		return v
+	}
+	return false
+}
+
+func getStringSlice(m map[string]interface{}, key string) []string {
+	v, ok := m[key].([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(v))
+	for _, item := range v {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
 
 
+// signer, _ := crypto.BundleSigningKeys(baseDir)
+// dist := policy.NewPolicyDistributor(registry, repo, signer.(*crypto.BundleSigner), logger)
 
-// // ============================================================
-// // 4. DELTA COMPUTATION (internal/cpstream/delta.go)
-// // ============================================================
-// // Computes the difference between two policy versions for efficient
-// // delta distribution.
-// // ============================================================
+// // On policy change:
+// dist.Distribute(ctx, orgID)
 
-// func (d *PolicyDistributor) computeDelta(ctx context.Context, tenantID uuid.UUID, fromVersion, toVersion uint64) (*pb.SignedPayload, error) {
-// 	if fromVersion >= toVersion {
-// 		return nil, fmt.Errorf("fromVersion %d >= toVersion %d", fromVersion, toVersion)
-// 	}
+// // On gateway reconnect (HelloAck.needs_policy=true):
+// dist.PushToGateway(ctx, conn, orgID)
 
-// 	// Query the mutation log for changes between the two versions
-// 	mutations, err := d.policyStore.GetMutationsSince(ctx, tenantID, int64(fromVersion))
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	if len(mutations) == 0 {
-// 		return nil, fmt.Errorf("no mutations found between %d and %d", fromVersion, toVersion)
-// 	}
-
-// 	// Build delta
-// 	delta := &pb.PolicyDelta{
-// 		FromVersion: fromVersion,
-// 		ToVersion:   toVersion,
-// 	}
-
-// 	for _, m := range mutations {
-// 		op := pb.PolicyMutation_OP_UNSPECIFIED
-// 		switch m.Op {
-// 		case "UPSERT":
-// 			op = pb.PolicyMutation_OP_UPSERT
-// 		case "DELETE":
-// 			op = pb.PolicyMutation_OP_DELETE
-// 		}
-
-// 		mutation := &pb.PolicyMutation{
-// 			Op:       op,
-// 			PolicyId: m.RuleID,
-// 		}
-
-// 		if op == pb.PolicyMutation_OP_UPSERT {
-// 			// Reconstruct the PolicyRule from the snapshot
-// 			rule, err := d.ruleFromSnapshot(m.Snapshot)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			mutation.Rule = rule
-// 		}
-
-// 		delta.Mutations = append(delta.Mutations, mutation)
-// 	}
-
-// 	// Serialize and sign the delta
-// 	payload, err := proto.Marshal(delta)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	toSign := append(binary.BigEndian.AppendUint64(nil, toVersion), payload...)
-// 	sig, err := d.signer.Sign(toSign)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &pb.SignedPayload{
-// 		Version:     toVersion,
-// 		Payload:     payload,
-// 		Signature:   sig,
-// 		IssuedAt:    uint64(time.Now().Unix()),
-// 		ExpiresAt:   uint64(time.Now().Add(24 * time.Hour).Unix()),
-// 		PayloadType: "policy_delta",
-// 	}, nil
-// }
-
-
-// func (d *PolicyDistributor) ruleFromSnapshot(snapshot map[string]interface{}) (*pb.PolicyRule, error) {
-// 	// Convert the JSONB snapshot back to a PolicyRule protobuf
-// 	// This is the inverse of the mutation log snapshot creation
-// 	// Implementation: marshal to JSON, then unmarshal into PolicyRule
-// 	data, err := json.Marshal(snapshot)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	var rule pb.PolicyRule
-// 	if err := protojson.Unmarshal(data, &rule); err != nil {
-// 		return nil, err
-// 	}
-// 	return &rule, nil
-// }
-
-
+// // On gateway reconnect with known version:
+// dist.PushDelta(ctx, conn, orgID, conn.CurrentPolicyVersion)

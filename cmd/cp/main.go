@@ -132,7 +132,7 @@ func main() {
 
 
 	//Initialising Policy Distributor
-	_ = policy.NewPolicyDistributor(gatewayRegistry, policyStore, bundleSigner, log)
+	distributor := policy.NewPolicyDistributor(gatewayRegistry, policyStore, bundleSigner, log)
 	log.Info("Policy Distributor Initialized")
 
 
@@ -144,7 +144,7 @@ func main() {
 
 	// Build and start gRPC server
 	grpcServer := cp_grpc.InitializeGRPCServer(
-		cfg, cppki, log, redisStore.Client(), gatewayRegistry, CASigner, policyStore,
+		cfg, cppki, log, redisStore.Client(), gatewayRegistry, distributor, policyStore,
 	)
 
 	// Graceful shutdown on SIGINT / SIGTERM

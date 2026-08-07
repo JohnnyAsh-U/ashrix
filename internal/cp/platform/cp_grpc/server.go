@@ -9,7 +9,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
@@ -32,7 +31,7 @@ func InitializeGRPCServer(
 	log *slog.Logger,
 	redisClient *redis.Client,
 	registry *registry.GatewayRegistry,
-	signer pki.CASigner,
+	distributor *policy.PolicyDistributor,
 	policyStore policy.Repository,
 ) *GRPCServer {
 	// Get TLS configuration from the crypto package
@@ -56,7 +55,7 @@ func InitializeGRPCServer(
 	proto.RegisterControlPlaneServiceServer(s, &cpServer{
 		policyStore: policyStore,
 		registry:    registry,
-		signer:      signer,
+		distributor:      distributor,
 		log:         log,
 		redisClient: redisClient,
 	})

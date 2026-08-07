@@ -2,6 +2,8 @@ package policy
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"net"
 	"testing"
 	"time"
@@ -272,4 +274,129 @@ func TestPolicyRollbackTombstone(t *testing.T) {
 	err = engine.UpdatePolicies(ctx, []*proto.PolicyRecord{rec1}, store.SyncCheckpoint{LastBundleVersion: 3})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "stale policy sequence")
+}
+
+func TestPolicyEngineAuthenticity(t *testing.T) {
+	logger := zap.NewNop()
+	ctx := context.Background()
+
+	// Generate key pair
+	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	verifier := &store.RootKey{PublicKey: pubKey}
+
+	// 1. Create a temp directory for the bbolt database
+	tempDir := t.TempDir()
+	boltStore, err := store.OpenBoltStore(tempDir)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		boltStore.Close()
+	})
+
+	// 2. Initialize the engine with our verifier
+	engine, err := NewEngine(ctx, boltStore, verifier, "GATE-1", logger)
+	require.NoError(t, err)
+	require.NotNil(t, engine)
+
+	rule1 := &proto.PolicyRule{
+		PolicyId: "policy-auth-1",
+		TenantId: "tenant-abc",
+		Effect:   proto.EffectEnum_EFFECT_ENUM_ALLOW,
+		Priority: 10,
+		Version:  1,
+		Subject: &proto.SubjectSelector{
+			Users: []string{"user-1"},
+		},
+		Resource: &proto.ResourceSelector{
+			AppIds: []string{"app-1"},
+		},
+	}
+
+	rec1 := &proto.PolicyRecord{
+		Sequence:  1,
+		Operation: proto.OperationEnum_OPERATION_ENUM_UPSERT,
+		Timestamp: time.Now().UnixMilli(),
+		Rule:      rule1,
+	}
+
+	checkpoint := store.SyncCheckpoint{
+		LastBundleVersion: 1,
+		LastSyncAt:        time.Now(),
+	}
+
+	// Case A: Update policies with an UNSIGNED record should fail
+	err = engine.UpdatePolicies(ctx, []*proto.PolicyRecord{rec1}, checkpoint)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "signature invalid")
+
+	// Case B: Update policies with a CORRECTLY signed record should succeed
+	payload1 := store.RecordSigningPayload(rec1)
+	sig1 := ed25519.Sign(privKey, payload1)
+	rec1.Signature = sig1
+
+	err = engine.UpdatePolicies(ctx, []*proto.PolicyRecord{rec1}, checkpoint)
+	require.NoError(t, err)
+
+	// Case C: ApplyVerifiedDelta with an UNSIGNED bundle should fail
+	rec2 := &proto.PolicyRecord{
+		Sequence:  2,
+		Operation: proto.OperationEnum_OPERATION_ENUM_UPSERT,
+		Timestamp: time.Now().UnixMilli(),
+		Rule: &proto.PolicyRule{
+			PolicyId: "policy-auth-2",
+			TenantId: "tenant-abc",
+			Effect:   proto.EffectEnum_EFFECT_ENUM_ALLOW,
+			Priority: 10,
+			Version:  1,
+			Subject: &proto.SubjectSelector{
+				Users: []string{"user-2"},
+			},
+			Resource: &proto.ResourceSelector{
+				AppIds: []string{"app-1"},
+			},
+		},
+	}
+	payload2 := store.RecordSigningPayload(rec2)
+	rec2.Signature = ed25519.Sign(privKey, payload2)
+
+	bundle := &proto.PolicyBundle{
+		Version:  2,
+		IssuedAt: time.Now().UnixMilli(),
+		Records:  []*proto.PolicyRecord{rec2},
+	}
+
+	checkpoint.LastBundleVersion = 2
+	err = engine.ApplyVerifiedDelta(ctx, bundle, nil, checkpoint)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "bundle signature verification failed")
+
+	// Case D: ApplyVerifiedDelta with a CORRECTLY signed bundle should succeed
+	bundlePayload := store.BundleSigningPayload(bundle)
+	bundle.Signature = ed25519.Sign(privKey, bundlePayload)
+
+	err = engine.ApplyVerifiedDelta(ctx, bundle, nil, checkpoint)
+	require.NoError(t, err)
+
+	// Case E: Initialize a new engine from a store containing a tampered/invalid record signature
+	recTampered := &proto.PolicyRecord{
+		Sequence:  3,
+		Operation: proto.OperationEnum_OPERATION_ENUM_UPSERT,
+		Timestamp: time.Now().UnixMilli(),
+		Rule: &proto.PolicyRule{
+			PolicyId: "policy-tampered",
+			TenantId: "tenant-abc",
+			Effect:   proto.EffectEnum_EFFECT_ENUM_ALLOW,
+		},
+		Signature: []byte("bad-signature-value-here"),
+	}
+	checkpoint.LastBundleVersion = 3
+	// ApplyDelta writes directly to database without verification
+	err = boltStore.ApplyDelta(ctx, []*proto.PolicyRecord{recTampered}, checkpoint)
+	require.NoError(t, err)
+
+	// Attempting to create a new engine should now fail during bootstrap verification of the local store
+	_, err = NewEngine(ctx, boltStore, verifier, "GATE-1", logger)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "bootstrap verify policy 3")
 }

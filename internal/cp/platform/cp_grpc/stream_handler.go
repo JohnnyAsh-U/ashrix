@@ -7,9 +7,10 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	// "time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
@@ -23,13 +24,64 @@ type cpServer struct {
 
 	registry    *registry.GatewayRegistry
 	redisClient *redis.Client
-	signer      pki.CASigner
+	distributor *policy.PolicyDistributor
 	policyStore policy.Repository
 	log         *slog.Logger
 }
 
 // Connect handles the bidirectional stream from a gateway
 func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error {
+
+
+// Wait for the initial Hello message from the gateway
+	msg, err := stream.Recv()
+	if err != nil {
+		return fmt.Errorf("recv hello: %w", err)
+	}
+
+	hello := msg.GetHello()
+	if hello == nil {
+		return fmt.Errorf("expected hello message, got %T", msg.Payload)
+	}
+
+	// gatewayID := hello.GatewayId
+	// gatewayType := GatewayType(hello.GatewayType) // "hosted" or "self_hosted"
+	// currentPolicyVersion := hello.CurrentPolicyVersion
+
+	// ctx, cancel := context.WithCancel(stream.Context())
+	// defer cancel()
+
+
+	// conn := &GatewayConn{
+	// 	GatewayID:            gatewayID,
+	// 	GatewayType:          gatewayType,
+	// 	Stream:               stream,
+	// 	ConnectedAt:          time.Now(),
+	// 	LastSeen:             time.Now(),
+	// 	CurrentPolicyVersion: currentPolicyVersion,
+	// 	ctx:                  ctx,
+	// 	cancel:               cancel,
+	// }
+
+		// Register the connection
+	// s.registry.Register(conn)
+	// defer s.registry.Unregister(gatewayID)
+
+	// log.Printf("gateway connected: %s (type=%s, tenant=%s, policy_version=%d)",
+	// 	gatewayID, gatewayType, tenantID, currentPolicyVersion)
+
+	// // For hosted gateways, the Hello includes the list of tenants it serves
+	// if gatewayType == GatewayTypeHosted && len(hello.ServedTenants) > 0 {
+	// 	s.registry.HandleHello(gatewayID, hello.ServedTenants)
+	// }
+
+	// // If the gateway is behind on policy, push the latest immediately
+	// if currentPolicyVersion < s.distributor.LatestVersion(tenantID) {
+	// 	go s.distributor.PushToGateway(ctx, conn, tenantID)
+	// } 
+
+
+
 	fmt.Println("Said Hello")
 	for {
 		msg, err := stream.Recv()

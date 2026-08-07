@@ -220,6 +220,7 @@ type Policy struct {
 	Priority    pgtype.Int4 `json:"priority"`
 	Enabled     bool        `json:"enabled"`
 	Version     int64       `json:"version"`
+	Sequence    int64       `json:"sequence"`
 	CreatedBy   uuid.UUID   `json:"created_by"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
@@ -246,13 +247,16 @@ type PolicyCondition struct {
 }
 
 type PolicyMutation struct {
-	Version      int64           `json:"version"`
-	OrgID        uuid.UUID       `json:"org_id"`
-	PolicyID     uuid.UUID       `json:"policy_id"`
-	Op           string          `json:"op"`
-	RuleSnapshot json.RawMessage `json:"rule_snapshot"`
-	MutatedBy    pgtype.UUID     `json:"mutated_by"`
-	MutatedAt    time.Time       `json:"mutated_at"`
+	Version         int64           `json:"version"`
+	OrgID           uuid.UUID       `json:"org_id"`
+	PolicyID        uuid.UUID       `json:"policy_id"`
+	Op              string          `json:"op"`
+	RuleSnapshot    json.RawMessage `json:"rule_snapshot"`
+	Sequence        int64           `json:"sequence"`
+	Signature       []byte          `json:"signature"`
+	RecordTimestamp int64           `json:"record_timestamp"`
+	MutatedBy       pgtype.UUID     `json:"mutated_by"`
+	MutatedAt       time.Time       `json:"mutated_at"`
 }
 
 type PolicyResource struct {

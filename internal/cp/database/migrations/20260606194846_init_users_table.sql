@@ -236,6 +236,10 @@ CREATE TABLE policy_mutations (
     -- and as a historical record.
     rule_snapshot   JSONB NOT NULL,
 
+    sequence        BIGINT NOT NULL DEFAULT 0,
+    signature       BYTEA NOT NULL,   -- SHA256 digest of the bundle
+    record_timestamp BIGINT NOT NULL DEFAULT 0, -- timestamp of when the policy was recorded
+
     mutated_by      UUID NULL REFERENCES admins(id),
     mutated_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
@@ -245,6 +249,16 @@ CREATE INDEX idx_mutations_tenant_version
 
 CREATE INDEX idx_mutations_policy
     ON policy_mutations(policy_id, version);
+
+-- Critical: prevents replay attacks by enforcing monotonic sequence per policy
+CREATE UNIQUE INDEX idx_mutations_org_sequence
+    ON policy_mutations(org_id, policy_id, sequence);
+
+
+-- Fast lookup for "give me all mutations for this policy since sequence X"
+CREATE INDEX idx_mutations_policy_version 
+    ON policy_mutations(policy_id, sequence); 
+
 
 -- =================================================================
 -- Policy Precedence in strict effect order: 
@@ -268,6 +282,9 @@ CREATE TABLE policies (
     -- Links to the mutation that created this version
     version         BIGINT NOT NULL REFERENCES policy_mutations(version),
 
+    -- Track last known sequence on the live policy (gateways use this for delta sync)
+    sequence        BIGINT NOT NULL DEFAULT 0,
+
     created_by      UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
 
     created_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -282,6 +299,7 @@ CREATE INDEX idx_policies_org_enabled
 
 CREATE INDEX idx_policies_compile_order
     ON policies(org_id, effect DESC, priority DESC, id);
+
 
 -- -----------------------------------------------------------
 -- POLICY_SUBJECTS — Normalized subject references
@@ -698,10 +716,13 @@ DROP INDEX IF EXISTS idx_admin_sessions_token;
 DROP INDEX IF EXISTS idx_conditions_gin;
 DROP INDEX IF EXISTS idx_audit_tenant_time;
 
+DROP INDEX IF EXISTS idx_mutations_policy_version;
+DROP INDEX IF EXISTS idx_mutations_policy_sequence;
+
 
 DROP TABLE IF EXISTS access_logs;
 DROP TABLE IF EXISTS audit_logs;
-DROP TABLE IF EXISTS crl_entries;
+DROP TABLE IF EXISTS crl_entries; 
 -- DROP TABLE IF EXISTS csr_requests;
 DROP TABLE IF EXISTS component_certificates;
 DROP TABLE IF EXISTS ca_certificates;

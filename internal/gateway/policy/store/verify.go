@@ -78,9 +78,9 @@ func canonicalRuleHash(rule *pb.PolicyRule) []byte {
 
 
 
-// recordSigningPayload returns the exact bytes that must be signed for a PolicyRecord.
+// RecordSigningPayload returns the exact bytes that must be signed for a PolicyRecord.
 // The record.signature field itself is EXCLUDED.
-func recordSigningPayload(record *pb.PolicyRecord) []byte {
+func RecordSigningPayload(record *pb.PolicyRecord) []byte {
 	h := sha256.New()
 
 	// Fixed-order envelope fields. BigEndian is explicit and stable.
@@ -96,9 +96,9 @@ func recordSigningPayload(record *pb.PolicyRecord) []byte {
 
 
 
-// bundleSigningPayload returns the exact bytes that must be signed for a PolicyBundle.
+// BundleSigningPayload returns the exact bytes that must be signed for a PolicyBundle.
 // The bundle.signature field itself is EXCLUDED.
-func bundleSigningPayload(bundle *pb.PolicyBundle) []byte {
+func BundleSigningPayload(bundle *pb.PolicyBundle) []byte {
 	h := sha256.New()
 
 	binary.Write(h, binary.BigEndian, bundle.Version)
@@ -118,7 +118,7 @@ func bundleSigningPayload(bundle *pb.PolicyBundle) []byte {
 // VerifyBundle verifies the top-level bundle signature AND every record inside.
 // Call this once when the gateway RECEIVES the bundle.
 func (v *RootKey) VerifyBundle(bundle *pb.PolicyBundle) error {
-	payload := bundleSigningPayload(bundle)
+	payload := BundleSigningPayload(bundle)
 	if !ed25519.Verify(v.PublicKey, payload, bundle.Signature) {
 		return fmt.Errorf("bundle signature invalid")
 	}
@@ -135,7 +135,7 @@ func (v *RootKey) VerifyBundle(bundle *pb.PolicyBundle) error {
 // VerifyRecord verifies the signature on a single PolicyRecord.
 // Call this at STARTUP when loading from bbolt, and when applying a record.
 func (v *RootKey) VerifyRecord(record *pb.PolicyRecord) error {
-	payload := recordSigningPayload(record)
+	payload := RecordSigningPayload(record)
 	if !ed25519.Verify(v.PublicKey, payload, record.Signature) {
 		pid := "<nil>"
 		if record.Rule != nil {

@@ -1,6 +1,8 @@
 package policy
 
-import "time"
+import (
+	"time"
+)
 
 type Effect string
 

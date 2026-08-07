@@ -6,6 +6,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,6 +19,10 @@ type Querier interface {
 	// Called once during SSO binding confirmation flow.
 	// Stores sub claim, links IdP config, marks sso_bound.
 	BindAdminSSO(ctx context.Context, arg BindAdminSSOParams) (Admin, error)
+	// =============================================================================
+	// Snapshot Builder (for mutation log)
+	// =============================================================================
+	BuildPolicyRuleSnapshot(ctx context.Context, arg BuildPolicyRuleSnapshotParams) (json.RawMessage, error)
 	// Uses pgx COPY protocol for high-throughput batch inserts.
 	// Gateway drains its local buffer to CP every 10s.
 	BulkCreateAccessLogs(ctx context.Context, arg []BulkCreateAccessLogsParams) (int64, error)
@@ -167,7 +172,8 @@ type Querier interface {
 	// Always scope to org — never allow cross-org access.
 	GetIDPConfigByIDAndOrg(ctx context.Context, arg GetIDPConfigByIDAndOrgParams) (IdpConfig, error)
 	GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error)
-	GetMutationsSince(ctx context.Context, arg GetMutationsSinceParams) ([]PolicyMutation, error)
+	GetMutationsSince(ctx context.Context, arg GetMutationsSinceParams) ([]GetMutationsSinceRow, error)
+	GetNextPolicySequence(ctx context.Context, arg GetNextPolicySequenceParams) (int32, error)
 	// Used by Gateway to resolve incoming hostname to org (v2)
 	GetOrgByCustomDomain(ctx context.Context, customDomain pgtype.Text) (Org, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (Org, error)
@@ -175,16 +181,27 @@ type Querier interface {
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
 	GetPolicyByID(ctx context.Context, arg GetPolicyByIDParams) (Policy, error)
 	GetPolicyCondition(ctx context.Context, policyID uuid.UUID) (PolicyCondition, error)
+	GetPolicyMutation(ctx context.Context, arg GetPolicyMutationParams) (GetPolicyMutationRow, error)
 	GetPolicyResources(ctx context.Context, policyID uuid.UUID) ([]PolicyResource, error)
 	GetPolicySubjects(ctx context.Context, policyID uuid.UUID) ([]PolicySubject, error)
+	GetPolicyWithDetails(ctx context.Context, arg GetPolicyWithDetailsParams) (GetPolicyWithDetailsRow, error)
 	GetSetupToken(ctx context.Context, tokenHash string) (AdminSetupToken, error)
 	GetValidCompCert(ctx context.Context, arg GetValidCompCertParams) (GetValidCompCertRow, error)
 	InsertCACert(ctx context.Context, arg InsertCACertParams) (uuid.UUID, error)
+	// =============================================================================
+	// Normalized Policy CRUD
+	// =============================================================================
 	InsertPolicy(ctx context.Context, arg InsertPolicyParams) (Policy, error)
+	// =============================================================================
+	// Audit
+	// =============================================================================
 	InsertPolicyAuditLog(ctx context.Context, arg InsertPolicyAuditLogParams) error
 	InsertPolicyCondition(ctx context.Context, arg InsertPolicyConditionParams) error
-	InsertPolicyMutation(ctx context.Context, arg InsertPolicyMutationParams) (int64, error)
+	InsertPolicyMutation(ctx context.Context, arg InsertPolicyMutationParams) (InsertPolicyMutationRow, error)
 	InsertPolicyResource(ctx context.Context, arg InsertPolicyResourceParams) error
+	// =============================================================================
+	// Subjects, Resources, Conditions
+	// =============================================================================
 	InsertPolicySubject(ctx context.Context, arg InsertPolicySubjectParams) error
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
@@ -257,6 +274,7 @@ type Querier interface {
 	UpdateGatewayHeartbeat(ctx context.Context, arg UpdateGatewayHeartbeatParams) (Gateway, error)
 	// Updating secrets rotates the encrypted value.
 	UpdateIDPConfig(ctx context.Context, arg UpdateIDPConfigParams) (IdpConfig, error)
+	UpdateMutationSignature(ctx context.Context, arg UpdateMutationSignatureParams) error
 	UpdateOrgName(ctx context.Context, arg UpdateOrgNameParams) (Org, error)
 	UpdatePolicy(ctx context.Context, arg UpdatePolicyParams) (Policy, error)
 	// Called after CP confirms the DNS TXT record is present.
