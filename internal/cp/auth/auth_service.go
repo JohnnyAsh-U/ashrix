@@ -190,7 +190,7 @@ func (s *Service) VerifyOTPSetup(ctx context.Context, req VerifyOTPSetupRequest)
 		return TokenPair{}, dto.NewErrInternal(err)
 	}
 
-	tokens, err := s.jwtUtils.IssueTokenPair(ctx, adminActivated.ID, orgID, admin.Role)
+	tokens, err := s.jwtUtils.IssueTokenPair(ctx, adminActivated.ID, orgID, admin.Role, admin.Email)
 
 	_, err = s.repo.CreateSession(ctx, store.CreateSessionParams{
 		AdminID:      admin.ID,
@@ -287,7 +287,7 @@ func (s *Service) VerifyOTPLogin(ctx context.Context, req VerifyOTPLoginRequest)
 		return TokenPair{}, dto.NewBadRequestError("Invalide OTP code")
 	}
 
-	tokens, err := s.jwtUtils.IssueTokenPair(ctx, adminID, OrgID, admin.Role)
+	tokens, err := s.jwtUtils.IssueTokenPair(ctx, adminID, OrgID, admin.Role, admin.Email)
 
 	if err != nil {
 		return TokenPair{}, dto.NewErrInternal("Internal Server")
@@ -451,7 +451,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (TokenPair, 
 		return TokenPair{}, dto.NewErrInternal(fmt.Errorf("invalid org id: %w", err))
 	}
 
-	tokens, err := s.jwtUtils.IssueTokenPair(ctx, admin.ID, orgID, admin.Role)
+	tokens, err := s.jwtUtils.IssueTokenPair(ctx, admin.ID, orgID, admin.Role, admin.Email)
 
 	_, err = s.repo.CreateSession(ctx, store.CreateSessionParams{
 		AdminID:      admin.ID,

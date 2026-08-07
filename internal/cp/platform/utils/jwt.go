@@ -32,6 +32,7 @@ type TokenPair struct {
 type AccessClaims struct {
 	AdminID string `json:"admin_id"`
 	OrgID   string `json:"org_id"`
+	AdminEmail string `json:"email"`
 	Role string `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -57,12 +58,13 @@ func NewJwtUtils(accessKey, refreshKey string, accessDuration, refreshDuration t
 }
 
 
-func (j *JwtUtils) IssueTokenPair(ctx context.Context, AdminId uuid.UUID, OrgId uuid.UUID, role string) (TokenPair, error) {
+func (j *JwtUtils) IssueTokenPair(ctx context.Context, AdminId uuid.UUID, OrgId uuid.UUID, role, email string) (TokenPair, error) {
 	// Access token
 	accessExpiry := time.Now().Add(j.accessDuration)
 	accessClaims := AccessClaims{
 		AdminID: AdminId.String(),
 		OrgID:   OrgId.String(),
+		AdminEmail: email,
 		Role: role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(accessExpiry),

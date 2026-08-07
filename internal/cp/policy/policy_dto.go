@@ -2,6 +2,8 @@ package policy
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Effect string
@@ -12,13 +14,13 @@ const (
 )
 
 type Subject struct {
-	Type  string `json:"type"`  // "group" or "user"
-	Value string `json:"value"` // "engineering", "u-123"
+	Type  string `json:"type" example:"group" enums:"group,user"`  // "group" or "user"
+	Value string `json:"value" example:"engineering"` // "engineering", "u-123"
 }
 
 type Resource struct {
-	Type  string `json:"type"`  // "appID", "path", "method"
-	Value string `json:"value"` // "id-jenkins-prod", "/*", "GET"
+	Type  string `json:"type" example:"app" enums:"app,path,method"`
+	Value string `json:"value" example:"jenkins-prod"`
 }
 
 type Conditions struct {
@@ -29,82 +31,67 @@ type Conditions struct {
 }
 
 type MFACondition struct {
-	Required bool   `json:"required"`
-	MinLevel string `json:"min_level,omitempty"`
+	Required bool   `json:"required" example:"true"`
+	MinLevel string `json:"min_level,omitempty" example:"totp"`
 }
 
 type DeviceCondition struct {
-	Postures []string `json:"postures"`
+	Postures []string `json:"postures" example:"[\"compliant\"]"`
 }
 
 type NetworkCondition struct {
-	AllowedCountries []string `json:"allowed_countries,omitempty"`
+	AllowedCountries []string `json:"allowed_countries,omitempty" example:"[\"CI\",\"GH\"]"`
 	BlockedCountries []string `json:"blocked_countries,omitempty"`
-	AllowedCIDRs     []string `json:"allowed_cidrs,omitempty"`
+	AllowedCIDRs     []string `json:"allowed_cidrs,omitempty" example:"[\"102.68.0.0/16\"]"`
 	BlockedCIDRs     []string `json:"blocked_cidrs,omitempty"`
-	BlockTor         bool     `json:"block_tor,omitempty"`
+	BlockTor         bool     `json:"block_tor,omitempty" example:"true"`
 }
 
 type TimeCondition struct {
-	ScheduleName string `json:"schedule_name"`
+	ScheduleName string `json:"schedule_name,omitempty" example:"business-hours"`
 }
 
-// type CreatePolicyRequest struct {
-// 	Name        string `json:"name" validate:"required,max=255"`
-// 	Description string `json:"description" validate:"max=1000"`
-// 	Effect      Effect `json:"effect" validate:"required,oneof=ALLOW DENY"`
-// 	Priority    int    `json:"priority" validate:"min=0,max=1000"`
 
-// 	SubjectUsers  []Subject `json:"subject_users"`
-// 	SubjectGroups []Resource `json:"subject_groups"`
-
-// 	ResourceApps    []string `json:"resource_apps" validate:"required,min=1"`
-// 	ResourcePaths   []string `json:"resource"`
-// 	ResourceMethods Conditions `json:"conditions"`
-
-// 	Conditions PolicyConditions `json:"conditions"`
-// }
-
-// type UpdatePolicyRequest struct {
-// 	Name            *string           `json:"name,omitempty"`
-// 	Description     *string           `json:"description,omitempty"`
-// 	Effect          *Effect           `json:"effect,omitempty"`
-// 	Priority        *int              `json:"priority,omitempty"`
-// 	SubjectUsers    []string          `json:"subject_users,omitempty"`
-// 	SubjectGroups   []string          `json:"subject_groups,omitempty"`
-// 	ResourceApps    []string          `json:"resource_apps,omitempty"`
-// 	ResourcePaths   []string          `json:"resource_paths,omitempty"`
-// 	ResourceMethods []string          `json:"resource_methods,omitempty"`
-// 	Conditions      *PolicyConditions `json:"conditions,omitempty"`
-// 	Enabled         *bool             `json:"enabled,omitempty"`
-// }
-
-type PolicyResponse struct {
-	PolicyID    string           `json:"policy_id"`
-	TenantID    string           `json:"tenant_id"`
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	Effect      Effect           `json:"effect"`
-	Priority    int              `json:"priority"`
-	Subject     SubjectSelector  `json:"subject"`
-	Resource    ResourceSelector `json:"resource"`
-	Conditions  PolicyConditions `json:"conditions"`
-	Enabled     bool             `json:"enabled"`
-	Version     int64            `json:"version"`
-	CreatedBy   string           `json:"created_by"`
-	CreatedAt   time.Time        `json:"created_at"`
-	UpdatedAt   time.Time        `json:"updated_at"`
+type CreatePolicyRequest struct {
+	Name        string        `json:"name" binding:"required,min=1,max=255"`
+	Description string        `json:"description"`
+	Effect      Effect        `json:"effect" binding:"required,oneof=ALLOW DENY"`
+	Priority    int32         `json:"priority" binding:"min=0,max=100"`
+	Subjects    []Subject  `json:"subjects"`
+	Resources   []Resource `json:"resources"`
+	Conditions  Conditions `json:"conditions"`
 }
 
-type SubjectSelector struct {
-	Users  []string `json:"users"`
-	Groups []string `json:"groups"`
+
+type UpdatePolicyRequest struct {
+	Name        *string       `json:"name,omitempty" binding:"omitempty,min=1,max=255"`
+	Description *string       `json:"description,omitempty"`
+	Effect      *Effect       `json:"effect,omitempty" binding:"omitempty,oneof=ALLOW DENY"`
+	Priority    *int32        `json:"priority,omitempty" binding:"omitempty,min=0,max=100"`
+	Enabled     *bool         `json:"enabled,omitempty"`
+	Subjects    []Subject  `json:"subjects,omitempty"`
+	Resources   []Resource `json:"resources,omitempty"`
+	Conditions  *Conditions `json:"conditions,omitempty"`
 }
 
-type ResourceSelector struct {
-	Apps    []string `json:"apps"`
-	Paths   []string `json:"paths"`
-	Methods []string `json:"methods"`
+
+
+type Policy struct {
+	ID          uuid.UUID     `json:"id"`
+	OrgID       uuid.UUID     `json:"org_id"`
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
+	Effect      Effect        `json:"effect"`
+	Priority    int32         `json:"priority"`
+	Enabled     bool          `json:"enabled"`
+	Version     int64         `json:"version"`
+	Sequence    int64         `json:"sequence"`
+	CreatedBy   uuid.UUID     `json:"created_by"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+	Subjects    []Subject  `json:"subjects"`
+	Resources   []Resource `json:"resources"`
+	Conditions  Conditions `json:"conditions"`
 }
 
 type PolicyConditions struct {
@@ -114,23 +101,18 @@ type PolicyConditions struct {
 	Time    *TimeCondition    `json:"time,omitempty"`
 }
 
-// type MFACondition struct {
-// 	Required bool   `json:"required"`
-// 	MinLevel string `json:"min_level,omitempty"`
-// }
 
-// type DeviceCondition struct {
-// 	Postures []string `json:"postures"`
-// }
+type ListPoliciesQuery struct {
+	Page   int    `form:"page" binding:"min=1" example:"1"`
+	Limit  int    `form:"limit" binding:"min=1,max=100" example:"20"`
+	SortBy string `form:"sort_by" example:"priority"`
+	Order  string `form:"order" binding:"omitempty,oneof=asc desc" example:"desc"`
+}
 
-// type NetworkCondition struct {
-// 	AllowedCountries []string `json:"allowed_countries,omitempty"`
-// 	BlockedCountries []string `json:"blocked_countries,omitempty"`
-// 	AllowedCIDRs     []string `json:"allowed_cidrs,omitempty"`
-// 	BlockedCIDRs     []string `json:"blocked_cidrs,omitempty"`
-// 	BlockTor         bool     `json:"block_tor,omitempty"`
-// }
+type ListPoliciesResponse struct {
+	Items []Policy `json:"items"`
+	Total int64    `json:"total"`
+	Page  int        `json:"page"`
+	Limit int        `json:"limit"`
+}
 
-// type TimeCondition struct {
-// 	ScheduleName string `json:"schedule_name"`
-// }

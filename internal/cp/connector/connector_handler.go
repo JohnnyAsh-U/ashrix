@@ -109,9 +109,22 @@ func (h *ConnectorHandler) ReCreateConnector(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	orgID := middleware.OrgIDFromCtx(r.Context())
+
+	orgIDUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		dto.SendError(w, dto.NewBadRequestError("Invalid Organization ID format"))
+		return
+	}
+
 	var req ReEnrollConnectorRequest
 	if err := dto.DecodeJSON(w, r, &req); err != nil {
 		dto.SendError(w, err)
+		return
+	}
+
+	if orgIDUUID != req.OrgID {
+		dto.SendError(w, dto.NewUnauthorizedError("You are not authorized to perform this action."))
 		return
 	}
 
@@ -140,6 +153,7 @@ func (h *ConnectorHandler) ReCreateConnector(w http.ResponseWriter, r *http.Requ
 // @Failure 500 {object} dto.AppError
 // @Router /internal/connectors/enroll [post]
 func (h *ConnectorHandler) EnrollConnector(w http.ResponseWriter, r *http.Request) {
+
 	var req gen.ConnectorEnrollRequest
 	if err := dto.DecodeJSON(w, r, &req); err != nil {
 		dto.SendError(w, err)

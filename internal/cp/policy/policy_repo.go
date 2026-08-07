@@ -1,23 +1,6 @@
 package policy
 
-// ============================================================
-// ASHRIX POLICY REPOSITORY — sqlc-generated queries + Go wrapper
-// ============================================================
-// File: internal/policy/repo.go
-//
-// This file wraps sqlc-generated queries with domain types and
-// transaction orchestration. sqlc generates the raw SQL interface;
-// this repo adds business logic (multi-table transactions, JSON
-// marshaling, domain type conversion).
-//
-// Usage:
-//   queries := db.New(dbpool)
-//   repo := policy.NewRepo(dbpool, queries)
-//   policy, err := repo.Create(ctx, orgID, req, actorID)
-// ============================================================
-
 import (
-	// "bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -48,26 +31,6 @@ type Repository interface {
 }
 
 
-// Policy is the domain model for a complete policy with all relations.
-type Policy struct {
-	ID          uuid.UUID
-	OrgID       uuid.UUID
-	Name        string
-	Description string
-	Effect      Effect
-	Priority    int32
-	Enabled     bool
-	Version     int64
-	Sequence int64
-	CreatedBy   uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-
-	Subjects   []Subject
-	Resources  []Resource
-	Conditions Conditions
-}
-
 // Mutation represents a single entry from the policy mutation log.
 type Mutation struct {
 	Version         int64
@@ -80,29 +43,6 @@ type Mutation struct {
 	Snapshot        map[string]interface{}
 	MutatedBy       *uuid.UUID
 	MutatedAt time.Time
-}
-
-// CreatePolicyRequest is the input for creating a new policy.
-type CreatePolicyRequest struct {
-	Name        string
-	Description string
-	Effect      Effect
-	Priority    int32
-	Subjects    []Subject
-	Resources   []Resource
-	Conditions  Conditions
-}
-
-// UpdatePolicyRequest is the input for updating an existing policy.
-type UpdatePolicyRequest struct {
-	Name        *string
-	Description *string
-	Effect      *Effect
-	Priority    *int32
-	Enabled     *bool
-	Subjects    []Subject   // if non-empty, replaces all subjects
-	Resources   []Resource  // if non-empty, replaces all resources
-	Conditions  *Conditions // if non-nil, replaces conditions
 }
 
 
@@ -155,18 +95,18 @@ func buildSnapshotFromRequest(policyID, orgID uuid.UUID, req CreatePolicyRequest
 	users, groups := partitionSubjects(req.Subjects)
 	apps, paths, methods := partitionResources(req.Resources)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"policy_id":   policyID.String(),
 		"tenant_id":   orgID.String(),
 		"name":        req.Name,
 		"description": req.Description,
 		"effect":      string(req.Effect),
 		"priority":    req.Priority,
-		"subject": map[string]interface{}{
+		"subject": map[string]any{
 			"users":  users,
 			"groups": groups,
 		},
-		"resource": map[string]interface{}{
+		"resource": map[string]any{
 			"app_ids": apps,
 			"paths":   paths,
 			"methods": methods,
@@ -182,18 +122,18 @@ func buildSnapshotFromPolicy(p Policy) map[string]interface{} {
 	users, groups := partitionSubjects(p.Subjects)
 	apps, paths, methods := partitionResources(p.Resources)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"policy_id":   p.ID.String(),
 		"tenant_id":   p.OrgID.String(),
 		"name":        p.Name,
 		"description": p.Description,
 		"effect":      string(p.Effect),
 		"priority":    p.Priority,
-		"subject": map[string]interface{}{
+		"subject": map[string]any{
 			"users":  users,
 			"groups": groups,
 		},
-		"resource": map[string]interface{}{
+		"resource": map[string]any{
 			"app_ids": apps,
 			"paths":   paths,
 			"methods": methods,
@@ -713,7 +653,7 @@ func (r *postgresRepository) GetMutationsSince(ctx context.Context, orgID uuid.U
 
 	mutations := make([]Mutation, 0, len(rows))
 	for _, row := range rows {
-		var snapshot map[string]interface{}
+		var snapshot map[string]any
 		if err := json.Unmarshal(row.RuleSnapshot, &snapshot); err != nil {
 			return nil, fmt.Errorf("unmarshal snapshot v%d: %w", row.Version, err)
 		}

@@ -20,6 +20,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/redis"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/utils"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -33,7 +34,16 @@ type Server struct {
 }
 
 // New wires together all dependencies and builds the router.
-func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Queries, redisStore *redis.RedisStore, log *slog.Logger, CASigner pki.CASigner) *Server {
+func InitializeHttpServer(
+	BaseDir string,
+	cfg *config.Config,
+	dbQueries *store.Queries,
+	redisStore *redis.RedisStore,
+	policyRepo policy.Repository,
+	policyDistributor *policy.PolicyDistributor,
+	log *slog.Logger,
+	CASigner pki.CASigner,
+) *Server {
 
 	//Mailer config
 	mailer := utils.NewMailerService(cfg)
@@ -53,6 +63,7 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 	r.Use(middleware.LoggingMiddleware(log))
 	r.Use(chimiddleware.Recoverer)
 	r.Use(middleware.SecurityHeaders)
+	r.Use(middleware.Metadata)
 	r.Use(chimiddleware.Timeout(30 * time.Second))
 
 	//Apps routes
@@ -109,6 +120,11 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 	connectorService := connector.NewService(connectorRepo)
 	connectorHandler := connector.NewConnectorHandler(connectorService, CASigner)
 
+
+	// Policy routes
+	policyService := policy.NewService(policyRepo, policyDistributor)
+	policyHandler := policy.NewPolicyHandler(policyService)
+
 	//Docs - date this in prod
 	r.Get("/docs/*", httpSwagger.Handler(
 		httpSwagger.URL("/docs/doc.json"),
@@ -132,6 +148,7 @@ func InitializeHttpServer(BaseDir string, cfg *config.Config, dbQueries *store.Q
 			r.Route("/orgs", orgHandler.Routes)
 			r.Route("/connectors", connectorHandler.WithAuthRoutes)
 			r.Route("/apps", appHandler.Routes)
+			r.Route("/policies", policyHandler.Routes)
 		})
 	})
 

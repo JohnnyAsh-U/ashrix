@@ -14,6 +14,7 @@ import (
 type AccessClaims struct {
 	AdminID string `json:"admin_id"`
 	OrgID   string `json:"org_id"`
+	AdminEmail string `json:"email"`
 	Role string `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -25,6 +26,7 @@ type ctxKey string
 const (
 	CtxAdminID ctxKey = "admin_id"
 	CtxOrgID   ctxKey = "org_id"
+	CtxAdminEmail ctxKey = "email"
 	CtxRole    ctxKey = "role"
 )
 
@@ -47,6 +49,14 @@ func RoleFromCtx(ctx context.Context) string {
 	return id
 }
 
+// Email retrieve the authenticated Email from the context
+func EmailFromCtx(ctx context.Context) string {
+	id, _ := ctx.Value(CtxAdminEmail).(string)
+	return id
+}
+
+
+
 func AuthMiddleware(jwtKey []byte) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +76,10 @@ func AuthMiddleware(jwtKey []byte) func(http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), CtxAdminID, claims.AdminID)
 			ctx = context.WithValue(ctx, CtxOrgID, claims.OrgID)
 			ctx = context.WithValue(ctx, CtxRole, claims.Role)
+			ctx = context.WithValue(ctx, CtxAdminEmail, claims.AdminEmail)
+
+			//Inject the clientIP and UserAgent
+			
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

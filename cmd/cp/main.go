@@ -127,12 +127,12 @@ func main() {
 
 
 	//Initializing PolicyStoreRepo
-	policyStore := policy.NewRepository(db, dbQueries)
+	policyRepo := policy.NewRepository(db, dbQueries)
 	log.Info("Policy Store Initialized")
 
 
 	//Initialising Policy Distributor
-	distributor := policy.NewPolicyDistributor(gatewayRegistry, policyStore, bundleSigner, log)
+	policyDistributor := policy.NewPolicyDistributor(gatewayRegistry, policyRepo, bundleSigner, log)
 	log.Info("Policy Distributor Initialized")
 
 
@@ -140,11 +140,26 @@ func main() {
 	quit := make(chan os.Signal, 2)
 
 	// Build and start HTTP server
-	httpServer := cp_http.InitializeHttpServer(BaseDir, cfg, dbQueries, redisStore, log, CASigner)
+	httpServer := cp_http.InitializeHttpServer(
+		BaseDir,
+		cfg,
+		dbQueries,
+		redisStore,
+		policyRepo,
+		policyDistributor,
+		log,
+		CASigner,
+	)
 
 	// Build and start gRPC server
 	grpcServer := cp_grpc.InitializeGRPCServer(
-		cfg, cppki, log, redisStore.Client(), gatewayRegistry, distributor, policyStore,
+		cfg,
+		cppki,
+		log,
+		redisStore.Client(),
+		gatewayRegistry,
+		policyDistributor,
+		policyRepo,
 	)
 
 	// Graceful shutdown on SIGINT / SIGTERM
