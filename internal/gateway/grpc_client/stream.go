@@ -8,13 +8,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"go.uber.org/zap"
 
 	"github.com/cenkalti/backoff/v4"
-	// "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,9 +23,9 @@ import (
 // StreamManager maintains a single bidi stream to the control plane.
 // On any break it reconnects, sends a fresh Hello payload, and resumes.
 type StreamManager struct {
-	cm        *ConnectionManager
-	makeHello func() *pb.GatewayEnvelope // factory: fresh epoch/nonce every reconnect
-	// onMessage func(*pb.CPEnvelope)
+	cm          *ConnectionManager
+	policyStore *store.BoltStore
+	cfg         *config.Config
 	onAuthError func(ctx context.Context) error // e.g. pki.PreflightRenew
 
 	pki *crypto.GatewayPKI
@@ -40,8 +41,8 @@ type StreamManager struct {
 
 func NewStreamManager(
 	cm *ConnectionManager,
-	makeHello func() *pb.GatewayEnvelope,
-	// onMessage func(*pb.CPEnvelope),
+	policyStore *store.BoltStore,
+	cfg *config.Config,
 	log *zap.Logger,
 	sendQueue int,
 	onAuthError func(ctx context.Context) error,
@@ -49,13 +50,11 @@ func NewStreamManager(
 	if sendQueue <= 0 {
 		sendQueue = 64
 	}
-	// if log == nil {
-	// 	log = zap.NewNop()
-	// }
+
 	return &StreamManager{
-		cm:        cm,
-		makeHello: makeHello,
-		// onMessage: onMessage,
+		cm:          cm,
+		policyStore: policyStore,
+		cfg:         cfg,
 		onAuthError: onAuthError,
 		log:         log,
 		sendCh:      make(chan *pb.GatewayEnvelope, sendQueue),
@@ -133,7 +132,7 @@ func (sm *StreamManager) runSession(ctx context.Context) error {
 	// ── 1. Hello payload (synchronous, must be first) ─────────────
 	// The server binds session state (identity, routing, rate-limits)
 	// to this specific stream. No other message may precede this.
-	if err := stream.Send(sm.makeHello()); err != nil {
+	if err := stream.Send(sm.makeHello(ctx)); err != nil {
 		return fmt.Errorf("hello payload: %w", err)
 	}
 
@@ -400,3 +399,24 @@ func (sm *StreamManager) setStream(s pb.ControlPlaneService_ConnectClient, activ
 // 		h.log.Error("failed to relay resume to connector", zap.Error(err))
 // 	}
 // }
+
+func (sm *StreamManager) makeHello(ctx context.Context) *pb.GatewayEnvelope {
+	policyVersion, err := sm.policyStore.GetCheckpoint(ctx)
+	if err != nil {
+		sm.log.Error("failed to get policy version", zap.Error(err))
+	}
+
+	return &pb.GatewayEnvelope{
+		GatewayId: sm.cfg.GatewayID,
+		Payload: &pb.GatewayEnvelope_Hello{
+			Hello: &pb.HelloMessage{
+				GatewayId:     sm.cfg.GatewayID,
+				TenantId:      sm.cfg.TenantId,
+				PolicyVersion: policyVersion.LastBundleVersion,
+				BinaryVersion: "0",
+				CrlVersion:    0,
+				TrustVersion:  0,
+			},
+		},
+	}
+}

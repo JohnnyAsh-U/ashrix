@@ -1,17 +1,28 @@
 User sessions and Revocation list
-Differentiate between self hosted and mutual hosted gateway.
 Telemetry and Versioning negociations 
 Command and component revocation
+
+
+
 Testing Authorization 
 Rotating of certificates
-Restructuring of Logging UI
+Implementation of cert ip, DNS and common names.
 IDP CRUD and App mapping to IDP
-Access logging and audit logging 
+
+
+
 Remove tray from connector and restructure to cli
 Redo connector installer
+
+
+
 Accesslog Api to get list with filters
+Restructuring of Logging UI
+Access logging and audit logging 
 Audit log list api
-Implementation of cert ip, DNS and common names.
+
+
+
 Now redesign the ports and host for gRPC server on cp, and gRPC/QUIc on gateway 
 Intégration of websocket as fallback for connection 
 

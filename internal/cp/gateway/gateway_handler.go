@@ -1,14 +1,15 @@
 package gateway
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
 type GatewayHandler struct {
@@ -144,6 +145,7 @@ func (h *GatewayHandler) EnrollGateway(w http.ResponseWriter, r *http.Request) {
 
 	enrollmentResponse, appErr := h.service.EnrollGateway(r.Context(), req.Token, req.CsrPem, h.signer)
 	if appErr != nil {
+		fmt.Println("Error enrolling gateway:", appErr)
 		dto.SendError(w, appErr)
 		return
 	}

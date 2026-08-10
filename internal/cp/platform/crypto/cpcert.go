@@ -7,6 +7,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -18,6 +20,8 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"github.com/google/uuid"
+
+	// "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -39,9 +43,7 @@ type ControlPlanePKI struct {
 	ControlPlaneCert     *x509.Certificate
 	CAPool               *x509.CertPool
 	db                   *store.Queries // Database queries for CA certificates
-
 }
-
 
 func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigner, dbQueries *store.Queries) (ControlPlaneCrypto, error) {
 	fmt.Println("Initializing Control Plane PKI...")
@@ -54,7 +56,7 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 	cpKeyPath := filepath.Join(CPPKIDir, "cp.key.enc")
 	cpCertPath := filepath.Join(CPPKIDir, "cp.crt")
 
-	//Check if intermediateCAKey and Cert Exists on the filepath
+	// Check if intermediateCAKey and Cert Exists on the filepath
 	keyexists, err := filehelper.FileExists(cpKeyPath)
 	if err != nil {
 		return nil, err
@@ -77,20 +79,35 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 		if err != nil {
 			return nil, err
 		}
-		//Get the activate
+
+		// Get the active CA cert
 		context := context.Background()
 		dbRootCertRecord, err := dbQueries.GetActiveCACert(context, store.GetActiveCACertParams{Name: "Ashrix Intermediate CA", Type: "intermediate"})
-
-		//Get existing cp component cert id
-		dbCPComponentCertRecords, err := dbQueries.GetActiveComponentCertByType(context, "cp")
-		//Revoke any Existing cp component cert
-		_, err = dbQueries.RevokeComponentCertificate(context, store.RevokeComponentCertificateParams{
-			ID:           dbCPComponentCertRecords.ID,
-			RevokeReason: pgtype.Text{String: "superseded", Valid: true},
-		})
-
 		if err != nil {
-			return nil, fmt.Errorf("%v", err)
+			return nil, fmt.Errorf("failed to get active CA cert: %w", err)
+		}
+
+		// Get existing cp component cert id
+		dbCPComponentCertRecords, err := dbQueries.GetActiveComponentCertByType(context, "cp")
+
+		if errors.Is(err, sql.ErrNoRows) {
+
+		}
+
+		// ✅ FIX: Check if record exists properly
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("failed to get active component cert: %w", err)
+		}
+
+		if err == nil {
+			// Record found - revoke it
+			_, err = dbQueries.RevokeComponentCertificate(context, store.RevokeComponentCertificateParams{
+				ID:           dbCPComponentCertRecords.ID,
+				RevokeReason: pgtype.Text{String: "superseded", Valid: true},
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to revoke existing component cert: %w", err)
+			}
 		}
 
 		// Register component cert
@@ -107,17 +124,18 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 			ExpiresAt:     cert.NotAfter,
 			RotationOf:    pgtype.UUID{Valid: false},
 		})
-		fmt.Println(err)
 		if err != nil {
-			return nil, fmt.Errorf("%v", err)
+			return nil, fmt.Errorf("failed to create component certificate: %w", err)
 		}
+		fmt.Println("CPLANE certificate registered successfully")
 	}
+
 	cpKey, cpCert, err := pki_utils.LoadKeyAndCert(cpKeyPath, cpCertPath, secret, "cp")
 	if err != nil {
 		return nil, err
 	}
 
-	//Verify Key and Cert
+	// Verify Key and Cert
 	if err := pki_utils.VerifyKeyAndCert(cpCert, cpKey); err != nil {
 		return nil, err
 	}
@@ -138,7 +156,6 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 	}, nil
 }
 
-
 func (b *ControlPlanePKI) CPCert() *x509.Certificate {
 	return b.ControlPlaneCert
 }
@@ -156,7 +173,6 @@ func (b *ControlPlanePKI) TLSCertificate() tls.Certificate {
 func (b *ControlPlanePKI) CACertPool() *x509.CertPool {
 	return b.CAPool
 }
-
 
 func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASigner) (*x509.Certificate, error) {
 

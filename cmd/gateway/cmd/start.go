@@ -22,7 +22,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
-	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	// proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -203,20 +203,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// var epochCounter atomic.Uint64
 	sm := gateway_grpc.NewStreamManager(
 		cm,
-		func() *proto.GatewayEnvelope {
-			return &proto.GatewayEnvelope{
-				GatewayId: "3",
-				Payload: &proto.GatewayEnvelope_Hello{
-					Hello: &proto.HelloMessage{
-						GatewayId:     cfg.GatewayID,
-						BinaryVersion: "0",
-						PolicyVersion: 0,
-						CrlVersion:    0,
-						TrustVersion:  0,
-					},
-				},
-			}
-		},
+		policyStore,
+		cfg,
 		log,
 		128,
 		func(ctx context.Context) error {

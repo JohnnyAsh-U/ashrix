@@ -55,18 +55,18 @@ func (q *Queries) CreateConnector(ctx context.Context, arg CreateConnectorParams
 
 const createGateway = `-- name: CreateGateway :one
 
-INSERT INTO gateways (org_id, name,type, token_hash, public_url, ip_address)
+INSERT INTO gateways (org_id, name,deployment_type, token_hash, public_url, ip_address)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 type CreateGatewayParams struct {
-	OrgID     uuid.UUID `json:"org_id"`
-	Name      string    `json:"name"`
-	Type      string    `json:"type"`
-	TokenHash string    `json:"token_hash"`
-	PublicUrl string    `json:"public_url"`
-	IpAddress string    `json:"ip_address"`
+	OrgID          uuid.UUID `json:"org_id"`
+	Name           string    `json:"name"`
+	DeploymentType string    `json:"deployment_type"`
+	TokenHash      string    `json:"token_hash"`
+	PublicUrl      string    `json:"public_url"`
+	IpAddress      string    `json:"ip_address"`
 }
 
 // =================================================================
@@ -77,7 +77,7 @@ func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (G
 	row := q.db.QueryRow(ctx, createGateway,
 		arg.OrgID,
 		arg.Name,
-		arg.Type,
+		arg.DeploymentType,
 		arg.TokenHash,
 		arg.PublicUrl,
 		arg.IpAddress,
@@ -89,7 +89,7 @@ func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (G
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
-		&i.Type,
+		&i.DeploymentType,
 		&i.PublicUrl,
 		&i.IpAddress,
 		&i.LastHeartbeat,
@@ -136,7 +136,7 @@ SET enrolled_at = NOW(),
     last_heartbeat = NOW()
 WHERE token_hash = $1
 AND revoked_at IS NULL
-RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 func (q *Queries) EnrollGateway(ctx context.Context, tokenHash string) (Gateway, error) {
@@ -148,7 +148,7 @@ func (q *Queries) EnrollGateway(ctx context.Context, tokenHash string) (Gateway,
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
-		&i.Type,
+		&i.DeploymentType,
 		&i.PublicUrl,
 		&i.IpAddress,
 		&i.LastHeartbeat,
@@ -241,7 +241,7 @@ func (q *Queries) GetConnectorByTokenHash(ctx context.Context, tokenHash string)
 }
 
 const getGatewayByID = `-- name: GetGatewayByID :one
-SELECT id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
 WHERE id         = $1
   AND revoked_at IS NULL
 `
@@ -255,7 +255,7 @@ func (q *Queries) GetGatewayByID(ctx context.Context, id uuid.UUID) (Gateway, er
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
-		&i.Type,
+		&i.DeploymentType,
 		&i.PublicUrl,
 		&i.IpAddress,
 		&i.LastHeartbeat,
@@ -268,7 +268,7 @@ func (q *Queries) GetGatewayByID(ctx context.Context, id uuid.UUID) (Gateway, er
 }
 
 const getGatewayByIDAndOrg = `-- name: GetGatewayByIDAndOrg :one
-SELECT id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
 WHERE id         = $1
   AND org_id     = $2
   AND revoked_at IS NULL
@@ -288,7 +288,7 @@ func (q *Queries) GetGatewayByIDAndOrg(ctx context.Context, arg GetGatewayByIDAn
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
-		&i.Type,
+		&i.DeploymentType,
 		&i.PublicUrl,
 		&i.IpAddress,
 		&i.LastHeartbeat,
@@ -301,7 +301,7 @@ func (q *Queries) GetGatewayByIDAndOrg(ctx context.Context, arg GetGatewayByIDAn
 }
 
 const getGatewayByTokenHash = `-- name: GetGatewayByTokenHash :one
-SELECT id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
 WHERE token_hash = $1
   AND status = 'pending'
   AND revoked_at IS NULL
@@ -318,7 +318,7 @@ func (q *Queries) GetGatewayByTokenHash(ctx context.Context, tokenHash string) (
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
-		&i.Type,
+		&i.DeploymentType,
 		&i.PublicUrl,
 		&i.IpAddress,
 		&i.LastHeartbeat,
@@ -407,7 +407,7 @@ func (q *Queries) ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]C
 }
 
 const listGatewaysByOrg = `-- name: ListGatewaysByOrg :many
-SELECT id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at FROM gateways
 WHERE org_id     = $1
   AND revoked_at IS NULL
 ORDER BY created_at ASC
@@ -428,7 +428,7 @@ func (q *Queries) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 			&i.Name,
 			&i.TokenHash,
 			&i.Version,
-			&i.Type,
+			&i.DeploymentType,
 			&i.PublicUrl,
 			&i.IpAddress,
 			&i.LastHeartbeat,
@@ -500,7 +500,7 @@ SET created_at = NOW(),
     token_hash = $2,
     name = $3
 WHERE id = $1
-RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 type ReCreateGatewayParams struct {
@@ -526,7 +526,7 @@ func (q *Queries) ReCreateGateway(ctx context.Context, arg ReCreateGatewayParams
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
-		&i.Type,
+		&i.DeploymentType,
 		&i.PublicUrl,
 		&i.IpAddress,
 		&i.LastHeartbeat,
@@ -592,7 +592,7 @@ SET revoked_at = now(),
 WHERE id         = $1
   AND org_id     = $2
   AND revoked_at IS NULL
-RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 type RevokeGatewayParams struct {
@@ -610,7 +610,7 @@ func (q *Queries) RevokeGateway(ctx context.Context, arg RevokeGatewayParams) (G
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
-		&i.Type,
+		&i.DeploymentType,
 		&i.PublicUrl,
 		&i.IpAddress,
 		&i.LastHeartbeat,
@@ -660,7 +660,7 @@ SET last_heartbeat = now(),
     status         = $3
 WHERE id           = $1
   AND revoked_at   IS NULL
-RETURNING id, org_id, name, token_hash, version, type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, created_at, enrolled_at, revoked_at
 `
 
 type UpdateGatewayHeartbeatParams struct {
@@ -679,7 +679,7 @@ func (q *Queries) UpdateGatewayHeartbeat(ctx context.Context, arg UpdateGatewayH
 		&i.Name,
 		&i.TokenHash,
 		&i.Version,
-		&i.Type,
+		&i.DeploymentType,
 		&i.PublicUrl,
 		&i.IpAddress,
 		&i.LastHeartbeat,

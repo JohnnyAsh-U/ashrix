@@ -256,7 +256,7 @@ func (g *GatewayPKI) renew() error {
 	}
 	configDir := filepath.Join(Home, "/.ashrix")
 
-	writeErr := utils.WriteConfig(g.cfg.CPURL, g.gatewayID, g.cfg.GatewayName,g.cfg.GatewayUrl, g.cfg.DataDir, configDir, g.cfg.LogDir)
+	writeErr := utils.WriteConfig(g.cfg.CPURL, g.gatewayID, g.cfg.GatewayName,g.cfg.TenantId, g.cfg.GatewayUrl, g.cfg.DataDir, configDir, g.cfg.LogDir)
 
 	if writeErr != nil {
 		return fmt.Errorf("write config failed: %w", writeErr)

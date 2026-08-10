@@ -66,7 +66,7 @@ func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name, IPAd
 		OrgID:     orgID,
 		Name:      name,
 		TokenHash: utils.HashToken(token),
-		Type:      "ashrix_hosted",
+		DeploymentType: "hosted",
 		PublicUrl: PublicURL,
 		IpAddress: IPAdress,
 	}
@@ -196,6 +196,7 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 
 	return gen.GatewayEnrollResponse{
 		GatewayId:   gateway.ID.String(),
+		TenantId: gateway.OrgID.String(),
 		GatewayName: gateway.Name,
 		GatewayUrl:  gateway.PublicUrl,
 		CpPubKey:    string(pki_utils.MarshalPubKey(pubkey)),

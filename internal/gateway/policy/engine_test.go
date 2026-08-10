@@ -367,7 +367,7 @@ func TestPolicyEngineAuthenticity(t *testing.T) {
 	}
 
 	checkpoint.LastBundleVersion = 2
-	err = engine.ApplyVerifiedDelta(ctx, bundle, nil, checkpoint)
+	err = engine.ApplyVerifiedDelta(ctx, bundle, checkpoint)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "bundle signature verification failed")
 
@@ -375,7 +375,7 @@ func TestPolicyEngineAuthenticity(t *testing.T) {
 	bundlePayload := store.BundleSigningPayload(bundle)
 	bundle.Signature = ed25519.Sign(privKey, bundlePayload)
 
-	err = engine.ApplyVerifiedDelta(ctx, bundle, nil, checkpoint)
+	err = engine.ApplyVerifiedDelta(ctx, bundle, checkpoint)
 	require.NoError(t, err)
 
 	// Case E: Initialize a new engine from a store containing a tampered/invalid record signature

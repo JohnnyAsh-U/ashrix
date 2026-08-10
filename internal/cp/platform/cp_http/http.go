@@ -133,7 +133,7 @@ func InitializeHttpServer(
 	r.Route("/api/v1", func(r chi.Router) {
 
 		r.Group(func(r chi.Router) {
-			r.Route("/authorize", idpHandler.Routes)
+			r.Route("/authorize", idpHandler.IdentityAuthRoutes)
 		})
 
 		r.Group(func(r chi.Router) {
@@ -144,6 +144,7 @@ func InitializeHttpServer(
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.AuthMiddleware([]byte(cfg.JwtAccessSecret)))
+			r.Route("/idp-configs", idpHandler.IdentityRoutes)
 			r.Route("/gateways", gatewayHandler.WithAuthRoutes)
 			r.Route("/orgs", orgHandler.Routes)
 			r.Route("/connectors", connectorHandler.WithAuthRoutes)

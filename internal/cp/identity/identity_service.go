@@ -8,15 +8,19 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"time"
+
 	// "strings"
 	"sync"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
+
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -143,7 +147,7 @@ func (r *IDPService) CheckGatewayBelongsToTenant(ctx context.Context, gatewayID,
 	if err != nil {
 		return false, fmt.Errorf("gateway error: %w", err)
 	}
-	if gateway.Type == "ashrix-hosted" || gateway.OrgID == OrgID {
+	if gateway.DeploymentType == "hosted" || gateway.OrgID == OrgID {
 		return true, nil
 	}
 	return false, fmt.Errorf("Gateway not found")
@@ -151,40 +155,57 @@ func (r *IDPService) CheckGatewayBelongsToTenant(ctx context.Context, gatewayID,
 }
 
 func (r *IDPService) GetIDPByID(ctx context.Context, IDPUUID uuid.UUID) (store.IdpConfig, error) {
-	//List all apps by the org of the idp config
 	IDPConfig, err := r.repo.GetIdentityConfigByID(ctx, IDPUUID)
 	if err != nil {
 		return store.IdpConfig{}, err
 	}
-
-	// appIDPs, err := r.appRepo.ListByOrg(ctx, IDPConfig.OrgID)
-	// if err != nil {
-	// 	return false, store.IdpConfig{}
-	// }
-
-	// _, err = r.orgRepo.GetByID(ctx, IDPConfig.OrgID)
-
-	// if err != nil {
-	// 	return false, store.IdpConfig{}
-	// }
-
-	// if len(appIDPs) == 0 {
-	// 	return false, store.IdpConfig{}
-	// }
-
-	//Check if the user has a special domain
-	// domain := r.cfg.CPDomainUrl
-	// if orgObj.CustomDomain.String != "" && orgObj.DomainVerified {
-	// 	domain = orgObj.CustomDomain.String
-	// }
-
-	// for _, appIDP := range appIDPs {
-	// 	AppURL := fmt.Sprintf("https://%s.%s", appIDP.Subdomain, domain)
-	// 	if strings.HasPrefix(redirectURI, AppURL) {
-	// 		return true, IDPConfig
-	// 	}
-	// }
 	return IDPConfig, nil
+}
+
+func (r *IDPService) CreateTenantIdentityConfig(ctx context.Context, orgID uuid.UUID, req CreateIDPConfig) (store.IdpConfig, error) {
+	encryptedSecret, err := r.encryptSecret(req.ClientSecretEnc)
+	if err != nil {
+		return store.IdpConfig{}, fmt.Errorf("encrypt client secret: %w", err)
+	}
+
+	return r.repo.CreateTenantIdentityConfig(ctx, store.CreateIDPConfigParams{
+		OrgID:        orgID,
+		Name:         req.DisplayName,
+		ProviderType: req.Type,
+		ClientID:     req.ClientID,
+		ClientSecret: encryptedSecret,
+		IssuerUrl:    req.IssuerURL,
+		Scopes:       req.Scopes,
+		EmailClaim:   req.EmailClaim,
+		NameClaim:    req.NameClaim,
+		GroupClaim:   req.GroupsClaim,
+		ExtraConfig:  req.ExtraConfig,
+	})
+}
+
+func (r *IDPService) UpdateIdentityConfig(ctx context.Context, id, orgID uuid.UUID, req UpdateIDPConfig) (store.IdpConfig, error) {
+	encryptedSecret, err := r.encryptSecret(req.ClientSecretEnc)
+	if err != nil {
+		return store.IdpConfig{}, fmt.Errorf("encrypt client secret: %w", err)
+	}
+
+	return r.repo.UpdateIdentityConfig(ctx, store.UpdateIDPConfigParams{
+		ID:           id,
+		OrgID:        orgID,
+		Name:         req.DisplayName,
+		ClientID:     req.ClientID,
+		ClientSecret: encryptedSecret,
+		IssuerUrl:    req.IssuerURL,
+		IsActive:     req.IsActive,
+	})
+}
+
+func (r *IDPService) ListIdentityConfigsForTenant(ctx context.Context, orgID uuid.UUID) ([]store.IdpConfig, error) {
+	return r.repo.ListIdentityConfigsForTenant(ctx, orgID)
+}
+
+func (r *IDPService) DeleteIdentityConfig(ctx context.Context, id, orgID uuid.UUID) (store.IdpConfig, error) {
+	return r.repo.DeleteIdentityConfig(ctx, store.DeleteIDPConfigParams{ID: id, OrgID: orgID})
 }
 
 func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, gatewayID string) (string, error) {
@@ -276,6 +297,27 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (s
 	if err != nil {
 		return "", "", fmt.Errorf("get state: %w", err)
 	}
+
+	tenantUUID, err := uuid.Parse(stateData.TenantID)
+	userUUID, err := uuid.Parse(identity.UserID)
+	gatewayUUID, err := uuid.Parse(stateData.TenantID)
+
+	if err != nil {
+		return "", "", fmt.Errorf("Parse Error: %w", err)
+	}
+
+	//Create Session in the db for the gateway
+	_, err = r.repo.CreateUserSessionForGateway(ctx, store.CreateUserSessionForGatewayParams{
+		OrgID:     tenantUUID,
+		UserID:    userUUID,
+		GatewayID: gatewayUUID,
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(8 * time.Hour), Valid: true},
+	})
+
+	if err != nil {
+		return "", "", fmt.Errorf("Session Creation Error: %w", err)
+	}
+
 	return gateway.PublicUrl, token, nil
 }
 

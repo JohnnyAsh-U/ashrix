@@ -7,9 +7,12 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"time"
+
 	// "time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
+	"github.com/google/uuid"
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -32,8 +35,7 @@ type cpServer struct {
 // Connect handles the bidirectional stream from a gateway
 func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error {
 
-
-// Wait for the initial Hello message from the gateway
+	// Wait for the initial Hello message from the gateway
 	msg, err := stream.Recv()
 	if err != nil {
 		return fmt.Errorf("recv hello: %w", err)
@@ -44,45 +46,45 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 		return fmt.Errorf("expected hello message, got %T", msg.Payload)
 	}
 
-	// gatewayID := hello.GatewayId
-	// gatewayType := GatewayType(hello.GatewayType) // "hosted" or "self_hosted"
-	// currentPolicyVersion := hello.CurrentPolicyVersion
+	gatewayID := hello.GatewayId
+	tenantID := hello.TenantId
+	fmt.Println(hello.TenantId)
+	currentPolicyVersion := hello.PolicyVersion
 
-	// ctx, cancel := context.WithCancel(stream.Context())
-	// defer cancel()
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
 
+	conn := &registry.GatewayConn{
+		GatewayID:            gatewayID,
+		TenantID:             tenantID,
+		Stream:               stream,
+		ConnectedAt:          time.Now(),
+		LastSeen:             time.Now(),
+		CurrentPolicyVersion: uint64(currentPolicyVersion),
+		Ctx:                  ctx,
+		Cancel:               cancel,
+	}
 
-	// conn := &GatewayConn{
-	// 	GatewayID:            gatewayID,
-	// 	GatewayType:          gatewayType,
-	// 	Stream:               stream,
-	// 	ConnectedAt:          time.Now(),
-	// 	LastSeen:             time.Now(),
-	// 	CurrentPolicyVersion: currentPolicyVersion,
-	// 	ctx:                  ctx,
-	// 	cancel:               cancel,
-	// }
+	// Register the connection
+	s.registry.Register(conn)
+	defer s.registry.Unregister(gatewayID)
 
-		// Register the connection
-	// s.registry.Register(conn)
-	// defer s.registry.Unregister(gatewayID)
+	log.Printf("gateway connected: %s (tenant=%s, policy_version=%d)",
+		gatewayID, tenantID, currentPolicyVersion)
 
-	// log.Printf("gateway connected: %s (type=%s, tenant=%s, policy_version=%d)",
-	// 	gatewayID, gatewayType, tenantID, currentPolicyVersion)
+	s.registry.HandleHello(gatewayID)
 
-	// // For hosted gateways, the Hello includes the list of tenants it serves
-	// if gatewayType == GatewayTypeHosted && len(hello.ServedTenants) > 0 {
-	// 	s.registry.HandleHello(gatewayID, hello.ServedTenants)
-	// }
+	tenantUUID, err := uuid.Parse(tenantID)
+	if err != nil {
+		log.Printf("Invalid tenant ID: %s", tenantID)
+		return fmt.Errorf("invalid tenant ID: %w", err)
+	}
 
-	// // If the gateway is behind on policy, push the latest immediately
-	// if currentPolicyVersion < s.distributor.LatestVersion(tenantID) {
-	// 	go s.distributor.PushToGateway(ctx, conn, tenantID)
-	// } 
+	// If the gateway is behind on policy, push the latest immediately
+	if currentPolicyVersion < s.distributor.LatestVersion(tenantUUID) {
+		go s.distributor.PushToGateway(ctx, conn, tenantUUID)
+	}
 
-
-
-	fmt.Println("Said Hello")
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
@@ -110,6 +112,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 			if err := stream.Send(ack); err != nil {
 				log.Printf("Failed to send Hello Ack %v", err)
 			}
+
 		case *proto.GatewayEnvelope_Heartbeat:
 			log.Println("HeartBeat", p.Heartbeat.Seq)
 

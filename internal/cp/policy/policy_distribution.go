@@ -185,6 +185,17 @@ func (d *PolicyDistributor) compileDeltaBundle(ctx context.Context, orgID uuid.U
 	return bundle, nil
 }
 
+
+//Get latest version of policy for a given org
+func (d *PolicyDistributor) LatestVersion(orgID uuid.UUID) int64 {
+	version, err := d.policyStore.GetLatestVersion(context.Background(), orgID)
+	if err != nil {
+		d.log.Error("failed to get latest version", "org_id", orgID, "error", err)
+		return 0
+	}
+	return version
+}
+
 // ---------------------------------------------------------------------
 // Signing (must exactly match gateway verification in store/verify.go)
 // ---------------------------------------------------------------------

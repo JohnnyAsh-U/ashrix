@@ -117,6 +117,7 @@ type Querier interface {
 	CreateRevocation(ctx context.Context, arg CreateRevocationParams) (Revocation, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AdminSession, error)
 	CreateSetupToken(ctx context.Context, arg CreateSetupTokenParams) (AdminSetupToken, error)
+	CreateUserSessionForGateway(ctx context.Context, arg CreateUserSessionForGatewayParams) (UserSession, error)
 	DeactivateCACert(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Soft delete. Policies referencing this app remain for audit history.
 	DeleteApp(ctx context.Context, arg DeleteAppParams) (App, error)
@@ -186,6 +187,7 @@ type Querier interface {
 	GetPolicySubjects(ctx context.Context, policyID uuid.UUID) ([]PolicySubject, error)
 	GetPolicyWithDetails(ctx context.Context, arg GetPolicyWithDetailsParams) (GetPolicyWithDetailsRow, error)
 	GetSetupToken(ctx context.Context, tokenHash string) (AdminSetupToken, error)
+	GetUserActiveSession(ctx context.Context, arg GetUserActiveSessionParams) ([]UserSession, error)
 	GetValidCompCert(ctx context.Context, arg GetValidCompCertParams) (GetValidCompCertRow, error)
 	InsertCACert(ctx context.Context, arg InsertCACertParams) (uuid.UUID, error)
 	// =============================================================================
@@ -247,6 +249,7 @@ type Querier interface {
 	// Cert Components
 	// =================================================================
 	RegisterCompCert(ctx context.Context, arg RegisterCompCertParams) (ComponentCertificate, error)
+	RevokeActiveUserSession(ctx context.Context, id uuid.UUID) (UserSession, error)
 	RevokeAdmin(ctx context.Context, id uuid.UUID) (Admin, error)
 	// Single session revocation (logout).
 	RevokeAdminSession(ctx context.Context, id uuid.UUID) error
@@ -254,6 +257,7 @@ type Querier interface {
 	RevokeAllAdminSessionsForAdmin(ctx context.Context, adminID uuid.UUID) error
 	// Nuclear option — used when org SSO config changes.
 	RevokeAllAdminSessionsForOrg(ctx context.Context, orgID uuid.UUID) error
+	RevokeAllUserSessions(ctx context.Context, arg RevokeAllUserSessionsParams) ([]UserSession, error)
 	RevokeCompCert(ctx context.Context, arg RevokeCompCertParams) (ComponentCertificate, error)
 	RevokeComponentCertificate(ctx context.Context, arg RevokeComponentCertificateParams) (ComponentCertificate, error)
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (Connector, error)

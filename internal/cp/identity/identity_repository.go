@@ -14,6 +14,10 @@ type Repository interface {
 	ListIdentityConfigsForTenant(ctx context.Context, tenantID uuid.UUID) ([]store.IdpConfig, error)
 	ListAppIdPConfigs(ctx context.Context, id uuid.UUID) ([]store.IdpConfig, error)
 
+
+	CreateUserSessionForGateway(ctx context.Context, params store.CreateUserSessionForGatewayParams) (store.UserSession, error)
+	GetUserSessionsByOrgAndUser(ctx context.Context, params store.GetUserActiveSessionParams) ([]store.UserSession, error)
+	RevokeUserSession(ctx context.Context, id uuid.UUID) (store.UserSession, error)
 }
 
 type postgresRepository struct {
@@ -45,6 +49,23 @@ func (r *postgresRepository) ListIdentityConfigsForTenant(ctx context.Context, t
 
 func (r *postgresRepository) ListAppIdPConfigs(ctx context.Context, tenantID uuid.UUID) ([]store.IdpConfig, error) {
 	return r.q.ListAppIdPs(ctx, tenantID)
+}
+
+
+func (r *postgresRepository) CreateUserSessionForGateway(ctx context.Context,  params store.CreateUserSessionForGatewayParams) (store.UserSession, error) {
+	return r.q.CreateUserSessionForGateway(ctx, params)
+}
+
+
+
+func (r *postgresRepository) GetUserSessionsByOrgAndUser(ctx context.Context,  params store.GetUserActiveSessionParams) ([]store.UserSession, error) {
+	return r.q.GetUserActiveSession(ctx, params)
+}
+
+
+
+func (r *postgresRepository) RevokeUserSession(ctx context.Context,  id uuid.UUID) (store.UserSession, error) {
+	return r.q.RevokeActiveUserSession(ctx, id)
 }
 
 

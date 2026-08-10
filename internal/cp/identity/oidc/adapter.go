@@ -50,7 +50,7 @@ func NewAdapter(ctx context.Context, cfg *IdentityProvider, clientSecret string)
 		return newEntraAdapter(base, cfg)
 	case "okta":
 		return newOktaAdapter(base, cfg)
-	case "oidc":
+	case "keycloak":
 		return newKeycloakAdapter(base, cfg)
 	case "generic":
 		return newGenericAdapter(base, cfg)

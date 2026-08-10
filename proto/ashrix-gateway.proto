@@ -18,12 +18,13 @@ message GatewayEnrollRequest {
 
 message GatewayEnrollResponse {
   string                    gateway_id   = 1;
-  string                    gateway_name = 2;
-  string                    gateway_url  = 3;
-  string                    certificate  = 4;
-  string                    trust_bundle = 5;
-  string                    cp_pub_key   = 6;
-  google.protobuf.Timestamp expires_at   = 7;
+  string                    tenant_id    = 2;
+  string                    gateway_name = 3;
+  string                    gateway_url  = 4;
+  string                    certificate  = 5;
+  string                    trust_bundle = 6;
+  string                    cp_pub_key   = 7;
+  google.protobuf.Timestamp expires_at   = 8;
 }
 
 message GatewayRenewCertRequest {
@@ -109,10 +110,11 @@ message CPEnvelope {
 
 message HelloMessage {
   string gateway_id     = 1;  // stable ID — never changes
-  string binary_version = 2;  // Ashrix binary version for compatibility checks
-  int64  policy_version = 3;  // policy bundle version currently applied
-  int64  crl_version    = 4;  // CRL version currently applied
-  int64  trust_version  = 5;  // trust bundle version currently applied
+  string tenant_id = 2;
+  string binary_version = 3;  // Ashrix binary version for compatibility checks
+  int64  policy_version = 4;  // policy bundle version currently applied
+  int64  crl_version    = 5;  // CRL version currently applied
+  int64  trust_version  = 6;  // trust bundle version currently applied
 }
 
 message HeartbeatMessage {
@@ -142,14 +144,14 @@ message HelloAck {
 }
 
 message PolicyBundle {
-  int64  version   = 1;  // bundle protocol version
-  int64  issued_at = 2;  // epoch ms
+  int64 version   = 1;  // bundle protocol version
+  int64 issued_at = 2;  // epoch ms
   // Delta or full snapshot — gateway unpacks these one by one
-  repeated PolicyRecord records  = 3;
+  repeated PolicyRecord records = 3;
 
   // Signs: H(version || issued_at || H(record[0]) || H(record[1]) || ...)
   // where H(record[i]) is the hash of the *serialized* PolicyRecord bytes
-  bytes        signature = 4;
+  bytes signature = 4;
 }
 
 // message Command {

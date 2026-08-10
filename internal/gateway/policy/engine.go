@@ -237,7 +237,6 @@ func (e *PolicyEngine) VerifyBundle(bundle *proto.PolicyBundle) error {
 func (e *PolicyEngine) ApplyVerifiedDelta(
 	ctx context.Context,
 	policyBundle *proto.PolicyBundle,
-	deleteIDs []string,
 	checkpoint store.SyncCheckpoint,
 ) error {
 	if e.verifier != nil {

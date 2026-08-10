@@ -109,7 +109,7 @@ func main() {
 	)
 
 	if cperr != nil {
-		log.Error("Failed to inintialize CP PKI")
+		log.Error("Failed to inintialize CP PKI", slog.String("err", cperr.Error()))
 	}
 
 	//Initialize Bundle Signing Keys

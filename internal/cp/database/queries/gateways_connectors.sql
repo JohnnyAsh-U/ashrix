@@ -4,7 +4,7 @@
 -- =================================================================
 
 -- name: CreateGateway :one
-INSERT INTO gateways (org_id, name,type, token_hash, public_url, ip_address)
+INSERT INTO gateways (org_id, name,deployment_type, token_hash, public_url, ip_address)
 VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 

@@ -73,7 +73,7 @@ func OktaPreset(tenantID, oktaDomain, clientID, clientSecret, authServerID, okta
 func KeycloakPreset(tenantID, baseURL, realm, clientID, clientSecret, adminUser, adminPass string) *IdentityProvider {
 	return &IdentityProvider{
 		TenantID:    tenantID,
-		Type:        "oidc",
+		Type:        "keycloak",
 		DisplayName: "Keycloak",
 		Enabled:     true,
 		// OIDCConfig: OIDCProviderConfig{

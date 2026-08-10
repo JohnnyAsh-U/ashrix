@@ -151,19 +151,19 @@ type CrlEntry struct {
 }
 
 type Gateway struct {
-	ID            uuid.UUID          `json:"id"`
-	OrgID         uuid.UUID          `json:"org_id"`
-	Name          string             `json:"name"`
-	TokenHash     string             `json:"token_hash"`
-	Version       pgtype.Text        `json:"version"`
-	Type          string             `json:"type"`
-	PublicUrl     string             `json:"public_url"`
-	IpAddress     string             `json:"ip_address"`
-	LastHeartbeat pgtype.Timestamptz `json:"last_heartbeat"`
-	Status        string             `json:"status"`
-	CreatedAt     time.Time          `json:"created_at"`
-	EnrolledAt    pgtype.Timestamptz `json:"enrolled_at"`
-	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
+	ID             uuid.UUID          `json:"id"`
+	OrgID          uuid.UUID          `json:"org_id"`
+	Name           string             `json:"name"`
+	TokenHash      string             `json:"token_hash"`
+	Version        pgtype.Text        `json:"version"`
+	DeploymentType string             `json:"deployment_type"`
+	PublicUrl      string             `json:"public_url"`
+	IpAddress      string             `json:"ip_address"`
+	LastHeartbeat  pgtype.Timestamptz `json:"last_heartbeat"`
+	Status         string             `json:"status"`
+	CreatedAt      time.Time          `json:"created_at"`
+	EnrolledAt     pgtype.Timestamptz `json:"enrolled_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }
 
 type GatewayPolicyAck struct {
@@ -297,4 +297,14 @@ type Schedule struct {
 	Rules     json.RawMessage `json:"rules"`
 	CreatedBy uuid.UUID       `json:"created_by"`
 	CreatedAt time.Time       `json:"created_at"`
+}
+
+type UserSession struct {
+	ID        uuid.UUID          `json:"id"`
+	OrgID     uuid.UUID          `json:"org_id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	GatewayID uuid.UUID          `json:"gateway_id"`
+	IssuedAt  time.Time          `json:"issued_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
 }

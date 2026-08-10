@@ -85,12 +85,13 @@ func (x *GatewayEnrollRequest) GetTimestamp() *timestamppb.Timestamp {
 type GatewayEnrollResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	GatewayId     string                 `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
-	GatewayName   string                 `protobuf:"bytes,2,opt,name=gateway_name,json=gatewayName,proto3" json:"gateway_name,omitempty"`
-	GatewayUrl    string                 `protobuf:"bytes,3,opt,name=gateway_url,json=gatewayUrl,proto3" json:"gateway_url,omitempty"`
-	Certificate   string                 `protobuf:"bytes,4,opt,name=certificate,proto3" json:"certificate,omitempty"`
-	TrustBundle   string                 `protobuf:"bytes,5,opt,name=trust_bundle,json=trustBundle,proto3" json:"trust_bundle,omitempty"`
-	CpPubKey      string                 `protobuf:"bytes,6,opt,name=cp_pub_key,json=cpPubKey,proto3" json:"cp_pub_key,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	GatewayName   string                 `protobuf:"bytes,3,opt,name=gateway_name,json=gatewayName,proto3" json:"gateway_name,omitempty"`
+	GatewayUrl    string                 `protobuf:"bytes,4,opt,name=gateway_url,json=gatewayUrl,proto3" json:"gateway_url,omitempty"`
+	Certificate   string                 `protobuf:"bytes,5,opt,name=certificate,proto3" json:"certificate,omitempty"`
+	TrustBundle   string                 `protobuf:"bytes,6,opt,name=trust_bundle,json=trustBundle,proto3" json:"trust_bundle,omitempty"`
+	CpPubKey      string                 `protobuf:"bytes,7,opt,name=cp_pub_key,json=cpPubKey,proto3" json:"cp_pub_key,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -128,6 +129,13 @@ func (*GatewayEnrollResponse) Descriptor() ([]byte, []int) {
 func (x *GatewayEnrollResponse) GetGatewayId() string {
 	if x != nil {
 		return x.GatewayId
+	}
+	return ""
+}
+
+func (x *GatewayEnrollResponse) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
 	}
 	return ""
 }
@@ -715,11 +723,12 @@ func (*CPEnvelope_PolicyBundle) isCPEnvelope_Payload() {}
 
 type HelloMessage struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GatewayId     string                 `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`              // stable ID — never changes
-	BinaryVersion string                 `protobuf:"bytes,2,opt,name=binary_version,json=binaryVersion,proto3" json:"binary_version,omitempty"`  // Ashrix binary version for compatibility checks
-	PolicyVersion int64                  `protobuf:"varint,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"` // policy bundle version currently applied
-	CrlVersion    int64                  `protobuf:"varint,4,opt,name=crl_version,json=crlVersion,proto3" json:"crl_version,omitempty"`          // CRL version currently applied
-	TrustVersion  int64                  `protobuf:"varint,5,opt,name=trust_version,json=trustVersion,proto3" json:"trust_version,omitempty"`    // trust bundle version currently applied
+	GatewayId     string                 `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"` // stable ID — never changes
+	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	BinaryVersion string                 `protobuf:"bytes,3,opt,name=binary_version,json=binaryVersion,proto3" json:"binary_version,omitempty"`  // Ashrix binary version for compatibility checks
+	PolicyVersion int64                  `protobuf:"varint,4,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"` // policy bundle version currently applied
+	CrlVersion    int64                  `protobuf:"varint,5,opt,name=crl_version,json=crlVersion,proto3" json:"crl_version,omitempty"`          // CRL version currently applied
+	TrustVersion  int64                  `protobuf:"varint,6,opt,name=trust_version,json=trustVersion,proto3" json:"trust_version,omitempty"`    // trust bundle version currently applied
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -757,6 +766,13 @@ func (*HelloMessage) Descriptor() ([]byte, []int) {
 func (x *HelloMessage) GetGatewayId() string {
 	if x != nil {
 		return x.GatewayId
+	}
+	return ""
+}
+
+func (x *HelloMessage) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
 	}
 	return ""
 }
@@ -1080,19 +1096,20 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"\x14GatewayEnrollRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x17\n" +
 	"\acsr_pem\x18\x02 \x01(\tR\x06csrPem\x128\n" +
-	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\x98\x02\n" +
+	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xb5\x02\n" +
 	"\x15GatewayEnrollResponse\x12\x1d\n" +
 	"\n" +
-	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12!\n" +
-	"\fgateway_name\x18\x02 \x01(\tR\vgatewayName\x12\x1f\n" +
-	"\vgateway_url\x18\x03 \x01(\tR\n" +
+	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12!\n" +
+	"\fgateway_name\x18\x03 \x01(\tR\vgatewayName\x12\x1f\n" +
+	"\vgateway_url\x18\x04 \x01(\tR\n" +
 	"gatewayUrl\x12 \n" +
-	"\vcertificate\x18\x04 \x01(\tR\vcertificate\x12!\n" +
-	"\ftrust_bundle\x18\x05 \x01(\tR\vtrustBundle\x12\x1c\n" +
+	"\vcertificate\x18\x05 \x01(\tR\vcertificate\x12!\n" +
+	"\ftrust_bundle\x18\x06 \x01(\tR\vtrustBundle\x12\x1c\n" +
 	"\n" +
-	"cp_pub_key\x18\x06 \x01(\tR\bcpPubKey\x129\n" +
+	"cp_pub_key\x18\a \x01(\tR\bcpPubKey\x129\n" +
 	"\n" +
-	"expires_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xa9\x01\n" +
+	"expires_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xa9\x01\n" +
 	"\x17GatewayRenewCertRequest\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x1c\n" +
@@ -1138,15 +1155,16 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"\thello_ack\x18\n" +
 	" \x01(\v2\x0f.proto.HelloAckH\x00R\bhelloAck\x12:\n" +
 	"\rpolicy_bundle\x18\v \x01(\v2\x13.proto.PolicyBundleH\x00R\fpolicyBundleB\t\n" +
-	"\apayload\"\xc1\x01\n" +
+	"\apayload\"\xde\x01\n" +
 	"\fHelloMessage\x12\x1d\n" +
 	"\n" +
-	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12%\n" +
-	"\x0ebinary_version\x18\x02 \x01(\tR\rbinaryVersion\x12%\n" +
-	"\x0epolicy_version\x18\x03 \x01(\x03R\rpolicyVersion\x12\x1f\n" +
-	"\vcrl_version\x18\x04 \x01(\x03R\n" +
+	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12%\n" +
+	"\x0ebinary_version\x18\x03 \x01(\tR\rbinaryVersion\x12%\n" +
+	"\x0epolicy_version\x18\x04 \x01(\x03R\rpolicyVersion\x12\x1f\n" +
+	"\vcrl_version\x18\x05 \x01(\x03R\n" +
 	"crlVersion\x12#\n" +
-	"\rtrust_version\x18\x05 \x01(\x03R\ftrustVersion\"\xe9\x01\n" +
+	"\rtrust_version\x18\x06 \x01(\x03R\ftrustVersion\"\xe9\x01\n" +
 	"\x10HeartbeatMessage\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12-\n" +
 	"\x12active_connections\x18\x02 \x01(\x05R\x11activeConnections\x12'\n" +

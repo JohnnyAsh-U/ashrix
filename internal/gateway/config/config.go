@@ -14,6 +14,7 @@ type Config struct {
 	GatewayID string
 	GatewayName string
 	GatewayUrl string
+	TenantId string
 	DataDir   string
 	LogDir    string
 	PIDFile   string
@@ -44,6 +45,7 @@ func LoadFromViper() (*Config, error) {
 		GatewayID: viper.GetString("gateway_id"),
 		GatewayName: viper.GetString("gateway_name"),
 		GatewayUrl: viper.GetString("gateway_url"),
+		TenantId: viper.GetString("tenant_id"),
 		LogDir:    viper.GetString("log_dir"),
 		DataDir:   viper.GetString("data_dir"),
 		PIDFile:   filepath.Join(viper.GetString("data_dir"), "gateway.pid"),

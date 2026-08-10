@@ -105,6 +105,23 @@ CREATE TABLE admin_sessions (
     revoked_at    TIMESTAMPTZ
 );
 
+-------------------------------------------------------------------
+-- User Sessions
+-------------------------------------------------------------------
+CREATE TABLE user_sessions (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id        UUID        NOT NULL REFERENCES orgs(id),
+    user_id       UUID        NOT NULL,
+    gateway_id    UUID        NOT NULL REFERENCES gateways(id),
+    issued_at     TIMESTAMPTZ NOT NULL,
+    expires_at    TIMESTAMPTZ,
+    revoked_at    TIMESTAMPTZ NULL
+);
+
+CREATE INDEX idx_user_sessions_user
+    ON user_sessions(user_id, org_id, revoked_at);
+
+
 -- =================================================================
 --Single-use token issued after /register, consumed by /setup-otp + /verify-otp
 CREATE TABLE admin_setup_tokens (
@@ -136,7 +153,7 @@ CREATE TABLE gateways (
     name            TEXT        NOT NULL,
     token_hash      TEXT        NOT NULL UNIQUE, -- SHA-256, never plaintext
     version         TEXT,                        -- reported by gateway on heartbeat
-    type            TEXT NOT NULL DEFAULT 'ashrix_hosted' CHECK (type IN ('ashrix_hosted', 'self_hosted')),
+    deployment_type            TEXT NOT NULL DEFAULT 'hosted' CHECK (deployment_type IN ('hosted', 'self_hosted')),
     public_url      TEXT NOT NULL, --"gw1.company.com; gateway own public url"
     ip_address      TEXT NOT NULL,
     last_heartbeat  TIMESTAMPTZ,
@@ -430,41 +447,27 @@ CREATE INDEX idx_audit_tenant_time
     ON policy_audit_log(org_id, performed_at DESC);
 
 
+-- ==========================================================================================
+-- Gateway_Events
+-- =========================================================================================
 
-CREATE TABLE policy_versions (
-    version         BIGSERIAL PRIMARY KEY,
-    org_id       UUID NOT NULL REFERENCES orgs(id),
-    bundle_hash     VARCHAR(64) NOT NULL,
-    policy_count    INT NOT NULL,
-    created_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
-
-CREATE TABLE gateway_policy_acks (
+CREATE TABLE gateway_events (
+    seq BIGINT NOT NULL,
     gateway_id      UUID NOT NULL REFERENCES gateways(id),
-    org_id       UUID NOT NULL REFERENCES orgs(id),
-    version         BIGINT NOT NULL REFERENCES policy_versions(version),
-    acked_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    PRIMARY KEY (gateway_id, org_id, version)
+    command       TEXT NOT NULL,
+    payload         JSONB NOT NULL,
+    created_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (gateway_id, seq)
 );
 
 
--- -----------------------------------------------------------------
--- REVOCATIONS
--- CP writes revocation events. Gateway polls and consumes.
--- Keeps CP out of the traffic path — Gateway checks this list locally.
--- expires_at: set to now() + max JWT lifetime (e.g. 15 min).
---   Gateway can safely purge expired entries.
--- target_id: session token hash, gateway id, or connector id.
--- -----------------------------------------------------------------
-CREATE TABLE revocations (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id        UUID        NOT NULL REFERENCES orgs(id),
-    type          TEXT        NOT NULL CHECK (type IN ('session', 'connector', 'gateway')),
-    target_id     TEXT        NOT NULL,
-    reason        TEXT,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at    TIMESTAMPTZ NOT NULL
+CREATE TABLE gateway_events_acks (
+    gateway_id      UUID NOT NULL REFERENCES gateways(id),
+    last_acked_seq       BIGINT NOT NULL DEFAULT 0,
+    updated_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL,
 );
+
+
 
 -- -----------------------------------------------------------------
 -- CA CERTIFICATES
@@ -510,23 +513,6 @@ CREATE TABLE component_certificates (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
     -- private key lives on the component that generated the CSR
 );
-
--- -----------------------------------------------------------------
--- CSR REQUESTS
--- Gateway/connector submits a CSR. CP signs it and returns the cert.
--- CSR submission gated by valid enrollment token — never unauthenticated.
--- -----------------------------------------------------------------
--- CREATE TABLE csr_requests (
---     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
---     org_id          UUID        NOT NULL REFERENCES orgs(id),
---     component_type  TEXT        NOT NULL CHECK (component_type IN ('gateway', 'connector')),
---     component_id    UUID        NOT NULL,
---     csr_pem         TEXT        NOT NULL,        -- the raw CSR from the component
---     status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'signed', 'rejected')),
---     signed_cert_id  UUID        REFERENCES component_certificates(id),
---     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
---     processed_at    TIMESTAMPTZ
--- );
 
 
 -- -----------------------------------------------------------------
@@ -748,7 +734,7 @@ DROP TABLE IF EXISTS apps;
 DROP TABLE IF EXISTS connectors;
 DROP TABLE IF EXISTS gateways;
 
-
+DROP TABLE IF EXISTS user_sessions;
 DROP TABLE IF EXISTS admin_sessions;
 DROP TABLE IF EXISTS admin_setup_tokens;
 DROP TABLE IF EXISTS password_reset_tokens;
