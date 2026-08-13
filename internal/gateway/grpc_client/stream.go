@@ -13,6 +13,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"github.com/cenkalti/backoff/v4"
@@ -32,6 +33,7 @@ type StreamManager struct {
 	log *zap.Logger
 
 	registry *registry.Registry
+	redisClient *redis.Client
 
 	mu     sync.RWMutex
 	stream pb.ControlPlaneService_ConnectClient
@@ -46,6 +48,8 @@ func NewStreamManager(
 	log *zap.Logger,
 	sendQueue int,
 	onAuthError func(ctx context.Context) error,
+	reg *registry.Registry,
+	redisClient *redis.Client,
 ) *StreamManager {
 	if sendQueue <= 0 {
 		sendQueue = 64
@@ -58,6 +62,8 @@ func NewStreamManager(
 		onAuthError: onAuthError,
 		log:         log,
 		sendCh:      make(chan *pb.GatewayEnvelope, sendQueue),
+		registry:    reg,
+		redisClient: redisClient,
 	}
 }
 
@@ -150,6 +156,9 @@ func (sm *StreamManager) runSession(ctx context.Context) error {
 	go func() { errCh <- sm.sendLoop(sessCtx, stream) }()
 	go func() { errCh <- sm.recvLoop(sessCtx, stream) }()
 
+	// When CP comes up verify the connections
+	sm.registry.VerifyGatewayConnections()
+
 	// If either direction breaks, tear down the entire session.
 	err = <-errCh
 	cancel()
@@ -218,39 +227,91 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 			zap.String("server_version", p.HelloAck.ServerVersion),
 			zap.Bool("needs_policy", p.HelloAck.NeedsPolicy),
 		)
-		// CP will push bundles immediately if NeedsPolicy/NeedsTrust/NeedsCRL are true
 
 	case *pb.CPEnvelope_PolicyBundle:
 		h.log.Info("policy bundle received",
 			zap.String("version", "3"),
 		)
-		// if err := h.pki.ApplyTrustBundle(p.TrustBundle); err != nil {
-		//     h.log.Error("failed to apply trust bundle", zap.Error(err))
-		//     h.ack(msg.MessageId, "trust", p.TrustBundle.Version, false, err.Error())
-		//     return
-		// }
-		// h.ack("kd", pb.BundleTypes_BUNDLE_TYPE_POLICY,"9", true, "")
 
-		// case *pb.CPEnvelope_RotationCmd:
-		//     h.log.Info("rotation command received",
-		//         zap.String("reason", p.RotationCmd.Reason),
-		//         zap.Time("rotate_by", p.RotationCmd.RotateBy.AsTime()),
-		//     )
-		//     if err := h.pki.VerifySignature(p.RotationCmd.Signature, p.RotationCmd); err != nil {
-		//         h.log.Error("rotation command signature invalid — ignoring",
-		//             zap.Error(err),
-		//         )
-		//         return
-		//     }
-		//     go func() {
-		//         if err := h.pki.RenewNow(); err != nil {
-		//             h.log.Error("forced rotation failed", zap.Error(err))
-		//         }
-		//     }()
+	case *pb.CPEnvelope_Cmd:
+		h.log.Info("command received from CP", zap.String("type", fmt.Sprintf("%T", p.Cmd.Payload)))
+		switch cmd := p.Cmd.Payload.(type) {
+		case *pb.Command_RevokeSession:
+			h.log.Info("revoking session in Redis", zap.String("session_id", cmd.RevokeSession.SessionId))
+			if h.redisClient != nil {
+				key := fmt.Sprintf("session:%s", cmd.RevokeSession.SessionId)
+				if err := h.redisClient.Del(ctx, key).Err(); err != nil {
+					h.log.Error("failed to delete session from redis", zap.Error(err))
+				}
+			}
+
+		case *pb.Command_RevokeConnector:
+			h.log.Info("revoking connector; cutting connection", zap.String("connector_id", cmd.RevokeConnector.ConnectorId))
+			h.cutConnectorConnection(cmd.RevokeConnector.ConnectorId)
+
+		case *pb.Command_RevokeConnectorCert:
+			h.log.Info("revoking connector cert; cutting connection", zap.String("connector_id", cmd.RevokeConnectorCert.ConnectorId))
+			h.cutConnectorConnection(cmd.RevokeConnectorCert.ConnectorId)
+
+		case *pb.Command_RotateConnectorCert:
+			h.log.Info("rotating connector cert; cutting connection", zap.String("connector_id", cmd.RotateConnectorCert.ConnectorId))
+			h.cutConnectorConnection(cmd.RotateConnectorCert.ConnectorId)
+
+		case *pb.Command_CrlSync:
+			h.log.Info("received CRL sync", zap.Int("revoked_certs_count", len(cmd.CrlSync.RevokedSerialNumbers)))
+			h.registry.SetCrlEntries(cmd.CrlSync.RevokedSerialNumbers)
+
+		case *pb.Command_ConnectorSync:
+			h.log.Info("received authorized connectors list sync", zap.Int("connectors_count", len(cmd.ConnectorSync.Connectors)))
+			statusMap := make(map[string]string)
+			for _, c := range cmd.ConnectorSync.Connectors {
+				statusMap[c.Id] = c.Status
+			}
+			h.registry.SetAuthorizedConnectors(statusMap)
+
+		case *pb.Command_RotateGatewayCert:
+			h.log.Warn("gateway certificate rotation requested")
+			if h.onAuthError != nil {
+				go func() {
+					_ = h.onAuthError(ctx)
+				}()
+			}
+
+		case *pb.Command_RevokeGatewayCert:
+			h.log.Error("gateway certificate revoked - reconnecting")
+			_ = h.cm.Close()
+
+		case *pb.Command_RevokeGateway:
+			h.log.Error("gateway revoked - terminating connection")
+			_ = h.cm.Close()
+
+		case *pb.Command_DrainGateway:
+			h.log.Warn("gateway entering draining state")
+		}
 
 	default:
 		h.log.Debug("unhandled message type", zap.String("type", fmt.Sprintf("%T", p)))
 
+	}
+}
+
+func (h *StreamManager) cutConnectorConnection(connectorID string) {
+	if entry, ok := h.registry.GetByConnectorID(connectorID); ok {
+		if entry.ManagementStream != nil {
+			_ = entry.ManagementStream.Send(&pb.GatewayConnectorEnvelope{
+				Payload: &pb.GatewayConnectorEnvelope_Reject{
+					Reject: &pb.ConnectorReject{
+						Reason:    "connector revoked or rotated by CP",
+						Permanent: true,
+					},
+				},
+			})
+		}
+		if entry.TunnelSession != nil {
+			_ = entry.TunnelSession.Close()
+		}
+		h.registry.DetachManagement(connectorID)
+		h.registry.DetachTunnel(connectorID)
 	}
 }
 

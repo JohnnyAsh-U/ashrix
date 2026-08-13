@@ -101,7 +101,53 @@ message CPEnvelope {
   oneof payload {
     HelloAck     hello_ack     = 10;
     PolicyBundle policy_bundle = 11;
+    Command      cmd           = 12;
   }
+}
+
+message Command {
+  oneof payload {
+    RotateGatewayCertCmd   rotate_gateway_cert   = 1;
+    RevokeGatewayCertCmd   revoke_gateway_cert   = 2;
+    RevokeGatewayCmd       revoke_gateway        = 3;
+    RevokeSessionCmd       revoke_session        = 4;
+    DrainGatewayCmd        drain_gateway         = 5;
+    RevokeConnectorCmd     revoke_connector      = 6;
+    RotateConnectorCertCmd rotate_connector_cert = 7;
+    RevokeConnectorCertCmd revoke_connector_cert = 8;
+    CrlSyncCmd             crl_sync              = 9;
+    ConnectorSyncCmd       connector_sync        = 10;
+  }
+}
+
+message RotateGatewayCertCmd {}
+message RevokeGatewayCertCmd {}
+message RevokeGatewayCmd {}
+message RevokeSessionCmd {
+  string session_id = 1;
+}
+message DrainGatewayCmd {}
+message RevokeConnectorCmd {
+  string connector_id = 1;
+}
+message RotateConnectorCertCmd {
+  string connector_id = 1;
+}
+message RevokeConnectorCertCmd {
+  string connector_id = 1;
+}
+
+message CrlSyncCmd {
+  repeated string revoked_serial_numbers = 1;
+}
+
+message ConnectorSyncCmd {
+  repeated ConnectorInfo connectors = 1;
+}
+
+message ConnectorInfo {
+  string id = 1;
+  string status = 2;
 }
 
 // =============================================================================
@@ -154,18 +200,3 @@ message PolicyBundle {
   bytes signature = 4;
 }
 
-// message Command {
-//   string      command_id = 1; // idempotency key — node acks this; safe to redeliver
-//   CommandType type       = 2;
-//   string      reason     = 3; // human-readable — why CP issued this
-//   SignedPayload signed_command = 4;
-//   // signed_command contains the command params serialized and CP-signed.
-//   // Connectors verify this before acting — a compromised gateway cannot forge commands.
-
-//   oneof params {
-//     RotateCertParams     rotate_cert     = 5;
-//     ForceReconnectParams force_reconnect = 6;
-//     DrainParams          drain           = 7;
-//     RevokeParams         revoke          = 8;
-//   }
-// }

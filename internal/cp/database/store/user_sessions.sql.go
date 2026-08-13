@@ -87,6 +87,26 @@ func (q *Queries) GetUserActiveSession(ctx context.Context, arg GetUserActiveSes
 	return items, nil
 }
 
+const getUserSessionByID = `-- name: GetUserSessionByID :one
+SELECT id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at FROM user_sessions
+WHERE id = $1
+`
+
+func (q *Queries) GetUserSessionByID(ctx context.Context, id uuid.UUID) (UserSession, error) {
+	row := q.db.QueryRow(ctx, getUserSessionByID, id)
+	var i UserSession
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.UserID,
+		&i.GatewayID,
+		&i.IssuedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const revokeActiveUserSession = `-- name: RevokeActiveUserSession :one
 UPDATE user_sessions
 SET revoked_at = now()

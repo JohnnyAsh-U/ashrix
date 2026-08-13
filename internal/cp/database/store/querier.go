@@ -110,11 +110,6 @@ type Querier interface {
 	// =================================================================
 	CreateOrg(ctx context.Context, arg CreateOrgParams) (Org, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
-	// =================================================================
-	// REVOCATIONS
-	// CP writes. Gateway polls. CP never touches traffic path.
-	// =================================================================
-	CreateRevocation(ctx context.Context, arg CreateRevocationParams) (Revocation, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (AdminSession, error)
 	CreateSetupToken(ctx context.Context, arg CreateSetupTokenParams) (AdminSetupToken, error)
 	CreateUserSessionForGateway(ctx context.Context, arg CreateUserSessionForGatewayParams) (UserSession, error)
@@ -188,6 +183,7 @@ type Querier interface {
 	GetPolicyWithDetails(ctx context.Context, arg GetPolicyWithDetailsParams) (GetPolicyWithDetailsRow, error)
 	GetSetupToken(ctx context.Context, tokenHash string) (AdminSetupToken, error)
 	GetUserActiveSession(ctx context.Context, arg GetUserActiveSessionParams) ([]UserSession, error)
+	GetUserSessionByID(ctx context.Context, id uuid.UUID) (UserSession, error)
 	GetValidCompCert(ctx context.Context, arg GetValidCompCertParams) (GetValidCompCertRow, error)
 	InsertCACert(ctx context.Context, arg InsertCACertParams) (uuid.UUID, error)
 	// =============================================================================
@@ -208,6 +204,9 @@ type Querier interface {
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
 	ListActiveCACerts(ctx context.Context) ([]ListActiveCACertsRow, error)
+	// Called on gateway → connector auth.
+	ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)
+	ListActiveGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
 	ListAdminsByOrg(ctx context.Context, orgID pgtype.UUID) ([]Admin, error)
 	ListAppIdPs(ctx context.Context, appID uuid.UUID) ([]IdpConfig, error)
 	ListAppsByConnector(ctx context.Context, connectorID pgtype.UUID) ([]App, error)
@@ -228,10 +227,6 @@ type Querier interface {
 	ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
 	ListIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error)
 	ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)
-	// Gateway polls this on every sync cycle.
-	// Returns only non-expired revocations created after last_seen_at.
-	// Gateway passes its last sync timestamp to get only new entries.
-	ListRevocationsSince(ctx context.Context, arg ListRevocationsSinceParams) ([]Revocation, error)
 	// Called after owner completes SSO binding confirmation flow.
 	MarkIDPConfigVerified(ctx context.Context, arg MarkIDPConfigVerifiedParams) (IdpConfig, error)
 	MarkPasswordResetTokenUsed(ctx context.Context, id uuid.UUID) error
@@ -239,8 +234,6 @@ type Querier interface {
 	// Called after owner confirms SSO migration.
 	// Clears password_hash — no going back without owner action.
 	MigrateAdminToSSOOnly(ctx context.Context, id uuid.UUID) (Admin, error)
-	// Housekeeping. Run periodically.
-	PurgeExpiredRevocations(ctx context.Context) error
 	// Retention policy. Default 90 days. Run via background job.
 	PurgeOldAccessLogs(ctx context.Context, dollar_1 pgtype.Text) error
 	ReCreateConnector(ctx context.Context, arg ReCreateConnectorParams) (Connector, error)

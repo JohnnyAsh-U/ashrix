@@ -361,17 +361,6 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
 	}
 
-	// Create Revocation record
-	_, err = s.repo.CreateRevocation(ctx, store.CreateRevocationParams{
-		OrgID:     connector.OrgID,
-		Type:      componentType,
-		TargetID:  connector.ID.String(),
-		Reason:    pgtype.Text{String: revokeReason, Valid: true},
-		ExpiresAt: time.Now().Add(365 * 24 * time.Hour), // 1 year expiry
-	})
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to write revocation event", err.Error())
-	}
 
 	// Fetch updated gateway status
 	updatedConnector, err := s.repo.GetConnectorByID(ctx, connectorId)
@@ -435,18 +424,6 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 				Reason:       "cessationOfOperation",
 			})
 		}
-	}
-
-	// Write revocation event
-	_, err = s.repo.CreateRevocation(ctx, store.CreateRevocationParams{
-		OrgID:     Connector.OrgID,
-		Type:      "connector",
-		TargetID:  id.String(),
-		Reason:    pgtype.Text{String: "cessationOfOperation", Valid: true},
-		ExpiresAt: time.Now().Add(365 * 24 * time.Hour), // 1 year expiry
-	})
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to log Connector revocation event", err.Error())
 	}
 
 	return mapToConnectorResponse(revokedConnector), nil

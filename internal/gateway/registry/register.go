@@ -1,6 +1,8 @@
 package registry
 
 import (
+	"crypto/x509"
+	"fmt"
 	"sync"
 	"time"
 
@@ -26,6 +28,9 @@ type ConnectorEntry struct {
 	TunnelConnAt time.Time
 	tunnelAttached bool
 	State            string // "active", "suspended"
+
+	gRPCCert *x509.Certificate
+	quicCert *x509.Certificate
 }
 
 // Registry holds all live connector state for this gateway process.
@@ -38,13 +43,49 @@ type Registry struct {
 	mu         sync.RWMutex
 	connectors map[string]*ConnectorEntry // connector_id → entry
 	routing    map[string]string          // subdomain → connector_id
+	crlSerials []string
+	authConnectors map[string]string // connector_id -> status
 }
 
 func New() *Registry {
 	return &Registry{
 		connectors: make(map[string]*ConnectorEntry),
 		routing:    make(map[string]string), //Subdomain to connectors
+		authConnectors: make(map[string]string),
 	}
+}
+
+func (r *Registry) SetCrlEntries(serials []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.crlSerials = serials
+}
+
+func (r *Registry) IsCrlRevoked(serialNumber string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, s := range r.crlSerials {
+		if s == serialNumber {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Registry) SetAuthorizedConnectors(connectors map[string]string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.authConnectors = connectors
+}
+
+func (r *Registry) IsConnectorAuthorized(connectorID string) (string, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.authConnectors == nil {
+		return "", false
+	}
+	status, exists := r.authConnectors[connectorID]
+	return status, exists
 }
 
 
@@ -72,6 +113,7 @@ func (r *Registry) AttachManagement(
 	TenantID string,
 	apps []*pb.ConnectorApps,
 	stream ManagementStream,
+	cert *x509.Certificate,
 	state string,
 ) *ConnectorEntry {
 	r.mu.Lock()
@@ -84,6 +126,7 @@ func (r *Registry) AttachManagement(
 	entry.ManagementConnAt = time.Now()
 	entry.LastHeartbeat = time.Now()
 	entry.managementAttached = true
+	entry.gRPCCert = cert
 	entry.State = state
 
 	r.rebuildRoutingLocked(entry)
@@ -100,6 +143,7 @@ func (r *Registry) AttachManagement(
 func (r *Registry) AttachTunnel(
 	connectorID string,
 	session TunnelSession,
+	cert *x509.Certificate,
 	transport string,
 ) *ConnectorEntry {
 	r.mu.Lock()
@@ -110,7 +154,7 @@ func (r *Registry) AttachTunnel(
 	entry.TunnelTransport = transport
 	entry.TunnelConnAt = time.Now()
 	entry.tunnelAttached = true
-
+	entry.quicCert = cert
 	return entry
 }
 
@@ -238,50 +282,50 @@ func (r *Registry) All() []*ConnectorEntry {
 }
 
 
-
-// Register adds or replaces a connector entry.
-// Called by ConnectorServer when a connector's management
-// stream is established (registration flow).
-func (r *Registry) Register(entry *ConnectorEntry) {
+//When Gateway connects or reconnects to cp, verify the 
+//connectors connected and remove unauthorized connectors
+//Check the certificates on CRL list, if present remove the connectors
+func (r *Registry) VerifyGatewayConnections() {
+	// get authconnectors and connectors and compare
+	//Remove the connectors which are not present in the authconnectors
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	r.connectors[entry.ConnectorID] = entry
-
-	for _, app := range entry.Apps {
-		r.routing[app.Subdomain] = entry.ConnectorID
-		// Note: routing key should be subdomain in production —
-		// using app.Id here as placeholder since AppDef proto
-		// (from earlier tunnel.proto) doesn't have Subdomain yet.
-		// See note at end of this response.
+	// This function is called when CP comes up
+	fmt.Println("Gateway Verifying connections...")
+	fmt.Println("Auth connectors:", r.authConnectors)
+	
+	for connectorID := range r.connectors {
+		if _, ok := r.authConnectors[connectorID]; !ok {
+			//Get the Tunnel Session and close
+			if entry, ok := r.connectors[connectorID]; ok {
+				if entry.TunnelSession != nil {
+					entry.TunnelSession.Close()
+				}
+			}
+			//Detach management stream and Tunnel management
+			r.DetachManagement(connectorID)
+			r.DetachTunnel(connectorID)
+		}
+		// Get the connectorentry and the cert
+		connectorEntry, ok := r.GetByConnectorID(connectorID)
+		if !ok {
+			continue
+		}
+		grpcCertSerialNumber := connectorEntry.gRPCCert.SerialNumber.String()
+		quicCertSerialNumber := connectorEntry.quicCert.SerialNumber.String()
+		if r.IsCrlRevoked(grpcCertSerialNumber) || r.IsCrlRevoked(quicCertSerialNumber) {
+			//Get the Tunnel Session and close
+			if entry, ok := r.connectors[connectorID]; ok {
+				if entry.TunnelSession != nil {
+					entry.TunnelSession.Close()
+				}
+			}
+			//Detach management stream and Tunnel management
+			r.DetachManagement(connectorID)
+			r.DetachTunnel(connectorID)
+		}
 	}
-}
-
-
-// Unregister removes a connector entry.
-// Called when the connector's management stream closes
-// (disconnect, crash, or clean shutdown).
-func (r *Registry) Unregister(connectorID string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	entry, ok := r.connectors[connectorID]
-	if !ok {
-		return
-	}
-
-	for _, app := range entry.Apps {
-		delete(r.routing, app.Subdomain)
-	}
-	delete(r.connectors, connectorID)
-}
-
-
-// Count returns the number of currently connected connectors.
-func (r *Registry) Count() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return len(r.connectors)
+	fmt.Println("Gateway Connections Verified")
 }
 
 

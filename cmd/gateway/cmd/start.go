@@ -210,6 +210,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 		func(ctx context.Context) error {
 			return pki.PreflightRenew(ctx)
 		},
+		reg,
+		redisStore.Client(),
 	)
 
 	// 3. Safe Unary Client (for HTTP handlers that need CP)

@@ -346,46 +346,6 @@ func (q *Queries) CreateComponentCertificate(ctx context.Context, arg CreateComp
 	return i, err
 }
 
-const createRevocation = `-- name: CreateRevocation :one
-
-INSERT INTO revocations (org_id, type, target_id, reason, expires_at)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, org_id, type, target_id, reason, created_at, expires_at
-`
-
-type CreateRevocationParams struct {
-	OrgID     uuid.UUID   `json:"org_id"`
-	Type      string      `json:"type"`
-	TargetID  string      `json:"target_id"`
-	Reason    pgtype.Text `json:"reason"`
-	ExpiresAt time.Time   `json:"expires_at"`
-}
-
-// =================================================================
-// REVOCATIONS
-// CP writes. Gateway polls. CP never touches traffic path.
-// =================================================================
-func (q *Queries) CreateRevocation(ctx context.Context, arg CreateRevocationParams) (Revocation, error) {
-	row := q.db.QueryRow(ctx, createRevocation,
-		arg.OrgID,
-		arg.Type,
-		arg.TargetID,
-		arg.Reason,
-		arg.ExpiresAt,
-	)
-	var i Revocation
-	err := row.Scan(
-		&i.ID,
-		&i.OrgID,
-		&i.Type,
-		&i.TargetID,
-		&i.Reason,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-	)
-	return i, err
-}
-
 const getActiveCACertByType = `-- name: GetActiveCACertByType :one
 SELECT id, name, type, cert_pem, serial_number, subject, issued_at, expires_at, revoked_at, created_at FROM ca_certificates
 WHERE type       = $1
@@ -951,61 +911,6 @@ func (q *Queries) ListExpiringComponentCerts(ctx context.Context, dollar_1 pgtyp
 		return nil, err
 	}
 	return items, nil
-}
-
-const listRevocationsSince = `-- name: ListRevocationsSince :many
-SELECT id, org_id, type, target_id, reason, created_at, expires_at FROM revocations
-WHERE org_id     = $1
-  AND created_at > $2
-  AND expires_at > now()
-ORDER BY created_at ASC
-`
-
-type ListRevocationsSinceParams struct {
-	OrgID     uuid.UUID `json:"org_id"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-// Gateway polls this on every sync cycle.
-// Returns only non-expired revocations created after last_seen_at.
-// Gateway passes its last sync timestamp to get only new entries.
-func (q *Queries) ListRevocationsSince(ctx context.Context, arg ListRevocationsSinceParams) ([]Revocation, error) {
-	rows, err := q.db.Query(ctx, listRevocationsSince, arg.OrgID, arg.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Revocation{}
-	for rows.Next() {
-		var i Revocation
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrgID,
-			&i.Type,
-			&i.TargetID,
-			&i.Reason,
-			&i.CreatedAt,
-			&i.ExpiresAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const purgeExpiredRevocations = `-- name: PurgeExpiredRevocations :exec
-DELETE FROM revocations
-WHERE expires_at < now()
-`
-
-// Housekeeping. Run periodically.
-func (q *Queries) PurgeExpiredRevocations(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, purgeExpiredRevocations)
-	return err
 }
 
 const purgeOldAccessLogs = `-- name: PurgeOldAccessLogs :exec

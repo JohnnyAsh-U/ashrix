@@ -138,6 +138,7 @@ type Connector struct {
 	LastSeen   pgtype.Timestamptz `json:"last_seen"`
 	Status     string             `json:"status"`
 	CreatedAt  time.Time          `json:"created_at"`
+	IsActive   bool               `json:"is_active"`
 	EnrolledAt pgtype.Timestamptz `json:"enrolled_at"`
 	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 }
@@ -161,16 +162,24 @@ type Gateway struct {
 	IpAddress      string             `json:"ip_address"`
 	LastHeartbeat  pgtype.Timestamptz `json:"last_heartbeat"`
 	Status         string             `json:"status"`
+	IsActive       bool               `json:"is_active"`
 	CreatedAt      time.Time          `json:"created_at"`
 	EnrolledAt     pgtype.Timestamptz `json:"enrolled_at"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }
 
-type GatewayPolicyAck struct {
-	GatewayID uuid.UUID `json:"gateway_id"`
-	OrgID     uuid.UUID `json:"org_id"`
-	Version   int64     `json:"version"`
-	AckedAt   time.Time `json:"acked_at"`
+type GatewayEvent struct {
+	Seq       int64           `json:"seq"`
+	GatewayID uuid.UUID       `json:"gateway_id"`
+	Command   string          `json:"command"`
+	Payload   json.RawMessage `json:"payload"`
+	CreatedAt time.Time       `json:"created_at"`
+}
+
+type GatewayEventsAck struct {
+	GatewayID    uuid.UUID `json:"gateway_id"`
+	LastAckedSeq int64     `json:"last_acked_seq"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type IdpConfig struct {
@@ -269,24 +278,6 @@ type PolicySubject struct {
 	PolicyID     uuid.UUID `json:"policy_id"`
 	SubjectType  string    `json:"subject_type"`
 	SubjectValue string    `json:"subject_value"`
-}
-
-type PolicyVersion struct {
-	Version     int64     `json:"version"`
-	OrgID       uuid.UUID `json:"org_id"`
-	BundleHash  string    `json:"bundle_hash"`
-	PolicyCount int32     `json:"policy_count"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-type Revocation struct {
-	ID        uuid.UUID   `json:"id"`
-	OrgID     uuid.UUID   `json:"org_id"`
-	Type      string      `json:"type"`
-	TargetID  string      `json:"target_id"`
-	Reason    pgtype.Text `json:"reason"`
-	CreatedAt time.Time   `json:"created_at"`
-	ExpiresAt time.Time   `json:"expires_at"`
 }
 
 type Schedule struct {

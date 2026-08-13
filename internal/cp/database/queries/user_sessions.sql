@@ -28,3 +28,7 @@ WHERE user_id    = $1
   AND expires_at > NOW()
   AND revoked_at IS NULL
 RETURNING *;
+
+-- name: GetUserSessionByID :one
+SELECT * FROM user_sessions
+WHERE id = $1;

@@ -160,6 +160,7 @@ func main() {
 		gatewayRegistry,
 		policyDistributor,
 		policyRepo,
+		dbQueries,
 	)
 
 	// Graceful shutdown on SIGINT / SIGTERM

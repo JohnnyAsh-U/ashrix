@@ -10,6 +10,7 @@ import (
 type Repository interface {
 	CreateGateway(ctx context.Context, params store.CreateGatewayParams) (store.Gateway, error)
 	ListGatewayByOrg(ctx context.Context, orgID uuid.UUID) ([]store.Gateway, error) // Updated signature
+	ListActiveGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]store.Gateway, error)
 	ReCreateGateway(ctx context.Context, params store.ReCreateGatewayParams) (store.Gateway, error)
 	GetGatewayByTokenHash(ctx context.Context, token string) (store.Gateway, error)
 
@@ -29,7 +30,6 @@ type Repository interface {
 	GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error)
 	GetActiveComponentCertByType(ctx context.Context, componentType string) (store.ComponentCertificate, error)
 	CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error)
-	CreateRevocation(ctx context.Context, params store.CreateRevocationParams) (store.Revocation, error)
 }
 
 type postgresRepository struct {
@@ -48,6 +48,9 @@ func (r *postgresRepository) ListGatewayByOrg(ctx context.Context, orgID uuid.UU
 	return r.q.ListGatewaysByOrg(ctx, orgID)
 }
 
+func (r *postgresRepository) ListActiveGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]store.Gateway, error) {
+	return r.q.ListActiveGatewaysByOrg(ctx, orgID)
+}
 
 func (r *postgresRepository) ReCreateGateway(ctx context.Context, params store.ReCreateGatewayParams) (store.Gateway, error) {
 	return r.q.ReCreateGateway(ctx, params)
@@ -99,9 +102,5 @@ func (r *postgresRepository) GetActiveComponentCertByType(ctx context.Context, c
 
 func (r *postgresRepository) CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error) {
 	return r.q.CreateCRLEntry(ctx, params)
-}
-
-func (r *postgresRepository) CreateRevocation(ctx context.Context, params store.CreateRevocationParams) (store.Revocation, error) {
-	return r.q.CreateRevocation(ctx, params)
 }
 

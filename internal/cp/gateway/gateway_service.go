@@ -378,18 +378,6 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, co
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
 	}
 
-	// Create Revocation record
-	_, err = s.repo.CreateRevocation(ctx, store.CreateRevocationParams{
-		OrgID:     gateway.OrgID,
-		Type:      componentType,
-		TargetID:  gatewayID.String(),
-		Reason:    pgtype.Text{String: revokeReason, Valid: true},
-		ExpiresAt: time.Now().Add(365 * 24 * time.Hour), // 1 year expiry
-	})
-	if err != nil {
-		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to write revocation event", err.Error())
-	}
-
 	// Fetch updated gateway status
 	updatedGateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
 	if err != nil {
@@ -452,18 +440,6 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 				Reason:       "cessationOfOperation",
 			})
 		}
-	}
-
-	// Write revocation event
-	_, err = s.repo.CreateRevocation(ctx, store.CreateRevocationParams{
-		OrgID:     gateway.OrgID,
-		Type:      "gateway",
-		TargetID:  id.String(),
-		Reason:    pgtype.Text{String: "cessationOfOperation", Valid: true},
-		ExpiresAt: time.Now().Add(365 * 24 * time.Hour), // 1 year expiry
-	})
-	if err != nil {
-		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to log gateway revocation event", err.Error())
 	}
 
 	return mapToGatewayResponse(revokedGateway), nil

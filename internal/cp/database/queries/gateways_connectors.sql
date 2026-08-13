@@ -11,7 +11,12 @@ RETURNING *;
 -- name: ListGatewaysByOrg :many
 SELECT * FROM gateways
 WHERE org_id     = $1
-  AND revoked_at IS NULL
+ORDER BY created_at ASC;
+
+-- name: ListActiveGatewaysByOrg :many
+SELECT * FROM gateways
+WHERE org_id = $1
+AND is_active = true
 ORDER BY created_at ASC;
 
 
@@ -21,6 +26,7 @@ SET created_at = NOW(),
     status = 'pending',
     last_heartbeat = NULL,
     version = NULL,
+    is_active = true,
     ip_address = $5,
     public_url = $4,
     token_hash = $2,
@@ -36,7 +42,8 @@ SET enrolled_at = NOW(),
     status = 'healthy',
     last_heartbeat = NOW()
 WHERE token_hash = $1
-AND revoked_at IS NULL
+  AND is_active = true
+  AND revoked_at IS NULL
 RETURNING *;
 
 
@@ -46,12 +53,14 @@ RETURNING *;
 -- name: GetGatewayByID :one
 SELECT * FROM gateways
 WHERE id         = $1
+  AND is_active = true
   AND revoked_at IS NULL;
 
 -- name: GetGatewayByIDAndOrg :one
 SELECT * FROM gateways
 WHERE id         = $1
   AND org_id     = $2
+  AND is_active = true
   AND revoked_at IS NULL;
 
 -- name: GetGatewayByTokenHash :one
@@ -60,6 +69,7 @@ WHERE id         = $1
 SELECT * FROM gateways
 WHERE token_hash = $1
   AND status = 'pending'
+  AND is_active = true
   AND revoked_at IS NULL;
 
 
@@ -71,6 +81,7 @@ SET last_heartbeat = now(),
     version        = $2,
     status         = $3
 WHERE id           = $1
+  AND is_active = true
   AND revoked_at   IS NULL
 RETURNING *;
 
@@ -80,9 +91,11 @@ RETURNING *;
 -- Immediately disconnects gateway. Token becomes invalid.
 UPDATE gateways
 SET revoked_at = now(),
-    status     = 'offline'
+    status     = 'offline',
+    is_active = false
 WHERE id         = $1
   AND org_id     = $2
+  AND is_active = true
   AND revoked_at IS NULL
 RETURNING *;
 
@@ -103,6 +116,7 @@ UPDATE connectors
 SET created_at = NOW(), 
     status = 'pending',
     last_seen = NULL,
+    is_active = true,
     token_hash = $2,
     name = $3,
     gateway_id = $4
@@ -114,9 +128,10 @@ RETURNING *;
 UPDATE connectors 
 SET enrolled_at = NOW(), 
     status = 'connected',
+    is_active = true,
     last_seen = NOW()
 WHERE token_hash = $1
-AND revoked_at IS NULL
+  AND revoked_at IS NULL
 RETURNING *;
 
 
@@ -124,30 +139,43 @@ RETURNING *;
 -- name: GetConnectorByID :one
 SELECT * FROM connectors
 WHERE id         = $1
+  AND is_active = true
   AND revoked_at IS NULL;
 
 -- name: GetConnectorByIDAndOrg :one
 SELECT * FROM connectors
 WHERE id         = $1
-  AND org_id     = $2
+  AND org_id     = $2;
+
+
+-- name: ListActiveConnectorsByGateway :many
+-- Called on gateway → connector auth.
+SELECT * FROM connectors
+WHERE gateway_id = $1
+  AND is_active = true
   AND revoked_at IS NULL;
+
+
 
 -- name: GetConnectorByTokenHash :one
 -- Called on connector → gateway auth.
 SELECT * FROM connectors
 WHERE token_hash = $1
   AND status = 'pending'
+  AND is_active = true
   AND revoked_at IS NULL;
 
 -- name: ListConnectorsByOrg :many
 SELECT * FROM connectors
 WHERE org_id     = $1
+  AND is_active = true
   AND revoked_at IS NULL
 ORDER BY created_at ASC;
 
 -- name: ListConnectorsByGateway :many
 SELECT * FROM connectors
 WHERE gateway_id = $1
+  AND is_active = true
   AND revoked_at IS NULL
 ORDER BY created_at ASC;
 
@@ -156,14 +184,18 @@ UPDATE connectors
 SET last_seen = now(),
     status    = $2
 WHERE id      = $1
+  AND is_active = true
+  AND revoked_at IS NULL
 RETURNING *;
 
 -- name: RevokeConnector :one
 UPDATE connectors
 SET revoked_at = now(),
-    status     = 'disconnected'
+    status     = 'disconnected',
+    is_active = false
 WHERE id         = $1
   AND gateway_id     = $2
+  AND is_active = true
   AND revoked_at IS NULL
 RETURNING *;
 
@@ -171,6 +203,7 @@ RETURNING *;
 -- Called when a gateway is revoked — cascade revoke all its connectors.
 UPDATE connectors
 SET revoked_at = now(),
-    status     = 'disconnected'
+    status     = 'disconnected',
+    is_active = false
 WHERE gateway_id = $1
   AND revoked_at IS NULL;

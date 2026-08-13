@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
@@ -33,6 +34,7 @@ func InitializeGRPCServer(
 	registry *registry.GatewayRegistry,
 	distributor *policy.PolicyDistributor,
 	policyStore policy.Repository,
+	dbQueries *store.Queries,
 ) *GRPCServer {
 	// Get TLS configuration from the crypto package
 	tlsConfig := crypto.NewServerTLSConfig(cp)
@@ -58,6 +60,7 @@ func InitializeGRPCServer(
 		distributor:      distributor,
 		log:         log,
 		redisClient: redisClient,
+		dbQueries:   dbQueries,
 	})
 
 	return &GRPCServer{

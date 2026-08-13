@@ -34,9 +34,9 @@ func NewQUICServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger, r
 
 func (s *QUICServer) Start(ctx context.Context) error {
 	quicConfig := &quic.Config{
-		KeepAlivePeriod: 15 * time.Second,
-		MaxIdleTimeout:  30 * time.Second,
-		MaxIncomingStreams:    1000,
+		KeepAlivePeriod:    15 * time.Second,
+		MaxIdleTimeout:     30 * time.Second,
+		MaxIncomingStreams: 1000,
 	}
 	listener, err := quic.ListenAddr(s.addr, s.tlsConf, quicConfig)
 	if err != nil {
@@ -89,6 +89,21 @@ func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) 
 		return
 	}
 
+	//Get the cert from the quic handshake
+	tlsState := conn.ConnectionState().TLS
+	if len(tlsState.PeerCertificates) == 0 {
+		conn.CloseWithError(1, "Invalid identity")
+		return
+	}
+	cert := tlsState.PeerCertificates[0]
+
+	//Check if crl is revoked
+	if s.registry.IsCrlRevoked(cert.Subject.SerialNumber) {
+		s.log.Warn("Quic tunnel attempted with revoked cert", zap.String("connector_id", connectorID))
+		conn.CloseWithError(3, "Certificate is revoked")
+		return
+	}
+
 	//The connector must already have an active management
 	// registration - tunnel cannot attach standalone. This closes the gap from scenario A more strictly than
 	// routability alone:
@@ -100,7 +115,7 @@ func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) 
 	}
 
 	tunnelSession := &quicTunnelSession{conn: conn}
-	s.registry.AttachTunnel(connectorID, tunnelSession, "quic")
+	s.registry.AttachTunnel(connectorID, tunnelSession, cert, "quic")
 	defer s.registry.DetachTunnel(connectorID)
 
 	s.log.Info("Tunnel plane attached via quic", zap.String("Connector_id", connectorID))

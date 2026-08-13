@@ -8,6 +8,10 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 // CPStateClient is what this server needs to ask CP for a
@@ -21,7 +25,6 @@ type ConnectorState struct {
 	State         string // "active" or "suspended"
 	SuspendReason string
 }
-
 
 // Server implements the connector-facing management gRPC service.
 // Depends on the SAME Registry and PendingCommands instances as
@@ -43,10 +46,29 @@ func New(
 	}
 }
 
-
 // Connect handles one connector's management stream for its entire
 // connected lifetime. One goroutine per connector, managed by gRPC.
 func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
+	// 1. Extract peer cert and gateway ID
+	peerInfo, ok := peer.FromContext(stream.Context())
+	if !ok {
+		return status.Error(codes.Unauthenticated, "no peer info")
+	}
+	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return status.Error(codes.Unauthenticated, "no TLS Info")
+	}
+	if len(tlsInfo.State.PeerCertificates) == 0 {
+		return status.Error(codes.Unauthenticated, "no peer certificates")
+	}
+	cert := tlsInfo.State.PeerCertificates[0]
+
+	//Check if crl is revoked
+	if s.registry.IsCrlRevoked(cert.Subject.SerialNumber){
+		return status.Error(codes.Unauthenticated, "certificate is revoked")
+	}
+
+
 	// ── Registration: first message must be Hello ──────────────────
 	envelope, err := stream.Recv()
 	if err != nil {
@@ -64,37 +86,22 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 		zap.String("connector_id", connectorID),
 	)
 
-	// TODO: validate hello.Token against CP before proceeding.
-	// Skipping here for brevity — this MUST be added before
-	// this touches anything with real traffic. An unauthenticated
-	// registration here means anyone who can reach this gRPC port
-	// can register as any connector_id they choose and receive
-	// traffic meant for a real tenant's app. This is a critical gap,
-	// not a nice-to-have — flag it in your own tracking.
-
-	// ── Reconciliation: ask CP for current authoritative state ─────
-	// This is the pattern from our earlier conversation — never
-	// trust local assumptions about whether this connector is
-	// suspended. Ask fresh, every single time.
-	// ctx := stream.Context()
-	// state, bool := s.registry.Get(connectorID)
 
 	apps := make([]*gen.ConnectorApps, len(hello.Apps))
-	for i, a := range hello.Apps{
+	for i, a := range hello.Apps {
 		apps[i] = &gen.ConnectorApps{
-			Id: a.Id, 
-			Protocol: a.Protocol, 
-			Subdomain: a.Subdomain, 
-			Name: a.Name, 
-			Upstream: a.Upstream,
-			IsPublic: a.IsPublic,
+			Id:        a.Id,
+			Protocol:  a.Protocol,
+			Subdomain: a.Subdomain,
+			Name:      a.Name,
+			Upstream:  a.Upstream,
+			IsPublic:  a.IsPublic,
 		}
 	}
 
 	//Attach management - does not touch tunnel fields per correct registry
-	entry := s.registry.AttachManagement(connectorID, hello.TenantId, apps,stream, "active")
+	entry := s.registry.AttachManagement(connectorID, hello.TenantId, apps, stream, cert, "active")
 	defer s.registry.DetachManagement(connectorID)
-
 
 	// Send HelloAck
 	if err := stream.Send(&gen.GatewayConnectorEnvelope{
@@ -107,7 +114,6 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	}); err != nil {
 		return fmt.Errorf("send hello ack: %w", err)
 	}
-
 
 	s.log.Info("Management plane attached", zap.String("Connector_id", connectorID), zap.Bool("Tunnel already attached", entry.TunnelSession != nil))
 
@@ -173,4 +179,3 @@ func generateSessionID() string {
 	// Placeholder — use a real UUID library in production
 	return fmt.Sprintf("sess_%d", time.Now().UnixNano())
 }
-

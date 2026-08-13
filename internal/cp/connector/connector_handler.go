@@ -343,12 +343,12 @@ func (h *ConnectorHandler) RevokeConnector(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	gateway, appErr := h.service.RevokeConnector(r.Context(), connectorID)
+	connector, appErr := h.service.RevokeConnector(r.Context(), connectorID)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return
 	}
-	dto.SendSuccess(w, http.StatusOK, gateway)
+	dto.SendSuccess(w, http.StatusOK, connector)
 }
 
 // Routes registers the gateway-related routes to the provided router group.

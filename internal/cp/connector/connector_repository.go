@@ -11,6 +11,7 @@ import (
 type Repository interface {
 	CreateConnector(ctx context.Context, params store.CreateConnectorParams) (store.Connector, error)
 	ListConnectorByOrg(ctx context.Context, orgID uuid.UUID) ([]store.Connector, error) // Updated signature
+	ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]store.Connector, error)
 	ReCreateConnector(ctx context.Context, params store.ReCreateConnectorParams) (store.Connector, error)
 	GetConnectorByTokenHash(ctx context.Context, token string) (store.Connector, error)
 	GetConnectorByID(ctx context.Context, id uuid.UUID) (store.Connector, error)
@@ -31,7 +32,6 @@ type Repository interface {
 	RevokeConnectorCert(ctx context.Context, params store.RevokeCompCertParams) (store.ComponentCertificate, error)
 	GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error)
 	CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error)
-	CreateRevocation(ctx context.Context, params store.CreateRevocationParams) (store.Revocation, error)
 }
 
 type postgresRepository struct {
@@ -48,6 +48,10 @@ func (r *postgresRepository) CreateConnector(ctx context.Context, params store.C
 
 func (r *postgresRepository) ListConnectorByOrg(ctx context.Context, orgID uuid.UUID) ([]store.Connector, error) {
 	return r.q.ListConnectorsByOrg(ctx, orgID)
+}
+
+func (r *postgresRepository) ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]store.Connector, error) {
+	return r.q.ListActiveConnectorsByGateway(ctx, gatewayID)
 }
 
 func (r *postgresRepository) ReCreateConnector(ctx context.Context, params store.ReCreateConnectorParams) (store.Connector, error) {
@@ -102,6 +106,4 @@ func (r *postgresRepository) CreateCRLEntry(ctx context.Context, params store.Cr
 	return r.q.CreateCRLEntry(ctx, params)
 }
 
-func (r *postgresRepository) CreateRevocation(ctx context.Context, params store.CreateRevocationParams) (store.Revocation, error) {
-	return r.q.CreateRevocation(ctx, params)
-}
+

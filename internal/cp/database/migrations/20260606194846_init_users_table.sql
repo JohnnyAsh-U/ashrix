@@ -105,22 +105,6 @@ CREATE TABLE admin_sessions (
     revoked_at    TIMESTAMPTZ
 );
 
--------------------------------------------------------------------
--- User Sessions
--------------------------------------------------------------------
-CREATE TABLE user_sessions (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id        UUID        NOT NULL REFERENCES orgs(id),
-    user_id       UUID        NOT NULL,
-    gateway_id    UUID        NOT NULL REFERENCES gateways(id),
-    issued_at     TIMESTAMPTZ NOT NULL,
-    expires_at    TIMESTAMPTZ,
-    revoked_at    TIMESTAMPTZ NULL
-);
-
-CREATE INDEX idx_user_sessions_user
-    ON user_sessions(user_id, org_id, revoked_at);
-
 
 -- =================================================================
 --Single-use token issued after /register, consumed by /setup-otp + /verify-otp
@@ -157,7 +141,8 @@ CREATE TABLE gateways (
     public_url      TEXT NOT NULL, --"gw1.company.com; gateway own public url"
     ip_address      TEXT NOT NULL,
     last_heartbeat  TIMESTAMPTZ,
-    status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'healthy', 'degraded', 'offline')),
+    status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'healthy', 'degraded', 'offline', 'draining')),
+    is_active       BOOLEAN NOT NULL DEFAULT true,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     enrolled_at TIMESTAMPTZ,
     revoked_at      TIMESTAMPTZ,    
@@ -180,6 +165,7 @@ CREATE TABLE connectors (
     last_seen     TIMESTAMPTZ,
     status        TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'connected', 'disconnected')),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    is_active       BOOLEAN NOT NULL DEFAULT true,
     enrolled_at TIMESTAMPTZ,
     revoked_at    TIMESTAMPTZ,
 
@@ -209,6 +195,22 @@ CREATE TABLE apps (
 
     UNIQUE (org_id, subdomain)
 );
+
+-------------------------------------------------------------------
+-- User Sessions
+-------------------------------------------------------------------
+CREATE TABLE user_sessions (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id        UUID        NOT NULL REFERENCES orgs(id),
+    user_id       UUID        NOT NULL,
+    gateway_id    UUID        NOT NULL REFERENCES gateways(id),
+    issued_at     TIMESTAMPTZ NOT NULL,
+    expires_at    TIMESTAMPTZ,
+    revoked_at    TIMESTAMPTZ NULL
+);
+
+CREATE INDEX idx_user_sessions_user
+    ON user_sessions(user_id, org_id, revoked_at);
 
 
 --------------------------------------------------------------------
@@ -464,7 +466,7 @@ CREATE TABLE gateway_events (
 CREATE TABLE gateway_events_acks (
     gateway_id      UUID NOT NULL REFERENCES gateways(id),
     last_acked_seq       BIGINT NOT NULL DEFAULT 0,
-    updated_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
 
@@ -729,21 +731,21 @@ DROP TABLE IF EXISTS schedules;
 
 
 
+DROP TABLE IF EXISTS gateway_events_acks;
+DROP TABLE IF EXISTS gateway_events;
+
 DROP TABLE IF EXISTS app_idp_mappings;
 DROP TABLE IF EXISTS apps;
+DROP TABLE IF EXISTS user_sessions;
 DROP TABLE IF EXISTS connectors;
 DROP TABLE IF EXISTS gateways;
 
-DROP TABLE IF EXISTS user_sessions;
 DROP TABLE IF EXISTS admin_sessions;
 DROP TABLE IF EXISTS admin_setup_tokens;
 DROP TABLE IF EXISTS password_reset_tokens;
 DROP TABLE IF EXISTS admins;
 DROP TABLE IF EXISTS idp_configs;
 DROP TABLE IF EXISTS orgs;
-
-
-
 
 
 -- -----------------------------------------------------------
@@ -757,127 +759,5 @@ DROP TABLE IF EXISTS orgs;
 --   5. policy_conditions (JSONB tree)
 --   6. policy_audit_log
 -- -----------------------------------------------------------
-
-/*
-BEGIN;
-
--- 1. Mutation log (denormalized snapshot)
-INSERT INTO policy_mutations (tenant_id, policy_id, op, rule_snapshot, mutated_by)
-VALUES ('acme', 'pol-001', 'UPSERT', '{
-  "policy_id": "pol-001",
-  "tenant_id": "acme",
-  "name": "Engineers to Jenkins",
-  "effect": "ALLOW",
-  "subjects": [
-    {"type": "group", "value": "engineering"},
-    {"type": "group", "value": "oncall"}
-  ],
-  "resources": [
-    {"type": "app", "value": "jenkins-prod"},
-    {"type": "path", "value": "/*"}
-  ],
-  "conditions": {
-    "mfa": {"required": true},
-    "network": {"allowed_countries": ["CI", "GH"]}
-  }
-}'::jsonb, 'admin-001')
-RETURNING version;  -- e.g., 1842
-
--- 2. Policies table (normalized live view)
-INSERT INTO policies (policy_id, tenant_id, name, effect, priority, enabled, version, created_by)
-VALUES ('pol-001', 'acme', 'Engineers to Jenkins', 'ALLOW', 0, TRUE, 1842, 'admin-001');
-
--- 3. Subjects (normalized, queryable)
-INSERT INTO policy_subjects (policy_id, subject_type, subject_value)
-VALUES
-  ('pol-001', 'group', 'engineering'),
-  ('pol-001', 'group', 'oncall');
-
--- 4. Resources (normalized, queryable)
-INSERT INTO policy_resources (policy_id, resource_type, resource_value)
-VALUES
-  ('pol-001', 'app', 'jenkins-prod'),
-  ('pol-001', 'path', '/*');
-
--- 5. Conditions (JSONB document)
-INSERT INTO policy_conditions (policy_id, condition_tree)
-VALUES ('pol-001', '{"mfa":{"required":true},"network":{"allowed_countries":["CI","GH"]}}'::jsonb);
-
--- 6. Audit log
-INSERT INTO policy_audit_log (tenant_id, policy_id, action, actor_id, new_state)
-VALUES ('acme', 'pol-001', 'CREATE', 'admin-001', '{...snapshot...}'::jsonb);
-
-COMMIT;
-*/
-
--- -----------------------------------------------------------
--- 8. QUERY PATTERNS
--- -----------------------------------------------------------
-
--- Q1: List all policies for tenant (admin UI)
--- Requires JOIN but PostgreSQL handles this well for <10K rows
-/*
-SELECT
-  p.policy_id, p.name, p.effect, p.priority, p.enabled,
-  COALESCE(jsonb_agg(DISTINCT jsonb_build_object('type', ps.subject_type, 'value', ps.subject_value)) FILTER (WHERE ps.policy_id IS NOT NULL), '[]') AS subjects,
-  COALESCE(jsonb_agg(DISTINCT jsonb_build_object('type', pr.resource_type, 'value', pr.resource_value)) FILTER (WHERE pr.policy_id IS NOT NULL), '[]') AS resources,
-  pc.condition_tree AS conditions
-FROM policies p
-LEFT JOIN policy_subjects ps ON ps.policy_id = p.policy_id
-LEFT JOIN policy_resources pr ON pr.policy_id = p.policy_id
-LEFT JOIN policy_conditions pc ON pc.policy_id = p.policy_id
-WHERE p.tenant_id = 'acme' AND p.enabled = TRUE
-GROUP BY p.policy_id, pc.condition_tree
-ORDER BY p.effect DESC, p.priority DESC, p.policy_id;
-*/
-
--- Q2: "Which policies reference group 'engineering'?" (fast, indexed)
-/*
-SELECT DISTINCT p.policy_id, p.name, p.effect
-FROM policies p
-JOIN policy_subjects ps ON ps.policy_id = p.policy_id
-WHERE ps.subject_type = 'group' AND ps.subject_value = 'engineering';
--- Uses idx_subjects_lookup: O(log n)
-*/
-
--- Q3: "Delete group 'engineering' and clean up references"
-/*
-DELETE FROM policy_subjects
-WHERE subject_type = 'group' AND subject_value = 'engineering';
--- CASCADE: if a policy has no subjects left, you may want to disable it
-*/
-
--- Q4: "Rename group 'engineering' to 'platform-engineering'"
-/*
-UPDATE policy_subjects
-SET subject_value = 'platform-engineering'
-WHERE subject_type = 'group' AND subject_value = 'engineering';
-*/
-
--- Q5: Compile bundle for distribution (same as before, just with JOINs)
-/*
-SELECT
-  p.policy_id, p.tenant_id, p.name, p.effect, p.priority, p.enabled, p.version,
-  COALESCE(jsonb_agg(DISTINCT ps.subject_value) FILTER (WHERE ps.subject_type = 'group'), '[]') AS subject_groups,
-  COALESCE(jsonb_agg(DISTINCT ps.subject_value) FILTER (WHERE ps.subject_type = 'user'), '[]') AS subject_users,
-  COALESCE(jsonb_agg(DISTINCT pr.resource_value) FILTER (WHERE pr.resource_type = 'app'), '[]') AS resource_apps,
-  COALESCE(jsonb_agg(DISTINCT pr.resource_value) FILTER (WHERE pr.resource_type = 'path'), '[]') AS resource_paths,
-  COALESCE(jsonb_agg(DISTINCT pr.resource_value) FILTER (WHERE pr.resource_type = 'method'), '[]') AS resource_methods,
-  pc.condition_tree AS conditions
-FROM policies p
-LEFT JOIN policy_subjects ps ON ps.policy_id = p.policy_id
-LEFT JOIN policy_resources pr ON pr.policy_id = p.policy_id
-LEFT JOIN policy_conditions pc ON pc.policy_id = p.policy_id
-WHERE p.tenant_id = 'acme' AND p.enabled = TRUE
-GROUP BY p.policy_id, pc.condition_tree
-ORDER BY p.effect DESC, p.priority DESC, p.policy_id;
-*/
-
--- Q6: Delta computation (unchanged — reads mutation log only)
-/*
-SELECT version, policy_id, op, rule_snapshot
-FROM policy_mutations
-WHERE tenant_id = 'acme' AND version > 1839
-ORDER BY version ASC;
-*/
+-- End of migration
 
