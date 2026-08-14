@@ -150,3 +150,21 @@ message ConnectorReject {
   bool   permanent = 3;
 }
 
+
+
+
+// message Heartbeat {
+//   NodeIdentity identity            = 1; // full state snapshot — CP needs no separate query
+//   int32        active_connections  = 2; // live connections (connectors + clients)
+//   int32        active_sessions     = 3; // authenticated sessions
+//   int32        connector_count     = 4; // how many connectors currently connected
+//   repeated ConnectorsStatuses connector_status = 5;
+// }
+
+// message ConnectorsStatuses {
+//   string                    connector_id = 1;
+//   string                    status       = 2; //connected | disconnected
+//   google.protobuf.Timestamp last_checked = 3;
+// }
+
+

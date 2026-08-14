@@ -16,12 +16,12 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"github.com/google/uuid"
 
-	// "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -42,10 +42,10 @@ type ControlPlanePKI struct {
 	ControlPlaneKey      *ecdsa.PrivateKey
 	ControlPlaneCert     *x509.Certificate
 	CAPool               *x509.CertPool
-	db                   *store.Queries // Database queries for CA certificates
+	CARepo pkica.Repository
 }
 
-func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigner, dbQueries *store.Queries) (ControlPlaneCrypto, error) {
+func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigner, pki_ca pkica.Repository) (ControlPlaneCrypto, error) {
 	fmt.Println("Initializing Control Plane PKI...")
 	CPPKIDir := filepath.Join(baseDir, "pki", "cp")
 
@@ -82,13 +82,13 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 
 		// Get the active CA cert
 		context := context.Background()
-		dbRootCertRecord, err := dbQueries.GetActiveCACert(context, store.GetActiveCACertParams{Name: "Ashrix Intermediate CA", Type: "intermediate"})
+		dbRootCertRecord, err := pki_ca.GetActiveCACert(context, store.GetActiveCACertParams{Name: "Ashrix Intermediate CA", Type: "intermediate"})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get active CA cert: %w", err)
 		}
 
 		// Get existing cp component cert id
-		dbCPComponentCertRecords, err := dbQueries.GetActiveComponentCertByType(context, "cp")
+		dbCPComponentCertRecords, err := pki_ca.GetActiveComponentCertByType(context, "cp")
 
 		if errors.Is(err, sql.ErrNoRows) {
 
@@ -101,8 +101,8 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 
 		if err == nil {
 			// Record found - revoke it
-			_, err = dbQueries.RevokeComponentCertificate(context, store.RevokeComponentCertificateParams{
-				ID:           dbCPComponentCertRecords.ID,
+			_, err = pki_ca.RevokeComponentCert(context, store.RevokeCompCertParams{
+				ComponentID:           dbCPComponentCertRecords.ComponentID,
 				RevokeReason: pgtype.Text{String: "superseded", Valid: true},
 			})
 			if err != nil {
@@ -111,7 +111,7 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 		}
 
 		// Register component cert
-		_, err = dbQueries.CreateComponentCertificate(context, store.CreateComponentCertificateParams{
+		_, err = pki_ca.CreateComponentCert(context, store.RegisterCompCertParams{
 			OrgID:         pgtype.UUID{Valid: false},
 			ComponentType: "cp",
 			ComponentID:   pgtype.UUID{Valid: false},

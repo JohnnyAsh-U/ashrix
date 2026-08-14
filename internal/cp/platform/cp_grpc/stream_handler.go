@@ -9,9 +9,13 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
+	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
+	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/redis/go-redis/v9"
@@ -20,7 +24,6 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
 type cpServer struct {
@@ -30,7 +33,10 @@ type cpServer struct {
 	redisClient *redis.Client
 	distributor *policy.PolicyDistributor
 	policyStore policy.Repository
-	dbQueries   *store.Queries
+	gatewayRepo gateway.Repository
+	PkiCARepo pkica.Repository
+	connectorRepo connector.Repository
+	// dbQueries   *store.Queries
 	log         *slog.Logger
 }
 
@@ -58,7 +64,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 	}
 
 	// 2. Check if gateway is revoked
-	gw, err := s.dbQueries.GetGatewayByID(stream.Context(), gatewayUUID)
+	gw, err := s.gatewayRepo.GetGatewayByID(stream.Context(), gatewayUUID)
 	if err != nil {
 		return status.Error(codes.Unauthenticated, "gateway is not registered or revoked")
 	}
@@ -67,13 +73,13 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 	}
 
 	// 3. Check if cert is in CRL entries
-	_, err = s.dbQueries.GetCRLEntryBySerial(stream.Context(), certSerial)
+	_, err = s.PkiCARepo.GetCRLEntryBySerial(stream.Context(), certSerial)
 	if err == nil {
 		return status.Error(codes.Unauthenticated, "gateway certificate is revoked (CRL)")
 	}
 
 	// 4. Check if component certificate is active and not revoked
-	activeCert, err := s.dbQueries.GetActiveComponentCert(stream.Context(), store.GetActiveComponentCertParams{
+	activeCert, err := s.PkiCARepo.GetActiveComponentCert(stream.Context(), store.GetActiveComponentCertParams{
 		ComponentType: "gateway",
 		ComponentID:   pgtype.UUID{Bytes: gatewayUUID, Valid: true},
 	})
@@ -128,7 +134,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 	s.registry.HandleHello(gatewayID)
 
 	// Push CRL entries list immediately
-	crls, err := s.dbQueries.ListCRLEntries(ctx)
+	crls, err := s.PkiCARepo.GetCRLEntry(ctx)
 	if err == nil {
 		var serials []string
 		for _, c := range crls {
@@ -152,7 +158,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 	}
 
 	// Push authorized connectors list immediately
-	conns, err := s.dbQueries.ListActiveConnectorsByGateway(ctx, gatewayUUID)
+	conns, err := s.connectorRepo.ListActiveConnectorsByGateway(ctx, gatewayUUID)
 	if err == nil {
 		var connectorInfos []*proto.ConnectorInfo
 		for _, c := range conns {

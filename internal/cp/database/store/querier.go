@@ -48,46 +48,11 @@ type Querier interface {
 	// Append-only. Never update or delete.
 	// =================================================================
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error)
-	// =================================================================
-	// CERTIFICATES — CA
-	// =================================================================
 	CreateCACertificate(ctx context.Context, arg CreateCACertificateParams) (CaCertificate, error)
-	// -- =================================================================
-	// -- CSR REQUESTS
-	// -- =================================================================
-	// -- name: CreateCSRRequest :one
-	// INSERT INTO csr_requests (org_id, component_type, component_id, csr_pem)
-	// VALUES ($1, $2, $3, $4)
-	// RETURNING *;
-	// -- name: GetCSRRequest :one
-	// SELECT * FROM csr_requests
-	// WHERE id = $1;
-	// -- name: MarkCSRSigned :one
-	// UPDATE csr_requests
-	// SET status         = 'signed',
-	//     signed_cert_id = $2,
-	//     processed_at   = now()
-	// WHERE id           = $1
-	//   AND status       = 'pending'
-	// RETURNING *;
-	// -- name: MarkCSRRejected :one
-	// UPDATE csr_requests
-	// SET status       = 'rejected',
-	//     processed_at = now()
-	// WHERE id         = $1
-	//   AND status     = 'pending'
-	// RETURNING *;
-	// -- name: ListPendingCSRs :many
-	// SELECT * FROM csr_requests
-	// WHERE status = 'pending'
-	// ORDER BY created_at ASC;
 	// =================================================================
 	// CRL ENTRIES
 	// =================================================================
 	CreateCRLEntry(ctx context.Context, arg CreateCRLEntryParams) (CrlEntry, error)
-	// =================================================================
-	// CERTIFICATES — COMPONENTS
-	// =================================================================
 	CreateComponentCertificate(ctx context.Context, arg CreateComponentCertificateParams) (ComponentCertificate, error)
 	// =================================================================
 	// CONNECTORS
@@ -203,7 +168,6 @@ type Querier interface {
 	InsertPolicySubject(ctx context.Context, arg InsertPolicySubjectParams) error
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
-	ListActiveCACerts(ctx context.Context) ([]ListActiveCACertsRow, error)
 	// Called on gateway → connector auth.
 	ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)
 	ListActiveGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
@@ -221,9 +185,6 @@ type Querier interface {
 	ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]Connector, error)
 	// Dashboard denied requests view.
 	ListDeniedAccessLogs(ctx context.Context, arg ListDeniedAccessLogsParams) ([]AccessLog, error)
-	// Used by background job to alert before expiry.
-	// Returns certs expiring within the next $1 days.
-	ListExpiringComponentCerts(ctx context.Context, dollar_1 pgtype.Text) ([]ComponentCertificate, error)
 	ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
 	ListIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error)
 	ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)
@@ -252,7 +213,6 @@ type Querier interface {
 	RevokeAllAdminSessionsForOrg(ctx context.Context, orgID uuid.UUID) error
 	RevokeAllUserSessions(ctx context.Context, arg RevokeAllUserSessionsParams) ([]UserSession, error)
 	RevokeCompCert(ctx context.Context, arg RevokeCompCertParams) (ComponentCertificate, error)
-	RevokeComponentCertificate(ctx context.Context, arg RevokeComponentCertificateParams) (ComponentCertificate, error)
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (Connector, error)
 	// Called when a gateway is revoked — cascade revoke all its connectors.
 	RevokeConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) error

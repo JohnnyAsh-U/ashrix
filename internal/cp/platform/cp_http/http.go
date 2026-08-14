@@ -11,7 +11,8 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/auth"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/repositories"
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
@@ -37,9 +38,8 @@ type Server struct {
 func InitializeHttpServer(
 	BaseDir string,
 	cfg *config.Config,
-	dbQueries *store.Queries,
+	respositories *repositories.Repositories,
 	redisStore *redis.RedisStore,
-	policyRepo policy.Repository,
 	policyDistributor *policy.PolicyDistributor,
 	log *slog.Logger,
 	CASigner pki.CASigner,
@@ -67,32 +67,24 @@ func InitializeHttpServer(
 	r.Use(chimiddleware.Timeout(30 * time.Second))
 
 	//Apps routes
-	appRepo := app.NewPostgresRepository(dbQueries)
-	appService := app.NewService(appRepo)
+	appService := app.NewService(respositories.App)
 	appHandler := app.NewAppHandler(appService)
 
 	//Org routes
-	orgRepo := org.NewPostgresRepository(dbQueries)
-	orgService := org.NewService(orgRepo)
+	orgService := org.NewService(respositories.Org)
 	orgHandler := org.NewOrgHandler(orgService)
 
-	//Gateway routes
-	gatewayRepo := gateway.NewPostgresRepository(dbQueries)
-	gatewayService := gateway.NewService(gatewayRepo)
-	gatewayHandler := gateway.NewGatewayHandler(gatewayService, CASigner)
-
+	
 	//IDP Routes
-	idpRepo := identity.NewPostgresRepository(dbQueries)
 	idpSession, err := identity.NewIDPSession(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix", redisStore.Client())
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	idpService := identity.NewIDPService(
-		idpRepo,
-		appRepo,
-		// orgRepo,
-		gatewayRepo,
+		respositories.IDP,
+		respositories.App,
+		respositories.Gateway,
 		idpSession,
 		redisStore.Client(),
 		cfg,
@@ -101,9 +93,8 @@ func InitializeHttpServer(
 	idpHandler := identity.NewIDPHandler(idpService, log)
 
 	//Auth routes
-	authRepo := auth.NewPostgresRepository(dbQueries)
 	authService := auth.NewService(
-		authRepo,
+		respositories.Auth,
 		orgService,
 		mailer,
 		cfg,
@@ -115,15 +106,20 @@ func InitializeHttpServer(
 		cfg.JwtAccessSecret,
 	)
 
+	//Gateway routes
+	gatewayService := gateway.NewService(respositories.Gateway, respositories.PKICA)
+	gatewayHandler := gateway.NewGatewayHandler(gatewayService, CASigner)
+
+
 	//Connectors routes
-	connectorRepo := connector.NewPostgresRepository(dbQueries)
-	connectorService := connector.NewService(connectorRepo)
+	connectorService := connector.NewService(respositories.Connector, respositories.PKICA, respositories.Gateway)
 	connectorHandler := connector.NewConnectorHandler(connectorService, CASigner)
 
 
 	// Policy routes
-	policyService := policy.NewService(policyRepo, policyDistributor)
+	policyService := policy.NewService(respositories.Policy, policyDistributor)
 	policyHandler := policy.NewPolicyHandler(policyService)
+
 
 	//Docs - date this in prod
 	r.Get("/docs/*", httpSwagger.Handler(

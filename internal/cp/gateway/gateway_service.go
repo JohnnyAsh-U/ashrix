@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
@@ -20,11 +21,12 @@ import (
 )
 
 type Service struct {
-	repo Repository
+	repo    Repository
+	pkiRepo pkica.Repository
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, pkiRepo pkica.Repository) *Service {
+	return &Service{repo: repo, pkiRepo: pkiRepo}
 }
 
 // mapToGatewayResponse converts a store.Gateway to a GatewayResponse DTO.
@@ -150,7 +152,7 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 	}
 
 	// Get active intermediate CA certificate from DB to retrieve its ID
-	caCertRecord, err := s.repo.GetActiveCACert(ctx, store.GetActiveCACertParams{
+	caCertRecord, err := s.pkiRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{
 		Name: "Ashrix Intermediate CA",
 		Type: "intermediate",
 	})
@@ -159,7 +161,7 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 	}
 
 	// Register component cert
-	_, err = s.repo.CreateGatewayCert(ctx, store.RegisterCompCertParams{
+	_, err = s.pkiRepo.CreateComponentCert(ctx, store.RegisterCompCertParams{
 		OrgID:         pgtype.UUID{Valid: true, Bytes: gateway.OrgID},
 		ComponentType: "gateway",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: gateway.ID},
@@ -183,7 +185,7 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 	}
 
 	//Get the CP Public key from the Cert in the db
-	cPCert, err := s.repo.GetActiveComponentCertByType(ctx, "cp")
+	cPCert, err := s.pkiRepo.GetActiveComponentCertByType(ctx, "cp")
 	if err != nil {
 		return gen.GatewayEnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active CP certificate", err.Error())
 	}
@@ -223,7 +225,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	}
 
 	// get active cert
-	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "gateway",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 	})
@@ -254,7 +256,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 
 	// Issue new cert
 	// get active intermediate CA
-	caCertRecord, err := s.repo.GetActiveCACert(ctx, store.GetActiveCACertParams{
+	caCertRecord, err := s.pkiRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{
 		Name: "Ashrix Intermediate CA",
 		Type: "intermediate",
 	})
@@ -263,7 +265,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	}
 
 	//Revoke the current cert of the gateway
-	_, err = s.repo.RevokeGatewayCert(ctx, store.RevokeCompCertParams{
+	_, err = s.pkiRepo.RevokeComponentCert(ctx, store.RevokeCompCertParams{
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 		ComponentType: "gateway",
 		RevokeReason:  pgtype.Text{String: "superseded", Valid: true},
@@ -291,7 +293,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	}
 
 	//Register the cert
-	_, err = s.repo.CreateGatewayCert(ctx, store.RegisterCompCertParams{
+	_, err = s.pkiRepo.CreateComponentCert(ctx, store.RegisterCompCertParams{
 		OrgID:         pgtype.UUID{Valid: true, Bytes: gateway.OrgID},
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 		ComponentType: "gateway",
@@ -345,7 +347,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, co
 	}
 
 	// Fetch active component certificate
-	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: componentType,
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 	})
@@ -363,13 +365,13 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, co
 		ComponentType: componentType,
 		RevokeReason:  pgtype.Text{String: revokeReason, Valid: true},
 	}
-	_, err = s.repo.RevokeGatewayCert(ctx, params)
+	_, err = s.pkiRepo.RevokeComponentCert(ctx, params)
 	if err != nil {
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke component certificate", err.Error())
 	}
 
 	// Create CRL Entry
-	_, err = s.repo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
+	_, err = s.pkiRepo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
 		CertID:       activeCert.ID,
 		SerialNumber: activeCert.SerialNumber,
 		Reason:       revokeReason,
@@ -421,20 +423,20 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 	}
 
 	// Revoke the active component certificate if it exists
-	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "gateway",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
 	})
 	if err == nil {
 		// Cert found, revoke it
-		_, err = s.repo.RevokeGatewayCert(ctx, store.RevokeCompCertParams{
+		_, err = s.pkiRepo.RevokeComponentCert(ctx, store.RevokeCompCertParams{
 			ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
 			ComponentType: "gateway",
 			RevokeReason:  pgtype.Text{String: "cessationOfOperation", Valid: true},
 		})
 		if err == nil {
 			// Write to CRL entries
-			_, _ = s.repo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
+			_, _ = s.pkiRepo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
 				CertID:       activeCert.ID,
 				SerialNumber: activeCert.SerialNumber,
 				Reason:       "cessationOfOperation",

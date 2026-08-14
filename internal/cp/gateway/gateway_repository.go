@@ -14,22 +14,12 @@ type Repository interface {
 	ReCreateGateway(ctx context.Context, params store.ReCreateGatewayParams) (store.Gateway, error)
 	GetGatewayByTokenHash(ctx context.Context, token string) (store.Gateway, error)
 
-	CreateGatewayCert(ctx context.Context, params store.RegisterCompCertParams) (store.ComponentCertificate, error)
-	GetActiveCACert(ctx context.Context, params store.GetActiveCACertParams) (store.GetActiveCACertRow, error)
-
-
 	GetGatewayByID(ctx context.Context, id uuid.UUID) (store.Gateway, error)
 	EnrollGatewayUsingTokenHash(ctx context.Context, tokenHash string) (store.Gateway, error)
 
 	UpdateGatewayHeartBeat(ctx context.Context, params store.UpdateGatewayHeartbeatParams) (store.Gateway, error)
 
 	RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error)
-
-	// New methods
-	RevokeGatewayCert(ctx context.Context, params store.RevokeCompCertParams) (store.ComponentCertificate, error)
-	GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error)
-	GetActiveComponentCertByType(ctx context.Context, componentType string) (store.ComponentCertificate, error)
-	CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error)
 }
 
 type postgresRepository struct {
@@ -68,9 +58,6 @@ func (r *postgresRepository) EnrollGatewayUsingTokenHash(ctx context.Context, to
 	return r.q.EnrollGateway(ctx, tokenHash)
 }
 
-func (r *postgresRepository) GetActiveCACert(ctx context.Context, params store.GetActiveCACertParams) (store.GetActiveCACertRow, error) {
-	return r.q.GetActiveCACert(ctx, params)
-}
 
 func (r *postgresRepository) GetGatewayByTokenHash(ctx context.Context, token string) (store.Gateway, error) {
 	return r.q.GetGatewayByTokenHash(ctx, token)
@@ -82,25 +69,5 @@ func (r *postgresRepository) UpdateGatewayHeartBeat(ctx context.Context, params 
 
 func (r *postgresRepository) RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error) {
 	return r.q.RevokeGateway(ctx, params)
-}
-
-func (r *postgresRepository) RevokeGatewayCert(ctx context.Context, params store.RevokeCompCertParams) (store.ComponentCertificate, error) {
-	return r.q.RevokeCompCert(ctx, params)
-}
-
-func (r *postgresRepository) CreateGatewayCert(ctx context.Context, params store.RegisterCompCertParams) (store.ComponentCertificate, error) {
-	return r.q.RegisterCompCert(ctx, params)
-}
-
-func (r *postgresRepository) GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error) {
-	return r.q.GetActiveComponentCert(ctx, params)
-}
-
-func (r *postgresRepository) GetActiveComponentCertByType(ctx context.Context, componentType string) (store.ComponentCertificate, error) {
-	return r.q.GetActiveComponentCertByType(ctx, componentType)
-}
-
-func (r *postgresRepository) CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error) {
-	return r.q.CreateCRLEntry(ctx, params)
 }
 

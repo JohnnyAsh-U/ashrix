@@ -12,6 +12,7 @@ import (
 
 	_ "github.com/JohnnyAsh-U/ashrix-api/cmd/cp/docs"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/repositories"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc"
@@ -64,6 +65,12 @@ func main() {
 	//Initializing the dbQueries
 	dbQueries := store.New(db)
 
+	//Initializing the DB Repositories
+
+	repositories := repositories.NewRepositories(db, dbQueries)
+
+	log.Info("DB Repositories Initialized")
+
 	// Initialize Redis
 	redisStore, err := redis.NewRedisStore(
 		context.Background(),
@@ -94,7 +101,7 @@ func main() {
 
 	// Initializing PKI Root CA and Intermediate CA
 	// Pass db.Queries to the PKI signer for database-backed CA certificate management
-	CASigner, err := pki.NewSigner(BaseDir, cfg.PKIConfig, dbQueries)
+	CASigner, err := pki.NewSigner(BaseDir, cfg.PKIConfig, repositories.PKICA)
 	if err != nil {
 		log.Error("Failed to Initialized PKI", slog.String("err", err.Error()))
 		os.Exit(1) // Fail hard if PKI initialization fails
@@ -105,7 +112,7 @@ func main() {
 		BaseDir,
 		cfg.PKIConfig.PKIUnlockSecret,
 		CASigner,
-		dbQueries,
+		repositories.PKICA,
 	)
 
 	if cperr != nil {
@@ -119,20 +126,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// fmt.Println(bundleSigner.GetPublicKeyString())
-
 	//Initializing Gateway GRPC Connection Registry
 	gatewayRegistry := registry.NewGatewayRegistry()
 	log.Info("Gateway Registry Initialized")
 
 
-	//Initializing PolicyStoreRepo
-	policyRepo := policy.NewRepository(db, dbQueries)
-	log.Info("Policy Store Initialized")
-
-
 	//Initialising Policy Distributor
-	policyDistributor := policy.NewPolicyDistributor(gatewayRegistry, policyRepo, bundleSigner, log)
+	policyDistributor := policy.NewPolicyDistributor(gatewayRegistry, repositories.Policy, bundleSigner, log)
 	log.Info("Policy Distributor Initialized")
 
 
@@ -143,9 +143,8 @@ func main() {
 	httpServer := cp_http.InitializeHttpServer(
 		BaseDir,
 		cfg,
-		dbQueries,
+		repositories,
 		redisStore,
-		policyRepo,
 		policyDistributor,
 		log,
 		CASigner,
@@ -159,8 +158,7 @@ func main() {
 		redisStore.Client(),
 		gatewayRegistry,
 		policyDistributor,
-		policyRepo,
-		dbQueries,
+		repositories,
 	)
 
 	// Graceful shutdown on SIGINT / SIGTERM

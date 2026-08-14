@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store" // Added for database queries
+	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 )
@@ -33,14 +34,14 @@ type DiskCASigner struct {
 	IntermediateKeyEncPath string
 	IntermediateCACertPath string
 
-	db *store.Queries // Database queries for CA certificates
+	pkicaRepo pkica.Repository
 
-	certPool          *x509.CertPool
-	certPoolMutex     sync.RWMutex
+	certPool            *x509.CertPool
+	certPoolMutex       sync.RWMutex
 	certPoolLastRefresh time.Time
 }
 
-func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCASigner, error) {
+func NewDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository) (*DiskCASigner, error) {
 	println("Initializing PKI...")
 	PkiDir := filepath.Join(baseDir, "pki")
 	if err := os.MkdirAll(PkiDir, 0700); err != nil {
@@ -60,7 +61,7 @@ func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCAS
 
 	// --- Root CA Loading/Generation ---
 	fmt.Println("Attempting to load Root CA...")
-	dbRootCertRecord, err := dbQueries.GetActiveCACert(ctx, store.GetActiveCACertParams{Name: "Ashrix Root CA", Type: "root"})
+	dbRootCertRecord, err := pkicaRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{Name: "Ashrix Root CA", Type: "root"})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to query active root CA from DB: %w", err)
 	}
@@ -74,27 +75,33 @@ func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCAS
 	} else { // Root CA not in DB, check disk or generate
 		fmt.Println("→ Root CA not found in database. Checking disk for existing files...")
 		rootCertExists, err := filehelper.FileExists(rootCertPath)
-		if err != nil { return nil, fmt.Errorf("checking root cert existence: %w", err) }
+		if err != nil {
+			return nil, fmt.Errorf("checking root cert existence: %w", err)
+		}
 
 		if rootCertExists {
 			fmt.Println("→ Loading Root CA from disk.")
 			rootCert, err = pki.LoadCert(rootCertPath)
-			if err != nil { return nil, fmt.Errorf("failed to load root CA cert from disk: %w", err) }
+			if err != nil {
+				return nil, fmt.Errorf("failed to load root CA cert from disk: %w", err)
+			}
 		} else {
 			fmt.Println("→ Root CA not found on disk. Generating new Root CA...")
 			rootKey, rootCert, err = generateRootCA(rootKeyPath, rootCertPath, secret, "root")
-			if err != nil { return nil, fmt.Errorf("failed to generate root CA: %w", err) }
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate root CA: %w", err)
+			}
 		}
 
 		// Insert the loaded/generated Root CA into the database
-		_, err = dbQueries.InsertCACert(ctx, store.InsertCACertParams{
-			Name:        "Ashrix Root CA",
-			Type:        "root",
-			CertPem:     string(encodeCertPEM(rootCert)),
+		_, err = pkicaRepo.CreateCACert(ctx, store.InsertCACertParams{
+			Name:         "Ashrix Root CA",
+			Type:         "root",
+			CertPem:      string(encodeCertPEM(rootCert)),
 			SerialNumber: rootCert.SerialNumber.String(),
-			Subject:     rootCert.Subject.CommonName,
-			IssuedAt:    rootCert.NotBefore,
-			ExpiresAt:   rootCert.NotAfter,
+			Subject:      rootCert.Subject.CommonName,
+			IssuedAt:     rootCert.NotBefore,
+			ExpiresAt:    rootCert.NotAfter,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert generated root CA into DB: %w", err)
@@ -104,7 +111,7 @@ func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCAS
 
 	// --- Intermediate CA Loading/Generation ---
 	fmt.Println("Attempting to load Intermediate CA...")
-	dbIntermediateCertRecord, err := dbQueries.GetActiveCACert(ctx, store.GetActiveCACertParams{Name: "Ashrix Intermediate CA", Type: "intermediate"})
+	dbIntermediateCertRecord, err := pkicaRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{Name: "Ashrix Intermediate CA", Type: "intermediate"})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to query active intermediate CA from DB: %w", err)
 	}
@@ -123,14 +130,20 @@ func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCAS
 	} else { // Intermediate CA not in DB, check disk or generate
 		fmt.Println("→ Intermediate CA not found in database. Checking disk for existing files...")
 		interKeyExists, err := filehelper.FileExists(interKeyPath)
-		if err != nil { return nil, fmt.Errorf("checking intermediate key existence: %w", err) }
+		if err != nil {
+			return nil, fmt.Errorf("checking intermediate key existence: %w", err)
+		}
 		interCertExists, err := filehelper.FileExists(interCertPath)
-		if err != nil { return nil, fmt.Errorf("checking intermediate cert existence: %w", err) }
+		if err != nil {
+			return nil, fmt.Errorf("checking intermediate cert existence: %w", err)
+		}
 
 		if interKeyExists && interCertExists {
 			fmt.Println("→ Loading Intermediate CA from disk.")
 			intermediateKey, intermediateCert, err = pki.LoadKeyAndCert(interKeyPath, interCertPath, secret, "intermediate")
-			if err != nil { return nil, fmt.Errorf("failed to load intermediate CA from disk: %w", err) }
+			if err != nil {
+				return nil, fmt.Errorf("failed to load intermediate CA from disk: %w", err)
+			}
 		} else {
 			fmt.Println("→ Intermediate CA not found on disk. Generating new Intermediate CA...")
 
@@ -144,18 +157,20 @@ func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCAS
 			}
 
 			intermediateKey, intermediateCert, err = generateIntermediateCA(interKeyPath, interCertPath, secret, rootKey, rootCert)
-			if err != nil { return nil, fmt.Errorf("failed to generate intermediate CA: %w", err) }
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate intermediate CA: %w", err)
+			}
 		}
 
 		// Insert the loaded/generated Intermediate CA into the database
-		_, err = dbQueries.InsertCACert(ctx, store.InsertCACertParams{
-			Name:        "Ashrix Intermediate CA",
-			Type:        "intermediate",
-			CertPem:     string(encodeCertPEM(intermediateCert)),
+		_, err = pkicaRepo.CreateCACert(ctx, store.InsertCACertParams{
+			Name:         "Ashrix Intermediate CA",
+			Type:         "intermediate",
+			CertPem:      string(encodeCertPEM(intermediateCert)),
 			SerialNumber: intermediateCert.SerialNumber.String(),
-			Subject:     intermediateCert.Subject.CommonName,
-			IssuedAt:    intermediateCert.NotBefore,
-			ExpiresAt:   intermediateCert.NotAfter,
+			Subject:      intermediateCert.Subject.CommonName,
+			IssuedAt:     intermediateCert.NotBefore,
+			ExpiresAt:    intermediateCert.NotAfter,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert generated intermediate CA into DB: %w", err)
@@ -186,7 +201,7 @@ func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCAS
 		intermediateKey:        intermediateKey,
 		intermediateCert:       intermediateCert,
 		RootCACert:             rootCert,
-		db:                     dbQueries,
+		pkicaRepo:              pkicaRepo,
 		certPoolMutex:          sync.RWMutex{},
 	}
 
@@ -196,7 +211,7 @@ func NewDiskCASigner(baseDir, secret string, dbQueries *store.Queries) (*DiskCAS
 	if err := d.refreshCertPool(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initially refresh cert pool: %w", err)
 	}
-	
+
 	return d, nil
 }
 
@@ -261,25 +276,44 @@ func (d *DiskCASigner) GetCertPool() (*x509.CertPool, error) {
 // This method should be called with the write lock held on certPoolMutex.
 func (d *DiskCASigner) refreshCertPool(ctx context.Context) error {
 	fmt.Println("Refreshing CA CertPool from database...")
-	certs, err := d.db.ListActiveCACerts(ctx)
+
+	newPool := x509.NewCertPool()
+
+	//Root CA
+	rootCA, err := d.pkicaRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{
+		Name: "Ashrix Root CA",
+		Type: "root",
+	})
 	if err != nil {
 		return fmt.Errorf("failed to list active CA certs from DB: %w", err)
 	}
-
-	newPool := x509.NewCertPool()
-	for _, certRecord := range certs {
-		cert, err := parseCertPEM([]byte(certRecord.CertPem))
-		if err != nil {
-			// Log the error but continue with other certificates
-			fmt.Printf("Warning: failed to parse certificate %s (ID: %s) from DB: %v\n", certRecord.Name, certRecord.ID.String(), err)
-			continue
-		}
-		newPool.AddCert(cert)
+	rootCert, err := parseCertPEM([]byte(rootCA.CertPem))
+	if err != nil {
+		// Log the error but continue with other certificates
+		fmt.Printf("Warning: failed to parse certificate %s (ID: %s) from DB: %v\n", rootCA.Name, rootCA.ID.String(), err)
+		return fmt.Errorf("failed to parse root CA cert: %w", err)
 	}
+	newPool.AddCert(rootCert)
+
+	//Intermediate CA
+	intermediateCA, err := d.pkicaRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{
+		Name: "Ashrix Intermediate CA",
+		Type: "intermediate",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list active CA certs from DB: %w", err)
+	}
+	intermediateCert, err := parseCertPEM([]byte(intermediateCA.CertPem))
+	if err != nil {
+		// Log the error but continue with other certificates
+		fmt.Printf("Warning: failed to parse certificate %s (ID: %s) from DB: %v\n", intermediateCA.Name, intermediateCA.ID.String(), err)
+		return fmt.Errorf("failed to parse intermediate CA cert: %w", err)
+	}
+	newPool.AddCert(intermediateCert)
 
 	d.certPool = newPool
 	d.certPoolLastRefresh = time.Now()
-	fmt.Printf("CertPool refreshed with %d active certificates.\n", len(certs))
+	fmt.Printf("CertPool refreshed with %d active certificates.\n", 2)
 	return nil
 }
 

@@ -13,6 +13,136 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createCACertificate = `-- name: CreateCACertificate :one
+INSERT INTO ca_certificates (name, type, cert_pem, serial_number, subject, issued_at, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, name, type, cert_pem, serial_number, subject, issued_at, expires_at, revoked_at, created_at
+`
+
+type CreateCACertificateParams struct {
+	Name         string    `json:"name"`
+	Type         string    `json:"type"`
+	CertPem      string    `json:"cert_pem"`
+	SerialNumber string    `json:"serial_number"`
+	Subject      string    `json:"subject"`
+	IssuedAt     time.Time `json:"issued_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
+func (q *Queries) CreateCACertificate(ctx context.Context, arg CreateCACertificateParams) (CaCertificate, error) {
+	row := q.db.QueryRow(ctx, createCACertificate,
+		arg.Name,
+		arg.Type,
+		arg.CertPem,
+		arg.SerialNumber,
+		arg.Subject,
+		arg.IssuedAt,
+		arg.ExpiresAt,
+	)
+	var i CaCertificate
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.CertPem,
+		&i.SerialNumber,
+		&i.Subject,
+		&i.IssuedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createCRLEntry = `-- name: CreateCRLEntry :one
+
+INSERT INTO crl_entries (cert_id, serial_number, reason)
+VALUES ($1, $2, $3)
+RETURNING id, cert_id, serial_number, revoked_at, reason
+`
+
+type CreateCRLEntryParams struct {
+	CertID       uuid.UUID `json:"cert_id"`
+	SerialNumber string    `json:"serial_number"`
+	Reason       string    `json:"reason"`
+}
+
+// =================================================================
+// CRL ENTRIES
+// =================================================================
+func (q *Queries) CreateCRLEntry(ctx context.Context, arg CreateCRLEntryParams) (CrlEntry, error) {
+	row := q.db.QueryRow(ctx, createCRLEntry, arg.CertID, arg.SerialNumber, arg.Reason)
+	var i CrlEntry
+	err := row.Scan(
+		&i.ID,
+		&i.CertID,
+		&i.SerialNumber,
+		&i.RevokedAt,
+		&i.Reason,
+	)
+	return i, err
+}
+
+const createComponentCertificate = `-- name: CreateComponentCertificate :one
+INSERT INTO component_certificates (
+    org_id, component_type, component_id, ca_id,
+    cert_pem, serial_number, subject, san,
+    issued_at, expires_at, rotation_of
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, org_id, component_type, component_id, ca_id, cert_pem, serial_number, subject, san, issued_at, expires_at, revoked_at, revoke_reason, rotation_of, created_at
+`
+
+type CreateComponentCertificateParams struct {
+	OrgID         pgtype.UUID `json:"org_id"`
+	ComponentType string      `json:"component_type"`
+	ComponentID   pgtype.UUID `json:"component_id"`
+	CaID          uuid.UUID   `json:"ca_id"`
+	CertPem       string      `json:"cert_pem"`
+	SerialNumber  string      `json:"serial_number"`
+	Subject       string      `json:"subject"`
+	San           []string    `json:"san"`
+	IssuedAt      time.Time   `json:"issued_at"`
+	ExpiresAt     time.Time   `json:"expires_at"`
+	RotationOf    pgtype.UUID `json:"rotation_of"`
+}
+
+func (q *Queries) CreateComponentCertificate(ctx context.Context, arg CreateComponentCertificateParams) (ComponentCertificate, error) {
+	row := q.db.QueryRow(ctx, createComponentCertificate,
+		arg.OrgID,
+		arg.ComponentType,
+		arg.ComponentID,
+		arg.CaID,
+		arg.CertPem,
+		arg.SerialNumber,
+		arg.Subject,
+		arg.San,
+		arg.IssuedAt,
+		arg.ExpiresAt,
+		arg.RotationOf,
+	)
+	var i ComponentCertificate
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.ComponentType,
+		&i.ComponentID,
+		&i.CaID,
+		&i.CertPem,
+		&i.SerialNumber,
+		&i.Subject,
+		&i.San,
+		&i.IssuedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.RevokeReason,
+		&i.RotationOf,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const deactivateCACert = `-- name: DeactivateCACert :one
 UPDATE ca_certificates
 SET revoked_at = now()
@@ -61,6 +191,122 @@ func (q *Queries) GetActiveCACert(ctx context.Context, arg GetActiveCACertParams
 		&i.Subject,
 		&i.IssuedAt,
 		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const getActiveCACertByType = `-- name: GetActiveCACertByType :one
+SELECT id, name, type, cert_pem, serial_number, subject, issued_at, expires_at, revoked_at, created_at FROM ca_certificates
+WHERE type       = $1
+  AND revoked_at IS NULL
+ORDER BY issued_at DESC
+LIMIT 1
+`
+
+// Returns the active (non-revoked) CA cert of a given type.
+func (q *Queries) GetActiveCACertByType(ctx context.Context, type_ string) (CaCertificate, error) {
+	row := q.db.QueryRow(ctx, getActiveCACertByType, type_)
+	var i CaCertificate
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.CertPem,
+		&i.SerialNumber,
+		&i.Subject,
+		&i.IssuedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getActiveComponentCert = `-- name: GetActiveComponentCert :one
+SELECT id, org_id, component_type, component_id, ca_id, cert_pem, serial_number, subject, san, issued_at, expires_at, revoked_at, revoke_reason, rotation_of, created_at FROM component_certificates
+WHERE component_type = $1
+  AND component_id   = $2
+  AND revoked_at     IS NULL
+ORDER BY issued_at DESC
+LIMIT 1
+`
+
+type GetActiveComponentCertParams struct {
+	ComponentType string      `json:"component_type"`
+	ComponentID   pgtype.UUID `json:"component_id"`
+}
+
+// Returns the current valid cert for a gateway or connector.
+func (q *Queries) GetActiveComponentCert(ctx context.Context, arg GetActiveComponentCertParams) (ComponentCertificate, error) {
+	row := q.db.QueryRow(ctx, getActiveComponentCert, arg.ComponentType, arg.ComponentID)
+	var i ComponentCertificate
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.ComponentType,
+		&i.ComponentID,
+		&i.CaID,
+		&i.CertPem,
+		&i.SerialNumber,
+		&i.Subject,
+		&i.San,
+		&i.IssuedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.RevokeReason,
+		&i.RotationOf,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getActiveComponentCertByType = `-- name: GetActiveComponentCertByType :one
+SELECT id, org_id, component_type, component_id, ca_id, cert_pem, serial_number, subject, san, issued_at, expires_at, revoked_at, revoke_reason, rotation_of, created_at FROM component_certificates
+WHERE component_type = $1
+  AND revoked_at IS NULL
+ORDER BY issued_at DESC
+LIMIT 1
+`
+
+// Returns all valid certs of a given type.
+func (q *Queries) GetActiveComponentCertByType(ctx context.Context, componentType string) (ComponentCertificate, error) {
+	row := q.db.QueryRow(ctx, getActiveComponentCertByType, componentType)
+	var i ComponentCertificate
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.ComponentType,
+		&i.ComponentID,
+		&i.CaID,
+		&i.CertPem,
+		&i.SerialNumber,
+		&i.Subject,
+		&i.San,
+		&i.IssuedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.RevokeReason,
+		&i.RotationOf,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getCRLEntryBySerial = `-- name: GetCRLEntryBySerial :one
+SELECT id, cert_id, serial_number, revoked_at, reason FROM crl_entries
+WHERE serial_number = $1
+`
+
+// Gateway calls this to check if a presented cert is revoked.
+func (q *Queries) GetCRLEntryBySerial(ctx context.Context, serialNumber string) (CrlEntry, error) {
+	row := q.db.QueryRow(ctx, getCRLEntryBySerial, serialNumber)
+	var i CrlEntry
+	err := row.Scan(
+		&i.ID,
+		&i.CertID,
+		&i.SerialNumber,
+		&i.RevokedAt,
+		&i.Reason,
 	)
 	return i, err
 }
@@ -138,33 +384,20 @@ func (q *Queries) InsertCACert(ctx context.Context, arg InsertCACertParams) (uui
 	return id, err
 }
 
-const listActiveCACerts = `-- name: ListActiveCACerts :many
-SELECT id, name, type, cert_pem, serial_number, subject, issued_at, expires_at
-FROM ca_certificates
-WHERE revoked_at IS NULL
-ORDER BY issued_at ASC
+const listCACertificates = `-- name: ListCACertificates :many
+SELECT id, name, type, cert_pem, serial_number, subject, issued_at, expires_at, revoked_at, created_at FROM ca_certificates
+ORDER BY issued_at DESC
 `
 
-type ListActiveCACertsRow struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Type         string    `json:"type"`
-	CertPem      string    `json:"cert_pem"`
-	SerialNumber string    `json:"serial_number"`
-	Subject      string    `json:"subject"`
-	IssuedAt     time.Time `json:"issued_at"`
-	ExpiresAt    time.Time `json:"expires_at"`
-}
-
-func (q *Queries) ListActiveCACerts(ctx context.Context) ([]ListActiveCACertsRow, error) {
-	rows, err := q.db.Query(ctx, listActiveCACerts)
+func (q *Queries) ListCACertificates(ctx context.Context) ([]CaCertificate, error) {
+	rows, err := q.db.Query(ctx, listCACertificates)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListActiveCACertsRow{}
+	items := []CaCertificate{}
 	for rows.Next() {
-		var i ListActiveCACertsRow
+		var i CaCertificate
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -174,6 +407,40 @@ func (q *Queries) ListActiveCACerts(ctx context.Context) ([]ListActiveCACertsRow
 			&i.Subject,
 			&i.IssuedAt,
 			&i.ExpiresAt,
+			&i.RevokedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCRLEntries = `-- name: ListCRLEntries :many
+SELECT id, cert_id, serial_number, revoked_at, reason FROM crl_entries
+ORDER BY revoked_at DESC
+`
+
+// Gateway fetches full CRL on startup and after each sync.
+func (q *Queries) ListCRLEntries(ctx context.Context) ([]CrlEntry, error) {
+	rows, err := q.db.Query(ctx, listCRLEntries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CrlEntry{}
+	for rows.Next() {
+		var i CrlEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.CertID,
+			&i.SerialNumber,
+			&i.RevokedAt,
+			&i.Reason,
 		); err != nil {
 			return nil, err
 		}

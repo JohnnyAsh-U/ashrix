@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
+	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
@@ -23,11 +25,13 @@ import (
 )
 
 type Service struct {
-	repo Repository
+	repo        Repository
+	pkiRepo     pkica.Repository
+	gatewayRepo gateway.Repository
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, pkiRepo pkica.Repository, gatewayRepo gateway.Repository) *Service {
+	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo}
 }
 
 // mapToConnectorResponse converts a store.Connector to a GatewayResponse DTO.
@@ -150,7 +154,7 @@ func (s *Service) EnrollConnector(ctx context.Context, token, csr string, signer
 	}
 
 	// Get active intermediate CA certificate from DB to retrieve its ID
-	caCertRecord, err := s.repo.GetActiveCACert(ctx, store.GetActiveCACertParams{
+	caCertRecord, err := s.pkiRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{
 		Name: "Ashrix Intermediate CA",
 		Type: "intermediate",
 	})
@@ -159,7 +163,7 @@ func (s *Service) EnrollConnector(ctx context.Context, token, csr string, signer
 	}
 
 	// Register component cert
-	_, err = s.repo.CreateConnectorCert(ctx, store.RegisterCompCertParams{
+	_, err = s.pkiRepo.CreateComponentCert(ctx, store.RegisterCompCertParams{
 		OrgID:         pgtype.UUID{Valid: true, Bytes: conn.OrgID},
 		ComponentType: "connector",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: conn.ID},
@@ -207,7 +211,7 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 	}
 
 	// get active cert
-	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "connector",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: connector.ID},
 	})
@@ -238,7 +242,7 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 
 	// Issue new cert
 	// get active intermediate CA
-	caCertRecord, err := s.repo.GetActiveCACert(ctx, store.GetActiveCACertParams{
+	caCertRecord, err := s.pkiRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{
 		Name: "Ashrix Intermediate CA",
 		Type: "intermediate",
 	})
@@ -247,7 +251,7 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 	}
 
 	//Revoke the current cert of the gateway
-	_, err = s.repo.RevokeConnectorCert(ctx, store.RevokeCompCertParams{
+	_, err = s.pkiRepo.RevokeComponentCert(ctx, store.RevokeCompCertParams{
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorID},
 		ComponentType: "connector",
 		RevokeReason:  pgtype.Text{String: "superseded", Valid: true},
@@ -275,7 +279,7 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 	}
 
 	//Register the cert
-	_, err = s.repo.CreateConnectorCert(ctx, store.RegisterCompCertParams{
+	_, err = s.pkiRepo.CreateComponentCert(ctx, store.RegisterCompCertParams{
 		OrgID:         pgtype.UUID{Valid: true, Bytes: connector.OrgID},
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorID},
 		ComponentType: "connector",
@@ -328,7 +332,7 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 	}
 
 	// Fetch active component certificate
-	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: componentType,
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorId},
 	})
@@ -346,13 +350,13 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		ComponentType: componentType,
 		RevokeReason:  pgtype.Text{String: revokeReason, Valid: true},
 	}
-	_, err = s.repo.RevokeConnectorCert(ctx, params)
+	_, err = s.pkiRepo.RevokeComponentCert(ctx, params)
 	if err != nil {
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke component certificate", err.Error())
 	}
 
 	// Create CRL Entry
-	_, err = s.repo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
+	_, err = s.pkiRepo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
 		CertID:       activeCert.ID,
 		SerialNumber: activeCert.SerialNumber,
 		Reason:       revokeReason,
@@ -405,20 +409,20 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 	}
 
 	// Revoke the active component certificate if it exists
-	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "connector",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
 	})
 	if err == nil {
 		// Cert found, revoke it
-		_, err = s.repo.RevokeConnectorCert(ctx, store.RevokeCompCertParams{
+		_, err = s.pkiRepo.RevokeComponentCert(ctx, store.RevokeCompCertParams{
 			ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
 			ComponentType: "connector",
 			RevokeReason:  pgtype.Text{String: "cessationOfOperation", Valid: true},
 		})
 		if err == nil {
 			// Write to CRL entries
-			_, _ = s.repo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
+			_, _ = s.pkiRepo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
 				CertID:       activeCert.ID,
 				SerialNumber: activeCert.SerialNumber,
 				Reason:       "cessationOfOperation",
@@ -439,7 +443,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		return gen.ConnectorStatusResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())
 	}
 
-	GatewayRow, err := s.repo.GetGateway(ctx, ConnectorRow.GatewayID)
+	GatewayRow, err := s.gatewayRepo.GetGatewayByID(ctx, ConnectorRow.GatewayID)
 
 	if err != nil {
 		return gen.ConnectorStatusResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())
@@ -447,7 +451,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 
 	//Get the active Cert for the connector
 	// Revoke the active component certificate if it exists
-	activeCert, err := s.repo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "connector",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorID},
 	})

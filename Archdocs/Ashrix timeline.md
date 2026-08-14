@@ -1,28 +1,42 @@
-User sessions and Revocation list
-Telemetry and Versioning negociations 
-Command and component revocation
+* Update Policy Bundle Action 
+* Implement the Cmd Dispatcher 
+* Implement each Cmd Action
+* Add Timestamp Signature to avoid replay 
+* Implement User Revocation Sessions in Gateway and CP
+
+* IDP Crud and App Mapping to IDP on CP
+
+* Implement Versioning of Gateway and Connector binary
+* Implement Basic Telemetry for Gateway And Connector to CP DB
+
+* Versioning of Trust Bundle and Updating of Trust Bundle
 
 
 
-Testing Authorization 
-Rotating of certificates
-Implementation of cert ip, DNS and common names.
-IDP CRUD and App mapping to IDP
+
+* Implement of Cert IP, DNS and Common Names (spfie) etc....
+
+
+* Rotating of Certificate, Revocation, Renewal etc... Testing
+
+
+* Testing Authorisation
 
 
 
-Remove tray from connector and restructure to cli
-Redo connector installer
+# Connector
+* Remove tray from connector and restructure to cli
+* Redo connector installer
 
 
-
+# AccessLogs and Audit Logging
 Accesslog Api to get list with filters
 Restructuring of Logging UI
 Access logging and audit logging 
 Audit log list api
 
 
-
+# Flexibility in the Port designing for each service
 Now redesign the ports and host for gRPC server on cp, and gRPC/QUIc on gateway 
 Intégration of websocket as fallback for connection 
 

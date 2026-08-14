@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"github.com/hashicorp/vault/api"
@@ -33,7 +33,7 @@ type KMSCASigner struct {
 	rootCACert       *x509.Certificate
 }
 
-func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, dbQueries *store.Queries) (*KMSCASigner, error) {
+func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, pkica pkica.Repository) (*KMSCASigner, error) {
 	println("Initializing PKI...")
 	home, err := os.UserHomeDir()
 	if err != nil {

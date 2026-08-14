@@ -200,3 +200,42 @@ message PolicyBundle {
   bytes signature = 4;
 }
 
+
+
+// message AccessLogEntry {
+//   string session_id         = 1;
+//   string client_cert_serial = 2; // who connected — cert serial as stable identity
+//   string connector_id       = 3; // which connector (if applicable)
+//   string target_app_id      = 4; // which internal app was accessed
+//   string action             = 5; // ALLOW / DENY
+//   string policy_id          = 6; // which policy rule matched
+//   string deny_reason        = 7; // set if action=DENY
+//   int32  status_code        = 8;
+//   int64  bytes_in           = 9;
+//   int64  bytes_out          = 10;
+//   google.protobuf.Timestamp started_at = 11;
+//   google.protobuf.Timestamp ended_at   = 12;
+// }
+
+// message MetricsBatch {
+//   google.protobuf.Timestamp collected_at       = 1;
+//   int64  total_requests                        = 2;
+//   int64  denied_requests                       = 3;
+//   int64  tls_handshake_count                   = 4;
+//   int64  tls_handshake_errors                  = 5;
+//   int64  cert_validation_failures              = 6;
+//   int64  revoked_cert_rejections               = 7; // per-call CRL check hits
+//   double p50_latency_ms                        = 8;
+//   double p95_latency_ms                        = 9;
+//   double p99_latency_ms                        = 10;
+//   int32  active_connections                    = 11;
+//   int32  active_connectors                     = 12;
+//   double cpu_usage_percent                     = 13;
+//   double mem_usage_bytes                       = 14;
+// }
+
+
+// message AccessLogBatch {
+//   repeated AccessLogEntry entries = 1;
+// }
+
