@@ -25,7 +25,7 @@ func NewClient(cpURL string) *Client {
 	}
 }
 
-func (c *Client) Bootstrap(token string, csrPEM string) (*APIResponse, error) {
+func (c *Client) Bootstrap(token string, csrPEM string) (*APIRegisterResponse, error) {
 	reqBody := gen.GatewayEnrollRequest{
 		Token:     token,
 		CsrPem:       csrPEM,
@@ -54,7 +54,7 @@ func (c *Client) Bootstrap(token string, csrPEM string) (*APIResponse, error) {
 
 	defer resp.Body.Close()
 
-	var apiResponse APIResponse
+	var apiResponse APIRegisterResponse
 
 	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
 		return nil, fmt.Errorf("Failed to Parse CP response: %s", err)

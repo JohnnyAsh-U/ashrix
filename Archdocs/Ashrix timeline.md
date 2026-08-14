@@ -1,4 +1,12 @@
+* Rotating of Certificate, Revocation, Renewal etc... 
+* Implement of Cert IP, DNS and Common Names (spfie) etc....
+* Implement Versioning of Gateway and Connector binary
+* Implement Basic Telemetry for Gateway And Connector to CP DB
+
+
 * Update Policy Bundle Action 
+
+ 
 * Implement the Cmd Dispatcher 
 * Implement each Cmd Action
 * Add Timestamp Signature to avoid replay 
@@ -6,18 +14,14 @@
 
 * IDP Crud and App Mapping to IDP on CP
 
-* Implement Versioning of Gateway and Connector binary
-* Implement Basic Telemetry for Gateway And Connector to CP DB
-
-* Versioning of Trust Bundle and Updating of Trust Bundle
 
 
 
 
-* Implement of Cert IP, DNS and Common Names (spfie) etc....
 
 
-* Rotating of Certificate, Revocation, Renewal etc... Testing
+
+Testing
 
 
 * Testing Authorisation

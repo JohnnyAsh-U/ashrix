@@ -36,6 +36,8 @@ type DiskCASigner struct {
 
 	pkicaRepo pkica.Repository
 
+	trustBundleVersion int64
+
 	certPool            *x509.CertPool
 	certPoolMutex       sync.RWMutex
 	certPoolLastRefresh time.Time
@@ -279,6 +281,25 @@ func (d *DiskCASigner) refreshCertPool(ctx context.Context) error {
 
 	newPool := x509.NewCertPool()
 
+	//Intermediate CA
+	intermediateCA, err := d.pkicaRepo.ListActiveCACerts(ctx, store.ListActiveCACertsParams{
+		Name: "Ashrix Intermediate CA",
+		Type: "intermediate",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list active CA certs from DB: %w", err)
+	}
+
+	for _, ca := range intermediateCA {
+		intermediateCert, err := parseCertPEM([]byte(ca.CertPem))
+		if err != nil {
+			// Log the error but continue with other certificates
+			fmt.Printf("Warning: failed to parse certificate %s (ID: %s) from DB: %v\n", ca.Name, ca.ID.String(), err)
+			return fmt.Errorf("failed to parse intermediate CA cert: %w", err)
+		}
+		newPool.AddCert(intermediateCert)
+	}
+
 	//Root CA
 	rootCA, err := d.pkicaRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{
 		Name: "Ashrix Root CA",
@@ -294,22 +315,6 @@ func (d *DiskCASigner) refreshCertPool(ctx context.Context) error {
 		return fmt.Errorf("failed to parse root CA cert: %w", err)
 	}
 	newPool.AddCert(rootCert)
-
-	//Intermediate CA
-	intermediateCA, err := d.pkicaRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{
-		Name: "Ashrix Intermediate CA",
-		Type: "intermediate",
-	})
-	if err != nil {
-		return fmt.Errorf("failed to list active CA certs from DB: %w", err)
-	}
-	intermediateCert, err := parseCertPEM([]byte(intermediateCA.CertPem))
-	if err != nil {
-		// Log the error but continue with other certificates
-		fmt.Printf("Warning: failed to parse certificate %s (ID: %s) from DB: %v\n", intermediateCA.Name, intermediateCA.ID.String(), err)
-		return fmt.Errorf("failed to parse intermediate CA cert: %w", err)
-	}
-	newPool.AddCert(intermediateCert)
 
 	d.certPool = newPool
 	d.certPoolLastRefresh = time.Now()

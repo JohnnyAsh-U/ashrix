@@ -8,7 +8,9 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/pem"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/bootstrap"
@@ -31,6 +33,10 @@ type GatewayPKI struct {
 	privKey  *ecdsa.PrivateKey
 	leaf     *x509.Certificate
 	certPool *x509.CertPool
+
+	keyPath string
+	certPath string
+	trustPath string
 
 	gatewayID string
 	cp        *bootstrap.Client
@@ -79,6 +85,9 @@ func NewGatewayPKI(gatewayID, dataDir, secret, context string, log *zap.Logger, 
 		cp:        cpClient,
 		log:       log,
 		cfg:       cfg,
+		keyPath: keyPath,
+		certPath: certPath,
+		trustPath: trustPath,
 		stopCh:    make(chan struct{}),
 	}, nil
 }
@@ -212,32 +221,34 @@ func (g *GatewayPKI) renew() error {
 	apiResponse, err := g.cp.RenewCert(proof, string(csrPem), g.gatewayID)
 
 	if err != nil {
-		return fmt.Errorf("")
+		return err
 	}
 
-	if err := bootstrap.VerifyResponse(apiResponse); err != nil {
+	if apiResponse.Error.Status >= http.StatusBadRequest {
+		//Clear Credentials and shut down
+		g.ClearCredential()
+		fmt.Printf("Error: %v", err)
+		fmt.Println("Clearing...: Reregister the Gateway error")
+		os.Exit(1)
+	}
+
+	if err := bootstrap.VerifyRenewResponse(apiResponse); err != nil {
 		return fmt.Errorf("Invalid CP Response %w", err)
 	}
 
-	//Parse Cert
-	newCertDER, err := base64.StdEncoding.DecodeString(apiResponse.Data.Certificate)
-	if err != nil {
-		return fmt.Errorf("cannot decode certificate: %v", err)
+
+	block, _ := pem.Decode([]byte(apiResponse.Data.Certificate))
+	if block == nil {
+		return fmt.Errorf("invalid cert PEM: %s", block)
 	}
 
-	newLeaf, err := x509.ParseCertificate(newCertDER)
+	newLeaf, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		return fmt.Errorf("cannot parse new certificate: %v", err)
 	}
 
-	//Parse Bundle
-	newTrustPEM, err := base64.StdEncoding.DecodeString(apiResponse.Data.TrustBundle)
-	if err != nil {
-		return fmt.Errorf("cannot decode trust bundle: %v", err)
-	}
-
 	newPool := x509.NewCertPool()
-	if !newPool.AppendCertsFromPEM(newTrustPEM) {
+	if !newPool.AppendCertsFromPEM([]byte(apiResponse.Data.TrustBundle)) {
 		return fmt.Errorf("cannot parse new trust bundle")
 	}
 
@@ -291,6 +302,13 @@ func (g *GatewayPKI) renew() error {
 
 	g.log.Info("Gateway cert swapped", zap.String("gateway_id", g.gatewayID))
 
+	return nil
+}
+
+func (g *GatewayPKI) ClearCredential() error {
+	os.Remove(g.certPath)
+	os.Remove(g.trustPath)
+	os.Remove(g.keyPath)
 	return nil
 }
 

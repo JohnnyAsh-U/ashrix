@@ -91,6 +91,7 @@ message GatewayEnvelope {
   oneof payload {
     HelloMessage     hello     = 10;
     HeartbeatMessage heartbeat = 11;
+    CmdAck           cmd_ack   = 12;
   }
 }
 
@@ -159,8 +160,13 @@ message HelloMessage {
   string tenant_id = 2;
   string binary_version = 3;  // Ashrix binary version for compatibility checks
   int64  policy_version = 4;  // policy bundle version currently applied
-  int64  crl_version    = 5;  // CRL version currently applied
-  int64  trust_version  = 6;  // trust bundle version currently applied
+}
+
+//Ack for Cmds
+message CmdAck {
+  string cmd_id = 1;
+  string gateway_id = 2;
+  google.protobuf.Timestamp time_stamp = 3;
 }
 
 message HeartbeatMessage {

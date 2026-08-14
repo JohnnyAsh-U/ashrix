@@ -3,6 +3,11 @@ SELECT id, name, type, cert_pem, serial_number, subject, issued_at, expires_at
 FROM ca_certificates
 WHERE name = $1 AND type = $2 AND revoked_at IS NULL;
 
+-- name: ListActiveCACerts :many
+SELECT id, name, type, cert_pem, serial_number, subject, issued_at, expires_at
+FROM ca_certificates
+WHERE name = $1 AND type = $2 AND revoked_at IS NULL;
+
 -- name: InsertCACert :one
 INSERT INTO ca_certificates (name, type, cert_pem, serial_number, subject, issued_at, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)

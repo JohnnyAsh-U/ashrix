@@ -224,7 +224,7 @@ func (h *GatewayHandler) RevokeGatewayCert(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Assuming componentID in RevokeGatewayCertRequest is the gatewayID.
-	gateway, appErr := h.service.RevokeGatewayCert(r.Context(), gatewayID, req.ComponentType, req.RevokeReason)
+	gateway, appErr := h.service.RevokeGatewayCert(r.Context(), gatewayID, req.RevokeReason)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return

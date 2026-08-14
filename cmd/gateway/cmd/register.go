@@ -158,7 +158,7 @@ func runRegister(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := bootstrap.VerifyResponse(apiResp); err != nil {
+	if err := bootstrap.VerifyRegisterResponse(apiResp); err != nil {
 		return fmt.Errorf("Invalid CP Response %w", err)
 	}
 

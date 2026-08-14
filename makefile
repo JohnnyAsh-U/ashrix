@@ -2,6 +2,24 @@
 # -----Database configuration ------
 DATABASE_URL ?= postgres://postgres:12345678@localhost:5432/ashrixdb?sslmode=disable
 
+MODULE := $(shell go list -m)
+
+
+#------Module----------------------
+CP_VERSION_PKG := $(MODULE)/internal/cp/platform/version
+BUILD_DATE := $(shell date -u +%Y%m%d-%H%M%S)
+CP_LDFLAGS := -ldflags "-X $(CP_VERSION_PKG).Version=v1.0.0 \
+					   -X $(CP_VERSION_PKG).BuildDate=$(BUILD_DATE)"
+
+
+
+#------Gateway----------------------
+GATEWAY_VERSION_PKG := $(MODULE)/internal/gateway/version
+GATEWAY_BUILD_DATE := $(shell date -u +%Y%m%d-%H%M%S)
+GATEWAY_LDFLAGS := -ldflags "-X $(GATEWAY_VERSION_PKG).Version=v1.0.0 \
+					   -X $(GATEWAY_VERSION_PKG).BuildDate=$(BUILD_DATE)"
+
+
 # ------ Paths and tools ---------
 MIGRATIONS_DIR = internal/cp/database/migrations
 GOOSE = goose
@@ -78,10 +96,27 @@ docs-gateway:
 docs: docs-cp docs-gateway
 
 
+#---------------Build CP--------------------------------
+.PHONY: build-cp
+build-cp:
+	@echo "Building with CP"
+	go build $(CP_LDFLAGS) ./cmd/cp
+
+
+
 #---------------Build PIPELINE--------------------------------
 build-connector:
 	GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" -o build/windows/ashrix-connector.exe ./cmd/connector
 	GOOS=linux GOARCH=amd64 go build -o build/linux/amd64/ashrix-connector ./cmd/connector
 	GOOS=linux GOARCH=arm64 go build -o build/linux/arm64/ashrix-connector ./cmd/connector
+
+
+
+#---------------Build Gateway--------------------------------
+.PHONY: build-gateway
+build-gateway:
+	@echo "Building Gateway"
+	go build $(GATEWAY_LDFLAGS) ./cmd/gateway
+
 
 

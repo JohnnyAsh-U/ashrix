@@ -12,11 +12,12 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/version"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/cenkalti/backoff/v4"
+	// "github.com/cenkalti/backoff/v4"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -27,12 +28,12 @@ type StreamManager struct {
 	cm          *ConnectionManager
 	policyStore *store.BoltStore
 	cfg         *config.Config
-	onAuthError func(ctx context.Context) error // e.g. pki.PreflightRenew
+	// onAuthError func(ctx context.Context) error // e.g. pki.PreflightRenew
 
 	pki *crypto.GatewayPKI
 	log *zap.Logger
 
-	registry *registry.Registry
+	registry    *registry.Registry
 	redisClient *redis.Client
 
 	mu     sync.RWMutex
@@ -47,7 +48,8 @@ func NewStreamManager(
 	cfg *config.Config,
 	log *zap.Logger,
 	sendQueue int,
-	onAuthError func(ctx context.Context) error,
+	pki *crypto.GatewayPKI,
+	// onAuthError func(ctx context.Context) error,
 	reg *registry.Registry,
 	redisClient *redis.Client,
 ) *StreamManager {
@@ -59,7 +61,7 @@ func NewStreamManager(
 		cm:          cm,
 		policyStore: policyStore,
 		cfg:         cfg,
-		onAuthError: onAuthError,
+		pki: pki,
 		log:         log,
 		sendCh:      make(chan *pb.GatewayEnvelope, sendQueue),
 		registry:    reg,
@@ -69,11 +71,30 @@ func NewStreamManager(
 
 // Run blocks forever. It is the only function that should call runSession.
 func (sm *StreamManager) Run(ctx context.Context) {
-	b := backoff.NewExponentialBackOff()
-	b.MaxInterval = 30 * time.Second
-	b.MaxElapsedTime = 0 // retry forever
+	// b := backoff.NewExponentialBackOff()
+	// b.MaxInterval = 1 * time.Minute
+	// b.MaxElapsedTime = 30 * time.Second // retry forever
+
+	// Max times before exit
+	// maxRetries := 3
+	// const retryInterval = 10 * time.Second
+	const (
+		retryInterval  = 30 * time.Second
+		recoveryWindow = 24 * time.Hour
+	)
+
+	recoveryDeadline := time.Now().Add(recoveryWindow)
 
 	for {
+		// Don't attempt anything after the recovery window.
+		if time.Now().After(recoveryDeadline) {
+			sm.log.Error(
+				"control plane unavailable for recovery window — shutting down",
+				zap.Duration("recovery_window", recoveryWindow),
+			)
+			return
+		}
+
 		select {
 		case <-ctx.Done():
 			return
@@ -87,13 +108,15 @@ func (sm *StreamManager) Run(ctx context.Context) {
 
 		sm.setStream(nil, false)
 
-		// ── Auth/cert error path ─────────────────────────────────────
-		if sm.isAuthError(err) && sm.onAuthError != nil {
-			sm.log.Warn("TLS/auth error detected — attempting cert renewal")
+		// fmt.Println(status.FromError(err))
 
-			renewCtx, renewCancel := context.WithTimeout(ctx, 30*time.Second)
-			renewErr := sm.onAuthError(renewCtx)
-			renewCancel()
+		// ── Auth/cert error path ─────────────────────────────────────
+		if sm.isAuthError(err) {
+			sm.log.Warn("TLS/auth error detected — attempting cert renewal")
+			// renewCtx, renewCancel := context.WithTimeout(ctx, 30*time.Second)
+			renewErr := sm.pki.RenewNow()
+			// renewCancel()
+
 
 			if renewErr != nil {
 				sm.log.Warn("cert renewal failed — retrying with backoff", zap.Error(renewErr))
@@ -108,22 +131,54 @@ func (sm *StreamManager) Run(ctx context.Context) {
 					sm.log.Error("failed to refresh connection after renewal", zap.Error(refreshErr))
 				} else {
 					sm.log.Info("reconnected with renewed cert — retrying stream immediately")
-					b.Reset()
+					// b.Reset()
 					continue
 				}
 			}
 		}
 
-		wait := b.NextBackOff()
+		// ---------------------------------------------------------
+		// Wait before next attempt
+		// ---------------------------------------------------------
+
+		remaining := time.Until(recoveryDeadline)
+
+		if remaining <= 0 {
+			sm.log.Error(
+				"control plane recovery window expired — shutting down",
+			)
+			return
+		}
+
+		wait := min(remaining, retryInterval)
+
+		sm.log.Warn(
+			"control plane unavailable — waiting before retry",
+			zap.Duration("retry_after", wait),
+			zap.Duration("recovery_remaining", remaining),
+		)
+
+		timer := time.NewTimer(wait)
+
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			return
-		case <-time.After(wait):
+
+		case <-timer.C:
 		}
 	}
 }
 
 func (sm *StreamManager) runSession(ctx context.Context) error {
+	sessCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	conn := sm.cm.CurrentConn()
 	if conn == nil {
 		return errors.New("no control plane connection")
@@ -146,14 +201,12 @@ func (sm *StreamManager) runSession(ctx context.Context) error {
 	// HTTP handlers may now enqueue messages via Send().
 	sm.setStream(stream, true)
 
-	// ── 3. Concurrent send / recv loops ───────────────────────────
-	sessCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go sm.heartbeater(ctx)
+	go sm.heartbeater(sessCtx)
 
 	errCh := make(chan error, 2)
 	go func() { errCh <- sm.sendLoop(sessCtx, stream) }()
+
+	//Worker Pools => To be implemented
 	go func() { errCh <- sm.recvLoop(sessCtx, stream) }()
 
 	// When CP comes up verify the connections
@@ -165,6 +218,8 @@ func (sm *StreamManager) runSession(ctx context.Context) error {
 	<-errCh // drain the other side
 	return err
 }
+
+
 
 func (sm *StreamManager) sendLoop(ctx context.Context, stream pb.ControlPlaneService_ConnectClient) error {
 	for {
@@ -271,11 +326,11 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 		case *pb.Command_RotateGatewayCert:
 			h.log.Warn("gateway certificate rotation requested")
-			if h.onAuthError != nil {
-				go func() {
-					_ = h.onAuthError(ctx)
-				}()
-			}
+			// if h.onAuthError != nil {
+			// 	go func() {
+			// 		_ = h.onAuthError(ctx)
+			// 	}()
+			// }
 
 		case *pb.Command_RevokeGatewayCert:
 			h.log.Error("gateway certificate revoked - reconnecting")
@@ -474,9 +529,7 @@ func (sm *StreamManager) makeHello(ctx context.Context) *pb.GatewayEnvelope {
 				GatewayId:     sm.cfg.GatewayID,
 				TenantId:      sm.cfg.TenantId,
 				PolicyVersion: policyVersion.LastBundleVersion,
-				BinaryVersion: "0",
-				CrlVersion:    0,
-				TrustVersion:  0,
+				BinaryVersion: version.GetGatewayVersion(),
 			},
 		},
 	}

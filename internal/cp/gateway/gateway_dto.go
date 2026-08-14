@@ -20,8 +20,6 @@ type ReEnrollGatewayRequest struct {
 }
 
 type RevokeGatewayCertRequest struct {
-	ComponentID   uuid.UUID `json:"component_id"`
-	ComponentType string    `json:"component_type"`
 	RevokeReason  string    `json:"revoke_reason"`
 }
 

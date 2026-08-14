@@ -48,7 +48,6 @@ type Querier interface {
 	// Append-only. Never update or delete.
 	// =================================================================
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error)
-	CreateCACertificate(ctx context.Context, arg CreateCACertificateParams) (CaCertificate, error)
 	// =================================================================
 	// CRL ENTRIES
 	// =================================================================
@@ -168,6 +167,7 @@ type Querier interface {
 	InsertPolicySubject(ctx context.Context, arg InsertPolicySubjectParams) error
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
+	ListActiveCACerts(ctx context.Context, arg ListActiveCACertsParams) ([]ListActiveCACertsRow, error)
 	// Called on gateway → connector auth.
 	ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)
 	ListActiveGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
@@ -178,7 +178,6 @@ type Querier interface {
 	ListAuditLogsByActor(ctx context.Context, arg ListAuditLogsByActorParams) ([]AuditLog, error)
 	ListAuditLogsByOrg(ctx context.Context, arg ListAuditLogsByOrgParams) ([]AuditLog, error)
 	ListAuditLogsByTarget(ctx context.Context, arg ListAuditLogsByTargetParams) ([]AuditLog, error)
-	ListCACertificates(ctx context.Context) ([]CaCertificate, error)
 	// Gateway fetches full CRL on startup and after each sync.
 	ListCRLEntries(ctx context.Context) ([]CrlEntry, error)
 	ListConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)
@@ -199,9 +198,6 @@ type Querier interface {
 	PurgeOldAccessLogs(ctx context.Context, dollar_1 pgtype.Text) error
 	ReCreateConnector(ctx context.Context, arg ReCreateConnectorParams) (Connector, error)
 	ReCreateGateway(ctx context.Context, arg ReCreateGatewayParams) (Gateway, error)
-	// =================================================================
-	// Cert Components
-	// =================================================================
 	RegisterCompCert(ctx context.Context, arg RegisterCompCertParams) (ComponentCertificate, error)
 	RevokeActiveUserSession(ctx context.Context, id uuid.UUID) (UserSession, error)
 	RevokeAdmin(ctx context.Context, id uuid.UUID) (Admin, error)

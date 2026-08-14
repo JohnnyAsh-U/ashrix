@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
+	// "time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/bootstrap"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
@@ -207,9 +207,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		cfg,
 		log,
 		128,
-		func(ctx context.Context) error {
-			return pki.PreflightRenew(ctx)
-		},
+		pki,
 		reg,
 		redisStore.Client(),
 	)
@@ -224,7 +222,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// 5. Background loops
 	go sm.Run(ctx)
-	go cm.HealthCheckLoop(ctx, 10*time.Second)
+	// go cm.HealthCheckLoop(ctx, 10*time.Second)
 
 	// 6. Start cert rotator after CP is confirmed alive
 	pki.StartRotator()

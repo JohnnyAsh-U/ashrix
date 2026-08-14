@@ -21,6 +21,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/redis"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/version"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/logger"
 	"github.com/joho/godotenv"
@@ -35,6 +36,9 @@ import (
 // @in header
 // @name Authorization
 func main() {
+	fmt.Println("Starting Ashrix Control Plane...")
+	VersionBuildTime := fmt.Sprintf("Version: %s; BuildTime: %s", version.GetVersion(), version.GetBuildDate())
+	fmt.Println(VersionBuildTime)
 	// Today — dev / early prod
 	_ = godotenv.Load() // load .env in dev; in prod, env vars are set by the environment (e.g. Vault Agent)
 

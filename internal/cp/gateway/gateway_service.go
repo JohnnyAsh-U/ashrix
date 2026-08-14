@@ -311,6 +311,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	}
 
 	return gen.GatewayRenewCertResponse{
+		GatewayId: gatewayID.String(),
 		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
 		TrustBundle: string(signer.TrustBundle()),
 		ExpiresAt:   timestamppb.New(gatewayCRT.NotAfter),
@@ -320,7 +321,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 
 // RevokeGatewayCert revokes a gateway certificate.
 // It assumes componentID is the gateway's ID.
-func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, componentType, revokeReason string) (GatewayResponse, *dto.AppError) {
+func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, revokeReason string) (GatewayResponse, *dto.AppError) {
 	// Retrieve the admin's OrgID from context
 	adminOrgIDStr := middleware.OrgIDFromCtx(ctx)
 
@@ -348,7 +349,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, co
 
 	// Fetch active component certificate
 	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
-		ComponentType: componentType,
+		ComponentType: "gateway",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
 	})
 	if err != nil {
@@ -362,7 +363,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, co
 	// Revoke component cert
 	params := store.RevokeCompCertParams{
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: gatewayID},
-		ComponentType: componentType,
+		ComponentType: "gateway",
 		RevokeReason:  pgtype.Text{String: revokeReason, Valid: true},
 	}
 	_, err = s.pkiRepo.RevokeComponentCert(ctx, params)

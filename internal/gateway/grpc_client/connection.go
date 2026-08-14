@@ -3,6 +3,7 @@ package gateway_grpc
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -116,6 +117,7 @@ func (cm *ConnectionManager) HealthCheckLoop(ctx context.Context, interval time.
 				continue
 			}
 			s := c.GetState()
+			fmt.Println(s)
 			if s == connectivity.TransientFailure || s == connectivity.Shutdown {
 				_ = cm.RefreshConnection(ctx)
 			}

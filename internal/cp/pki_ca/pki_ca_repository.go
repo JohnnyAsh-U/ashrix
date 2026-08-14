@@ -9,6 +9,7 @@ import (
 
 type Repository interface {
 	GetActiveCACert(ctx context.Context, params store.GetActiveCACertParams) (store.GetActiveCACertRow, error)
+	ListActiveCACerts(ctx context.Context, params store.ListActiveCACertsParams) ([]store.ListActiveCACertsRow, error)
 	GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error)
 	CreateCACert(ctx context.Context, params store.InsertCACertParams) (uuid.UUID , error)
 	GetActiveComponentCertByType(ctx context.Context, componentType string) (store.ComponentCertificate, error)
@@ -29,6 +30,10 @@ func NewPKICARepository(q *store.Queries) Repository {
 
 func (r *postgresRepository) GetActiveCACert(ctx context.Context, params store.GetActiveCACertParams) (store.GetActiveCACertRow, error) {
 	return r.q.GetActiveCACert(ctx, params)
+}
+
+func (r *postgresRepository) ListActiveCACerts(ctx context.Context, params store.ListActiveCACertsParams) ([]store.ListActiveCACertsRow, error) {
+	return r.q.ListActiveCACerts(ctx, params)
 }
 
 func (r *postgresRepository) GetActiveComponentCert(ctx context.Context, params store.GetActiveComponentCertParams) (store.ComponentCertificate, error) {

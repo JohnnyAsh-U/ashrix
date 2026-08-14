@@ -13,48 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createCACertificate = `-- name: CreateCACertificate :one
-INSERT INTO ca_certificates (name, type, cert_pem, serial_number, subject, issued_at, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, name, type, cert_pem, serial_number, subject, issued_at, expires_at, revoked_at, created_at
-`
-
-type CreateCACertificateParams struct {
-	Name         string    `json:"name"`
-	Type         string    `json:"type"`
-	CertPem      string    `json:"cert_pem"`
-	SerialNumber string    `json:"serial_number"`
-	Subject      string    `json:"subject"`
-	IssuedAt     time.Time `json:"issued_at"`
-	ExpiresAt    time.Time `json:"expires_at"`
-}
-
-func (q *Queries) CreateCACertificate(ctx context.Context, arg CreateCACertificateParams) (CaCertificate, error) {
-	row := q.db.QueryRow(ctx, createCACertificate,
-		arg.Name,
-		arg.Type,
-		arg.CertPem,
-		arg.SerialNumber,
-		arg.Subject,
-		arg.IssuedAt,
-		arg.ExpiresAt,
-	)
-	var i CaCertificate
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Type,
-		&i.CertPem,
-		&i.SerialNumber,
-		&i.Subject,
-		&i.IssuedAt,
-		&i.ExpiresAt,
-		&i.RevokedAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const createCRLEntry = `-- name: CreateCRLEntry :one
 
 INSERT INTO crl_entries (cert_id, serial_number, reason)
@@ -384,20 +342,37 @@ func (q *Queries) InsertCACert(ctx context.Context, arg InsertCACertParams) (uui
 	return id, err
 }
 
-const listCACertificates = `-- name: ListCACertificates :many
-SELECT id, name, type, cert_pem, serial_number, subject, issued_at, expires_at, revoked_at, created_at FROM ca_certificates
-ORDER BY issued_at DESC
+const listActiveCACerts = `-- name: ListActiveCACerts :many
+SELECT id, name, type, cert_pem, serial_number, subject, issued_at, expires_at
+FROM ca_certificates
+WHERE name = $1 AND type = $2 AND revoked_at IS NULL
 `
 
-func (q *Queries) ListCACertificates(ctx context.Context) ([]CaCertificate, error) {
-	rows, err := q.db.Query(ctx, listCACertificates)
+type ListActiveCACertsParams struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+type ListActiveCACertsRow struct {
+	ID           uuid.UUID `json:"id"`
+	Name         string    `json:"name"`
+	Type         string    `json:"type"`
+	CertPem      string    `json:"cert_pem"`
+	SerialNumber string    `json:"serial_number"`
+	Subject      string    `json:"subject"`
+	IssuedAt     time.Time `json:"issued_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
+func (q *Queries) ListActiveCACerts(ctx context.Context, arg ListActiveCACertsParams) ([]ListActiveCACertsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveCACerts, arg.Name, arg.Type)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CaCertificate{}
+	items := []ListActiveCACertsRow{}
 	for rows.Next() {
-		var i CaCertificate
+		var i ListActiveCACertsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -407,8 +382,6 @@ func (q *Queries) ListCACertificates(ctx context.Context) ([]CaCertificate, erro
 			&i.Subject,
 			&i.IssuedAt,
 			&i.ExpiresAt,
-			&i.RevokedAt,
-			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -453,7 +426,6 @@ func (q *Queries) ListCRLEntries(ctx context.Context) ([]CrlEntry, error) {
 }
 
 const registerCompCert = `-- name: RegisterCompCert :one
-
 INSERT INTO component_certificates (org_id, component_type, component_id, ca_id, cert_pem, serial_number, subject, san, issued_at, expires_at, rotation_of)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING id, org_id, component_type, component_id, ca_id, cert_pem, serial_number, subject, san, issued_at, expires_at, revoked_at, revoke_reason, rotation_of, created_at
@@ -473,9 +445,6 @@ type RegisterCompCertParams struct {
 	RotationOf    pgtype.UUID `json:"rotation_of"`
 }
 
-// =================================================================
-// Cert Components
-// =================================================================
 func (q *Queries) RegisterCompCert(ctx context.Context, arg RegisterCompCertParams) (ComponentCertificate, error) {
 	row := q.db.QueryRow(ctx, registerCompCert,
 		arg.OrgID,

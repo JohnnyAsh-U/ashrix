@@ -2,8 +2,6 @@ package crypto
 
 import (
 	"context"
-	"fmt"
-
 	"go.uber.org/zap"
 )
 
@@ -14,7 +12,7 @@ func (g *GatewayPKI) PreflightRenew(ctx context.Context) error {
 	g.log.Warn("Certificate expired - attempting pre-flight renewal", zap.Time("Expired at", g.leaf.NotAfter))
 
 	if err := g.renew(); err != nil {
-		return fmt.Errorf("Preflight renewal failed: %w", err)
+		return err
 	}
 	g.log.Info("Preflight renewal successful", zap.Time("new_expiry", g.leaf.NotAfter))
 	return nil
