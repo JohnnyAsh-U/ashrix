@@ -1,19 +1,16 @@
 package gateway
 
 import (
-	"github.com/google/uuid"
 	"time"
 )
 
 type CreateGateway struct {
-	OrgID uuid.UUID `json:"org_id"`
 	Name  string    `json:"name"`
 	IPAddress string `json:"ip_address"`
 	PublicURL string `json:"public_url"`
 }
 
 type ReEnrollGatewayRequest struct {
-	OrgID uuid.UUID `json:"org_id"`
 	Name  string    `json:"name"`
 	IPAddress string `json:"ip_address"`
 	PublicURL string `json:"public_url"`

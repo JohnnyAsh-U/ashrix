@@ -50,11 +50,18 @@ RETURNING *;
 
 
 
--- name: GetGatewayByID :one
+-- name: GetActiveGatewayByID :one
 SELECT * FROM gateways
 WHERE id         = $1
   AND is_active = true
   AND revoked_at IS NULL;
+
+
+-- name: GetGatewayByID :one
+SELECT * FROM gateways
+WHERE id         = $1;
+
+
 
 -- name: GetGatewayByIDAndOrg :one
 SELECT * FROM gateways
@@ -141,6 +148,12 @@ SELECT * FROM connectors
 WHERE id         = $1
   AND is_active = true
   AND revoked_at IS NULL;
+
+-- name: GetActiveConnectorByID :one
+SELECT * FROM connectors
+WHERE id         = $1;
+
+
 
 -- name: GetConnectorByIDAndOrg :one
 SELECT * FROM connectors

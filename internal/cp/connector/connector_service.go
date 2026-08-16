@@ -57,11 +57,14 @@ func mapToConnectorResponse(g store.Connector) ConnectorResponse {
 }
 
 // CreateConnector creates a new connector.
-func (s *Service) CreateConnector(ctx context.Context, orgID uuid.UUID, name string, gatewayID uuid.UUID) (ConnectorResponse, *dto.AppError) {
+func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uuid.UUID) (ConnectorResponse, *dto.AppError) {
 
 	//Check if the Org is same as the Admin
 	AdminOrgId := middleware.OrgIDFromCtx(ctx)
-	if AdminOrgId != orgID.String() {
+
+	AdminUUID, err := uuid.Parse(AdminOrgId)
+
+	if err != nil {
 		return ConnectorResponse{}, dto.NewUnauthorizedError("OrgID Error")
 	}
 
@@ -70,7 +73,7 @@ func (s *Service) CreateConnector(ctx context.Context, orgID uuid.UUID, name str
 	fmt.Println(token)
 
 	params := store.CreateConnectorParams{
-		OrgID:     orgID,
+		OrgID:     AdminUUID,
 		Name:      name,
 		GatewayID: gatewayID,
 		TokenHash: utils.HashToken(token),
@@ -148,7 +151,7 @@ func (s *Service) EnrollConnector(ctx context.Context, token, csr string, signer
 	}
 
 	// Sign the cert
-	connCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, conn.ID.String())
+	connCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, conn.ID.String(), "ashrix.io")
 	if err != nil {
 		return gen.ConnectorEnrollResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
 	}
@@ -202,7 +205,7 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 	}
 
 	// get connector
-	connector, err := s.repo.GetConnectorByID(ctx, connectorID)
+	connector, err := s.repo.GetActiveConnectorByID(ctx, connectorID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return gen.ConnectorRenewCertResponse{}, dto.NewNotFoundError("Gateway Not Found")
@@ -273,7 +276,7 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 	}
 
 	// Issue new cert
-	connCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, connectorID.String())
+	connCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, connectorID.String(), "ashrix.io")
 	if err != nil {
 		return gen.ConnectorRenewCertResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
 	}
@@ -305,7 +308,7 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 
 // RevokeConnectorCert revokes a conn certificate.
 // It assumes componentID is the conn's ID.
-func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID, componentType, revokeReason string) (ConnectorResponse, *dto.AppError) {
+func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID, revokeReason string) (ConnectorResponse, *dto.AppError) {
 	// Retrieve the admin's OrgID from context
 	adminOrgIDStr := middleware.OrgIDFromCtx(ctx)
 
@@ -333,7 +336,7 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 
 	// Fetch active component certificate
 	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
-		ComponentType: componentType,
+		ComponentType: "connector",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorId},
 	})
 	if err != nil {
@@ -347,7 +350,7 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 	// Revoke component cert
 	params := store.RevokeCompCertParams{
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorId},
-		ComponentType: componentType,
+		ComponentType: "connector",
 		RevokeReason:  pgtype.Text{String: revokeReason, Valid: true},
 	}
 	_, err = s.pkiRepo.RevokeComponentCert(ctx, params)
@@ -435,7 +438,7 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 
 func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID, canonicalString, signature string) (gen.ConnectorStatusResponse, *dto.AppError) {
 
-	ConnectorRow, err := s.repo.GetConnectorByID(ctx, connectorID)
+	ConnectorRow, err := s.repo.GetActiveConnectorByID(ctx, connectorID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return gen.ConnectorStatusResponse{}, dto.NewNotFoundError("Connector Not Found")
@@ -443,7 +446,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		return gen.ConnectorStatusResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())
 	}
 
-	GatewayRow, err := s.gatewayRepo.GetGatewayByID(ctx, ConnectorRow.GatewayID)
+	GatewayRow, err := s.gatewayRepo.GetActiveGatewayByID(ctx, ConnectorRow.GatewayID)
 
 	if err != nil {
 		return gen.ConnectorStatusResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())

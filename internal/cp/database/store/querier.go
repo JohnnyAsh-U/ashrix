@@ -100,6 +100,8 @@ type Querier interface {
 	GetActiveComponentCert(ctx context.Context, arg GetActiveComponentCertParams) (ComponentCertificate, error)
 	// Returns all valid certs of a given type.
 	GetActiveComponentCertByType(ctx context.Context, componentType string) (ComponentCertificate, error)
+	GetActiveConnectorByID(ctx context.Context, id uuid.UUID) (Connector, error)
+	GetActiveGatewayByID(ctx context.Context, id uuid.UUID) (Gateway, error)
 	GetAdminByEmail(ctx context.Context, email string) (Admin, error)
 	// Used at password login. Returns record regardless of sso_only
 	// so caller can check sso_only and reject if needed.

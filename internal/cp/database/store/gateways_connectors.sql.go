@@ -166,6 +166,59 @@ func (q *Queries) EnrollGateway(ctx context.Context, tokenHash string) (Gateway,
 	return i, err
 }
 
+const getActiveConnectorByID = `-- name: GetActiveConnectorByID :one
+SELECT id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, is_active, enrolled_at, revoked_at FROM connectors
+WHERE id         = $1
+`
+
+func (q *Queries) GetActiveConnectorByID(ctx context.Context, id uuid.UUID) (Connector, error) {
+	row := q.db.QueryRow(ctx, getActiveConnectorByID, id)
+	var i Connector
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.GatewayID,
+		&i.Name,
+		&i.TokenHash,
+		&i.LastSeen,
+		&i.Status,
+		&i.CreatedAt,
+		&i.IsActive,
+		&i.EnrolledAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const getActiveGatewayByID = `-- name: GetActiveGatewayByID :one
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, enrolled_at, revoked_at FROM gateways
+WHERE id         = $1
+  AND is_active = true
+  AND revoked_at IS NULL
+`
+
+func (q *Queries) GetActiveGatewayByID(ctx context.Context, id uuid.UUID) (Gateway, error) {
+	row := q.db.QueryRow(ctx, getActiveGatewayByID, id)
+	var i Gateway
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Name,
+		&i.TokenHash,
+		&i.Version,
+		&i.DeploymentType,
+		&i.PublicUrl,
+		&i.IpAddress,
+		&i.LastHeartbeat,
+		&i.Status,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.EnrolledAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const getConnectorByID = `-- name: GetConnectorByID :one
 SELECT id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, is_active, enrolled_at, revoked_at FROM connectors
 WHERE id         = $1
@@ -253,8 +306,6 @@ func (q *Queries) GetConnectorByTokenHash(ctx context.Context, tokenHash string)
 const getGatewayByID = `-- name: GetGatewayByID :one
 SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, enrolled_at, revoked_at FROM gateways
 WHERE id         = $1
-  AND is_active = true
-  AND revoked_at IS NULL
 `
 
 func (q *Queries) GetGatewayByID(ctx context.Context, id uuid.UUID) (Gateway, error) {

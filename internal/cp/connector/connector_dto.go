@@ -6,20 +6,16 @@ import (
 )
 
 type CreateConnector struct {
-	OrgID uuid.UUID `json:"org_id"`
 	Name  string    `json:"name"`
 	GatewayID uuid.UUID `json:"gateway_id"`
 }
 
 type ReEnrollConnectorRequest struct {
-	OrgID uuid.UUID `json:"org_id"`
 	Name  string    `json:"name"`
 	GatewayID uuid.UUID `json:"gateway_id"`
 }
 
 type RevokeConnectorCertRequest struct {
-	ComponentID   uuid.UUID `json:"component_id"`
-	ComponentType string    `json:"component_type"`
 	RevokeReason  string    `json:"revoke_reason"`
 }
 

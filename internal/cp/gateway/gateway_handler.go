@@ -46,7 +46,7 @@ func (h *GatewayHandler) CreateGateway(w http.ResponseWriter, r *http.Request) {
 
 	// Assuming OrgID is passed in the request body.
 	// If OrgID is to be extracted from context (e.g., from JWT), this needs adjustment.
-	gateway, appErr := h.service.CreateGateway(r.Context(), req.OrgID, req.Name, req.IPAddress, req.PublicURL)
+	gateway, appErr := h.service.CreateGateway(r.Context(), req.Name, req.IPAddress, req.PublicURL)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return

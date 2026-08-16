@@ -143,7 +143,7 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UU
 func (r *IDPService) CheckGatewayBelongsToTenant(ctx context.Context, gatewayID, OrgID uuid.UUID) (bool, error) {
 	//Get the GatewayURL
 
-	gateway, err := r.gatewayRepo.GetGatewayByID(ctx, gatewayID)
+	gateway, err := r.gatewayRepo.GetActiveGatewayByID(ctx, gatewayID)
 	if err != nil {
 		return false, fmt.Errorf("gateway error: %w", err)
 	}
@@ -261,7 +261,7 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (s
 	}
 
 	//Get the GatewayURL
-	gateway, err := r.gatewayRepo.GetGatewayByID(ctx, GatewayID)
+	gateway, err := r.gatewayRepo.GetActiveGatewayByID(ctx, GatewayID)
 	if err != nil {
 		return "", "", fmt.Errorf("gateway error: %w", err)
 	}

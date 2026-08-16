@@ -64,7 +64,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 	}
 
 	// 2. Check if gateway is revoked
-	gw, err := s.gatewayRepo.GetGatewayByID(stream.Context(), gatewayUUID)
+	gw, err := s.gatewayRepo.GetActiveGatewayByID(stream.Context(), gatewayUUID)
 	if err != nil {
 		return status.Error(codes.Unauthenticated, "gateway is not registered or revoked")
 	}

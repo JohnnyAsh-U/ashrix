@@ -14,6 +14,7 @@ type Repository interface {
 	ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]store.Connector, error)
 	ReCreateConnector(ctx context.Context, params store.ReCreateConnectorParams) (store.Connector, error)
 	GetConnectorByTokenHash(ctx context.Context, token string) (store.Connector, error)
+	GetActiveConnectorByID(ctx context.Context, id uuid.UUID) (store.Connector, error)
 	GetConnectorByID(ctx context.Context, id uuid.UUID) (store.Connector, error)
 
 	GetConnectorApps(ctx context.Context, id pgtype.UUID) ([]store.App, error)
@@ -48,9 +49,14 @@ func (r *postgresRepository) ReCreateConnector(ctx context.Context, params store
 	return r.q.ReCreateConnector(ctx, params)
 }
 
+func (r *postgresRepository) GetActiveConnectorByID(ctx context.Context, id uuid.UUID) (store.Connector, error) {
+	return r.q.GetActiveConnectorByID(ctx, id)
+}
+
 func (r *postgresRepository) GetConnectorByID(ctx context.Context, id uuid.UUID) (store.Connector, error) {
 	return r.q.GetConnectorByID(ctx, id)
 }
+
 
 func (r *postgresRepository) GetConnectorByTokenHash(ctx context.Context, tokenHash string) (store.Connector, error) {
 	return r.q.GetConnectorByTokenHash(ctx, tokenHash)

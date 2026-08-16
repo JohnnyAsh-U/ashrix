@@ -55,6 +55,7 @@ func (cm *ConnectionManager) RefreshConnection(ctx context.Context) error {
 		}),
 	}, cm.dialOpts...)
 
+
 	// grpc.NewClient is non-blocking. The connection starts in Idle.
 	newConn, err := grpc.NewClient(cm.target, opts...)
 	if err != nil {
@@ -71,6 +72,9 @@ func (cm *ConnectionManager) RefreshConnection(ctx context.Context) error {
 		newConn.Close()
 		return err
 	}
+
+	fmt.Println("Initializing gRPC Client Connection to CP...")
+
 
 	oldConn := cm.conn.Swap(newConn)
 	cm.ready.Store(true)

@@ -211,7 +211,7 @@ func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASig
 	fmt.Println("Control Plane CSR Request Done ...")
 	fmt.Println("CA Sigining Control Plane CSR...")
 
-	Cert, err := signer.IssueCert(certReq, 356*24*time.Hour, certReq.Subject.CommonName)
+	Cert, err := signer.IssueCert(certReq, 356*24*time.Hour, certReq.Subject.CommonName, "*.ashrix.io")
 
 	if err := pki_utils.WriteCert(certPath, Cert); err != nil {
 		return nil, err

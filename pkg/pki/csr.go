@@ -6,7 +6,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"math/big"
-	"net"
+	// "net"
 	"time"
 )
 
@@ -29,7 +29,7 @@ func ValidateCSR(csr *x509.CertificateRequest, nodeID string) error {
 
 // buildCertTemplate builds the x509 template for a node leaf cert.
 // Same template regardless of which backend signs it.
-func BuildCertTemplate(csr *x509.CertificateRequest, validity time.Duration, CN string) (*x509.Certificate, error) {
+func BuildCertTemplate(csr *x509.CertificateRequest, validity time.Duration, CN string, DNSName string) (*x509.Certificate, error) {
 	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
 		return nil, fmt.Errorf("generating serial: %w", err)
@@ -42,10 +42,13 @@ func BuildCertTemplate(csr *x509.CertificateRequest, validity time.Duration, CN 
 			Organization: []string{"Ashrix"},
 			OrganizationalUnit: csr.Subject.OrganizationalUnit,
 		},
-		DNSNames:  []string{"localhost"},
-		IPAddresses: []net.IP{
-			net.ParseIP("10.18.74.9"),
+		DNSNames:  []string{
+			DNSName,
+			"localhost",
 		},
+		// IPAddresses: []net.IP{
+		// 	net.ParseIP("10.18.74.9"),
+		// },
 		NotBefore: now.Add(-30 * time.Second), // small backdating for clock skew
 		NotAfter:  now.Add(validity),
 		KeyUsage:  x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,

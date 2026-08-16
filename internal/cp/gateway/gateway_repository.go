@@ -14,6 +14,8 @@ type Repository interface {
 	ReCreateGateway(ctx context.Context, params store.ReCreateGatewayParams) (store.Gateway, error)
 	GetGatewayByTokenHash(ctx context.Context, token string) (store.Gateway, error)
 
+	GetActiveGatewayByID(ctx context.Context, id uuid.UUID) (store.Gateway, error)
+
 	GetGatewayByID(ctx context.Context, id uuid.UUID) (store.Gateway, error)
 	EnrollGatewayUsingTokenHash(ctx context.Context, tokenHash string) (store.Gateway, error)
 
@@ -49,6 +51,10 @@ func (r *postgresRepository) ReCreateGateway(ctx context.Context, params store.R
 
 
 
+
+func (r *postgresRepository) GetActiveGatewayByID(ctx context.Context, id uuid.UUID) (store.Gateway, error) {
+	return r.q.GetActiveGatewayByID(ctx, id)
+}
 
 func (r *postgresRepository) GetGatewayByID(ctx context.Context, id uuid.UUID) (store.Gateway, error) {
 	return r.q.GetGatewayByID(ctx, id)

@@ -54,7 +54,7 @@ func (h *ConnectorHandler) CreateConnector(w http.ResponseWriter, r *http.Reques
 
 	// Assuming OrgID is passed in the request body.
 	// If OrgID is to be extracted from context (e.g., from JWT), this needs adjustment.
-	connector, appErr := h.service.CreateConnector(r.Context(), req.OrgID, req.Name, req.GatewayID)
+	connector, appErr := h.service.CreateConnector(r.Context(), req.Name, req.GatewayID)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return
@@ -109,22 +109,9 @@ func (h *ConnectorHandler) ReCreateConnector(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	orgID := middleware.OrgIDFromCtx(r.Context())
-
-	orgIDUUID, err := uuid.Parse(orgID)
-	if err != nil {
-		dto.SendError(w, dto.NewBadRequestError("Invalid Organization ID format"))
-		return
-	}
-
 	var req ReEnrollConnectorRequest
 	if err := dto.DecodeJSON(w, r, &req); err != nil {
 		dto.SendError(w, err)
-		return
-	}
-
-	if orgIDUUID != req.OrgID {
-		dto.SendError(w, dto.NewUnauthorizedError("You are not authorized to perform this action."))
 		return
 	}
 
@@ -266,6 +253,7 @@ func (h *ConnectorHandler) RenewConnectorCert(w http.ResponseWriter, r *http.Req
 	timestampSeconds := req.Timestamp.AsTime().Unix()
 	enrollmentResponse, appErr := h.service.RenewConnectorCert(r.Context(), connID, req.Signature, req.CsrPem, timestampSeconds, h.signer)
 	if appErr != nil {
+		fmt.Println(appErr.Details)
 		dto.SendError(w, appErr)
 		return
 	}
@@ -304,7 +292,7 @@ func (h *ConnectorHandler) RevokeConnectorCert(w http.ResponseWriter, r *http.Re
 	}
 
 	// Assuming componentID in RevokeConnectorCert is the connectorID.
-	conn, appErr := h.service.RevokeConnectorCert(r.Context(), connectorID, req.ComponentType, req.RevokeReason)
+	conn, appErr := h.service.RevokeConnectorCert(r.Context(), connectorID, req.RevokeReason)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return

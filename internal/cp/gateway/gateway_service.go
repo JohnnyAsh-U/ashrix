@@ -52,11 +52,12 @@ func mapToGatewayResponse(g store.Gateway) GatewayResponse {
 }
 
 // CreateGateway creates a new gateway.
-func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name, IPAdress, PublicURL string) (GatewayResponse, *dto.AppError) {
+func (s *Service) CreateGateway(ctx context.Context, name, IPAdress, PublicURL string) (GatewayResponse, *dto.AppError) {
 
 	//Check if the Org is same as the Admin
 	AdminOrgId := middleware.OrgIDFromCtx(ctx)
-	if AdminOrgId != orgID.String() {
+	AdminUUID, err := uuid.Parse(AdminOrgId)
+	if err != nil {
 		return GatewayResponse{}, dto.NewUnauthorizedError("OrgID Error")
 	}
 
@@ -65,7 +66,7 @@ func (s *Service) CreateGateway(ctx context.Context, orgID uuid.UUID, name, IPAd
 	fmt.Println(token)
 
 	params := store.CreateGatewayParams{
-		OrgID:     orgID,
+		OrgID:     AdminUUID,
 		Name:      name,
 		TokenHash: utils.HashToken(token),
 		DeploymentType: "hosted",
@@ -146,7 +147,7 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 	}
 
 	// Sign the cert
-	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gateway.ID.String())
+	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gateway.ID.String(), gateway.PublicUrl)
 	if err != nil {
 		return gen.GatewayEnrollResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
 	}
@@ -216,7 +217,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	}
 
 	// get gateway
-	gateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
+	gateway, err := s.repo.GetActiveGatewayByID(ctx, gatewayID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return gen.GatewayRenewCertResponse{}, dto.NewNotFoundError("Gateway Not Found")
@@ -287,7 +288,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 	}
 
 	// Issue new cert
-	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gatewayID.String())
+	gatewayCRT, err := signer.IssueCert(certReq, 90*24*time.Hour, gatewayID.String(), gateway.PublicUrl)
 	if err != nil {
 		return gen.GatewayRenewCertResponse{}, dto.NewBadRequestError("Error in signing CSR: " + err.Error())
 	}

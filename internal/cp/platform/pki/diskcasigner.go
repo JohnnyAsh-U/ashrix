@@ -217,8 +217,8 @@ func NewDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository) (*DiskC
 	return d, nil
 }
 
-func (d *DiskCASigner) IssueCert(csr *x509.CertificateRequest, validity time.Duration, CN string) (*x509.Certificate, error) {
-	template, err := pki.BuildCertTemplate(csr, validity, CN)
+func (d *DiskCASigner) IssueCert(csr *x509.CertificateRequest, validity time.Duration, CN, DNSName string) (*x509.Certificate, error) {
+	template, err := pki.BuildCertTemplate(csr, validity, CN, DNSName)
 	if err != nil {
 		return nil, err
 	}
@@ -400,8 +400,8 @@ func generateIntermediateCA(intermediateKeyPath, intermediateCertPath, secret st
 		IsCA:                        true,
 		MaxPathLen:                  0,
 		MaxPathLenZero:              true,
-		PermittedDNSDomainsCritical: true,
-		PermittedDNSDomains:         []string{".ashrix.internal", "ashrix.internal", "localhost"},
+		// PermittedDNSDomainsCritical: true,
+		// PermittedDNSDomains:         []string{".ashrix.internal", "ashrix.internal", "localhost"},
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, template, rootCert, pub, rootKey)
