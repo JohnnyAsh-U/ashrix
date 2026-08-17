@@ -28,8 +28,12 @@ const (
 )
 
 type CommandJob struct {
-	Type      CommandType
-	GatewayID string
+	Type                CommandType
+	GatewayID           string
+	ConnectorID         string
+	SessionID           string
+	RevokedSerialNumbers []string
+	ConnectorInfo       *gen.ConnectorInfo
 }
 
 type CommandDispatcher interface {
@@ -85,12 +89,12 @@ func (d *BoundedDispatcher) worker(ctx context.Context, id int) {
 			if !ok {
 				return
 			}
-			d.processJob(job, "")
+			d.processJob(job)
 		}
 	}
 }
 
-func (d *BoundedDispatcher) processJob(job CommandJob, SessionId string) {
+func (d *BoundedDispatcher) processJob(job CommandJob) {
 	conn, exists := d.registry.GetConnection(job.GatewayID)
 	if !exists {
 		return
@@ -130,39 +134,51 @@ func (d *BoundedDispatcher) processJob(job CommandJob, SessionId string) {
 	case CmdRotateConnectorCert:
 		envelope = buildEnvelope(&gen.Command{
 			Payload: &gen.Command_RotateConnectorCert{
-				RotateConnectorCert: &gen.RotateConnectorCertCmd{},
+				RotateConnectorCert: &gen.RotateConnectorCertCmd{
+					ConnectorId: job.ConnectorID,
+				},
 			},
 		})
 	case CmdRevokeConnectorCert:
 		envelope = buildEnvelope(&gen.Command{
 			Payload: &gen.Command_RevokeConnectorCert{
-				RevokeConnectorCert: &gen.RevokeConnectorCertCmd{},
+				RevokeConnectorCert: &gen.RevokeConnectorCertCmd{
+					ConnectorId: job.ConnectorID,
+				},
 			},
 		})
 	case CmdRevokeConnector:
 		envelope = buildEnvelope(&gen.Command{
 			Payload: &gen.Command_RevokeConnector{
-				RevokeConnector: &gen.RevokeConnectorCmd{},
+				RevokeConnector: &gen.RevokeConnectorCmd{
+					ConnectorId: job.ConnectorID,
+				},
 			},
 		})
 	case CmdRevokeUserSession:
 		envelope = buildEnvelope(&gen.Command{
 			Payload: &gen.Command_RevokeSession{
 				RevokeSession: &gen.RevokeSessionCmd{
-					SessionId: SessionId,
+					SessionId: job.SessionID,
 				},
 			},
 		})
 	case CmdCrlSync:
 		envelope = buildEnvelope(&gen.Command{
 			Payload: &gen.Command_CrlSync{
-				CrlSync: &gen.CrlSyncCmd{},
+				CrlSync: &gen.CrlSyncCmd{
+					RevokedSerialNumbers: job.RevokedSerialNumbers,
+				},
 			},
 		})
 	case CmdConnectorSync:
 		envelope = buildEnvelope(&gen.Command{
 			Payload: &gen.Command_ConnectorSync{
-				ConnectorSync: &gen.ConnectorSyncCmd{},
+				ConnectorSync: &gen.ConnectorSyncCmd{
+					Connectors: []*gen.ConnectorInfo{
+						job.ConnectorInfo,
+					},
+				},
 			},
 		})
 	}

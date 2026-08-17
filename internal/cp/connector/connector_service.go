@@ -13,7 +13,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
@@ -29,11 +29,11 @@ type Service struct {
 	repo        Repository
 	pkiRepo     pkica.Repository
 	gatewayRepo gateway.Repository
-	registry    *registry.GatewayRegistry
+	dispatcher  dispatcher.CommandDispatcher
 }
 
-func NewService(repo Repository, pkiRepo pkica.Repository, gatewayRepo gateway.Repository, registry *registry.GatewayRegistry) *Service {
-	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo, registry: registry}
+func NewService(repo Repository, pkiRepo pkica.Repository, gatewayRepo gateway.Repository, dispatcher dispatcher.CommandDispatcher) *Service {
+	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo, dispatcher: dispatcher}
 }
 
 // mapToConnectorResponse converts a store.Connector to a GatewayResponse DTO.
@@ -370,21 +370,35 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
 	}
 
+	//Get all the active CRLs
+	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
+
+	var revokedSerials []string
+	for _, crl := range activeCRLs {
+		revokedSerials = append(revokedSerials, crl.SerialNumber)
+	}
+
 	// Push RevokeConnectorCertCmd to gateway if connected
-	if conn, exists := s.registry.GetConnection(connector.GatewayID.String()); exists {
-		cmd := &gen.CPEnvelope{
-			SentAt: timestamppb.Now(),
-			Payload: &gen.CPEnvelope_Cmd{
-				Cmd: &gen.Command{
-					Payload: &gen.Command_RevokeConnectorCert{
-						RevokeConnectorCert: &gen.RevokeConnectorCertCmd{
-							ConnectorId: connectorId.String(),
-						},
-					},
-				},
-			},
-		}
-		_ = conn.Send(cmd)
+	isSentRevokeConnectorCertCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+		Type:        dispatcher.CmdRevokeConnectorCert,
+		GatewayID:   connector.GatewayID.String(),
+		ConnectorID: connectorId.String(),
+	})
+
+	//Push CrlSyncCmd to the gateway
+	isSentCrlSyncCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+		Type:               dispatcher.CmdCrlSync,
+		GatewayID:          connector.GatewayID.String(),
+		RevokedSerialNumbers:  revokedSerials,
+	})
+
+	//log error if command is not sent
+	if !isSentRevokeConnectorCertCmd {
+		fmt.Printf("Failed to push revoke connector cert command: %s", connectorId.String())
+	}
+
+	if !isSentCrlSyncCmd {
+		fmt.Printf("Failed to push CRL sync command: %s", connector.GatewayID.String())
 	}
 
 	// Fetch updated gateway status
@@ -452,20 +466,34 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 	}
 
 	// Push RevokeConnectorCmd to gateway if connected
-	if conn, exists := s.registry.GetConnection(Connector.GatewayID.String()); exists {
-		cmd := &gen.CPEnvelope{
-			SentAt: timestamppb.Now(),
-			Payload: &gen.CPEnvelope_Cmd{
-				Cmd: &gen.Command{
-					Payload: &gen.Command_RevokeConnector{
-						RevokeConnector: &gen.RevokeConnectorCmd{
-							ConnectorId: id.String(),
-						},
-					},
-				},
-			},
-		}
-		_ = conn.Send(cmd)
+	isSentRevokeConnectorCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+		Type:      dispatcher.CmdRevokeConnector,
+		GatewayID: Connector.GatewayID.String(),
+		ConnectorID: Connector.ID.String(),
+	})
+
+	//Get all the active CRLs
+	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
+
+	var revokedSerials []string
+	for _, crl := range activeCRLs {
+		revokedSerials = append(revokedSerials, crl.SerialNumber)
+	}
+
+	//Push CrlSyncCmd to the gateway
+	isSentCrlSyncCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+		Type:                dispatcher.CmdCrlSync,
+		GatewayID:           Connector.GatewayID.String(),
+		RevokedSerialNumbers:  revokedSerials,
+	})
+
+	//log error if command is not sent
+	if !isSentRevokeConnectorCmd {
+		fmt.Printf("Failed to push revoke connector command: %s", id.String())
+	}
+
+	if !isSentCrlSyncCmd {
+		fmt.Printf("Failed to push CRL sync command: %s", Connector.GatewayID.String())
 	}
 
 	return mapToConnectorResponse(revokedConnector), nil

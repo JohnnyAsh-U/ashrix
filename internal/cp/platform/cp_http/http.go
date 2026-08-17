@@ -17,7 +17,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/redis"
@@ -44,7 +44,7 @@ func InitializeHttpServer(
 	policyDistributor *policy.PolicyDistributor,
 	log *slog.Logger,
 	CASigner pki.CASigner,
-	gatewayRegistry *registry.GatewayRegistry,
+	dispatcher dispatcher.CommandDispatcher,
 ) *Server {
 
 	//Mailer config
@@ -91,7 +91,7 @@ func InitializeHttpServer(
 		redisStore.Client(),
 		cfg,
 		[]byte(cfg.PKIConfig.IDPSecretEncryptionKey),
-		gatewayRegistry,
+		dispatcher,
 	)
 	idpHandler := identity.NewIDPHandler(idpService, log)
 
@@ -110,12 +110,12 @@ func InitializeHttpServer(
 	)
 
 	//Gateway routes
-	gatewayService := gateway.NewService(respositories.Gateway, respositories.PKICA, gatewayRegistry)
+	gatewayService := gateway.NewService(respositories.Gateway, respositories.PKICA, dispatcher)
 	gatewayHandler := gateway.NewGatewayHandler(gatewayService, CASigner)
 
 
 	//Connectors routes
-	connectorService := connector.NewService(respositories.Connector, respositories.PKICA, respositories.Gateway, gatewayRegistry)
+	connectorService := connector.NewService(respositories.Connector, respositories.PKICA, respositories.Gateway, dispatcher)
 	connectorHandler := connector.NewConnectorHandler(connectorService, CASigner)
 
 

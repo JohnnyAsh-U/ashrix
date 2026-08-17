@@ -9,7 +9,7 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
@@ -24,11 +24,11 @@ import (
 type Service struct {
 	repo     Repository
 	pkiRepo  pkica.Repository
-	registry *registry.GatewayRegistry
+	dispatcher dispatcher.CommandDispatcher
 }
 
-func NewService(repo Repository, pkiRepo pkica.Repository, registry *registry.GatewayRegistry) *Service {
-	return &Service{repo: repo, pkiRepo: pkiRepo, registry: registry}
+func NewService(repo Repository, pkiRepo pkica.Repository, dispatcher dispatcher.CommandDispatcher) *Service {
+	return &Service{repo: repo, pkiRepo: pkiRepo, dispatcher: dispatcher}
 }
 
 // mapToGatewayResponse converts a store.Gateway to a GatewayResponse DTO.
@@ -384,19 +384,34 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
 	}
 
-	// Push RevokeGatewayCertCmd to the gateway if connected
-	if conn, exists := s.registry.GetConnection(gatewayID.String()); exists {
-		cmd := &gen.CPEnvelope{
-			SentAt: timestamppb.Now(),
-			Payload: &gen.CPEnvelope_Cmd{
-				Cmd: &gen.Command{
-					Payload: &gen.Command_RevokeGatewayCert{
-						RevokeGatewayCert: &gen.RevokeGatewayCertCmd{},
-					},
-				},
-			},
-		}
-		_ = conn.Send(cmd)
+	// Dispatch RevokeGatewayCertCmd to the gateway if connected
+	isSentRevokeGatewayCertCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+		Type:      dispatcher.CmdRevokeGatewayCert,
+		GatewayID: gatewayID.String(),
+	})
+	//log error if command is not sent
+	if !isSentRevokeGatewayCertCmd {
+		fmt.Printf("Failed to push revoke gateway cert command: %s", gatewayID.String())
+	}
+
+	//Get all the active CRLs
+	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
+
+	var revokedSerials []string
+	for _, crl := range activeCRLs {
+		revokedSerials = append(revokedSerials, crl.SerialNumber)
+	}
+
+	//Push CrlSyncCmd to the gateway
+	isSentCrlSyncCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+		Type:                dispatcher.CmdCrlSync,
+		GatewayID:           gateway.ID.String(),
+		RevokedSerialNumbers:  revokedSerials,
+	})
+
+	//log error if command is not sent
+	if !isSentCrlSyncCmd {
+		fmt.Printf("Failed to push CRL sync command: %s", gateway.ID.String())
 	}
 
 	// Fetch updated gateway status
@@ -436,7 +451,7 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 		ID:    id,
 		OrgID: adminOrgID,
 	}
-	revokedGateway, err := s.repo.RevokeGateway(ctx, params)
+	_, err = s.repo.RevokeGateway(ctx, params)
 	if err != nil {
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke gateway record", err.Error())
 	}
@@ -464,22 +479,43 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 	}
 
 	// Push RevokeGatewayCmd to the gateway if connected and close stream
-	if conn, exists := s.registry.GetConnection(id.String()); exists {
-		cmd := &gen.CPEnvelope{
-			SentAt: timestamppb.Now(),
-			Payload: &gen.CPEnvelope_Cmd{
-				Cmd: &gen.Command{
-					Payload: &gen.Command_RevokeGateway{
-						RevokeGateway: &gen.RevokeGatewayCmd{},
-					},
-				},
-			},
-		}
-		_ = conn.Send(cmd)
-		conn.Cancel()
+	isSentRevokeGatewayCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+		Type:      dispatcher.CmdRevokeGateway,
+		GatewayID: id.String(),
+	})
+
+	//log error if command is not sent
+	if !isSentRevokeGatewayCmd {
+		fmt.Printf("Failed to push revoke gateway cert command: %s", id.String())
 	}
 
-	return mapToGatewayResponse(revokedGateway), nil
+	//Get all the active CRLs
+	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
+
+	var revokedSerials []string
+	for _, crl := range activeCRLs {
+		revokedSerials = append(revokedSerials, crl.SerialNumber)
+	}
+
+	//Push CrlSyncCmd to the gateway
+	isSentCrlSyncCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+		Type:                dispatcher.CmdCrlSync,
+		GatewayID:           id.String(),
+		RevokedSerialNumbers:  revokedSerials,
+	})
+
+	//log error if command is not sent
+	if !isSentCrlSyncCmd {
+		fmt.Printf("Failed to push CRL sync command: %s", id.String())
+	}
+
+	// Fetch updated gateway status
+	updatedGateway, err := s.repo.GetGatewayByID(ctx, id)
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+	}
+
+	return mapToGatewayResponse(updatedGateway), nil
 }
 
 // DrainGateway sets status to 'draining' and pushes DrainGatewayCmd.
@@ -515,18 +551,14 @@ func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayRespon
 	}
 
 	// Push DrainGatewayCmd if connected
-	if conn, exists := s.registry.GetConnection(id.String()); exists {
-		cmd := &gen.CPEnvelope{
-			SentAt: timestamppb.Now(),
-			Payload: &gen.CPEnvelope_Cmd{
-				Cmd: &gen.Command{
-					Payload: &gen.Command_DrainGateway{
-						DrainGateway: &gen.DrainGatewayCmd{},
-					},
-				},
-			},
-		}
-		_ = conn.Send(cmd)
+	isSent := s.dispatcher.Dispatch(dispatcher.CommandJob{
+		Type:      dispatcher.CmdDrainGateway,
+		GatewayID: id.String(),
+	})
+
+	//log error if command is not sent
+	if !isSent {
+		fmt.Printf("Failed to push drain gateway command: %s", id.String())
 	}
 
 	// Fetch updated gateway
