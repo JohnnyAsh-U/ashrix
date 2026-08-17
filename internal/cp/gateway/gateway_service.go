@@ -9,6 +9,7 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
@@ -21,12 +22,13 @@ import (
 )
 
 type Service struct {
-	repo    Repository
-	pkiRepo pkica.Repository
+	repo     Repository
+	pkiRepo  pkica.Repository
+	registry *registry.GatewayRegistry
 }
 
-func NewService(repo Repository, pkiRepo pkica.Repository) *Service {
-	return &Service{repo: repo, pkiRepo: pkiRepo}
+func NewService(repo Repository, pkiRepo pkica.Repository, registry *registry.GatewayRegistry) *Service {
+	return &Service{repo: repo, pkiRepo: pkiRepo, registry: registry}
 }
 
 // mapToGatewayResponse converts a store.Gateway to a GatewayResponse DTO.
@@ -382,6 +384,21 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
 	}
 
+	// Push RevokeGatewayCertCmd to the gateway if connected
+	if conn, exists := s.registry.GetConnection(gatewayID.String()); exists {
+		cmd := &gen.CPEnvelope{
+			SentAt: timestamppb.Now(),
+			Payload: &gen.CPEnvelope_Cmd{
+				Cmd: &gen.Command{
+					Payload: &gen.Command_RevokeGatewayCert{
+						RevokeGatewayCert: &gen.RevokeGatewayCertCmd{},
+					},
+				},
+			},
+		}
+		_ = conn.Send(cmd)
+	}
+
 	// Fetch updated gateway status
 	updatedGateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
 	if err != nil {
@@ -446,5 +463,77 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 		}
 	}
 
+	// Push RevokeGatewayCmd to the gateway if connected and close stream
+	if conn, exists := s.registry.GetConnection(id.String()); exists {
+		cmd := &gen.CPEnvelope{
+			SentAt: timestamppb.Now(),
+			Payload: &gen.CPEnvelope_Cmd{
+				Cmd: &gen.Command{
+					Payload: &gen.Command_RevokeGateway{
+						RevokeGateway: &gen.RevokeGatewayCmd{},
+					},
+				},
+			},
+		}
+		_ = conn.Send(cmd)
+		conn.Cancel()
+	}
+
 	return mapToGatewayResponse(revokedGateway), nil
+}
+
+// DrainGateway sets status to 'draining' and pushes DrainGatewayCmd.
+func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayResponse, *dto.AppError) {
+	// Retrieve the admin's OrgID from context
+	adminOrgIDStr := middleware.OrgIDFromCtx(ctx)
+	adminOrgID, parseErr := uuid.Parse(adminOrgIDStr)
+	if parseErr != nil {
+		return GatewayResponse{}, dto.NewBadRequestError("Invalid Organization ID format")
+	}
+
+	// Fetch the gateway to verify it exists
+	gateway, err := s.repo.GetGatewayByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GatewayResponse{}, dto.NewNotFoundError("Gateway Not Found")
+		}
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+	}
+
+	// Verify that the gateway belongs to the admin's organization
+	if adminOrgID != gateway.OrgID {
+		return GatewayResponse{}, dto.NewUnauthorizedError("OrgID Error")
+	}
+
+	// Update status to 'draining'
+	_, err = s.repo.UpdateGatewayStatus(ctx, store.UpdateGatewayStatusParams{
+		ID:     id,
+		Status: "draining",
+	})
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to update gateway status to draining", err.Error())
+	}
+
+	// Push DrainGatewayCmd if connected
+	if conn, exists := s.registry.GetConnection(id.String()); exists {
+		cmd := &gen.CPEnvelope{
+			SentAt: timestamppb.Now(),
+			Payload: &gen.CPEnvelope_Cmd{
+				Cmd: &gen.Command{
+					Payload: &gen.Command_DrainGateway{
+						DrainGateway: &gen.DrainGatewayCmd{},
+					},
+				},
+			},
+		}
+		_ = conn.Send(cmd)
+	}
+
+	// Fetch updated gateway
+	updatedGateway, err := s.repo.GetGatewayByID(ctx, id)
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+	}
+
+	return mapToGatewayResponse(updatedGateway), nil
 }

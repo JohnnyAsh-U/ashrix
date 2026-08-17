@@ -149,3 +149,23 @@ func (r *GatewayRegistry) Count() int {
 	return len(r.byID)
 }
 
+
+// SendWithTimeout attempts to send a message on the stream with a context deadline/timeout.
+// It returns an error if the send operation blocks past the context deadline.
+func (g *GatewayConn) SendWithTimeout(ctx context.Context, msg *pb.CPEnvelope) error {
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- g.Stream.Send(msg)
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-g.Ctx.Done():
+		return g.Ctx.Err()
+	}
+}
+

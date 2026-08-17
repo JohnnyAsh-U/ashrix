@@ -859,3 +859,39 @@ func (q *Queries) UpdateGatewayHeartbeat(ctx context.Context, arg UpdateGatewayH
 	)
 	return i, err
 }
+
+const updateGatewayStatus = `-- name: UpdateGatewayStatus :one
+UPDATE gateways
+SET status = $2
+WHERE id = $1
+  AND is_active = true
+  AND revoked_at IS NULL
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, enrolled_at, revoked_at
+`
+
+type UpdateGatewayStatusParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) UpdateGatewayStatus(ctx context.Context, arg UpdateGatewayStatusParams) (Gateway, error) {
+	row := q.db.QueryRow(ctx, updateGatewayStatus, arg.ID, arg.Status)
+	var i Gateway
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Name,
+		&i.TokenHash,
+		&i.Version,
+		&i.DeploymentType,
+		&i.PublicUrl,
+		&i.IpAddress,
+		&i.LastHeartbeat,
+		&i.Status,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.EnrolledAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}

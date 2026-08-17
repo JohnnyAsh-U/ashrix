@@ -15,11 +15,14 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/google/uuid"
@@ -27,8 +30,8 @@ import (
 )
 
 type IDPService struct {
-	repo    Repository
-	appRepo app.Repository
+	repo        Repository
+	appRepo     app.Repository
 	// orgRepo     org.Repository
 	gatewayRepo gateway.Repository
 	idpSession  *IDPSession
@@ -38,6 +41,7 @@ type IDPService struct {
 	adapters    map[string]oidc.ProviderAdapter
 	adapterMu   sync.RWMutex // Separate mutex for adapter operations
 	key         []byte       // 32 bytes, from KMS/Vault in production — for encrypting and decrypting the client_secret
+	registry    *registry.GatewayRegistry
 }
 
 func NewIDPService(
@@ -49,11 +53,12 @@ func NewIDPService(
 	cache *redis.Client,
 	cfg *config.Config,
 	key []byte,
+	registry *registry.GatewayRegistry,
 ) *IDPService {
 
 	return &IDPService{
-		repo:    repo,
-		appRepo: appRepo,
+		repo:        repo,
+		appRepo:     appRepo,
 		// orgRepo:     orgRepo,
 		gatewayRepo: gateRepo,
 		idpSession:  idpSession,
@@ -61,6 +66,7 @@ func NewIDPService(
 		cfg:         cfg,
 		adapters:    make(map[string]oidc.ProviderAdapter),
 		key:         key,
+		registry:    registry,
 	}
 }
 
@@ -209,6 +215,18 @@ func (r *IDPService) DeleteIdentityConfig(ctx context.Context, id, orgID uuid.UU
 }
 
 func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, gatewayID string) (string, error) {
+	gatewayUUID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		return "", fmt.Errorf("invalid gateway id: %w", err)
+	}
+	gw, err := r.gatewayRepo.GetGatewayByID(ctx, gatewayUUID)
+	if err != nil {
+		return "", fmt.Errorf("gateway not found: %w", err)
+	}
+	if gw.Status == "draining" || gw.Status == "revoked" || !gw.IsActive || gw.RevokedAt.Valid {
+		return "", fmt.Errorf("login rejected: gateway is draining or revoked")
+	}
+
 	//Create the state, and build the OAUTh url
 	state, code_challenge, nonce, err := r.idpSession.CreateState(
 		ctx,
@@ -402,4 +420,30 @@ func (s *IDPService) decryptSecret(encoded string) (string, error) {
 		return "", fmt.Errorf("decryption failed: %w", err)
 	}
 	return string(plaintext), nil
+}
+
+func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID) (store.UserSession, error) {
+	session, err := s.repo.RevokeUserSession(ctx, sessionID)
+	if err != nil {
+		return store.UserSession{}, err
+	}
+
+	// Find the corresponding gateway and push RevokeSessionCmd to it.
+	if conn, exists := s.registry.GetConnection(session.GatewayID.String()); exists {
+		cmd := &gen.CPEnvelope{
+			SentAt: timestamppb.Now(),
+			Payload: &gen.CPEnvelope_Cmd{
+				Cmd: &gen.Command{
+					Payload: &gen.Command_RevokeSession{
+						RevokeSession: &gen.RevokeSessionCmd{
+							SessionId: session.ID.String(),
+						},
+					},
+				},
+			},
+		}
+		_ = conn.Send(cmd)
+	}
+
+	return session, nil
 }

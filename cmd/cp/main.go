@@ -152,6 +152,7 @@ func main() {
 		policyDistributor,
 		log,
 		CASigner,
+		gatewayRegistry,
 	)
 
 	// Build and start gRPC server

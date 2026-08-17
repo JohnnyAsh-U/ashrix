@@ -22,6 +22,8 @@ type Repository interface {
 	UpdateGatewayHeartBeat(ctx context.Context, params store.UpdateGatewayHeartbeatParams) (store.Gateway, error)
 
 	RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error)
+
+	UpdateGatewayStatus(ctx context.Context, params store.UpdateGatewayStatusParams) (store.Gateway, error)
 }
 
 type postgresRepository struct {
@@ -76,4 +78,9 @@ func (r *postgresRepository) UpdateGatewayHeartBeat(ctx context.Context, params 
 func (r *postgresRepository) RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error) {
 	return r.q.RevokeGateway(ctx, params)
 }
+
+func (r *postgresRepository) UpdateGatewayStatus(ctx context.Context, params store.UpdateGatewayStatusParams) (store.Gateway, error) {
+	return r.q.UpdateGatewayStatus(ctx, params)
+}
+
 

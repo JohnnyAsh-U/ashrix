@@ -64,7 +64,7 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	cert := tlsInfo.State.PeerCertificates[0]
 
 	//Check if crl is revoked
-	if s.registry.IsCrlRevoked(cert.Subject.SerialNumber){
+	if s.registry.IsCrlRevoked(cert.SerialNumber.String()){
 		return status.Error(codes.Unauthenticated, "certificate is revoked")
 	}
 
@@ -81,6 +81,11 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	}
 
 	connectorID := hello.ConnectorId
+
+	// Check if the connector is in the authorized connectors list
+	if _, authorized := s.registry.IsConnectorAuthorized(connectorID); !authorized {
+		return status.Error(codes.PermissionDenied, "connector not authorized")
+	}
 
 	s.log.Info("connector connecting",
 		zap.String("connector_id", connectorID),

@@ -107,6 +107,15 @@ WHERE id         = $1
 RETURNING *;
 
 
+-- name: UpdateGatewayStatus :one
+UPDATE gateways
+SET status = $2
+WHERE id = $1
+  AND is_active = true
+  AND revoked_at IS NULL
+RETURNING *;
+
+
 -- =================================================================
 -- CONNECTORS
 -- token_hash: SHA-256 of connector enrollment token.

@@ -1,7 +1,7 @@
 * Rotating of Certificate, Revocation, Renewal etc... 
 * Implement of Cert IP, DNS and Common Names (spfie) etc....
 * Implement Versioning of Gateway and Connector binary
-* Implement Basic Telemetry for Gateway And Connector to CP DB
+* Implement Telemetry for Gateway And Connector to CP DB
 
 
 * Update Policy Bundle Action 

@@ -289,41 +289,49 @@ func (r *Registry) VerifyGatewayConnections() {
 	// get authconnectors and connectors and compare
 	//Remove the connectors which are not present in the authconnectors
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	// This function is called when CP comes up
 	fmt.Println("Gateway Verifying connections...")
 	fmt.Println("Auth connectors:", r.authConnectors)
 	
-	for connectorID := range r.connectors {
-		if _, ok := r.authConnectors[connectorID]; !ok {
-			//Get the Tunnel Session and close
-			if entry, ok := r.connectors[connectorID]; ok {
-				if entry.TunnelSession != nil {
-					entry.TunnelSession.Close()
+	var toDetach []string
+	for connectorID, entry := range r.connectors {
+		authorized := false
+		if _, ok := r.authConnectors[connectorID]; ok {
+			authorized = true
+		}
+
+		revoked := false
+		if entry.gRPCCert != nil {
+			grpcCertSerialNumber := entry.gRPCCert.SerialNumber.String()
+			for _, s := range r.crlSerials {
+				if s == grpcCertSerialNumber {
+					revoked = true
+					break
 				}
 			}
-			//Detach management stream and Tunnel management
-			r.DetachManagement(connectorID)
-			r.DetachTunnel(connectorID)
 		}
-		// Get the connectorentry and the cert
-		connectorEntry, ok := r.GetByConnectorID(connectorID)
-		if !ok {
-			continue
-		}
-		grpcCertSerialNumber := connectorEntry.gRPCCert.SerialNumber.String()
-		quicCertSerialNumber := connectorEntry.quicCert.SerialNumber.String()
-		if r.IsCrlRevoked(grpcCertSerialNumber) || r.IsCrlRevoked(quicCertSerialNumber) {
-			//Get the Tunnel Session and close
-			if entry, ok := r.connectors[connectorID]; ok {
-				if entry.TunnelSession != nil {
-					entry.TunnelSession.Close()
+		if entry.quicCert != nil {
+			quicCertSerialNumber := entry.quicCert.SerialNumber.String()
+			for _, s := range r.crlSerials {
+				if s == quicCertSerialNumber {
+					revoked = true
+					break
 				}
 			}
-			//Detach management stream and Tunnel management
-			r.DetachManagement(connectorID)
-			r.DetachTunnel(connectorID)
 		}
+
+		if !authorized || revoked {
+			if entry.TunnelSession != nil {
+				entry.TunnelSession.Close()
+			}
+			toDetach = append(toDetach, connectorID)
+		}
+	}
+	r.mu.Unlock()
+
+	for _, connectorID := range toDetach {
+		r.DetachManagement(connectorID)
+		r.DetachTunnel(connectorID)
 	}
 	fmt.Println("Gateway Connections Verified")
 }

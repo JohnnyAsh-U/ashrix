@@ -13,6 +13,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
@@ -28,10 +29,11 @@ type Service struct {
 	repo        Repository
 	pkiRepo     pkica.Repository
 	gatewayRepo gateway.Repository
+	registry    *registry.GatewayRegistry
 }
 
-func NewService(repo Repository, pkiRepo pkica.Repository, gatewayRepo gateway.Repository) *Service {
-	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo}
+func NewService(repo Repository, pkiRepo pkica.Repository, gatewayRepo gateway.Repository, registry *registry.GatewayRegistry) *Service {
+	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo, registry: registry}
 }
 
 // mapToConnectorResponse converts a store.Connector to a GatewayResponse DTO.
@@ -368,6 +370,22 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
 	}
 
+	// Push RevokeConnectorCertCmd to gateway if connected
+	if conn, exists := s.registry.GetConnection(connector.GatewayID.String()); exists {
+		cmd := &gen.CPEnvelope{
+			SentAt: timestamppb.Now(),
+			Payload: &gen.CPEnvelope_Cmd{
+				Cmd: &gen.Command{
+					Payload: &gen.Command_RevokeConnectorCert{
+						RevokeConnectorCert: &gen.RevokeConnectorCertCmd{
+							ConnectorId: connectorId.String(),
+						},
+					},
+				},
+			},
+		}
+		_ = conn.Send(cmd)
+	}
 
 	// Fetch updated gateway status
 	updatedConnector, err := s.repo.GetConnectorByID(ctx, connectorId)
@@ -431,6 +449,23 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 				Reason:       "cessationOfOperation",
 			})
 		}
+	}
+
+	// Push RevokeConnectorCmd to gateway if connected
+	if conn, exists := s.registry.GetConnection(Connector.GatewayID.String()); exists {
+		cmd := &gen.CPEnvelope{
+			SentAt: timestamppb.Now(),
+			Payload: &gen.CPEnvelope_Cmd{
+				Cmd: &gen.Command{
+					Payload: &gen.Command_RevokeConnector{
+						RevokeConnector: &gen.RevokeConnectorCmd{
+							ConnectorId: id.String(),
+						},
+					},
+				},
+			},
+		}
+		_ = conn.Send(cmd)
 	}
 
 	return mapToConnectorResponse(revokedConnector), nil
