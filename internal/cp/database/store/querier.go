@@ -63,6 +63,8 @@ type Querier interface {
 	// token_hash: SHA-256 of enrollment token. Never plaintext.
 	// =================================================================
 	CreateGateway(ctx context.Context, arg CreateGatewayParams) (Gateway, error)
+	CreateGatewayEvent(ctx context.Context, arg CreateGatewayEventParams) (GatewayEvent, error)
+	CreateGatewayEventAcks(ctx context.Context, arg CreateGatewayEventAcksParams) (GatewayEventsAck, error)
 	// =================================================================
 	// IDP CONFIGS
 	// client_secret must be AES-256-GCM encrypted before insert.
@@ -133,6 +135,8 @@ type Querier interface {
 	GetIDPConfigByID(ctx context.Context, id uuid.UUID) (IdpConfig, error)
 	// Always scope to org — never allow cross-org access.
 	GetIDPConfigByIDAndOrg(ctx context.Context, arg GetIDPConfigByIDAndOrgParams) (IdpConfig, error)
+	GetLastAckedSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
+	GetLastEventSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
 	GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error)
 	GetMutationsSince(ctx context.Context, arg GetMutationsSinceParams) ([]GetMutationsSinceRow, error)
 	GetNextPolicySequence(ctx context.Context, arg GetNextPolicySequenceParams) (int32, error)

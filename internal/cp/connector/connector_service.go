@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"database/sql"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -378,27 +379,54 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		revokedSerials = append(revokedSerials, crl.SerialNumber)
 	}
 
-	// Push RevokeConnectorCertCmd to gateway if connected
-	isSentRevokeConnectorCertCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+	payload := dispatcher.CommandJob{
 		Type:        dispatcher.CmdRevokeConnectorCert,
 		GatewayID:   connector.GatewayID.String(),
 		ConnectorID: connectorId.String(),
-	})
+	}
 
-	//Push CrlSyncCmd to the gateway
-	isSentCrlSyncCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
-		Type:               dispatcher.CmdCrlSync,
-		GatewayID:          connector.GatewayID.String(),
-		RevokedSerialNumbers:  revokedSerials,
-	})
+	// Push RevokeConnectorCertCmd to gateway if connected
+	isSentRevokeConnectorCertCmd := s.dispatcher.Dispatch(payload)
 
 	//log error if command is not sent
-	if !isSentRevokeConnectorCertCmd {
+	if isSentRevokeConnectorCertCmd {
+		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, connector.GatewayID)
+		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
+			GatewayID: connector.GatewayID,
+			Command:   string(dispatcher.CmdRevokeConnectorCert),
+			Seq:       lastSeq + 1,
+			Payload: func() json.RawMessage {
+				rawJSON, _ := json.Marshal(payload)
+				return rawJSON
+			}(),
+		})
+	} else {
 		fmt.Printf("Failed to push revoke connector cert command: %s", connectorId.String())
 	}
 
-	if !isSentCrlSyncCmd {
-		fmt.Printf("Failed to push CRL sync command: %s", connector.GatewayID.String())
+	payload2 := dispatcher.CommandJob{
+		Type:               dispatcher.CmdCrlSync,
+		GatewayID:          connector.GatewayID.String(),
+		RevokedSerialNumbers:  revokedSerials,
+	}
+
+	// Push CrlSyncCmd to the gateway
+	isSentCrlSyncCmd := s.dispatcher.Dispatch(payload2)
+
+	//log error if command is not sent
+	if isSentCrlSyncCmd {
+		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, connector.GatewayID)
+		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
+			GatewayID: connector.GatewayID,
+			Command:   string(dispatcher.CmdCrlSync),
+			Seq:       lastSeq + 1,
+			Payload: func() json.RawMessage {
+				rawJSON, _ := json.Marshal(payload2)
+				return rawJSON
+			}(),
+		})
+	} else {
+		fmt.Printf("Failed to push crl sync command: %s", connector.GatewayID.String())
 	}
 
 	// Fetch updated gateway status
@@ -465,12 +493,31 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 		}
 	}
 
-	// Push RevokeConnectorCmd to gateway if connected
-	isSentRevokeConnectorCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+	//payload
+	payload := dispatcher.CommandJob{
 		Type:      dispatcher.CmdRevokeConnector,
-		GatewayID: Connector.GatewayID.String(),
+		GatewayID:   Connector.GatewayID.String(),
 		ConnectorID: Connector.ID.String(),
-	})
+	}
+
+	// Push RevokeConnectorCmd to gateway if connected
+	isSentRevokeConnectorCmd := s.dispatcher.Dispatch(payload)
+
+	//log error if command is not sent
+	if isSentRevokeConnectorCmd {
+		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, revokedConnector.GatewayID)
+		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
+			GatewayID: revokedConnector.GatewayID,
+			Command:   string(dispatcher.CmdRevokeConnector),
+			Seq:       lastSeq + 1,
+			Payload: func() json.RawMessage {
+				rawJSON, _ := json.Marshal(payload)
+				return rawJSON
+			}(),
+		})
+	} else {
+		fmt.Printf("Failed to push revoke connector command: %s", id.String())
+	}
 
 	//Get all the active CRLs
 	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
@@ -480,20 +527,29 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 		revokedSerials = append(revokedSerials, crl.SerialNumber)
 	}
 
-	//Push CrlSyncCmd to the gateway
-	isSentCrlSyncCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
-		Type:                dispatcher.CmdCrlSync,
-		GatewayID:           Connector.GatewayID.String(),
+	payload2 := dispatcher.CommandJob{
+		Type:               dispatcher.CmdCrlSync,
+		GatewayID:          Connector.GatewayID.String(),
 		RevokedSerialNumbers:  revokedSerials,
-	})
-
-	//log error if command is not sent
-	if !isSentRevokeConnectorCmd {
-		fmt.Printf("Failed to push revoke connector command: %s", id.String())
 	}
 
-	if !isSentCrlSyncCmd {
-		fmt.Printf("Failed to push CRL sync command: %s", Connector.GatewayID.String())
+	//Push CrlSyncCmd to the gateway
+	isSentCrlSyncCmd := s.dispatcher.Dispatch(payload2)
+
+	//log error if command is not sent
+	if isSentCrlSyncCmd {
+		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, revokedConnector.GatewayID)
+		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
+			GatewayID: revokedConnector.GatewayID,
+			Command:   string(dispatcher.CmdCrlSync),
+			Seq:       lastSeq + 1,
+			Payload: func() json.RawMessage {
+				rawJSON, _ := json.Marshal(payload2)
+				return rawJSON
+			}(),
+		})
+	} else {
+		fmt.Printf("Failed to push crl sync command: %s", id.String())
 	}
 
 	return mapToConnectorResponse(revokedConnector), nil

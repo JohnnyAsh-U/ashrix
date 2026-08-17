@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -426,13 +427,26 @@ func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID)
 		return store.UserSession{}, err
 	}
 
-	isSentRevokeSessionCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+	payload := dispatcher.CommandJob{
 		Type:        dispatcher.CmdRevokeUserSession,
 		GatewayID:   session.GatewayID.String(),
 		SessionID: session.ID.String(),
-	})
+	}
 
-	if !isSentRevokeSessionCmd {
+	isSentRevokeSessionCmd := s.dispatcher.Dispatch(payload)
+
+	if isSentRevokeSessionCmd {
+		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, session.GatewayID)
+		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
+			GatewayID: session.GatewayID,
+			Command:   string(dispatcher.CmdRevokeUserSession),
+			Seq:       lastSeq + 1,
+			Payload: func() json.RawMessage {
+				rawJSON, _ := json.Marshal(payload)
+				return rawJSON
+			}(),
+		})
+	} else {
 		fmt.Printf("Failed to push revoke session command: %s", session.ID.String())
 	}
 

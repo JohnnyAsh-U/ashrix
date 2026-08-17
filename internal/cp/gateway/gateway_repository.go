@@ -24,6 +24,15 @@ type Repository interface {
 	RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error)
 
 	UpdateGatewayStatus(ctx context.Context, params store.UpdateGatewayStatusParams) (store.Gateway, error)
+
+	CreateGatewayEvent(ctx context.Context, params store.CreateGatewayEventParams) (store.GatewayEvent, error)
+
+	CreateGatewayEventAck(ctx context.Context, params store.CreateGatewayEventAcksParams) (store.GatewayEventsAck, error)
+
+	GetLastEventSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
+
+	GetLastAckedSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
+
 }
 
 type postgresRepository struct {
@@ -81,6 +90,24 @@ func (r *postgresRepository) RevokeGateway(ctx context.Context, params store.Rev
 
 func (r *postgresRepository) UpdateGatewayStatus(ctx context.Context, params store.UpdateGatewayStatusParams) (store.Gateway, error) {
 	return r.q.UpdateGatewayStatus(ctx, params)
+}
+
+
+
+func (r *postgresRepository) CreateGatewayEvent(ctx context.Context, params store.CreateGatewayEventParams) (store.GatewayEvent, error) {
+	return r.q.CreateGatewayEvent(ctx, params)
+}
+
+func (r *postgresRepository) CreateGatewayEventAck(ctx context.Context, params store.CreateGatewayEventAcksParams) (store.GatewayEventsAck, error) {
+	return r.q.CreateGatewayEventAcks(ctx, params)
+}
+
+func (r *postgresRepository) GetLastEventSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error) {
+	return r.q.GetLastEventSeqForGateway(ctx, gatewayID)
+}
+
+func (r *postgresRepository) GetLastAckedSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error) {
+	return r.q.GetLastAckedSeqForGateway(ctx, gatewayID)
 }
 
 

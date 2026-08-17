@@ -160,7 +160,9 @@ WHERE id         = $1
 
 -- name: GetActiveConnectorByID :one
 SELECT * FROM connectors
-WHERE id         = $1;
+WHERE id         = $1
+  AND is_active = true
+  AND revoked_at IS NULL;
 
 
 
@@ -229,3 +231,32 @@ SET revoked_at = now(),
     is_active = false
 WHERE gateway_id = $1
   AND revoked_at IS NULL;
+
+
+
+-- name: GetLastEventSeqForGateway :one
+SELECT COALESCE(MAX(seq), 0)::bigint AS last_seq
+FROM gateway_events
+WHERE gateway_id = $1;
+
+
+-- name: GetLastAckedSeqForGateway :one
+SELECT COALESCE(MAX(last_acked_seq), 0)::bigint AS last_acked_seq
+FROM gateway_events_acks
+WHERE gateway_id = $1;
+
+
+
+-- name: CreateGatewayEvent :one
+INSERT INTO gateway_events (seq, gateway_id, command, payload)
+VALUES($1,$2,$3, $4)
+RETURNING *;
+
+
+
+-- name: CreateGatewayEventAcks :one
+INSERT INTO gateway_events_acks (gateway_id, last_acked_seq)
+VALUES($1,$2)
+RETURNING *;
+
+
