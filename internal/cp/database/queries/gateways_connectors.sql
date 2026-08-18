@@ -179,14 +179,29 @@ WHERE id         = $1
   AND org_id     = $2;
 
 
+-- -- name: ListActiveConnectorsByGateway :many
+-- -- Called on gateway → connector auth.
+-- SELECT * FROM connectors
+-- WHERE gateway_id = $1
+--   AND is_active = true
+--   AND revoked_at IS NULL;
+
+
 -- name: ListActiveConnectorsByGateway :many
 -- Called on gateway → connector auth.
-SELECT * FROM connectors
-WHERE gateway_id = $1
-  AND is_active = true
-  AND revoked_at IS NULL;
-
-
+SELECT c.*
+FROM connectors c
+WHERE c.gateway_id = $1
+  AND c.is_active = true
+  AND c.revoked_at IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM component_certificates cc
+      WHERE cc.component_id = c.id
+        AND cc.component_type = 'connector'
+        AND cc.revoked_at IS NULL
+        AND cc.expires_at > NOW()
+  );
 
 -- name: GetConnectorByTokenHash :one
 -- Called on connector → gateway auth.

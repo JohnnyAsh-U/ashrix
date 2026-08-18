@@ -72,7 +72,7 @@ func runStart() (err error) {
 	fmt.Println("Initializing Logger...")
 
 	if err := logger.LoggerInit(logger.LoggerConfig{
-		Env:        "prod",
+		Env:        "dev",
 		LogDir:     logDir,
 		Level:      "info",
 		MaxSizeMB:  100,

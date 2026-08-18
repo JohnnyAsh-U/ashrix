@@ -474,12 +474,31 @@ func (q *Queries) GetLastEventSeqForGateway(ctx context.Context, gatewayID uuid.
 }
 
 const listActiveConnectorsByGateway = `-- name: ListActiveConnectorsByGateway :many
-SELECT id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, is_active, enrolled_at, revoked_at FROM connectors
-WHERE gateway_id = $1
-  AND is_active = true
-  AND revoked_at IS NULL
+
+
+SELECT c.id, c.org_id, c.gateway_id, c.name, c.token_hash, c.last_seen, c.status, c.created_at, c.is_active, c.enrolled_at, c.revoked_at
+FROM connectors c
+WHERE c.gateway_id = $1
+  AND c.is_active = true
+  AND c.revoked_at IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM component_certificates cc
+      WHERE cc.component_id = c.id
+        AND cc.component_type = 'gateway'
+        AND cc.revoked_at IS NULL
+        AND cc.expires_at > NOW()
+  )
 `
 
+// -- name: ListActiveConnectorsByGateway :many
+// -- Called on gateway → connector auth.
+// SELECT * FROM connectors
+// WHERE gateway_id = $1
+//
+//	AND is_active = true
+//	AND revoked_at IS NULL;
+//
 // Called on gateway → connector auth.
 func (q *Queries) ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error) {
 	rows, err := q.db.Query(ctx, listActiveConnectorsByGateway, gatewayID)

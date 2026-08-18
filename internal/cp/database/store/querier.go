@@ -174,6 +174,12 @@ type Querier interface {
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
 	ListActiveCACerts(ctx context.Context, arg ListActiveCACertsParams) ([]ListActiveCACertsRow, error)
+	// -- name: ListActiveConnectorsByGateway :many
+	// -- Called on gateway → connector auth.
+	// SELECT * FROM connectors
+	// WHERE gateway_id = $1
+	//   AND is_active = true
+	//   AND revoked_at IS NULL;
 	// Called on gateway → connector auth.
 	ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)
 	ListActiveGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)

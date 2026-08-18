@@ -418,16 +418,29 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 		revokedSerials = append(revokedSerials, crl.SerialNumber)
 	}
 
-	//Push CrlSyncCmd to the gateway
-	isSentCrlSyncCmd := s.dispatcher.Dispatch(dispatcher.CommandJob{
+	payloadRevokedSerials := dispatcher.CommandJob{
 		Type:                 dispatcher.CmdCrlSync,
 		GatewayID:            gateway.ID.String(),
 		RevokedSerialNumbers: revokedSerials,
-	})
+	}
+
+	//Push CrlSyncCmd to the gateway
+	isSentCrlSyncCmd := s.dispatcher.Dispatch(payloadRevokedSerials)
 
 	//log error if command is not sent
-	if !isSentCrlSyncCmd {
-		fmt.Printf("Failed to push CRL sync command: %s", gateway.ID.String())
+	if isSentCrlSyncCmd {
+		lastSeq, _ := s.repo.GetLastEventSeqForGateway(ctx, gatewayID)
+		s.repo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
+			GatewayID: gateway.ID,
+			Command:   string(dispatcher.CmdCrlSync),
+			Seq:       lastSeq + 1,
+			Payload: func() json.RawMessage {
+				rawJSON, _ := json.Marshal(payloadRevokedSerials)
+				return rawJSON
+			}(),
+		})
+	} else {
+		fmt.Printf("Failed to push CRL sync command: %s", gatewayID.String())
 	}
 
 	// Fetch updated gateway status
@@ -623,8 +636,6 @@ func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayRespon
 
 	return mapToGatewayResponse(updatedGateway), nil
 }
-
-
 
 // StructToJSONRaw converts any Go struct into a json.RawMessage
 func StructToJSONRaw(v any) (json.RawMessage, error) {
