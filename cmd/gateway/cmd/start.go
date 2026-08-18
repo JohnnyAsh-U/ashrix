@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
 	// "time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/bootstrap"
@@ -22,6 +23,8 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
+
 	// proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -169,9 +172,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
-	
 	//Policy Engine takes Store as args to load the policies into the engine
-	engine, err := policy.NewEngine(context.Background(), policyStore, verifier,cfg.GatewayID, log)
+	engine, err := policy.NewEngine(context.Background(), policyStore, verifier, cfg.GatewayID, log)
 	if err != nil {
 		log.Fatal("failed to initialize policy engine", zap.Error(err))
 	}
@@ -196,6 +198,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	//-------------------Session Initializing------------------------
+
+	sessions := session.NewSessionManager(redisStore.Client(), cfg.SessionTTL, cfg.CookieSecure)
+	log.Info("Session Initialized")
+
 	// 1. Connection Manager
 	cm := gateway_grpc.NewConnectionManager(cpHost, pki.GetTLSConfig())
 
@@ -210,6 +217,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		pki,
 		reg,
 		redisStore.Client(),
+		sessions,
 	)
 
 	// 3. Safe Unary Client (for HTTP handlers that need CP)
@@ -233,7 +241,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Instantiate new servers
 	grpcServer := grpc.NewGRPCServer(cfg, pki.GetTLSConfig(), log, reg)
 	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log, reg)
-	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), log, engine)
+	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), sessions, log, engine)
 
 	// Start servers in background
 	go func() {

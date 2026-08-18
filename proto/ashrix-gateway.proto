@@ -70,7 +70,8 @@ message NormalizedIdentity {
   string                    name        = 5;
   repeated string           groups      = 6;
   string                    provider    = 7;
-  google.protobuf.Timestamp auth_time   = 8;
+  string                    cp_session_id = 8;
+  google.protobuf.Timestamp auth_time   = 9;
 }
 
 message ExchangeTokenResponse {

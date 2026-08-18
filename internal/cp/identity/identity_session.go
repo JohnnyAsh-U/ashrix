@@ -13,14 +13,16 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/redis/go-redis/v9"
 	"os"
 	"path/filepath"
 	"time"
+
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
+	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
 )
 
 type BrokerClaims struct {
@@ -105,7 +107,7 @@ func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client) 
 	}, nil
 }
 
-func (t *IDPSession) CreateSession(ctx context.Context, gatewayID, gatewayName string, identity *oidc.NormalizedIdentity) (string, error) {
+func (t *IDPSession) CreateUserSession(ctx context.Context, gatewayID, gatewayName string, identity *proto.NormalizedIdentity) (string, error) {
 
 	token, tokenHash, err := crypto.GenerateToken(32)
 	if err != nil {
@@ -187,12 +189,10 @@ func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, gate
 	}
 
 	entry := StateEntry{
-		// AppID:        AppID,
 		Nonce:        nonce,
 		TenantID:     tenantID,
 		ProviderID:   providerID,
 		GatewayID:    gatewayID,
-		// RedirectURI:  redirectURI,
 		PKCEVerifier: pkceVerifier,
 	}
 

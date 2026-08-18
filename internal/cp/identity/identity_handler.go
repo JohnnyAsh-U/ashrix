@@ -312,6 +312,38 @@ func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w,r,redirectUrl, http.StatusTemporaryRedirect)
 }
 
+
+// @Summary Revoke Session Handler
+// @Description Revoke Session Handler.
+// @Tags IDP
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200
+// @Failure 400 {object} dto.AppError
+// @Failure 500 {object} dto.AppError
+// @Router /revoke-session [post]
+func (h *IDPHandler) RevokeUserSessionHandler(w http.ResponseWriter, r *http.Request) {
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		dto.SendError(w, dto.NewBadRequestError("Invalid Session ID format"))
+		return
+	}
+
+	_, err = h.idpService.RevokeUserSession(r.Context(), id)
+	if err != nil {
+		dto.SendError(w, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil))
+		return
+	}
+
+	dto.SendSuccess(w, http.StatusOK, "All sessions revoked successfully")
+}
+
+
+
+
 func (h *IDPHandler) IdentityAuthRoutes(rg chi.Router) {
 	rg.Get("/providers", h.IDPResolverHandler)
 	rg.Post("/login", h.LoginHandler)
@@ -322,4 +354,5 @@ func (h *IDPHandler) IdentityRoutes(rg chi.Router) {
     rg.Get("/", h.ListIdentityConfigs)
     rg.Put("/{id}", h.UpdateIdentityConfig)
     rg.Delete("/{id}", h.DeleteIdentityConfig)
+	rg.Delete("/revoke-session/{id}", h.RevokeUserSessionHandler)
 }

@@ -29,11 +29,11 @@ func NewProxyServer(
 	grpcClient *gateway_grpc.SafeClient, 
 	registry *registry.Registry, 
 	redisClient *redis.Client, 
+	sessions *session.SessionManager,
 	log *zap.Logger,
 	engine *policy.PolicyEngine,
 ) *ProxyServer {
 
-	sessions := session.NewSessionManager(redisClient, cfg.SessionTTL, cfg.CookieSecure)
 	rateLimiter := session.NewRedisLimiter(redisClient, 10, time.Minute)
 	handler := NewHandler(
 		log, registry, sessions, rateLimiter, redisClient, grpcClient, cfg,

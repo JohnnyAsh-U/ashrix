@@ -17,7 +17,10 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
+	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/jackc/pgx/v5/pgtype"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
@@ -310,11 +313,6 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (s
 		return "", "", fmt.Errorf("exchange: %w", err)
 	}
 
-	token, err := r.idpSession.CreateSession(ctx, gateway.ID.String(), gateway.Name, identity)
-	if err != nil {
-		return "", "", fmt.Errorf("get state: %w", err)
-	}
-
 	tenantUUID, err := uuid.Parse(stateData.TenantID)
 	userUUID, err := uuid.Parse(identity.UserID)
 	gatewayUUID, err := uuid.Parse(stateData.TenantID)
@@ -324,7 +322,7 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (s
 	}
 
 	//Create Session in the db for the gateway
-	_, err = r.repo.CreateUserSessionForGateway(ctx, store.CreateUserSessionForGatewayParams{
+	session, err := r.repo.CreateUserSessionForGateway(ctx, store.CreateUserSessionForGatewayParams{
 		OrgID:     tenantUUID,
 		UserID:    userUUID,
 		GatewayID: gatewayUUID,
@@ -333,6 +331,24 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (s
 
 	if err != nil {
 		return "", "", fmt.Errorf("Session Creation Error: %w", err)
+	}
+
+	// Proto Identity
+	protoIdentity := &proto.NormalizedIdentity{
+		UserId:      identity.UserID,
+		TenantId:    identity.TenantID,
+		ProviderId:  identity.ProviderID,
+		CpSessionId: session.ID.String(),
+		Email:       identity.Email,
+		Name:        identity.Name,
+		Groups:      identity.Groups,
+		Provider:    identity.Provider,
+		AuthTime:    timestamppb.Now(),
+	}
+
+	token, err := r.idpSession.CreateUserSession(ctx, gateway.ID.String(), gateway.Name, protoIdentity)
+	if err != nil {
+		return "", "", fmt.Errorf("get state: %w", err)
 	}
 
 	return gateway.PublicUrl, token, nil
@@ -422,6 +438,22 @@ func (s *IDPService) decryptSecret(encoded string) (string, error) {
 }
 
 func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID) (store.UserSession, error) {
+	//Get the sessions and make sure the admin orgs is same as the user org
+	orgIDStr := middleware.OrgIDFromCtx(ctx)
+	orgID, err := uuid.Parse(orgIDStr)
+	if err != nil {
+		return store.UserSession{}, fmt.Errorf("Invalid Organization ID format: %w", err)
+	}
+
+	userSession, err := s.repo.GetUserSessionByID(ctx, sessionID)
+	if err != nil {
+		return store.UserSession{}, fmt.Errorf("Not Found")
+	}
+
+	if userSession.OrgID != orgID {
+		return store.UserSession{}, fmt.Errorf("Not Found")
+	}
+
 	session, err := s.repo.RevokeUserSession(ctx, sessionID)
 	if err != nil {
 		return store.UserSession{}, err
@@ -451,4 +483,19 @@ func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID)
 	}
 
 	return session, nil
+}
+
+// RevokeAllUserSession Revoke All User Session for Gateway
+func (s *IDPService) RevokeAllUserSession(ctx context.Context, userID, orgID uuid.UUID) error {
+	sessions, err := s.repo.GetUserSessionsByOrgAndUser(ctx, store.GetUserActiveSessionParams{
+		OrgID: orgID,
+		UserID: userID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, session := range sessions {
+		s.RevokeUserSession(ctx, session.ID)
+	}
+	return nil
 }

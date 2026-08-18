@@ -105,7 +105,7 @@ func (s *Service) ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]C
 // ReEnrollConnector re-create a connector.
 func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name string, gatewayId uuid.UUID) (ConnectorResponse, *dto.AppError) {
 
-	gatewayRes, err := s.repo.GetConnectorByID(ctx, id)
+	connectorRes, err := s.repo.GetConnectorByID(ctx, id)
 
 	if err != nil {
 		return ConnectorResponse{}, dto.NewNotFoundError("Not Found")
@@ -113,7 +113,7 @@ func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name stri
 
 	//Check if the Org is same as the Admin
 	AdminOrgId := middleware.OrgIDFromCtx(ctx)
-	if AdminOrgId != gatewayRes.OrgID.String() {
+	if AdminOrgId != connectorRes.OrgID.String() {
 		return ConnectorResponse{}, dto.NewUnauthorizedError("OrgID Error")
 	}
 

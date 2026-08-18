@@ -12,6 +12,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/version"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
@@ -35,6 +36,7 @@ type StreamManager struct {
 
 	registry    *registry.Registry
 	redisClient *redis.Client
+	session     *session.SessionManager
 
 	mu     sync.RWMutex
 	stream pb.ControlPlaneService_ConnectClient
@@ -52,6 +54,7 @@ func NewStreamManager(
 	// onAuthError func(ctx context.Context) error,
 	reg *registry.Registry,
 	redisClient *redis.Client,
+	session *session.SessionManager,
 ) *StreamManager {
 	if sendQueue <= 0 {
 		sendQueue = 64
@@ -66,6 +69,7 @@ func NewStreamManager(
 		sendCh:      make(chan *pb.GatewayEnvelope, sendQueue),
 		registry:    reg,
 		redisClient: redisClient,
+		session:     session,
 	}
 }
 
@@ -294,10 +298,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		case *pb.Command_RevokeSession:
 			h.log.Info("revoking session in Redis", zap.String("session_id", cmd.RevokeSession.SessionId))
 			if h.redisClient != nil {
-				key := fmt.Sprintf("session:%s", cmd.RevokeSession.SessionId)
-				if err := h.redisClient.Del(ctx, key).Err(); err != nil {
-					h.log.Error("failed to delete session from redis", zap.Error(err))
-				}
+				h.session.RevokeByCPSession(ctx, cmd.RevokeSession.SessionId)
 			}
 
 		case *pb.Command_RevokeConnector:

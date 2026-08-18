@@ -274,8 +274,6 @@ func (q *Queries) GetActiveGatewayByID(ctx context.Context, id uuid.UUID) (Gatew
 const getConnectorByID = `-- name: GetConnectorByID :one
 SELECT id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, is_active, enrolled_at, revoked_at FROM connectors
 WHERE id         = $1
-  AND is_active = true
-  AND revoked_at IS NULL
 `
 
 func (q *Queries) GetConnectorByID(ctx context.Context, id uuid.UUID) (Connector, error) {
@@ -600,8 +598,6 @@ func (q *Queries) ListConnectorsByGateway(ctx context.Context, gatewayID uuid.UU
 const listConnectorsByOrg = `-- name: ListConnectorsByOrg :many
 SELECT id, org_id, gateway_id, name, token_hash, last_seen, status, created_at, is_active, enrolled_at, revoked_at FROM connectors
 WHERE org_id     = $1
-  AND is_active = true
-  AND revoked_at IS NULL
 ORDER BY created_at ASC
 `
 
@@ -683,6 +679,7 @@ UPDATE connectors
 SET created_at = NOW(), 
     status = 'pending',
     last_seen = NULL,
+    revoked_at = NULL,
     is_active = true,
     token_hash = $2,
     name = $3,
@@ -727,6 +724,7 @@ UPDATE gateways
 SET created_at = NOW(), 
     status = 'pending',
     last_heartbeat = NULL,
+    revoked_at = NULL,
     version = NULL,
     is_active = true,
     ip_address = $5,

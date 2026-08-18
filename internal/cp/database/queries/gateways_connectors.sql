@@ -25,6 +25,7 @@ UPDATE gateways
 SET created_at = NOW(), 
     status = 'pending',
     last_heartbeat = NULL,
+    revoked_at = NULL,
     version = NULL,
     is_active = true,
     ip_address = $5,
@@ -132,6 +133,7 @@ UPDATE connectors
 SET created_at = NOW(), 
     status = 'pending',
     last_seen = NULL,
+    revoked_at = NULL,
     is_active = true,
     token_hash = $2,
     name = $3,
@@ -154,9 +156,7 @@ RETURNING *;
 
 -- name: GetConnectorByID :one
 SELECT * FROM connectors
-WHERE id         = $1
-  AND is_active = true
-  AND revoked_at IS NULL;
+WHERE id         = $1;
 
 -- name: GetActiveConnectorByID :one
 SELECT * FROM connectors
@@ -192,8 +192,6 @@ WHERE token_hash = $1
 -- name: ListConnectorsByOrg :many
 SELECT * FROM connectors
 WHERE org_id     = $1
-  AND is_active = true
-  AND revoked_at IS NULL
 ORDER BY created_at ASC;
 
 -- name: ListConnectorsByGateway :many

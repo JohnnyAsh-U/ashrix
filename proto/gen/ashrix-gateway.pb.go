@@ -380,7 +380,8 @@ type NormalizedIdentity struct {
 	Name          string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
 	Groups        []string               `protobuf:"bytes,6,rep,name=groups,proto3" json:"groups,omitempty"`
 	Provider      string                 `protobuf:"bytes,7,opt,name=provider,proto3" json:"provider,omitempty"`
-	AuthTime      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=auth_time,json=authTime,proto3" json:"auth_time,omitempty"`
+	CpSessionId   string                 `protobuf:"bytes,8,opt,name=cp_session_id,json=cpSessionId,proto3" json:"cp_session_id,omitempty"`
+	AuthTime      *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=auth_time,json=authTime,proto3" json:"auth_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -460,6 +461,13 @@ func (x *NormalizedIdentity) GetGroups() []string {
 func (x *NormalizedIdentity) GetProvider() string {
 	if x != nil {
 		return x.Provider
+	}
+	return ""
+}
+
+func (x *NormalizedIdentity) GetCpSessionId() string {
+	if x != nil {
+		return x.CpSessionId
 	}
 	return ""
 }
@@ -1873,7 +1881,7 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"\x14ExchangeTokenRequest\x12!\n" +
 	"\fgateway_name\x18\x01 \x01(\tR\vgatewayName\x12\x1d\n" +
 	"\n" +
-	"token_hash\x18\x02 \x01(\tR\ttokenHash\"\x82\x02\n" +
+	"token_hash\x18\x02 \x01(\tR\ttokenHash\"\xa6\x02\n" +
 	"\x12NormalizedIdentity\x12\x1b\n" +
 	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x1f\n" +
 	"\vprovider_id\x18\x02 \x01(\tR\n" +
@@ -1882,8 +1890,9 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"\x05email\x18\x04 \x01(\tR\x05email\x12\x12\n" +
 	"\x04name\x18\x05 \x01(\tR\x04name\x12\x16\n" +
 	"\x06groups\x18\x06 \x03(\tR\x06groups\x12\x1a\n" +
-	"\bprovider\x18\a \x01(\tR\bprovider\x127\n" +
-	"\tauth_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bauthTime\"\x89\x01\n" +
+	"\bprovider\x18\a \x01(\tR\bprovider\x12\"\n" +
+	"\rcp_session_id\x18\b \x01(\tR\vcpSessionId\x127\n" +
+	"\tauth_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\bauthTime\"\x89\x01\n" +
 	"\x15ExchangeTokenResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x125\n" +
 	"\bidentity\x18\x02 \x01(\v2\x19.proto.NormalizedIdentityR\bidentity\x12#\n" +

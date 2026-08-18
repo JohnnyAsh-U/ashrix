@@ -12,9 +12,13 @@
 * Add Timestamp Signature to avoid replay 
 * Implement User Revocation Sessions in Gateway and CP
 
-* IDP Crud and App Mapping to IDP on CP
+* App Mapping to IDP on CP
 
+* Verify if to add a session hash of CP(in DB) to the gateway identity stored on cache
+* To add dispatcher to creation of Connectors for connector sync status
+* To add apps and url permitted to be accessible from the gateway to avoid lateral movements, so a dispatcher for apps to sync it with gateway
 
+* Close Quic connection on revocation of connector cert
 
 
 
