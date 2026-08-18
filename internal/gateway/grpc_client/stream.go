@@ -21,6 +21,7 @@ import (
 	// "github.com/cenkalti/backoff/v4"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // StreamManager maintains a single bidi stream to the control plane.
@@ -264,9 +265,10 @@ func (h *StreamManager) heartbeater(ctx context.Context) {
 				Payload: &pb.GatewayEnvelope_Heartbeat{
 					Heartbeat: &pb.HeartbeatMessage{
 						Seq:               seq,
-						ActiveConnections: 3,
-						ActiveSessions:    3,
-						ConnectorCount:    4,
+						GatewayId: h.cfg.GatewayID,
+						ActiveConnections: int32(h.registry.ActiveSessions()),
+						ActiveSessions:    int32(h.registry.ActiveSessions()),
+						ConnectorCount:    int32(h.registry.ActiveConnectors()),
 					},
 				},
 			})
@@ -282,10 +284,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 	switch p := msg.Payload.(type) {
 
 	case *pb.CPEnvelope_HelloAck:
-		h.log.Info("hello acknowledged by CP",
-			zap.String("server_version", p.HelloAck.ServerVersion),
-			zap.Bool("needs_policy", p.HelloAck.NeedsPolicy),
-		)
+		h.log.Info("Hello Acknowledged, Gateway Syncing", zap.Time("server_time", p.HelloAck.ServerTime.AsTime()))
 
 	case *pb.CPEnvelope_PolicyBundle:
 		h.log.Info("policy bundle received",
@@ -298,24 +297,33 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		case *pb.Command_RevokeSession:
 			h.log.Info("revoking session in Redis", zap.String("session_id", cmd.RevokeSession.SessionId))
 			if h.redisClient != nil {
-				h.session.RevokeByCPSession(ctx, cmd.RevokeSession.SessionId)
+				if err := h.session.RevokeByCPSession(ctx, cmd.RevokeSession.SessionId); err != nil{
+					h.CommandStatusUpdate(p.Cmd.CmdId, false, err.Error())
+				} else {
+					h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+				}
 			}
+			h.log.Info("sent status update", zap.String("session_id", cmd.RevokeSession.SessionId))
 
 		case *pb.Command_RevokeConnector:
 			h.log.Info("revoking connector; cutting connection", zap.String("connector_id", cmd.RevokeConnector.ConnectorId))
 			h.cutConnectorConnection(cmd.RevokeConnector.ConnectorId)
+			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
 
 		case *pb.Command_RevokeConnectorCert:
 			h.log.Info("revoking connector cert; cutting connection", zap.String("connector_id", cmd.RevokeConnectorCert.ConnectorId))
 			h.cutConnectorConnection(cmd.RevokeConnectorCert.ConnectorId)
+			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
 
 		case *pb.Command_RotateConnectorCert:
 			h.log.Info("rotating connector cert; cutting connection", zap.String("connector_id", cmd.RotateConnectorCert.ConnectorId))
 			h.cutConnectorConnection(cmd.RotateConnectorCert.ConnectorId)
+			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
 
 		case *pb.Command_CrlSync:
 			h.log.Info("received CRL sync", zap.Int("revoked_certs_count", len(cmd.CrlSync.RevokedSerialNumbers)))
 			h.registry.SetCrlEntries(cmd.CrlSync.RevokedSerialNumbers)
+			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
 
 		case *pb.Command_ConnectorSync:
 			h.log.Info("received authorized connectors list sync", zap.Int("connectors_count", len(cmd.ConnectorSync.Connectors)))
@@ -335,14 +343,17 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 		case *pb.Command_RevokeGatewayCert:
 			h.log.Error("gateway certificate revoked - reconnecting")
+			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
 			_ = h.cm.Close()
 
 		case *pb.Command_RevokeGateway:
 			h.log.Error("gateway revoked - terminating connection")
+			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
 			_ = h.cm.Close()
 
 		case *pb.Command_DrainGateway:
 			h.log.Warn("gateway entering draining state")
+			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
 		}
 
 	default:
@@ -353,8 +364,8 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 func (h *StreamManager) cutConnectorConnection(connectorID string) {
 	if entry, ok := h.registry.GetByConnectorID(connectorID); ok {
-		if entry.ManagementStream != nil {
-			_ = entry.ManagementStream.Send(&pb.GatewayConnectorEnvelope{
+		if entry.ManagementSession != nil {
+			_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
 				Payload: &pb.GatewayConnectorEnvelope_Reject{
 					Reject: &pb.ConnectorReject{
 						Reason:    "connector revoked or rotated by CP",
@@ -362,12 +373,11 @@ func (h *StreamManager) cutConnectorConnection(connectorID string) {
 					},
 				},
 			})
+			//Close management stream
+			h.registry.ForceCloseConnector(connectorID)
 		}
-		if entry.TunnelSession != nil {
-			_ = entry.TunnelSession.Close()
-		}
-		h.registry.DetachManagement(connectorID)
-		h.registry.DetachTunnel(connectorID)
+		h.registry.DetachTunnel(connectorID, entry.TunnelSession)
+		h.registry.DetachManagement(connectorID, entry.ManagementSession)
 	}
 }
 
@@ -426,96 +436,24 @@ func (sm *StreamManager) setStream(s pb.ControlPlaneService_ConnectClient, activ
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// func (h *StreamManager) ack(
-// 	messageID string, bundleType pb.BundleTypes, version string,
-// 	applied bool,
-// 	errMsg string,
-// ) {
-// 	h.Send(&pb.GatewayEnvelope{
-// 		Payload: &pb.GatewayEnvelope_BundleAck{
-// 			BundleAck: &pb.BundleAck{
-// 				MessageId:  messageID,
-// 				BundleType: bundleType,
-// 				Version:    version,
-// 				Applied:    applied,
-// 				Error:      errMsg,
-// 			},
-// 		},
-// 	})
-// }
+func (h *StreamManager) CommandStatusUpdate(
+	cmdID string, 
+	hasApplied bool,
+	errMsg string,
+) {
+	h.Send(&pb.GatewayEnvelope{
+		Payload: &pb.GatewayEnvelope_CmdAck{
+			CmdAck: &pb.CmdAck{
+				CmdId:             cmdID,
+				GatewayId:         h.cfg.GatewayID,
+				Success:           hasApplied,
+				Error:             errMsg,
+				TimeStamp:         timestamppb.Now(),
+			},
+		},
+	})
+}
 
-// // handleSuspendCommand is the exact flow traced in our conversation:
-// // look up in shared registry, relay if connected, otherwise no-op
-// // (reconciliation on reconnect handles the offline case correctly).
-// func (h *Handler) handleSuspendCommand(cmd *pb.SuspendCommand) {
-// 	if err := h.pki.VerifySignature(cmd.Signature, cmd); err != nil {
-// 		h.log.Error("suspend command signature invalid — ignoring",
-// 			zap.Error(err))
-// 		return
-// 	}
-
-// 	connectorID := cmd.ConnectorId
-
-// 	// Update registry's view of truth regardless of connection state.
-// 	// This matters for policy checks even if relay fails below.
-// 	h.registry.SetState(connectorID, "suspended")
-
-// 	entry, connected := h.registry.GetByConnectorID(connectorID)
-// 	if !connected {
-// 		h.log.Info("connector offline — state recorded, will apply on reconnect",
-// 			zap.String("connector_id", connectorID))
-
-// 		// Best-effort: queue it too, in case connector reconnects
-// 		// within this gateway's lifetime before a full reconciliation
-// 		// cycle would otherwise catch it.
-// 		h.pending.Enqueue(connectorID, &pb.GatewayEnvelope{
-// 			Payload: &pb.GatewayEnvelope_SuspendCmd{SuspendCmd: cmd},
-// 		})
-// 		return
-// 	}
-
-// 	err := entry.ManagementStream.Send(&pb.GatewayEnvelope{
-// 		Payload: &pb.GatewayEnvelope_SuspendCmd{SuspendCmd: cmd},
-// 	})
-// 	if err != nil {
-// 		h.log.Error("failed to relay suspend to connector",
-// 			zap.String("connector_id", connectorID),
-// 			zap.Error(err))
-// 		// Stream write failed — connector's stream is likely dying.
-// 		// Do NOT retry here. Let the connector server's own recv
-// 		// loop detect the dead stream, unregister, and let the
-// 		// connector's natural reconnect trigger reconciliation.
-// 		return
-// 	}
-
-// 	h.log.Info("suspend command relayed",
-// 		zap.String("connector_id", connectorID))
-// }
-
-// func (h *Handler) handleResumeCommand(cmd *pb.ResumeCommand) {
-// 	if err := h.pki.VerifySignature(cmd.Signature, cmd); err != nil {
-// 		h.log.Error("resume command signature invalid — ignoring",
-// 			zap.Error(err))
-// 		return
-// 	}
-
-// 	connectorID := cmd.ConnectorId
-// 	h.registry.SetState(connectorID, "active")
-
-// 	entry, connected := h.registry.GetByConnectorID(connectorID)
-// 	if !connected {
-// 		h.pending.Enqueue(connectorID, &pb.GatewayEnvelope{
-// 			Payload: &pb.GatewayEnvelope_ResumeCmd{ResumeCmd: cmd},
-// 		})
-// 		return
-// 	}
-
-// 	if err := entry.ManagementStream.Send(&pb.GatewayEnvelope{
-// 		Payload: &pb.GatewayEnvelope_ResumeCmd{ResumeCmd: cmd},
-// 	}); err != nil {
-// 		h.log.Error("failed to relay resume to connector", zap.Error(err))
-// 	}
-// }
 
 func (sm *StreamManager) makeHello(ctx context.Context) *pb.GatewayEnvelope {
 	policyVersion, err := sm.policyStore.GetCheckpoint(ctx)

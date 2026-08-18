@@ -152,7 +152,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	//---------------------------Initialize and Load Registry------------------------------//
 
-	reg := registry.New()
+	reg := registry.New(log)
 
 	log.Info("Initialising Registry...")
 

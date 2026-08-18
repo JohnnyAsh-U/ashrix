@@ -108,17 +108,18 @@ message CPEnvelope {
 }
 
 message Command {
+  string cmd_id = 1;
   oneof payload {
-    RotateGatewayCertCmd   rotate_gateway_cert   = 1;
-    RevokeGatewayCertCmd   revoke_gateway_cert   = 2;
-    RevokeGatewayCmd       revoke_gateway        = 3;
-    RevokeSessionCmd       revoke_session        = 4;
-    DrainGatewayCmd        drain_gateway         = 5;
-    RevokeConnectorCmd     revoke_connector      = 6;
-    RotateConnectorCertCmd rotate_connector_cert = 7;
-    RevokeConnectorCertCmd revoke_connector_cert = 8;
-    CrlSyncCmd             crl_sync              = 9;
-    ConnectorSyncCmd       connector_sync        = 10;
+    RotateGatewayCertCmd   rotate_gateway_cert   = 2;
+    RevokeGatewayCertCmd   revoke_gateway_cert   = 3;
+    RevokeGatewayCmd       revoke_gateway        = 4;
+    RevokeSessionCmd       revoke_session        = 5;
+    DrainGatewayCmd        drain_gateway         = 6;
+    RevokeConnectorCmd     revoke_connector      = 7;
+    RotateConnectorCertCmd rotate_connector_cert = 8;
+    RevokeConnectorCertCmd revoke_connector_cert = 9;
+    CrlSyncCmd             crl_sync              = 10;
+    ConnectorSyncCmd       connector_sync        = 11;
   }
 }
 
@@ -165,17 +166,20 @@ message HelloMessage {
 
 //Ack for Cmds
 message CmdAck {
-  string cmd_id = 1;
-  string gateway_id = 2;
-  google.protobuf.Timestamp time_stamp = 3;
+  string                    cmd_id       = 1;
+  string                    gateway_id   = 2;
+  bool                      success      = 3;
+  string                    error        = 4;
+  google.protobuf.Timestamp time_stamp   = 5;
 }
 
 message HeartbeatMessage {
   int64                     seq                = 1; // full state snapshot — CP needs no separate query
-  int32                     active_connections = 2; // live connections (connectors + clients)
-  int32                     active_sessions    = 3; // authenticated sessions
-  int32                     connector_count    = 4; // how many connectors currently connected
-  repeated ConnectorsStatus connector_status   = 5;
+  string                    gateway_id         = 2;
+  int32                     active_connections = 3; // live connections (connectors + clients)
+  int32                     active_sessions    = 4; // authenticated sessions
+  int32                     connector_count    = 5; // how many connectors currently connected
+  repeated ConnectorsStatus connector_status   = 6;
 }
 
 message ConnectorsStatus {
@@ -190,10 +194,7 @@ message ConnectorsStatus {
 
 message HelloAck {
   string                    server_version = 1;
-  bool                      needs_policy   = 2;
-  bool                      needs_trust    = 3;
-  bool                      needs_crl      = 4;
-  google.protobuf.Timestamp server_time    = 5;
+  google.protobuf.Timestamp server_time    = 2;
 }
 
 message PolicyBundle {

@@ -896,26 +896,54 @@ func (q *Queries) UpdateConnectorStatus(ctx context.Context, arg UpdateConnector
 	return i, err
 }
 
+const updateGatewayBinaryVersion = `-- name: UpdateGatewayBinaryVersion :one
+UPDATE gateways
+SET version = $2
+WHERE id = $1
+  AND is_active = true
+  AND revoked_at IS NULL
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, enrolled_at, revoked_at
+`
+
+type UpdateGatewayBinaryVersionParams struct {
+	ID      uuid.UUID   `json:"id"`
+	Version pgtype.Text `json:"version"`
+}
+
+func (q *Queries) UpdateGatewayBinaryVersion(ctx context.Context, arg UpdateGatewayBinaryVersionParams) (Gateway, error) {
+	row := q.db.QueryRow(ctx, updateGatewayBinaryVersion, arg.ID, arg.Version)
+	var i Gateway
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Name,
+		&i.TokenHash,
+		&i.Version,
+		&i.DeploymentType,
+		&i.PublicUrl,
+		&i.IpAddress,
+		&i.LastHeartbeat,
+		&i.Status,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.EnrolledAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const updateGatewayHeartbeat = `-- name: UpdateGatewayHeartbeat :one
 UPDATE gateways
-SET last_heartbeat = now(),
-    version        = $2,
-    status         = $3
+SET last_heartbeat = now()
 WHERE id           = $1
   AND is_active = true
   AND revoked_at   IS NULL
 RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, enrolled_at, revoked_at
 `
 
-type UpdateGatewayHeartbeatParams struct {
-	ID      uuid.UUID   `json:"id"`
-	Version pgtype.Text `json:"version"`
-	Status  string      `json:"status"`
-}
-
 // Called every 30s by Gateway. Updates last_heartbeat and version.
-func (q *Queries) UpdateGatewayHeartbeat(ctx context.Context, arg UpdateGatewayHeartbeatParams) (Gateway, error) {
-	row := q.db.QueryRow(ctx, updateGatewayHeartbeat, arg.ID, arg.Version, arg.Status)
+func (q *Queries) UpdateGatewayHeartbeat(ctx context.Context, id uuid.UUID) (Gateway, error) {
+	row := q.db.QueryRow(ctx, updateGatewayHeartbeat, id)
 	var i Gateway
 	err := row.Scan(
 		&i.ID,

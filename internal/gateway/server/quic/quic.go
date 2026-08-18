@@ -116,7 +116,7 @@ func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) 
 
 	tunnelSession := &quicTunnelSession{conn: conn}
 	s.registry.AttachTunnel(connectorID, tunnelSession, cert, "quic")
-	defer s.registry.DetachTunnel(connectorID)
+	defer s.registry.DetachTunnel(connectorID, tunnelSession)
 
 	s.log.Info("Tunnel plane attached via quic", zap.String("Connector_id", connectorID))
 	<-conn.Context().Done()

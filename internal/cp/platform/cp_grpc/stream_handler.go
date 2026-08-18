@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
@@ -209,7 +210,16 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 		switch p := msg.Payload.(type) {
 		case *proto.GatewayEnvelope_Hello:
 			log.Println("Gateway Connected", p.Hello.GatewayId)
-
+			//Update the binary version on the gateway repo
+			_, err := s.gatewayRepo.UpdateGatewayBinaryVersion(ctx, store.UpdateGatewayBinaryVersionParams{
+				ID:        uuid.Must(uuid.Parse(p.Hello.GatewayId)),
+				Version: pgtype.Text{Valid: true, String: p.Hello.BinaryVersion},
+			})
+			if err != nil {
+				log.Printf("Failed to update gateway binary version %v", err)
+			} else {
+				log.Printf("Gateway binary version updated successfully %v", p.Hello.GatewayId)
+			}
 			ack := &proto.CPEnvelope{
 				Payload: &proto.CPEnvelope_HelloAck{
 					HelloAck: &proto.HelloAck{
@@ -218,25 +228,38 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 					},
 				},
 			}
-
 			if err := stream.Send(ack); err != nil {
 				log.Printf("Failed to send Hello Ack %v", err)
 			}
 
 		case *proto.GatewayEnvelope_Heartbeat:
 			log.Println("HeartBeat", p.Heartbeat.Seq)
-
-			ack := &proto.CPEnvelope{
-				Payload: &proto.CPEnvelope_HelloAck{
-					HelloAck: &proto.HelloAck{
-						ServerVersion: "1.0.0",
-						ServerTime:    timestamppb.Now(),
-					},
-				},
+			// Update the db last seen
+			_, err := s.gatewayRepo.UpdateGatewayHeartBeat(ctx, uuid.Must(uuid.Parse(p.Heartbeat.GatewayId)))
+			if err != nil {
+				log.Printf("Failed to update gateway last seen %v", err)
+			} else {
+				log.Printf("Gateway last seen updated successfully %v", p.Heartbeat.GatewayId)
 			}
 
-			if err := stream.Send(ack); err != nil {
-				log.Printf("Failed to send Hello Ack %v", err)
+		case *proto.GatewayEnvelope_CmdAck:
+			log.Println("Command Ack", p.CmdAck)
+			_, err := s.gatewayRepo.CreateGatewayEventAck(ctx, store.CreateGatewayEventAcksParams{
+				GatewayID:        uuid.Must(uuid.Parse(p.CmdAck.GatewayId)),
+				LastAckedSeq:  func () int64  {
+					seq,err:= strconv.ParseInt(p.CmdAck.CmdId,10,64)
+					if err != nil {
+						log.Println("Failed to parse command ID", slog.String("err", err.Error()))
+						return 0
+					} else {
+						return seq
+					}
+				}(),
+			})
+			if err != nil {
+				log.Printf("Failed to create gateway event ack %v", err)
+			} else {
+				log.Printf("Gateway event ack created successfully %v", p.CmdAck.GatewayId)
 			}
 
 		default:

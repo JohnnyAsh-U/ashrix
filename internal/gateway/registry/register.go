@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"go.uber.org/zap"
 )
 
 // ConnectorEntry holds everything the gateway knows about
@@ -17,7 +18,7 @@ type ConnectorEntry struct {
 	Apps             []*pb.ConnectorApps
 
 	TenantID         string
-	ManagementStream ManagementStream // live stream — nil if tunnel-only entry
+	ManagementSession *ManagementSession // live stream — nil if tunnel-only entry
 	ManagementConnAt time.Time
 	LastHeartbeat    time.Time
 	managementAttached bool
@@ -43,33 +44,37 @@ type Registry struct {
 	mu         sync.RWMutex
 	connectors map[string]*ConnectorEntry // connector_id → entry
 	routing    map[string]string          // subdomain → connector_id
-	crlSerials []string
+	crlSerials map[string]struct{}
 	authConnectors map[string]string // connector_id -> status
+	log *zap.Logger
 }
 
-func New() *Registry {
+func New(log *zap.Logger) *Registry {
 	return &Registry{
-		connectors: make(map[string]*ConnectorEntry),
-		routing:    make(map[string]string), //Subdomain to connectors
+		connectors:     make(map[string]*ConnectorEntry),
+		routing:        make(map[string]string), //Subdomain to connectors
+		crlSerials:     make(map[string]struct{}),
 		authConnectors: make(map[string]string),
+		log:            log,
 	}
 }
 
+// SetCrlEntries converts the serial slice to an O(1) lookup map.
 func (r *Registry) SetCrlEntries(serials []string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.crlSerials = serials
+
+	r.crlSerials = make(map[string]struct{}, len(serials))
+	for _, s := range serials {
+		r.crlSerials[s] = struct{}{}
+	}
 }
 
 func (r *Registry) IsCrlRevoked(serialNumber string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	for _, s := range r.crlSerials {
-		if s == serialNumber {
-			return true
-		}
-	}
-	return false
+	_, revoked := r.crlSerials[serialNumber]
+	return revoked
 }
 
 func (r *Registry) SetAuthorizedConnectors(connectors map[string]string) {
@@ -89,14 +94,7 @@ func (r *Registry) IsConnectorAuthorized(connectorID string) (string, bool) {
 }
 
 
-// getOrCreate returns the existing entry for a connector or creates
-// a new bare one. Called by BOTH the gRPC management server and the
-// QUIC tunnel server — whichever connects FIRST creates the entry,
-// whichever connects SECOND attaches to the same entry.
-//
-// This is the direct answer to scenario C above: reconnecting one
-// plane does NOT wipe the other plane's live reference.
-func (r *Registry) getOrCreate(connectorID string) *ConnectorEntry {
+func (r *Registry) getOrCreateLocked(connectorID string) *ConnectorEntry {
 	if entry, ok := r.connectors[connectorID]; ok {
 		return entry
 	}
@@ -112,17 +110,19 @@ func (r *Registry) AttachManagement(
 	connectorID string,
 	TenantID string,
 	apps []*pb.ConnectorApps,
-	stream ManagementStream,
+	session *ManagementSession,
 	cert *x509.Certificate,
 	state string,
 ) *ConnectorEntry {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	entry := r.getOrCreate(connectorID)
+	entry := r.getOrCreateLocked(connectorID)
+	oldSession := entry.ManagementSession
+
 	entry.Apps = apps
 	entry.TenantID = TenantID
-	entry.ManagementStream = stream
+	entry.ManagementSession = session
 	entry.ManagementConnAt = time.Now()
 	entry.LastHeartbeat = time.Now()
 	entry.managementAttached = true
@@ -130,6 +130,16 @@ func (r *Registry) AttachManagement(
 	entry.State = state
 
 	r.rebuildRoutingLocked(entry)
+
+	// Displace old management stream outside lock
+	if oldSession != nil && oldSession != session {
+		r.log.Info("Displacing old management session",
+			zap.String("connector_id", connectorID),
+			zap.String("reason", string(DisconnectReplaced)),
+		)
+		oldSession.Close()
+	}
+
 	return entry
 }
 
@@ -149,44 +159,53 @@ func (r *Registry) AttachTunnel(
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	entry := r.getOrCreate(connectorID)
+	entry := r.getOrCreateLocked(connectorID)
+	oldTunnel := entry.TunnelSession
+
 	entry.TunnelSession = session
 	entry.TunnelTransport = transport
 	entry.TunnelConnAt = time.Now()
 	entry.tunnelAttached = true
 	entry.quicCert = cert
+
+	// Displace old tunnel session outside lock
+	if oldTunnel != nil && oldTunnel != session {
+		r.log.Info("Displacing old tunnel session",
+			zap.String("connector_id", connectorID),
+			zap.String("reason", string(DisconnectReplaced)),
+		)
+		_ = oldTunnel.Close()
+	}
 	return entry
 }
 
 // DetachManagement is called when the gRPC stream dies.
 // Does NOT remove the entry if the tunnel is still live —
 // only clears the management-specific fields.
-func (r *Registry) DetachManagement(connectorID string) {
+func (r *Registry) DetachManagement(connectorID string, session *ManagementSession) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	entry, ok := r.connectors[connectorID]
-	if !ok {
-		return
+	if !ok || entry.ManagementSession != session {
+		return // Ignore stale detach from a displaced session
 	}
-	entry.ManagementStream = nil
-	entry.managementAttached = false
 
+	entry.ManagementSession = nil
 	r.removeIfFullyDetachedLocked(connectorID, entry)
 }
 
 // DetachTunnel is called when the QUIC connection dies.
-func (r *Registry) DetachTunnel(connectorID string) {
+func (r *Registry) DetachTunnel(connectorID string, session TunnelSession) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	entry, ok := r.connectors[connectorID]
-	if !ok {
-		return
+	if !ok || entry.TunnelSession != session {
+		return // Ignore stale detach from a displaced session
 	}
-	entry.TunnelSession = nil
-	entry.tunnelAttached = false
 
+	entry.TunnelSession = nil
 	r.removeIfFullyDetachedLocked(connectorID, entry)
 }
 
@@ -288,12 +307,12 @@ func (r *Registry) All() []*ConnectorEntry {
 func (r *Registry) VerifyGatewayConnections() {
 	// get authconnectors and connectors and compare
 	//Remove the connectors which are not present in the authconnectors
-	r.mu.Lock()
+	r.mu.RLock()
 	// This function is called when CP comes up
 	fmt.Println("Gateway Verifying connections...")
 	fmt.Println("Auth connectors:", r.authConnectors)
+	var toClose []string
 	
-	var toDetach []string
 	for connectorID, entry := range r.connectors {
 		authorized := false
 		if _, ok := r.authConnectors[connectorID]; ok {
@@ -301,40 +320,91 @@ func (r *Registry) VerifyGatewayConnections() {
 		}
 
 		revoked := false
-		if entry.gRPCCert != nil {
-			grpcCertSerialNumber := entry.gRPCCert.SerialNumber.String()
-			for _, s := range r.crlSerials {
-				if s == grpcCertSerialNumber {
-					revoked = true
-					break
-				}
-			}
-		}
-		if entry.quicCert != nil {
-			quicCertSerialNumber := entry.quicCert.SerialNumber.String()
-			for _, s := range r.crlSerials {
-				if s == quicCertSerialNumber {
-					revoked = true
-					break
-				}
-			}
-		}
+        if entry.gRPCCert != nil && r.IsCrlRevoked(entry.gRPCCert.SerialNumber.String()) {
+            revoked = true
+        }
+        if entry.quicCert != nil && r.IsCrlRevoked(entry.quicCert.SerialNumber.String()) {
+            revoked = true
+        }
+
+        if !authorized || revoked {
+            toClose = append(toClose, connectorID)
+        }
 
 		if !authorized || revoked {
-			if entry.TunnelSession != nil {
-				entry.TunnelSession.Close()
-			}
-			toDetach = append(toDetach, connectorID)
+			toClose = append(toClose, connectorID)
 		}
 	}
-	r.mu.Unlock()
+	r.mu.RUnlock()
 
-	for _, connectorID := range toDetach {
-		r.DetachManagement(connectorID)
-		r.DetachTunnel(connectorID)
+	for _, connectorID := range toClose {
+		r.ForceCloseConnector(connectorID)
 	}
 	fmt.Println("Gateway Connections Verified")
 }
 
+func (r *Registry) ActiveConnectors() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.connectors)
+}
+
+func (r *Registry) ActiveSessions() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.connectors)
+}
+
+
+func (r *Registry) ForceCloseConnector(connectorID string) {
+    r.mu.RLock()
+    entry, ok := r.connectors[connectorID]
+
+
+    if !ok {
+		r.mu.RUnlock()
+        return
+    }
+
+	mgmt := entry.ManagementSession
+	tunnel := entry.TunnelSession
+		r.mu.RUnlock()
+
+		r.log.Warn("Force disconnecting connector",
+		zap.String("connector_id", connectorID),
+	)
+
+   // Close network transports outside lock
+	if mgmt != nil {
+		mgmt.Close()
+	}
+	if tunnel != nil {
+		_ = tunnel.Close()
+	}
+}
+
+
+func (e *ConnectorEntry) IsManagementAttached() bool {
+	return e.ManagementSession != nil
+}
+
+func (e *ConnectorEntry) IsTunnelAttached() bool {
+	return e.TunnelSession != nil
+}
+
+
+func (r *Registry) connectorRevokedLocked(entry *ConnectorEntry) bool {
+	if entry.gRPCCert != nil {
+		if _, revoked := r.crlSerials[entry.gRPCCert.SerialNumber.String()]; revoked {
+			return true
+		}
+	}
+	if entry.quicCert != nil {
+		if _, revoked := r.crlSerials[entry.quicCert.SerialNumber.String()]; revoked {
+			return true
+		}
+	}
+	return false
+}
 
 

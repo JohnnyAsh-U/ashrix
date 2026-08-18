@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"time"
 
@@ -24,6 +25,11 @@ type CPStateClient interface {
 type ConnectorState struct {
 	State         string // "active" or "suspended"
 	SuspendReason string
+}
+
+type recvResult struct {
+	env *gen.ConnectorGatewayEnvelope
+	err error
 }
 
 // Server implements the connector-facing management gRPC service.
@@ -49,6 +55,9 @@ func New(
 // Connect handles one connector's management stream for its entire
 // connected lifetime. One goroutine per connector, managed by gRPC.
 func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
+	ctx, cancel := context.WithCancel(stream.Context())
+    defer cancel()
+	
 	// 1. Extract peer cert and gateway ID
 	peerInfo, ok := peer.FromContext(stream.Context())
 	if !ok {
@@ -82,9 +91,29 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 
 	connectorID := hello.ConnectorId
 
+	// 3. HARD SECURITY CHECK: Bind cert identity (SAN or CN) to requested connector_id
+	certConnectorID, err := extractConnectorIDFromCert(cert)
+	if err != nil {
+		s.log.Warn("invalid certificate identity structure", zap.Error(err))
+		return status.Error(codes.Unauthenticated, "failed to parse certificate identity")
+	}
+
+	if certConnectorID != connectorID {
+		s.log.Error("mTLS identity spoofing attempt blocked",
+			zap.String("hello_connector_id", connectorID),
+			zap.String("cert_connector_id", certConnectorID),
+		)
+		return status.Error(codes.PermissionDenied, "mTLS identity mismatch")
+	}
+
 	// Check if the connector is in the authorized connectors list
 	if _, authorized := s.registry.IsConnectorAuthorized(connectorID); !authorized {
 		return status.Error(codes.PermissionDenied, "connector not authorized")
+	}
+
+	session := &registry.ManagementSession{
+		Stream: stream,
+		Cancel: cancel,
 	}
 
 	s.log.Info("connector connecting",
@@ -105,8 +134,9 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	}
 
 	//Attach management - does not touch tunnel fields per correct registry
-	entry := s.registry.AttachManagement(connectorID, hello.TenantId, apps, stream, cert, "active")
-	defer s.registry.DetachManagement(connectorID)
+	entry := s.registry.AttachManagement(connectorID, hello.TenantId, apps, session, cert, "active")
+	defer s.registry.DetachManagement(connectorID, session)
+
 
 	// Send HelloAck
 	if err := stream.Send(&gen.GatewayConnectorEnvelope{
@@ -122,47 +152,39 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 
 	s.log.Info("Management plane attached", zap.String("Connector_id", connectorID), zap.Bool("Tunnel already attached", entry.TunnelSession != nil))
 
-	// If CP says this connector should be suspended, apply
-	// immediately — before accepting any further traffic.
-	// if state.State == "suspended" {
-	// 	s.log.Warn("connector registering into SUSPENDED state",
-	// 		zap.String("connector_id", connectorID),
-	// 		zap.String("reason", state.SuspendReason))
-
-	// 	stream.Send(&pb.GatewayEnvelope{
-	// 		Payload: &pb.GatewayEnvelope_SuspendCmd{
-	// 			SuspendCmd: &pb.SuspendCommand{
-	// 				ConnectorId: connectorID,
-	// 				Reason:      state.SuspendReason,
-	// 			},
-	// 		},
-	// 	})
-	// }
-
-	// ── Drain any pending commands queued while offline ─────────────
-	// for _, pendingEnv := range s.pending.Drain(connectorID) {
-	// 	if err := stream.Send(pendingEnv); err != nil {
-	// 		s.log.Warn("failed to deliver pending command",
-	// 			zap.String("connector_id", connectorID),
-	// 			zap.Error(err))
-	// 	}
-	// }
-
-	// s.log.Info("connector registered",
-	// 	zap.String("connector_id", connectorID),
-	// 	zap.String("state", state.State))
-
-	// ── Normal receive loop ──────────────────────────────────────────
-	for {
-		env, err := stream.Recv()
-		if err != nil {
-			s.log.Info("connector disconnected",
-				zap.String("connector_id", connectorID),
-				zap.Error(err))
-			return nil // clean disconnect — not an error worth propagating
+	// 6. Spawn dedicated receive worker to keep stream.Recv() from blocking context cancellation
+	msgChan := make(chan recvResult, 1)
+	go func() {
+		for {
+			env, err := stream.Recv()
+			select {
+			case msgChan <- recvResult{env: env, err: err}:
+			case <-ctx.Done():
+				return
+			}
+			if err != nil {
+				return
+			}
 		}
+	}()
+	// ── Normal receive loop ──────────────────────────────────────────
+	// 7. Main Event Loop
+	for {
+		select {
+		case <-ctx.Done():
+			s.log.Info("Management stream context terminated", zap.String("connector_id", connectorID))
+			return status.Error(codes.Canceled, "connection terminated by gateway")
 
-		s.handleConnectorMessage(connectorID, env)
+		case res := <-msgChan:
+			if res.err != nil {
+				s.log.Info("Connector network stream closed",
+					zap.String("connector_id", connectorID),
+					zap.Error(res.err),
+				)
+				return nil
+			}
+			s.handleConnectorMessage(connectorID, res.env)
+		}
 	}
 }
 
@@ -183,4 +205,14 @@ func (s *Server) handleConnectorMessage(connectorID string, env *gen.ConnectorGa
 func generateSessionID() string {
 	// Placeholder — use a real UUID library in production
 	return fmt.Sprintf("sess_%d", time.Now().UnixNano())
+}
+
+func extractConnectorIDFromCert(cert *x509.Certificate) (string, error) {
+	if cert.Subject.CommonName != "" {
+		return cert.Subject.CommonName, nil
+	}
+	if len(cert.DNSNames) > 0 {
+		return cert.DNSNames[0], nil
+	}
+	return "", fmt.Errorf("no valid CommonName or SAN DNSName found in certificate")
 }

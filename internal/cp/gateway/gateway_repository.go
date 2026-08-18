@@ -19,7 +19,9 @@ type Repository interface {
 	GetGatewayByID(ctx context.Context, id uuid.UUID) (store.Gateway, error)
 	EnrollGatewayUsingTokenHash(ctx context.Context, tokenHash string) (store.Gateway, error)
 
-	UpdateGatewayHeartBeat(ctx context.Context, params store.UpdateGatewayHeartbeatParams) (store.Gateway, error)
+	UpdateGatewayHeartBeat(ctx context.Context, id uuid.UUID) (store.Gateway, error)
+
+	UpdateGatewayBinaryVersion(ctx context.Context, params store.UpdateGatewayBinaryVersionParams) (store.Gateway, error)
 
 	RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error)
 
@@ -80,8 +82,12 @@ func (r *postgresRepository) GetGatewayByTokenHash(ctx context.Context, token st
 	return r.q.GetGatewayByTokenHash(ctx, token)
 }
 
-func (r *postgresRepository) UpdateGatewayHeartBeat(ctx context.Context, params store.UpdateGatewayHeartbeatParams) (store.Gateway, error) {
-	return r.q.UpdateGatewayHeartbeat(ctx, params)
+func (r *postgresRepository) UpdateGatewayHeartBeat(ctx context.Context, id uuid.UUID) (store.Gateway, error) {
+	return r.q.UpdateGatewayHeartbeat(ctx, id)
+}
+
+func (r *postgresRepository) UpdateGatewayBinaryVersion(ctx context.Context, params store.UpdateGatewayBinaryVersionParams) (store.Gateway, error) {
+	return r.q.UpdateGatewayBinaryVersion(ctx, params)
 }
 
 func (r *postgresRepository) RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error) {
@@ -91,8 +97,6 @@ func (r *postgresRepository) RevokeGateway(ctx context.Context, params store.Rev
 func (r *postgresRepository) UpdateGatewayStatus(ctx context.Context, params store.UpdateGatewayStatusParams) (store.Gateway, error) {
 	return r.q.UpdateGatewayStatus(ctx, params)
 }
-
-
 
 func (r *postgresRepository) CreateGatewayEvent(ctx context.Context, params store.CreateGatewayEventParams) (store.GatewayEvent, error) {
 	return r.q.CreateGatewayEvent(ctx, params)

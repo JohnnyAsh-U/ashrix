@@ -1,18 +1,36 @@
 package registry
 
 import (
+	"context"
+
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
+// DisconnectReason categorizes operational terminations for structured auditing.
+type DisconnectReason string
+
+const (
+	DisconnectRevoked      DisconnectReason = "revoked"
+	DisconnectUnauthorized DisconnectReason = "unauthorized"
+	DisconnectReplaced     DisconnectReason = "replaced_by_new_connection"
+	DisconnectAdmin        DisconnectReason = "admin_action"
+)
 
 
 //Management stream is the interface to push commands to a connected connector.
 //satisfied automatically by the GatewayConnectorEnvelope from the proto
 
-type ManagementStream interface {
-	Send(*gen.GatewayConnectorEnvelope) error
+type ManagementSession struct {
+	Stream gen.ConnectorService_ConnectServer
+	Cancel context.CancelFunc
 }
 
+// Close cancels the context bound to this specific gRPC stream.
+func (s *ManagementSession) Close() {
+	if s.Cancel != nil {
+		s.Cancel()
+	}
+}
 
 
 //Tunnel Session is the minimal interface for the dataplane connection to a connector

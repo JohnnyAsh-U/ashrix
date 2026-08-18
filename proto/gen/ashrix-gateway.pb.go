@@ -763,6 +763,7 @@ func (*CPEnvelope_Cmd) isCPEnvelope_Payload() {}
 
 type Command struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	CmdId string                 `protobuf:"bytes,1,opt,name=cmd_id,json=cmdId,proto3" json:"cmd_id,omitempty"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*Command_RotateGatewayCert
@@ -808,6 +809,13 @@ func (x *Command) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Command.ProtoReflect.Descriptor instead.
 func (*Command) Descriptor() ([]byte, []int) {
 	return file_ashrix_gateway_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Command) GetCmdId() string {
+	if x != nil {
+		return x.CmdId
+	}
+	return ""
 }
 
 func (x *Command) GetPayload() isCommand_Payload {
@@ -912,43 +920,43 @@ type isCommand_Payload interface {
 }
 
 type Command_RotateGatewayCert struct {
-	RotateGatewayCert *RotateGatewayCertCmd `protobuf:"bytes,1,opt,name=rotate_gateway_cert,json=rotateGatewayCert,proto3,oneof"`
+	RotateGatewayCert *RotateGatewayCertCmd `protobuf:"bytes,2,opt,name=rotate_gateway_cert,json=rotateGatewayCert,proto3,oneof"`
 }
 
 type Command_RevokeGatewayCert struct {
-	RevokeGatewayCert *RevokeGatewayCertCmd `protobuf:"bytes,2,opt,name=revoke_gateway_cert,json=revokeGatewayCert,proto3,oneof"`
+	RevokeGatewayCert *RevokeGatewayCertCmd `protobuf:"bytes,3,opt,name=revoke_gateway_cert,json=revokeGatewayCert,proto3,oneof"`
 }
 
 type Command_RevokeGateway struct {
-	RevokeGateway *RevokeGatewayCmd `protobuf:"bytes,3,opt,name=revoke_gateway,json=revokeGateway,proto3,oneof"`
+	RevokeGateway *RevokeGatewayCmd `protobuf:"bytes,4,opt,name=revoke_gateway,json=revokeGateway,proto3,oneof"`
 }
 
 type Command_RevokeSession struct {
-	RevokeSession *RevokeSessionCmd `protobuf:"bytes,4,opt,name=revoke_session,json=revokeSession,proto3,oneof"`
+	RevokeSession *RevokeSessionCmd `protobuf:"bytes,5,opt,name=revoke_session,json=revokeSession,proto3,oneof"`
 }
 
 type Command_DrainGateway struct {
-	DrainGateway *DrainGatewayCmd `protobuf:"bytes,5,opt,name=drain_gateway,json=drainGateway,proto3,oneof"`
+	DrainGateway *DrainGatewayCmd `protobuf:"bytes,6,opt,name=drain_gateway,json=drainGateway,proto3,oneof"`
 }
 
 type Command_RevokeConnector struct {
-	RevokeConnector *RevokeConnectorCmd `protobuf:"bytes,6,opt,name=revoke_connector,json=revokeConnector,proto3,oneof"`
+	RevokeConnector *RevokeConnectorCmd `protobuf:"bytes,7,opt,name=revoke_connector,json=revokeConnector,proto3,oneof"`
 }
 
 type Command_RotateConnectorCert struct {
-	RotateConnectorCert *RotateConnectorCertCmd `protobuf:"bytes,7,opt,name=rotate_connector_cert,json=rotateConnectorCert,proto3,oneof"`
+	RotateConnectorCert *RotateConnectorCertCmd `protobuf:"bytes,8,opt,name=rotate_connector_cert,json=rotateConnectorCert,proto3,oneof"`
 }
 
 type Command_RevokeConnectorCert struct {
-	RevokeConnectorCert *RevokeConnectorCertCmd `protobuf:"bytes,8,opt,name=revoke_connector_cert,json=revokeConnectorCert,proto3,oneof"`
+	RevokeConnectorCert *RevokeConnectorCertCmd `protobuf:"bytes,9,opt,name=revoke_connector_cert,json=revokeConnectorCert,proto3,oneof"`
 }
 
 type Command_CrlSync struct {
-	CrlSync *CrlSyncCmd `protobuf:"bytes,9,opt,name=crl_sync,json=crlSync,proto3,oneof"`
+	CrlSync *CrlSyncCmd `protobuf:"bytes,10,opt,name=crl_sync,json=crlSync,proto3,oneof"`
 }
 
 type Command_ConnectorSync struct {
-	ConnectorSync *ConnectorSyncCmd `protobuf:"bytes,10,opt,name=connector_sync,json=connectorSync,proto3,oneof"`
+	ConnectorSync *ConnectorSyncCmd `protobuf:"bytes,11,opt,name=connector_sync,json=connectorSync,proto3,oneof"`
 }
 
 func (*Command_RotateGatewayCert) isCommand_Payload() {}
@@ -1504,7 +1512,9 @@ type CmdAck struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CmdId         string                 `protobuf:"bytes,1,opt,name=cmd_id,json=cmdId,proto3" json:"cmd_id,omitempty"`
 	GatewayId     string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
-	TimeStamp     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=time_stamp,json=timeStamp,proto3" json:"time_stamp,omitempty"`
+	Success       bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	TimeStamp     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=time_stamp,json=timeStamp,proto3" json:"time_stamp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1553,6 +1563,20 @@ func (x *CmdAck) GetGatewayId() string {
 	return ""
 }
 
+func (x *CmdAck) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CmdAck) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 func (x *CmdAck) GetTimeStamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.TimeStamp
@@ -1562,11 +1586,12 @@ func (x *CmdAck) GetTimeStamp() *timestamppb.Timestamp {
 
 type HeartbeatMessage struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	Seq               int64                  `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"`                                                      // full state snapshot — CP needs no separate query
-	ActiveConnections int32                  `protobuf:"varint,2,opt,name=active_connections,json=activeConnections,proto3" json:"active_connections,omitempty"` // live connections (connectors + clients)
-	ActiveSessions    int32                  `protobuf:"varint,3,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"`          // authenticated sessions
-	ConnectorCount    int32                  `protobuf:"varint,4,opt,name=connector_count,json=connectorCount,proto3" json:"connector_count,omitempty"`          // how many connectors currently connected
-	ConnectorStatus   []*ConnectorsStatus    `protobuf:"bytes,5,rep,name=connector_status,json=connectorStatus,proto3" json:"connector_status,omitempty"`
+	Seq               int64                  `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"` // full state snapshot — CP needs no separate query
+	GatewayId         string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
+	ActiveConnections int32                  `protobuf:"varint,3,opt,name=active_connections,json=activeConnections,proto3" json:"active_connections,omitempty"` // live connections (connectors + clients)
+	ActiveSessions    int32                  `protobuf:"varint,4,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"`          // authenticated sessions
+	ConnectorCount    int32                  `protobuf:"varint,5,opt,name=connector_count,json=connectorCount,proto3" json:"connector_count,omitempty"`          // how many connectors currently connected
+	ConnectorStatus   []*ConnectorsStatus    `protobuf:"bytes,6,rep,name=connector_status,json=connectorStatus,proto3" json:"connector_status,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1606,6 +1631,13 @@ func (x *HeartbeatMessage) GetSeq() int64 {
 		return x.Seq
 	}
 	return 0
+}
+
+func (x *HeartbeatMessage) GetGatewayId() string {
+	if x != nil {
+		return x.GatewayId
+	}
+	return ""
 }
 
 func (x *HeartbeatMessage) GetActiveConnections() int32 {
@@ -1699,10 +1731,7 @@ func (x *ConnectorsStatus) GetLastChecked() *timestamppb.Timestamp {
 type HelloAck struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ServerVersion string                 `protobuf:"bytes,1,opt,name=server_version,json=serverVersion,proto3" json:"server_version,omitempty"`
-	NeedsPolicy   bool                   `protobuf:"varint,2,opt,name=needs_policy,json=needsPolicy,proto3" json:"needs_policy,omitempty"`
-	NeedsTrust    bool                   `protobuf:"varint,3,opt,name=needs_trust,json=needsTrust,proto3" json:"needs_trust,omitempty"`
-	NeedsCrl      bool                   `protobuf:"varint,4,opt,name=needs_crl,json=needsCrl,proto3" json:"needs_crl,omitempty"`
-	ServerTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
+	ServerTime    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1742,27 +1771,6 @@ func (x *HelloAck) GetServerVersion() string {
 		return x.ServerVersion
 	}
 	return ""
-}
-
-func (x *HelloAck) GetNeedsPolicy() bool {
-	if x != nil {
-		return x.NeedsPolicy
-	}
-	return false
-}
-
-func (x *HelloAck) GetNeedsTrust() bool {
-	if x != nil {
-		return x.NeedsTrust
-	}
-	return false
-}
-
-func (x *HelloAck) GetNeedsCrl() bool {
-	if x != nil {
-		return x.NeedsCrl
-	}
-	return false
 }
 
 func (x *HelloAck) GetServerTime() *timestamppb.Timestamp {
@@ -1913,19 +1921,20 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	" \x01(\v2\x0f.proto.HelloAckH\x00R\bhelloAck\x12:\n" +
 	"\rpolicy_bundle\x18\v \x01(\v2\x13.proto.PolicyBundleH\x00R\fpolicyBundle\x12\"\n" +
 	"\x03cmd\x18\f \x01(\v2\x0e.proto.CommandH\x00R\x03cmdB\t\n" +
-	"\apayload\"\xd9\x05\n" +
-	"\aCommand\x12M\n" +
-	"\x13rotate_gateway_cert\x18\x01 \x01(\v2\x1b.proto.RotateGatewayCertCmdH\x00R\x11rotateGatewayCert\x12M\n" +
-	"\x13revoke_gateway_cert\x18\x02 \x01(\v2\x1b.proto.RevokeGatewayCertCmdH\x00R\x11revokeGatewayCert\x12@\n" +
-	"\x0erevoke_gateway\x18\x03 \x01(\v2\x17.proto.RevokeGatewayCmdH\x00R\rrevokeGateway\x12@\n" +
-	"\x0erevoke_session\x18\x04 \x01(\v2\x17.proto.RevokeSessionCmdH\x00R\rrevokeSession\x12=\n" +
-	"\rdrain_gateway\x18\x05 \x01(\v2\x16.proto.DrainGatewayCmdH\x00R\fdrainGateway\x12F\n" +
-	"\x10revoke_connector\x18\x06 \x01(\v2\x19.proto.RevokeConnectorCmdH\x00R\x0frevokeConnector\x12S\n" +
-	"\x15rotate_connector_cert\x18\a \x01(\v2\x1d.proto.RotateConnectorCertCmdH\x00R\x13rotateConnectorCert\x12S\n" +
-	"\x15revoke_connector_cert\x18\b \x01(\v2\x1d.proto.RevokeConnectorCertCmdH\x00R\x13revokeConnectorCert\x12.\n" +
-	"\bcrl_sync\x18\t \x01(\v2\x11.proto.CrlSyncCmdH\x00R\acrlSync\x12@\n" +
-	"\x0econnector_sync\x18\n" +
-	" \x01(\v2\x17.proto.ConnectorSyncCmdH\x00R\rconnectorSyncB\t\n" +
+	"\apayload\"\xf0\x05\n" +
+	"\aCommand\x12\x15\n" +
+	"\x06cmd_id\x18\x01 \x01(\tR\x05cmdId\x12M\n" +
+	"\x13rotate_gateway_cert\x18\x02 \x01(\v2\x1b.proto.RotateGatewayCertCmdH\x00R\x11rotateGatewayCert\x12M\n" +
+	"\x13revoke_gateway_cert\x18\x03 \x01(\v2\x1b.proto.RevokeGatewayCertCmdH\x00R\x11revokeGatewayCert\x12@\n" +
+	"\x0erevoke_gateway\x18\x04 \x01(\v2\x17.proto.RevokeGatewayCmdH\x00R\rrevokeGateway\x12@\n" +
+	"\x0erevoke_session\x18\x05 \x01(\v2\x17.proto.RevokeSessionCmdH\x00R\rrevokeSession\x12=\n" +
+	"\rdrain_gateway\x18\x06 \x01(\v2\x16.proto.DrainGatewayCmdH\x00R\fdrainGateway\x12F\n" +
+	"\x10revoke_connector\x18\a \x01(\v2\x19.proto.RevokeConnectorCmdH\x00R\x0frevokeConnector\x12S\n" +
+	"\x15rotate_connector_cert\x18\b \x01(\v2\x1d.proto.RotateConnectorCertCmdH\x00R\x13rotateConnectorCert\x12S\n" +
+	"\x15revoke_connector_cert\x18\t \x01(\v2\x1d.proto.RevokeConnectorCertCmdH\x00R\x13revokeConnectorCert\x12.\n" +
+	"\bcrl_sync\x18\n" +
+	" \x01(\v2\x11.proto.CrlSyncCmdH\x00R\acrlSync\x12@\n" +
+	"\x0econnector_sync\x18\v \x01(\v2\x17.proto.ConnectorSyncCmdH\x00R\rconnectorSyncB\t\n" +
 	"\apayload\"\x16\n" +
 	"\x14RotateGatewayCertCmd\"\x16\n" +
 	"\x14RevokeGatewayCertCmd\"\x12\n" +
@@ -1955,30 +1964,30 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12%\n" +
 	"\x0ebinary_version\x18\x03 \x01(\tR\rbinaryVersion\x12%\n" +
-	"\x0epolicy_version\x18\x04 \x01(\x03R\rpolicyVersion\"y\n" +
+	"\x0epolicy_version\x18\x04 \x01(\x03R\rpolicyVersion\"\xa9\x01\n" +
 	"\x06CmdAck\x12\x15\n" +
 	"\x06cmd_id\x18\x01 \x01(\tR\x05cmdId\x12\x1d\n" +
 	"\n" +
-	"gateway_id\x18\x02 \x01(\tR\tgatewayId\x129\n" +
+	"gateway_id\x18\x02 \x01(\tR\tgatewayId\x12\x18\n" +
+	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\x129\n" +
 	"\n" +
-	"time_stamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimeStamp\"\xe9\x01\n" +
+	"time_stamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimeStamp\"\x88\x02\n" +
 	"\x10HeartbeatMessage\x12\x10\n" +
-	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12-\n" +
-	"\x12active_connections\x18\x02 \x01(\x05R\x11activeConnections\x12'\n" +
-	"\x0factive_sessions\x18\x03 \x01(\x05R\x0eactiveSessions\x12'\n" +
-	"\x0fconnector_count\x18\x04 \x01(\x05R\x0econnectorCount\x12B\n" +
-	"\x10connector_status\x18\x05 \x03(\v2\x17.proto.ConnectorsStatusR\x0fconnectorStatus\"\x8c\x01\n" +
+	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12\x1d\n" +
+	"\n" +
+	"gateway_id\x18\x02 \x01(\tR\tgatewayId\x12-\n" +
+	"\x12active_connections\x18\x03 \x01(\x05R\x11activeConnections\x12'\n" +
+	"\x0factive_sessions\x18\x04 \x01(\x05R\x0eactiveSessions\x12'\n" +
+	"\x0fconnector_count\x18\x05 \x01(\x05R\x0econnectorCount\x12B\n" +
+	"\x10connector_status\x18\x06 \x03(\v2\x17.proto.ConnectorsStatusR\x0fconnectorStatus\"\x8c\x01\n" +
 	"\x10ConnectorsStatus\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12=\n" +
-	"\flast_checked\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vlastChecked\"\xcf\x01\n" +
+	"\flast_checked\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vlastChecked\"n\n" +
 	"\bHelloAck\x12%\n" +
-	"\x0eserver_version\x18\x01 \x01(\tR\rserverVersion\x12!\n" +
-	"\fneeds_policy\x18\x02 \x01(\bR\vneedsPolicy\x12\x1f\n" +
-	"\vneeds_trust\x18\x03 \x01(\bR\n" +
-	"needsTrust\x12\x1b\n" +
-	"\tneeds_crl\x18\x04 \x01(\bR\bneedsCrl\x12;\n" +
-	"\vserver_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"\x0eserver_version\x18\x01 \x01(\tR\rserverVersion\x12;\n" +
+	"\vserver_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"serverTime\"\x92\x01\n" +
 	"\fPolicyBundle\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x1b\n" +
