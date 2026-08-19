@@ -48,8 +48,12 @@ func InitializeGRPCServer(
 		),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: 5 * time.Minute,
-			Time:              30 * time.Second,
-			Timeout:           10 * time.Second,
+			Time:              2 * time.Minute,
+			Timeout:           20 * time.Second,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime: 1 * time.Minute,
+			PermitWithoutStream: false,
 		}),
 	)
 

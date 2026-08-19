@@ -454,19 +454,30 @@ CREATE INDEX idx_audit_tenant_time
 -- =========================================================================================
 
 CREATE TABLE gateway_events (
+    gateway_id UUID NOT NULL REFERENCES gateways(id) ON DELETE CASCADE,
     seq BIGINT NOT NULL,
-    gateway_id      UUID NOT NULL REFERENCES gateways(id),
-    command       TEXT NOT NULL,
-    payload         JSONB NOT NULL,
-    created_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    PRIMARY KEY (gateway_id, seq)
+    event_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    command TEXT NOT NULL,
+    delivery_mode TEXT NOT NULL CHECK (delivery_mode IN ('ACTION', 'SNAPSHOT')),
+    payload JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (gateway_id, seq),
+    UNIQUE (event_id)
+);
+
+CREATE TABLE gateway_events_acks (
+    gateway_id UUID PRIMARY KEY REFERENCES gateways(id) ON DELETE CASCADE,
+    last_acked_seq BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 
-CREATE TABLE gateway_events_acks (
-    gateway_id      UUID NOT NULL REFERENCES gateways(id),
-    last_acked_seq       BIGINT NOT NULL DEFAULT 0,
-    updated_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL
+CREATE INDEX idx_gateway_events_gateway_seq
+    ON gateway_events(gateway_id, seq);
+
+CREATE TABLE gateway_event_sequences (
+    gateway_id UUID PRIMARY KEY REFERENCES gateways(id) ON DELETE CASCADE,
+    next_seq BIGINT NOT NULL DEFAULT 1
 );
 
 
@@ -706,6 +717,7 @@ DROP INDEX IF EXISTS idx_audit_tenant_time;
 
 DROP INDEX IF EXISTS idx_mutations_policy_version;
 DROP INDEX IF EXISTS idx_mutations_policy_sequence;
+DROP INDEX IF EXISTS idx_gateway_events_gateway_seq;
 
 
 DROP TABLE IF EXISTS access_logs;
@@ -732,6 +744,7 @@ DROP TABLE IF EXISTS schedules;
 
 
 DROP TABLE IF EXISTS gateway_events_acks;
+DROP TABLE IF EXISTS gateway_event_sequences;
 DROP TABLE IF EXISTS gateway_events;
 
 DROP TABLE IF EXISTS app_idp_mappings;

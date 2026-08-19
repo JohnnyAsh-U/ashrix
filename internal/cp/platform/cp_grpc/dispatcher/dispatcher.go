@@ -2,9 +2,11 @@ package dispatcher
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -27,14 +29,37 @@ const (
 	CmdConnectorSync     CommandType = "CONNECTOR_SYNC"
 )
 
-type CommandJob struct {
-	Type                CommandType
-	GatewayID           string
-	ConnectorID         string
-	SessionID           string
-	RevokedSerialNumbers []string
-	ConnectorInfo       []*gen.ConnectorInfo
+type DeliveryMode string
+const (
+	DeliveryAction   DeliveryMode = "ACTION"
+	DeliverySnapshot DeliveryMode = "SNAPSHOT"
+)
+
+func DeliveryModeForCommand(cmd CommandType) DeliveryMode {
+	switch cmd {
+	case CmdCrlSync, CmdConnectorSync:
+		return DeliverySnapshot
+	default:
+		return DeliveryAction
+	}
 }
+
+type CommandJob struct {
+	Type CommandType
+
+	GatewayID string
+
+	ConnectorID string
+
+	SessionID string
+
+	RevokedSerialNumbers []string
+
+	ConnectorInfo []*gen.ConnectorInfo
+}
+
+
+
 
 type CommandDispatcher interface {
 	Dispatch(job CommandJob) bool
@@ -199,5 +224,58 @@ func buildEnvelope(cmdPayload *gen.Command) *gen.CPEnvelope {
 		Payload: &gen.CPEnvelope_Cmd{
 			Cmd: cmdPayload,
 		},
+	}
+}
+
+
+func SendEventAndWaitAck(
+	ctx context.Context,
+	conn *registry.GatewayConn,
+	event store.GatewayEvent,
+) error {
+
+	cmd, err :=
+		GatewayEventToCmd(event)
+
+	if err != nil {
+		return err
+	}
+
+	ackCh :=
+		conn.RegisterAck(event.Seq)
+
+	envelope := &gen.CPEnvelope{
+		// Seq: event.Seq,
+
+		// EventId: event.EventID.String(),
+
+		SentAt: timestamppb.Now(),
+
+		Payload: &gen.CPEnvelope_Cmd{
+			Cmd: cmd,
+		},
+	}
+
+	if err := conn.Send(envelope); err != nil {
+
+		conn.ResolveAck(
+			event.Seq,
+			err,
+		)
+
+		return fmt.Errorf(
+			"send event %d: %w",
+			event.Seq,
+			err,
+		)
+	}
+
+	select {
+
+	case err := <-ackCh:
+		return err
+
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }

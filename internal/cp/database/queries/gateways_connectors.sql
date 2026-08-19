@@ -4,9 +4,33 @@
 -- =================================================================
 
 -- name: CreateGateway :one
-INSERT INTO gateways (org_id, name,deployment_type, token_hash, public_url, ip_address)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING *;
+WITH new_gateway AS (
+    INSERT INTO gateways (
+        org_id, 
+        name, 
+        deployment_type, 
+        token_hash, 
+        public_url, 
+        ip_address
+    )
+    VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING *
+),
+init_sequence AS (
+    INSERT INTO gateway_event_sequences (gateway_id)
+    SELECT id FROM new_gateway
+    ON CONFLICT DO NOTHING
+),
+init_acks AS (
+    INSERT INTO gateway_events_acks (gateway_id)
+    SELECT id FROM new_gateway
+    ON CONFLICT DO NOTHING
+)
+SELECT * FROM new_gateway;
+
+
+
+
 
 -- name: ListGatewaysByOrg :many
 SELECT * FROM gateways
@@ -179,14 +203,6 @@ WHERE id         = $1
   AND org_id     = $2;
 
 
--- -- name: ListActiveConnectorsByGateway :many
--- -- Called on gateway → connector auth.
--- SELECT * FROM connectors
--- WHERE gateway_id = $1
---   AND is_active = true
---   AND revoked_at IS NULL;
-
-
 -- name: ListActiveConnectorsByGateway :many
 -- Called on gateway → connector auth.
 SELECT c.*
@@ -253,30 +269,5 @@ WHERE gateway_id = $1
   AND revoked_at IS NULL;
 
 
-
--- name: GetLastEventSeqForGateway :one
-SELECT COALESCE(MAX(seq), 0)::bigint AS last_seq
-FROM gateway_events
-WHERE gateway_id = $1;
-
-
--- name: GetLastAckedSeqForGateway :one
-SELECT COALESCE(MAX(last_acked_seq), 0)::bigint AS last_acked_seq
-FROM gateway_events_acks
-WHERE gateway_id = $1;
-
-
-
--- name: CreateGatewayEvent :one
-INSERT INTO gateway_events (seq, gateway_id, command, payload)
-VALUES($1,$2,$3, $4)
-RETURNING *;
-
-
-
--- name: CreateGatewayEventAcks :one
-INSERT INTO gateway_events_acks (gateway_id, last_acked_seq)
-VALUES($1,$2)
-RETURNING *;
 
 

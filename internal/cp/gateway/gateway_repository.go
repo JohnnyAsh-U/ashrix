@@ -33,6 +33,8 @@ type Repository interface {
 
 	GetLastEventSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
 
+	GetLatestGatewayEventsByCommand(ctx context.Context, params store.GetLatestGatewayEventsByCommandParams) ([]store.GatewayEvent, error)
+
 	GetLastAckedSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
 
 }
@@ -112,6 +114,10 @@ func (r *postgresRepository) GetLastEventSeqForGateway(ctx context.Context, gate
 
 func (r *postgresRepository) GetLastAckedSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error) {
 	return r.q.GetLastAckedSeqForGateway(ctx, gatewayID)
+}
+
+func (r *postgresRepository) GetLatestGatewayEventsByCommand(ctx context.Context, params store.GetLatestGatewayEventsByCommandParams) ([]store.GatewayEvent, error) {
+	return r.q.GetLatestGatewayEventsByCommand(ctx, params)
 }
 
 

@@ -87,11 +87,15 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create connector", err.Error())
 	}
 
+	//Send Updated Active Connectors list to Gateway
+	s.SyncConnectorToGateway(ctx, connector.GatewayID)
+
+	return mapToConnectorResponse(connector), nil
+}
+
+func (s Service) SyncConnectorToGateway(ctx context.Context, gatewayID uuid.UUID) {
 	//Get all Connectors after creation
-	connectors, err := s.repo.ListActiveConnectorsByGateway(ctx, connector.GatewayID)
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to list gateways", err.Error())
-	}
+	connectors, _ := s.repo.ListActiveConnectorsByGateway(ctx, gatewayID)
 
 	var connectorsInfo []*proto.ConnectorInfo
 	for _, connector := range connectors {
@@ -102,9 +106,9 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 	}
 
 	payload := dispatcher.CommandJob{
-		Type:               dispatcher.CmdConnectorSync,
-		GatewayID:          connector.GatewayID.String(),
-		ConnectorInfo:      connectorsInfo,
+		Type:          dispatcher.CmdConnectorSync,
+		GatewayID:     gatewayID.String(),
+		ConnectorInfo: connectorsInfo,
 	}
 
 	// Push Connectors to the gateway
@@ -112,9 +116,9 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 
 	//log error if command is not sent
 	if isSentConnectorSyncCmd {
-		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, connector.GatewayID)
+		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, gatewayID)
 		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: connector.GatewayID,
+			GatewayID: gatewayID,
 			Command:   string(dispatcher.CmdConnectorSync),
 			Seq:       lastSeq + 1,
 			Payload: func() json.RawMessage {
@@ -123,10 +127,9 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 			}(),
 		})
 	} else {
-		fmt.Printf("Failed to push connector sync command: %s", connector.GatewayID.String())
+		fmt.Printf("Failed to push connector sync command: %s", gatewayID.String())
 	}
 
-	return mapToConnectorResponse(connector), nil
 }
 
 // ListGatewaysByOrg lists all connectors for a given organization.
@@ -172,6 +175,10 @@ func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name stri
 	if err != nil {
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to re-enroll connector", err.Error())
 	}
+
+	//Send Updated Active Connectors list to Gateway
+	s.SyncConnectorToGateway(ctx, connector.GatewayID)
+
 	return mapToConnectorResponse(connector), nil
 }
 
@@ -232,6 +239,9 @@ func (s *Service) EnrollConnector(ctx context.Context, token, csr string, signer
 	if err != nil {
 		return gen.ConnectorEnrollResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to enroll gateway", err.Error())
 	}
+
+	//Send Updated Active Connectors list to Gateway
+	s.SyncConnectorToGateway(ctx, conn.GatewayID)
 
 	return gen.ConnectorEnrollResponse{
 		ConnectorId: conn.ID.String(),
@@ -343,6 +353,9 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 		return gen.ConnectorRenewCertResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to register conn certificate", err.Error())
 	}
 
+	//Send Updated Active Connectors list to Gateway
+	s.SyncConnectorToGateway(ctx, connector.GatewayID)
+
 	return gen.ConnectorRenewCertResponse{
 		Certificate: string(pki_utils.MarshalCert(connCRT)),
 		TrustBundle: string(signer.TrustBundle()),
@@ -446,9 +459,9 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 	}
 
 	payload2 := dispatcher.CommandJob{
-		Type:               dispatcher.CmdCrlSync,
-		GatewayID:          connector.GatewayID.String(),
-		RevokedSerialNumbers:  revokedSerials,
+		Type:                 dispatcher.CmdCrlSync,
+		GatewayID:            connector.GatewayID.String(),
+		RevokedSerialNumbers: revokedSerials,
 	}
 
 	// Push CrlSyncCmd to the gateway
@@ -469,6 +482,9 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 	} else {
 		fmt.Printf("Failed to push crl sync command: %s", connector.GatewayID.String())
 	}
+
+	//Send Updated Active Connectors list to Gateway
+	s.SyncConnectorToGateway(ctx, connector.GatewayID)
 
 	// Fetch updated gateway status
 	updatedConnector, err := s.repo.GetConnectorByID(ctx, connectorId)
@@ -536,7 +552,7 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 
 	//payload
 	payload := dispatcher.CommandJob{
-		Type:      dispatcher.CmdRevokeConnector,
+		Type:        dispatcher.CmdRevokeConnector,
 		GatewayID:   Connector.GatewayID.String(),
 		ConnectorID: Connector.ID.String(),
 	}
@@ -569,9 +585,9 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 	}
 
 	payload2 := dispatcher.CommandJob{
-		Type:               dispatcher.CmdCrlSync,
-		GatewayID:          Connector.GatewayID.String(),
-		RevokedSerialNumbers:  revokedSerials,
+		Type:                 dispatcher.CmdCrlSync,
+		GatewayID:            Connector.GatewayID.String(),
+		RevokedSerialNumbers: revokedSerials,
 	}
 
 	//Push CrlSyncCmd to the gateway
@@ -592,6 +608,9 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 	} else {
 		fmt.Printf("Failed to push crl sync command: %s", id.String())
 	}
+
+	//Send Updated Active Connectors list to Gateway
+	s.SyncConnectorToGateway(ctx, Connector.GatewayID)
 
 	return mapToConnectorResponse(revokedConnector), nil
 }
@@ -656,7 +675,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 	if len(apps) > 0 {
 		for _, g := range apps {
 			app := &gen.ConnectorApps{
-				Id: g.ID.String(),
+				Id:        g.ID.String(),
 				Name:      g.Name,
 				Subdomain: g.Subdomain,
 				Upstream:  g.Upstream,
@@ -671,8 +690,8 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		ConnectorId: ConnectorRow.ID.String(),
 		GatewayId:   ConnectorRow.GatewayID.String(),
 		GatewayUrl:  GatewayRow.PublicUrl,
-		GatewayIp: GatewayRow.IpAddress,
-		TenantId: ConnectorRow.OrgID.String(),
+		GatewayIp:   GatewayRow.IpAddress,
+		TenantId:    ConnectorRow.OrgID.String(),
 		Apps:        appsResp,
 	}, nil
 }

@@ -169,11 +169,18 @@ type Gateway struct {
 }
 
 type GatewayEvent struct {
-	Seq       int64           `json:"seq"`
-	GatewayID uuid.UUID       `json:"gateway_id"`
-	Command   string          `json:"command"`
-	Payload   json.RawMessage `json:"payload"`
-	CreatedAt time.Time       `json:"created_at"`
+	GatewayID    uuid.UUID       `json:"gateway_id"`
+	Seq          int64           `json:"seq"`
+	EventID      uuid.UUID       `json:"event_id"`
+	Command      string          `json:"command"`
+	DeliveryMode string          `json:"delivery_mode"`
+	Payload      json.RawMessage `json:"payload"`
+	CreatedAt    time.Time       `json:"created_at"`
+}
+
+type GatewayEventSequence struct {
+	GatewayID uuid.UUID `json:"gateway_id"`
+	NextSeq   int64     `json:"next_seq"`
 }
 
 type GatewayEventsAck struct {

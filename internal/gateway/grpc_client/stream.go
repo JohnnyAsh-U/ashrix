@@ -84,7 +84,7 @@ func (sm *StreamManager) Run(ctx context.Context) {
 	// maxRetries := 3
 	// const retryInterval = 10 * time.Second
 	const (
-		retryInterval  = 30 * time.Second
+		retryInterval  = 5 * time.Second
 		recoveryWindow = 24 * time.Hour
 	)
 

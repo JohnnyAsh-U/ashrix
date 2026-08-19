@@ -13,9 +13,11 @@ import (
 )
 
 type Querier interface {
+	AckGatewayEvents(ctx context.Context, arg AckGatewayEventsParams) error
 	// Called at the end of /verify-otp during setup. Creates the org and links it.
 	ActivateAdmin(ctx context.Context, arg ActivateAdminParams) (Admin, error)
 	AddAppIdpMapping(ctx context.Context, arg AddAppIdpMappingParams) (AppIdpMapping, error)
+	AllocateGatewayEventSeq(ctx context.Context, gatewayID uuid.UUID) (int32, error)
 	// Called once during SSO binding confirmation flow.
 	// Stores sub claim, links IdP config, marks sso_bound.
 	BindAdminSSO(ctx context.Context, arg BindAdminSSOParams) (Admin, error)
@@ -62,9 +64,7 @@ type Querier interface {
 	// GATEWAYS
 	// token_hash: SHA-256 of enrollment token. Never plaintext.
 	// =================================================================
-	CreateGateway(ctx context.Context, arg CreateGatewayParams) (Gateway, error)
-	CreateGatewayEvent(ctx context.Context, arg CreateGatewayEventParams) (GatewayEvent, error)
-	CreateGatewayEventAcks(ctx context.Context, arg CreateGatewayEventAcksParams) (GatewayEventsAck, error)
+	CreateGateway(ctx context.Context, arg CreateGatewayParams) (CreateGatewayRow, error)
 	// =================================================================
 	// IDP CONFIGS
 	// client_secret must be AES-256-GCM encrypted before insert.
@@ -80,6 +80,7 @@ type Querier interface {
 	CreateSetupToken(ctx context.Context, arg CreateSetupTokenParams) (AdminSetupToken, error)
 	CreateUserSessionForGateway(ctx context.Context, arg CreateUserSessionForGatewayParams) (UserSession, error)
 	DeactivateCACert(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	DeleteAckedGatewayEvents(ctx context.Context) error
 	// Soft delete. Policies referencing this app remain for audit history.
 	DeleteApp(ctx context.Context, arg DeleteAppParams) (App, error)
 	DeleteAppIdpMapping(ctx context.Context, arg DeleteAppIdpMappingParams) (AppIdpMapping, error)
@@ -137,7 +138,7 @@ type Querier interface {
 	// Always scope to org — never allow cross-org access.
 	GetIDPConfigByIDAndOrg(ctx context.Context, arg GetIDPConfigByIDAndOrgParams) (IdpConfig, error)
 	GetLastAckedSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
-	GetLastEventSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
+	GetLatestGatewayEventSeq(ctx context.Context, gatewayID uuid.UUID) (int64, error)
 	GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error)
 	GetMutationsSince(ctx context.Context, arg GetMutationsSinceParams) ([]GetMutationsSinceRow, error)
 	GetNextPolicySequence(ctx context.Context, arg GetNextPolicySequenceParams) (int32, error)
@@ -157,6 +158,7 @@ type Querier interface {
 	GetUserSessionByID(ctx context.Context, id uuid.UUID) (UserSession, error)
 	GetValidCompCert(ctx context.Context, arg GetValidCompCertParams) (GetValidCompCertRow, error)
 	InsertCACert(ctx context.Context, arg InsertCACertParams) (uuid.UUID, error)
+	InsertGatewayEvent(ctx context.Context, arg InsertGatewayEventParams) error
 	// =============================================================================
 	// Normalized Policy CRUD
 	// =============================================================================
@@ -175,12 +177,6 @@ type Querier interface {
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
 	ListActiveCACerts(ctx context.Context, arg ListActiveCACertsParams) ([]ListActiveCACertsRow, error)
-	// -- name: ListActiveConnectorsByGateway :many
-	// -- Called on gateway → connector auth.
-	// SELECT * FROM connectors
-	// WHERE gateway_id = $1
-	//   AND is_active = true
-	//   AND revoked_at IS NULL;
 	// Called on gateway → connector auth.
 	ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)
 	ListActiveGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
@@ -197,6 +193,7 @@ type Querier interface {
 	ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]Connector, error)
 	// Dashboard denied requests view.
 	ListDeniedAccessLogs(ctx context.Context, arg ListDeniedAccessLogsParams) ([]AccessLog, error)
+	ListGatewayEventsAfter(ctx context.Context, arg ListGatewayEventsAfterParams) ([]GatewayEvent, error)
 	ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
 	ListIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error)
 	ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)

@@ -49,9 +49,9 @@ func (cm *ConnectionManager) RefreshConnection(ctx context.Context) error {
 	opts := append([]grpc.DialOption{
 		grpc.WithTransportCredentials(creds),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                10 * time.Second,
-			Timeout:             3 * time.Second,
-			PermitWithoutStream: true,
+			Time:                2 * time.Minute,
+			Timeout:             20 * time.Second,
+			PermitWithoutStream: false,
 		}),
 	}, cm.dialOpts...)
 

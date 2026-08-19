@@ -623,7 +623,7 @@ func (x *GatewayEnvelope) GetHeartbeat() *HeartbeatMessage {
 	return nil
 }
 
-func (x *GatewayEnvelope) GetCmdAck() *CmdAck {
+func (x *GatewayEnvelope) GetCmdAck() *CommandAck {
 	if x != nil {
 		if x, ok := x.Payload.(*GatewayEnvelope_CmdAck); ok {
 			return x.CmdAck
@@ -645,7 +645,7 @@ type GatewayEnvelope_Heartbeat struct {
 }
 
 type GatewayEnvelope_CmdAck struct {
-	CmdAck *CmdAck `protobuf:"bytes,12,opt,name=cmd_ack,json=cmdAck,proto3,oneof"`
+	CmdAck *CommandAck `protobuf:"bytes,12,opt,name=cmd_ack,json=cmdAck,proto3,oneof"`
 }
 
 func (*GatewayEnvelope_Hello) isGatewayEnvelope_Payload() {}
@@ -762,8 +762,9 @@ func (*CPEnvelope_PolicyBundle) isCPEnvelope_Payload() {}
 func (*CPEnvelope_Cmd) isCPEnvelope_Payload() {}
 
 type Command struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	CmdId string                 `protobuf:"bytes,1,opt,name=cmd_id,json=cmdId,proto3" json:"cmd_id,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Seq     int64                  `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"`
+	EventId string                 `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*Command_RotateGatewayCert
@@ -811,9 +812,16 @@ func (*Command) Descriptor() ([]byte, []int) {
 	return file_ashrix_gateway_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *Command) GetCmdId() string {
+func (x *Command) GetSeq() int64 {
 	if x != nil {
-		return x.CmdId
+		return x.Seq
+	}
+	return 0
+}
+
+func (x *Command) GetEventId() string {
+	if x != nil {
+		return x.EventId
 	}
 	return ""
 }
@@ -920,43 +928,43 @@ type isCommand_Payload interface {
 }
 
 type Command_RotateGatewayCert struct {
-	RotateGatewayCert *RotateGatewayCertCmd `protobuf:"bytes,2,opt,name=rotate_gateway_cert,json=rotateGatewayCert,proto3,oneof"`
+	RotateGatewayCert *RotateGatewayCertCmd `protobuf:"bytes,3,opt,name=rotate_gateway_cert,json=rotateGatewayCert,proto3,oneof"`
 }
 
 type Command_RevokeGatewayCert struct {
-	RevokeGatewayCert *RevokeGatewayCertCmd `protobuf:"bytes,3,opt,name=revoke_gateway_cert,json=revokeGatewayCert,proto3,oneof"`
+	RevokeGatewayCert *RevokeGatewayCertCmd `protobuf:"bytes,4,opt,name=revoke_gateway_cert,json=revokeGatewayCert,proto3,oneof"`
 }
 
 type Command_RevokeGateway struct {
-	RevokeGateway *RevokeGatewayCmd `protobuf:"bytes,4,opt,name=revoke_gateway,json=revokeGateway,proto3,oneof"`
+	RevokeGateway *RevokeGatewayCmd `protobuf:"bytes,5,opt,name=revoke_gateway,json=revokeGateway,proto3,oneof"`
 }
 
 type Command_RevokeSession struct {
-	RevokeSession *RevokeSessionCmd `protobuf:"bytes,5,opt,name=revoke_session,json=revokeSession,proto3,oneof"`
+	RevokeSession *RevokeSessionCmd `protobuf:"bytes,6,opt,name=revoke_session,json=revokeSession,proto3,oneof"`
 }
 
 type Command_DrainGateway struct {
-	DrainGateway *DrainGatewayCmd `protobuf:"bytes,6,opt,name=drain_gateway,json=drainGateway,proto3,oneof"`
+	DrainGateway *DrainGatewayCmd `protobuf:"bytes,7,opt,name=drain_gateway,json=drainGateway,proto3,oneof"`
 }
 
 type Command_RevokeConnector struct {
-	RevokeConnector *RevokeConnectorCmd `protobuf:"bytes,7,opt,name=revoke_connector,json=revokeConnector,proto3,oneof"`
+	RevokeConnector *RevokeConnectorCmd `protobuf:"bytes,8,opt,name=revoke_connector,json=revokeConnector,proto3,oneof"`
 }
 
 type Command_RotateConnectorCert struct {
-	RotateConnectorCert *RotateConnectorCertCmd `protobuf:"bytes,8,opt,name=rotate_connector_cert,json=rotateConnectorCert,proto3,oneof"`
+	RotateConnectorCert *RotateConnectorCertCmd `protobuf:"bytes,9,opt,name=rotate_connector_cert,json=rotateConnectorCert,proto3,oneof"`
 }
 
 type Command_RevokeConnectorCert struct {
-	RevokeConnectorCert *RevokeConnectorCertCmd `protobuf:"bytes,9,opt,name=revoke_connector_cert,json=revokeConnectorCert,proto3,oneof"`
+	RevokeConnectorCert *RevokeConnectorCertCmd `protobuf:"bytes,10,opt,name=revoke_connector_cert,json=revokeConnectorCert,proto3,oneof"`
 }
 
 type Command_CrlSync struct {
-	CrlSync *CrlSyncCmd `protobuf:"bytes,10,opt,name=crl_sync,json=crlSync,proto3,oneof"`
+	CrlSync *CrlSyncCmd `protobuf:"bytes,11,opt,name=crl_sync,json=crlSync,proto3,oneof"`
 }
 
 type Command_ConnectorSync struct {
-	ConnectorSync *ConnectorSyncCmd `protobuf:"bytes,11,opt,name=connector_sync,json=connectorSync,proto3,oneof"`
+	ConnectorSync *ConnectorSyncCmd `protobuf:"bytes,12,opt,name=connector_sync,json=connectorSync,proto3,oneof"`
 }
 
 func (*Command_RotateGatewayCert) isCommand_Payload() {}
@@ -1507,32 +1515,29 @@ func (x *HelloMessage) GetPolicyVersion() int64 {
 	return 0
 }
 
-// Ack for Cmds
-type CmdAck struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CmdId         string                 `protobuf:"bytes,1,opt,name=cmd_id,json=cmdId,proto3" json:"cmd_id,omitempty"`
-	GatewayId     string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
-	Success       bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
-	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
-	TimeStamp     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=time_stamp,json=timeStamp,proto3" json:"time_stamp,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+type CommandAck struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	GatewayId           string                 `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
+	ProcessedThroughSeq int64                  `protobuf:"varint,2,opt,name=processed_through_seq,json=processedThroughSeq,proto3" json:"processed_through_seq,omitempty"`
+	TimeStamp           *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=time_stamp,json=timeStamp,proto3" json:"time_stamp,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
-func (x *CmdAck) Reset() {
-	*x = CmdAck{}
+func (x *CommandAck) Reset() {
+	*x = CommandAck{}
 	mi := &file_ashrix_gateway_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CmdAck) String() string {
+func (x *CommandAck) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CmdAck) ProtoMessage() {}
+func (*CommandAck) ProtoMessage() {}
 
-func (x *CmdAck) ProtoReflect() protoreflect.Message {
+func (x *CommandAck) ProtoReflect() protoreflect.Message {
 	mi := &file_ashrix_gateway_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1544,40 +1549,26 @@ func (x *CmdAck) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CmdAck.ProtoReflect.Descriptor instead.
-func (*CmdAck) Descriptor() ([]byte, []int) {
+// Deprecated: Use CommandAck.ProtoReflect.Descriptor instead.
+func (*CommandAck) Descriptor() ([]byte, []int) {
 	return file_ashrix_gateway_proto_rawDescGZIP(), []int{22}
 }
 
-func (x *CmdAck) GetCmdId() string {
-	if x != nil {
-		return x.CmdId
-	}
-	return ""
-}
-
-func (x *CmdAck) GetGatewayId() string {
+func (x *CommandAck) GetGatewayId() string {
 	if x != nil {
 		return x.GatewayId
 	}
 	return ""
 }
 
-func (x *CmdAck) GetSuccess() bool {
+func (x *CommandAck) GetProcessedThroughSeq() int64 {
 	if x != nil {
-		return x.Success
+		return x.ProcessedThroughSeq
 	}
-	return false
+	return 0
 }
 
-func (x *CmdAck) GetError() string {
-	if x != nil {
-		return x.Error
-	}
-	return ""
-}
-
-func (x *CmdAck) GetTimeStamp() *timestamppb.Timestamp {
+func (x *CommandAck) GetTimeStamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.TimeStamp
 	}
@@ -1904,15 +1895,15 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"\x15ExchangeTokenResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x125\n" +
 	"\bidentity\x18\x02 \x01(\v2\x19.proto.NormalizedIdentityR\bidentity\x12#\n" +
-	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"\x80\x02\n" +
+	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"\x84\x02\n" +
 	"\x0fGatewayEnvelope\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x123\n" +
 	"\asent_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06sentAt\x12+\n" +
 	"\x05hello\x18\n" +
 	" \x01(\v2\x13.proto.HelloMessageH\x00R\x05hello\x127\n" +
-	"\theartbeat\x18\v \x01(\v2\x17.proto.HeartbeatMessageH\x00R\theartbeat\x12(\n" +
-	"\acmd_ack\x18\f \x01(\v2\r.proto.CmdAckH\x00R\x06cmdAckB\t\n" +
+	"\theartbeat\x18\v \x01(\v2\x17.proto.HeartbeatMessageH\x00R\theartbeat\x12,\n" +
+	"\acmd_ack\x18\f \x01(\v2\x11.proto.CommandAckH\x00R\x06cmdAckB\t\n" +
 	"\apayload\"\xdc\x01\n" +
 	"\n" +
 	"CPEnvelope\x123\n" +
@@ -1921,20 +1912,21 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	" \x01(\v2\x0f.proto.HelloAckH\x00R\bhelloAck\x12:\n" +
 	"\rpolicy_bundle\x18\v \x01(\v2\x13.proto.PolicyBundleH\x00R\fpolicyBundle\x12\"\n" +
 	"\x03cmd\x18\f \x01(\v2\x0e.proto.CommandH\x00R\x03cmdB\t\n" +
-	"\apayload\"\xf0\x05\n" +
-	"\aCommand\x12\x15\n" +
-	"\x06cmd_id\x18\x01 \x01(\tR\x05cmdId\x12M\n" +
-	"\x13rotate_gateway_cert\x18\x02 \x01(\v2\x1b.proto.RotateGatewayCertCmdH\x00R\x11rotateGatewayCert\x12M\n" +
-	"\x13revoke_gateway_cert\x18\x03 \x01(\v2\x1b.proto.RevokeGatewayCertCmdH\x00R\x11revokeGatewayCert\x12@\n" +
-	"\x0erevoke_gateway\x18\x04 \x01(\v2\x17.proto.RevokeGatewayCmdH\x00R\rrevokeGateway\x12@\n" +
-	"\x0erevoke_session\x18\x05 \x01(\v2\x17.proto.RevokeSessionCmdH\x00R\rrevokeSession\x12=\n" +
-	"\rdrain_gateway\x18\x06 \x01(\v2\x16.proto.DrainGatewayCmdH\x00R\fdrainGateway\x12F\n" +
-	"\x10revoke_connector\x18\a \x01(\v2\x19.proto.RevokeConnectorCmdH\x00R\x0frevokeConnector\x12S\n" +
-	"\x15rotate_connector_cert\x18\b \x01(\v2\x1d.proto.RotateConnectorCertCmdH\x00R\x13rotateConnectorCert\x12S\n" +
-	"\x15revoke_connector_cert\x18\t \x01(\v2\x1d.proto.RevokeConnectorCertCmdH\x00R\x13revokeConnectorCert\x12.\n" +
-	"\bcrl_sync\x18\n" +
-	" \x01(\v2\x11.proto.CrlSyncCmdH\x00R\acrlSync\x12@\n" +
-	"\x0econnector_sync\x18\v \x01(\v2\x17.proto.ConnectorSyncCmdH\x00R\rconnectorSyncB\t\n" +
+	"\apayload\"\x86\x06\n" +
+	"\aCommand\x12\x10\n" +
+	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12\x19\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12M\n" +
+	"\x13rotate_gateway_cert\x18\x03 \x01(\v2\x1b.proto.RotateGatewayCertCmdH\x00R\x11rotateGatewayCert\x12M\n" +
+	"\x13revoke_gateway_cert\x18\x04 \x01(\v2\x1b.proto.RevokeGatewayCertCmdH\x00R\x11revokeGatewayCert\x12@\n" +
+	"\x0erevoke_gateway\x18\x05 \x01(\v2\x17.proto.RevokeGatewayCmdH\x00R\rrevokeGateway\x12@\n" +
+	"\x0erevoke_session\x18\x06 \x01(\v2\x17.proto.RevokeSessionCmdH\x00R\rrevokeSession\x12=\n" +
+	"\rdrain_gateway\x18\a \x01(\v2\x16.proto.DrainGatewayCmdH\x00R\fdrainGateway\x12F\n" +
+	"\x10revoke_connector\x18\b \x01(\v2\x19.proto.RevokeConnectorCmdH\x00R\x0frevokeConnector\x12S\n" +
+	"\x15rotate_connector_cert\x18\t \x01(\v2\x1d.proto.RotateConnectorCertCmdH\x00R\x13rotateConnectorCert\x12S\n" +
+	"\x15revoke_connector_cert\x18\n" +
+	" \x01(\v2\x1d.proto.RevokeConnectorCertCmdH\x00R\x13revokeConnectorCert\x12.\n" +
+	"\bcrl_sync\x18\v \x01(\v2\x11.proto.CrlSyncCmdH\x00R\acrlSync\x12@\n" +
+	"\x0econnector_sync\x18\f \x01(\v2\x17.proto.ConnectorSyncCmdH\x00R\rconnectorSyncB\t\n" +
 	"\apayload\"\x16\n" +
 	"\x14RotateGatewayCertCmd\"\x16\n" +
 	"\x14RevokeGatewayCertCmd\"\x12\n" +
@@ -1964,15 +1956,14 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12%\n" +
 	"\x0ebinary_version\x18\x03 \x01(\tR\rbinaryVersion\x12%\n" +
-	"\x0epolicy_version\x18\x04 \x01(\x03R\rpolicyVersion\"\xa9\x01\n" +
-	"\x06CmdAck\x12\x15\n" +
-	"\x06cmd_id\x18\x01 \x01(\tR\x05cmdId\x12\x1d\n" +
+	"\x0epolicy_version\x18\x04 \x01(\x03R\rpolicyVersion\"\x9a\x01\n" +
 	"\n" +
-	"gateway_id\x18\x02 \x01(\tR\tgatewayId\x12\x18\n" +
-	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\tR\x05error\x129\n" +
+	"CommandAck\x12\x1d\n" +
 	"\n" +
-	"time_stamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimeStamp\"\x88\x02\n" +
+	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x122\n" +
+	"\x15processed_through_seq\x18\x02 \x01(\x03R\x13processedThroughSeq\x129\n" +
+	"\n" +
+	"time_stamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimeStamp\"\x88\x02\n" +
 	"\x10HeartbeatMessage\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12\x1d\n" +
 	"\n" +
@@ -2034,7 +2025,7 @@ var file_ashrix_gateway_proto_goTypes = []any{
 	(*ConnectorSyncCmd)(nil),         // 19: proto.ConnectorSyncCmd
 	(*ConnectorInfo)(nil),            // 20: proto.ConnectorInfo
 	(*HelloMessage)(nil),             // 21: proto.HelloMessage
-	(*CmdAck)(nil),                   // 22: proto.CmdAck
+	(*CommandAck)(nil),               // 22: proto.CommandAck
 	(*HeartbeatMessage)(nil),         // 23: proto.HeartbeatMessage
 	(*ConnectorsStatus)(nil),         // 24: proto.ConnectorsStatus
 	(*HelloAck)(nil),                 // 25: proto.HelloAck
@@ -2052,7 +2043,7 @@ var file_ashrix_gateway_proto_depIdxs = []int32{
 	27, // 6: proto.GatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
 	21, // 7: proto.GatewayEnvelope.hello:type_name -> proto.HelloMessage
 	23, // 8: proto.GatewayEnvelope.heartbeat:type_name -> proto.HeartbeatMessage
-	22, // 9: proto.GatewayEnvelope.cmd_ack:type_name -> proto.CmdAck
+	22, // 9: proto.GatewayEnvelope.cmd_ack:type_name -> proto.CommandAck
 	27, // 10: proto.CPEnvelope.sent_at:type_name -> google.protobuf.Timestamp
 	25, // 11: proto.CPEnvelope.hello_ack:type_name -> proto.HelloAck
 	26, // 12: proto.CPEnvelope.policy_bundle:type_name -> proto.PolicyBundle
@@ -2068,7 +2059,7 @@ var file_ashrix_gateway_proto_depIdxs = []int32{
 	18, // 22: proto.Command.crl_sync:type_name -> proto.CrlSyncCmd
 	19, // 23: proto.Command.connector_sync:type_name -> proto.ConnectorSyncCmd
 	20, // 24: proto.ConnectorSyncCmd.connectors:type_name -> proto.ConnectorInfo
-	27, // 25: proto.CmdAck.time_stamp:type_name -> google.protobuf.Timestamp
+	27, // 25: proto.CommandAck.time_stamp:type_name -> google.protobuf.Timestamp
 	24, // 26: proto.HeartbeatMessage.connector_status:type_name -> proto.ConnectorsStatus
 	27, // 27: proto.ConnectorsStatus.last_checked:type_name -> google.protobuf.Timestamp
 	27, // 28: proto.HelloAck.server_time:type_name -> google.protobuf.Timestamp

@@ -92,7 +92,7 @@ message GatewayEnvelope {
   oneof payload {
     HelloMessage     hello     = 10;
     HeartbeatMessage heartbeat = 11;
-    CmdAck           cmd_ack   = 12;
+    CommandAck           cmd_ack   = 12;
   }
 }
 
@@ -108,18 +108,19 @@ message CPEnvelope {
 }
 
 message Command {
-  string cmd_id = 1;
+  int64 seq = 1;
+  string event_id = 2;
   oneof payload {
-    RotateGatewayCertCmd   rotate_gateway_cert   = 2;
-    RevokeGatewayCertCmd   revoke_gateway_cert   = 3;
-    RevokeGatewayCmd       revoke_gateway        = 4;
-    RevokeSessionCmd       revoke_session        = 5;
-    DrainGatewayCmd        drain_gateway         = 6;
-    RevokeConnectorCmd     revoke_connector      = 7;
-    RotateConnectorCertCmd rotate_connector_cert = 8;
-    RevokeConnectorCertCmd revoke_connector_cert = 9;
-    CrlSyncCmd             crl_sync              = 10;
-    ConnectorSyncCmd       connector_sync        = 11;
+    RotateGatewayCertCmd   rotate_gateway_cert   = 3;
+    RevokeGatewayCertCmd   revoke_gateway_cert   = 4;
+    RevokeGatewayCmd       revoke_gateway        = 5;
+    RevokeSessionCmd       revoke_session        = 6;
+    DrainGatewayCmd        drain_gateway         = 7;
+    RevokeConnectorCmd     revoke_connector      = 8;
+    RotateConnectorCertCmd rotate_connector_cert = 9;
+    RevokeConnectorCertCmd revoke_connector_cert = 10;
+    CrlSyncCmd             crl_sync              = 11;
+    ConnectorSyncCmd       connector_sync        = 12;
   }
 }
 
@@ -164,13 +165,12 @@ message HelloMessage {
   int64  policy_version = 4;  // policy bundle version currently applied
 }
 
-//Ack for Cmds
-message CmdAck {
-  string                    cmd_id       = 1;
-  string                    gateway_id   = 2;
-  bool                      success      = 3;
-  string                    error        = 4;
-  google.protobuf.Timestamp time_stamp   = 5;
+
+message CommandAck {
+  string gateway_id = 1;
+  int64 processed_through_seq = 2;
+  google.protobuf.Timestamp time_stamp   = 3;
+
 }
 
 message HeartbeatMessage {

@@ -7,7 +7,7 @@ package store
 
 import (
 	"context"
-	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -57,9 +57,29 @@ func (q *Queries) CreateConnector(ctx context.Context, arg CreateConnectorParams
 
 const createGateway = `-- name: CreateGateway :one
 
-INSERT INTO gateways (org_id, name,deployment_type, token_hash, public_url, ip_address)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, enrolled_at, revoked_at
+WITH new_gateway AS (
+    INSERT INTO gateways (
+        org_id, 
+        name, 
+        deployment_type, 
+        token_hash, 
+        public_url, 
+        ip_address
+    )
+    VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, enrolled_at, revoked_at
+),
+init_sequence AS (
+    INSERT INTO gateway_event_sequences (gateway_id)
+    SELECT id FROM new_gateway
+    ON CONFLICT DO NOTHING
+),
+init_acks AS (
+    INSERT INTO gateway_events_acks (gateway_id)
+    SELECT id FROM new_gateway
+    ON CONFLICT DO NOTHING
+)
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, enrolled_at, revoked_at FROM new_gateway
 `
 
 type CreateGatewayParams struct {
@@ -71,11 +91,28 @@ type CreateGatewayParams struct {
 	IpAddress      string    `json:"ip_address"`
 }
 
+type CreateGatewayRow struct {
+	ID             uuid.UUID          `json:"id"`
+	OrgID          uuid.UUID          `json:"org_id"`
+	Name           string             `json:"name"`
+	TokenHash      string             `json:"token_hash"`
+	Version        pgtype.Text        `json:"version"`
+	DeploymentType string             `json:"deployment_type"`
+	PublicUrl      string             `json:"public_url"`
+	IpAddress      string             `json:"ip_address"`
+	LastHeartbeat  pgtype.Timestamptz `json:"last_heartbeat"`
+	Status         string             `json:"status"`
+	IsActive       bool               `json:"is_active"`
+	CreatedAt      time.Time          `json:"created_at"`
+	EnrolledAt     pgtype.Timestamptz `json:"enrolled_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+}
+
 // =================================================================
 // GATEWAYS
 // token_hash: SHA-256 of enrollment token. Never plaintext.
 // =================================================================
-func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (Gateway, error) {
+func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (CreateGatewayRow, error) {
 	row := q.db.QueryRow(ctx, createGateway,
 		arg.OrgID,
 		arg.Name,
@@ -84,7 +121,7 @@ func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (G
 		arg.PublicUrl,
 		arg.IpAddress,
 	)
-	var i Gateway
+	var i CreateGatewayRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrgID,
@@ -101,55 +138,6 @@ func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (G
 		&i.EnrolledAt,
 		&i.RevokedAt,
 	)
-	return i, err
-}
-
-const createGatewayEvent = `-- name: CreateGatewayEvent :one
-INSERT INTO gateway_events (seq, gateway_id, command, payload)
-VALUES($1,$2,$3, $4)
-RETURNING seq, gateway_id, command, payload, created_at
-`
-
-type CreateGatewayEventParams struct {
-	Seq       int64           `json:"seq"`
-	GatewayID uuid.UUID       `json:"gateway_id"`
-	Command   string          `json:"command"`
-	Payload   json.RawMessage `json:"payload"`
-}
-
-func (q *Queries) CreateGatewayEvent(ctx context.Context, arg CreateGatewayEventParams) (GatewayEvent, error) {
-	row := q.db.QueryRow(ctx, createGatewayEvent,
-		arg.Seq,
-		arg.GatewayID,
-		arg.Command,
-		arg.Payload,
-	)
-	var i GatewayEvent
-	err := row.Scan(
-		&i.Seq,
-		&i.GatewayID,
-		&i.Command,
-		&i.Payload,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const createGatewayEventAcks = `-- name: CreateGatewayEventAcks :one
-INSERT INTO gateway_events_acks (gateway_id, last_acked_seq)
-VALUES($1,$2)
-RETURNING gateway_id, last_acked_seq, updated_at
-`
-
-type CreateGatewayEventAcksParams struct {
-	GatewayID    uuid.UUID `json:"gateway_id"`
-	LastAckedSeq int64     `json:"last_acked_seq"`
-}
-
-func (q *Queries) CreateGatewayEventAcks(ctx context.Context, arg CreateGatewayEventAcksParams) (GatewayEventsAck, error) {
-	row := q.db.QueryRow(ctx, createGatewayEventAcks, arg.GatewayID, arg.LastAckedSeq)
-	var i GatewayEventsAck
-	err := row.Scan(&i.GatewayID, &i.LastAckedSeq, &i.UpdatedAt)
 	return i, err
 }
 
@@ -447,35 +435,7 @@ func (q *Queries) GetGatewayByTokenHash(ctx context.Context, tokenHash string) (
 	return i, err
 }
 
-const getLastAckedSeqForGateway = `-- name: GetLastAckedSeqForGateway :one
-SELECT COALESCE(MAX(last_acked_seq), 0)::bigint AS last_acked_seq
-FROM gateway_events_acks
-WHERE gateway_id = $1
-`
-
-func (q *Queries) GetLastAckedSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, getLastAckedSeqForGateway, gatewayID)
-	var last_acked_seq int64
-	err := row.Scan(&last_acked_seq)
-	return last_acked_seq, err
-}
-
-const getLastEventSeqForGateway = `-- name: GetLastEventSeqForGateway :one
-SELECT COALESCE(MAX(seq), 0)::bigint AS last_seq
-FROM gateway_events
-WHERE gateway_id = $1
-`
-
-func (q *Queries) GetLastEventSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, getLastEventSeqForGateway, gatewayID)
-	var last_seq int64
-	err := row.Scan(&last_seq)
-	return last_seq, err
-}
-
 const listActiveConnectorsByGateway = `-- name: ListActiveConnectorsByGateway :many
-
-
 SELECT c.id, c.org_id, c.gateway_id, c.name, c.token_hash, c.last_seen, c.status, c.created_at, c.is_active, c.enrolled_at, c.revoked_at
 FROM connectors c
 WHERE c.gateway_id = $1
@@ -491,14 +451,6 @@ WHERE c.gateway_id = $1
   )
 `
 
-// -- name: ListActiveConnectorsByGateway :many
-// -- Called on gateway → connector auth.
-// SELECT * FROM connectors
-// WHERE gateway_id = $1
-//
-//	AND is_active = true
-//	AND revoked_at IS NULL;
-//
 // Called on gateway → connector auth.
 func (q *Queries) ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error) {
 	rows, err := q.db.Query(ctx, listActiveConnectorsByGateway, gatewayID)

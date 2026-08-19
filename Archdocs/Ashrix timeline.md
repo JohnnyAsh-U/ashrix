@@ -7,7 +7,6 @@ Run the latest seq of these cmds
 
 * Update Policy Bundle Action 
 
-* To add dispatcher to creation of Connectors for connector sync status
 
 * To add apps and url permitted to be accessible from the gateway to avoid lateral movements, so a dispatcher for apps to sync it with gateway
 
