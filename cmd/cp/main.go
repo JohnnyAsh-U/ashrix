@@ -16,7 +16,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_http"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
@@ -40,11 +39,6 @@ func main() {
 	fmt.Println("Starting Ashrix Control Plane...")
 	VersionBuildTime := fmt.Sprintf("Version: %s; BuildTime: %s", version.GetVersion(), version.GetBuildDate())
 	fmt.Println(VersionBuildTime)
-
-	// Create root context linked to OS signals for graceful shutdown
-	appCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
 
 	// Today — dev / early prod
 	_ = godotenv.Load() // load .env in dev; in prod, env vars are set by the environment (e.g. Vault Agent)
@@ -142,14 +136,6 @@ func main() {
 	policyDistributor := policy.NewPolicyDistributor(gatewayRegistry, repositories.Policy, bundleSigner, log)
 	log.Info("Policy Distributor Initialized")
 
-	//Initialize Command Dispatcher
-	dispatcher := dispatcher.NewBoundedDispatcher(gatewayRegistry, 100, 10, log)
-	log.Info("Command Dispatcher Initialized")
-
-	//Initialize the Fixed workers size for command dispatcher
-	dispatcher.Start(appCtx)
-	log.Info("Command Dispatcher Started")
-
 	//Runing gRPC and Http concurrently
 	quit := make(chan os.Signal, 2)
 
@@ -162,7 +148,7 @@ func main() {
 		policyDistributor,
 		log,
 		CASigner,
-		dispatcher,
+		gatewayRegistry,
 	)
 
 	// Build and start gRPC server

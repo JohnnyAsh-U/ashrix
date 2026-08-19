@@ -7,6 +7,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/auth"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
@@ -26,6 +27,7 @@ type Repositories struct {
 	Org org.Repository
 	IDP identity.Repository
 	Auth auth.Repository
+	Event events.Repository
 	// Add other repositories here
 }
 
@@ -40,6 +42,7 @@ func NewRepositories(db *pgxpool.Pool, dbQueries *store.Queries) *Repositories {
 		Org: org.NewPostgresRepository(dbQueries),
 		IDP: identity.NewPostgresRepository(dbQueries),
 		Auth: auth.NewPostgresRepository(dbQueries),
+		Event: events.NewRepository(dbQueries, db),
 	}
 }
 

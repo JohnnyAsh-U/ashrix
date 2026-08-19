@@ -7,14 +7,14 @@ import (
 	"io"
 	"log"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	gatewayevents "github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -36,6 +36,7 @@ type cpServer struct {
 	distributor   *policy.PolicyDistributor
 	policyStore   policy.Repository
 	gatewayRepo   gateway.Repository
+	eventRepo     gatewayevents.Repository
 	PkiCARepo     pkica.Repository
 	connectorRepo connector.Repository
 	// dbQueries   *store.Queries
@@ -115,19 +116,17 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
-	conn := &registry.GatewayConn{
-		GatewayID:            gatewayID,
-		TenantID:             tenantID,
-		Stream:               stream,
-		ConnectedAt:          time.Now(),
-		LastSeen:             time.Now(),
-		CurrentPolicyVersion: uint64(currentPolicyVersion),
-		Ctx:                  ctx,
-		Cancel:               cancel,
-	}
+	connection := registry.NewGatewayConn(
+		ctx,
+		cancel,
+		stream,
+		gatewayID,
+		tenantID,
+		uint64(currentPolicyVersion),
+	)
 
 	// Register the connection
-	s.registry.Register(conn)
+	s.registry.Register(connection)
 	defer s.registry.Unregister(gatewayID)
 
 	log.Printf("gateway connected: %s (tenant=%s, policy_version=%d)",
@@ -135,140 +134,32 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 
 	s.registry.HandleHello(gatewayID)
 
-	//Get the last ack for gateway
-	lastAckSeq, err := s.gatewayRepo.GetLastAckedSeqForGateway(ctx, gatewayUUID)
+	// ==================================================
+	// 5. Reconcile durable gateway events
+	// ==================================================
 
-	fmt.Println(lastAckSeq)
+	if err := s.reconcileGateway(
+		ctx,
+		connection,
+	); err != nil {
 
-	if err != nil {
-		s.log.Error("Last Ack Seq Error:", slog.String("err", err.Error()))
-	}
-
-	events, err := s.gatewayRepo.GetLatestGatewayEventsByCommand(ctx, store.GetLatestGatewayEventsByCommandParams{
-		GatewayID: gatewayUUID,
-		Seq: lastAckSeq,
-	})
-
-	if err != nil {
 		s.log.Error(
-			"failed to get latest gateway events",
-			slog.String("gateway_id", gatewayUUID.String()),
-			slog.String("err", err.Error()),
+			"gateway reconciliation failed",
+			slog.String(
+				"gateway_id",
+				gatewayID,
+			),
+			slog.String(
+				"error",
+				err.Error(),
+			),
 		)
 
-		return status.Error(codes.Internal, "failed to restore gateway state")
+		return status.Error(
+			codes.Internal,
+			"gateway reconciliation failed",
+		)
 	}
-
-	for _, event := range events {
-		cmd, err := dispatcher.GatewayEventToCmd(event)
-		fmt.Println(event.Command, event.Seq)
-		if err != nil {
-			s.log.Error(
-				"failed to convert gateway event",
-				slog.Int64("seq", event.Seq),
-				slog.String("command", event.Command),
-				slog.String("err", err.Error()),
-			)
-
-			return status.Error(codes.Internal, "failed to restore gateway state")
-		}
-
-		envelope := &proto.CPEnvelope{
-			SentAt: timestamppb.Now(),
-			Payload: &proto.CPEnvelope_Cmd{
-				Cmd: cmd,
-			},
-		}
-
-		if err := stream.Send(envelope); err != nil {
-			return fmt.Errorf(
-				"failed to send gateway event seq=%d: %w",
-				event.Seq,
-				err,
-			)
-		}
-	}
-
-	//For revoke session we replay all the commands from the last acked seq since it is incremental
-
-	//Get the latest gateway events by command and send
-	// events, err := s.gatewayRepo.GetLatestGatewayEventsByCommand(ctx, gatewayUUID)
-	// if err == nil {
-	// 	for _, event := range events {
-	// 		if event.Command == string(dispatcher.CmdConnectorSync) {
-	// 			// err = stream.Send(&proto.GatewayConnectorEnvelope{
-	// 			// 	Payload: &proto.GatewayEnvelope_Cmd{
-	// 			// 		Cmd: &proto.Command{
-	// 			// 			Payload: &proto.Command_RotateGatewayCert{
-	// 			// 				RotateGatewayCert: &proto.RotateGatewayCertCmd{},
-	// 			// 			},
-	// 			// 		},
-	// 			// 	},
-	// 			// })
-	// 			err = stream.Send(&proto.CPEnvelope{
-	// 				SentAt: timestamppb.Now(),
-	// 				Payload: &proto.CPEnvelope_Cmd{
-	// 					Cmd: &proto.Command{
-	// 						CmdId: string(rune(event.Seq)),
-	// 						Payload: &proto.ConnectorSyncCmd{
-	// 						},
-	// 					},
-	// 				},
-	// 			})
-	// 		}
-	// 	}
-	// }
-
-	// // Push CRL entries list immediately
-	// crls, err := s.PkiCARepo.GetCRLEntry(ctx)
-	// if err == nil {
-	// 	var serials []string
-	// 	for _, c := range crls {
-	// 		serials = append(serials, c.SerialNumber)
-	// 	}
-	// 	crlSyncEnvelope := &proto.CPEnvelope{
-	// 		SentAt: timestamppb.Now(),
-	// 		Payload: &proto.CPEnvelope_Cmd{
-	// 			Cmd: &proto.Command{
-	// 				Payload: &proto.Command_CrlSync{
-	// 					CrlSync: &proto.CrlSyncCmd{
-	// 						RevokedSerialNumbers: serials,
-	// 					},
-	// 				},
-	// 			},
-	// 		},
-	// 	}
-	// 	if err := stream.Send(crlSyncEnvelope); err != nil {
-	// 		s.log.Error("failed to send initial CRL sync", slog.String("err", err.Error()))
-	// 	}
-	// }
-
-	// // Push authorized connectors list immediately
-	// conns, err := s.connectorRepo.ListActiveConnectorsByGateway(ctx, gatewayUUID)
-	// if err == nil {
-	// 	var connectorInfos []*proto.ConnectorInfo
-	// 	for _, c := range conns {
-	// 		connectorInfos = append(connectorInfos, &proto.ConnectorInfo{
-	// 			Id:     c.ID.String(),
-	// 			Status: c.Status,
-	// 		})
-	// 	}
-	// 	connSyncEnvelope := &proto.CPEnvelope{
-	// 		SentAt: timestamppb.Now(),
-	// 		Payload: &proto.CPEnvelope_Cmd{
-	// 			Cmd: &proto.Command{
-	// 				Payload: &proto.Command_ConnectorSync{
-	// 					ConnectorSync: &proto.ConnectorSyncCmd{
-	// 						Connectors: connectorInfos,
-	// 					},
-	// 				},
-	// 			},
-	// 		},
-	// 	}
-	// 	if err := stream.Send(connSyncEnvelope); err != nil {
-	// 		s.log.Error("failed to send initial connector sync", slog.String("err", err.Error()))
-	// 	}
-	// }
 
 	tenantUUID, err := uuid.Parse(tenantID)
 	if err != nil {
@@ -278,7 +169,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 
 	// If the gateway is behind on policy, push the latest immediately
 	if currentPolicyVersion < s.distributor.LatestVersion(tenantUUID) {
-		go s.distributor.PushToGateway(ctx, conn, tenantUUID)
+		go s.distributor.PushToGateway(ctx, connection, tenantUUID)
 	}
 
 	for {
@@ -291,268 +182,28 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 			log.Println(err)
 			return nil
 		}
-		fmt.Println(err)
-		switch p := msg.Payload.(type) {
+		connection.LastSeen = time.Now()
+
+		switch msg.Payload.(type) {
+
 		case *proto.GatewayEnvelope_Hello:
-			log.Println("Gateway Connected", p.Hello.GatewayId)
-			//Update the binary version on the gateway repo
-			_, err := s.gatewayRepo.UpdateGatewayBinaryVersion(ctx, store.UpdateGatewayBinaryVersionParams{
-				ID:      uuid.Must(uuid.Parse(p.Hello.GatewayId)),
-				Version: pgtype.Text{Valid: true, String: p.Hello.BinaryVersion},
-			})
-			if err != nil {
-				log.Printf("Failed to update gateway binary version %v", err)
-			} else {
-				log.Printf("Gateway binary version updated successfully %v", p.Hello.GatewayId)
-			}
-			ack := &proto.CPEnvelope{
-				Payload: &proto.CPEnvelope_HelloAck{
-					HelloAck: &proto.HelloAck{
-						ServerVersion: "1.0.0",
-						ServerTime:    timestamppb.Now(),
-					},
-				},
-			}
-			if err := stream.Send(ack); err != nil {
-				log.Printf("Failed to send Hello Ack %v", err)
-			}
+			s.handleHello(ctx, connection, msg.GetHello())
 
 		case *proto.GatewayEnvelope_Heartbeat:
-			log.Println("HeartBeat", p.Heartbeat.Seq)
-			// Update the db last seen
-			_, err := s.gatewayRepo.UpdateGatewayHeartBeat(ctx, uuid.Must(uuid.Parse(p.Heartbeat.GatewayId)))
-			if err != nil {
-				log.Printf("Failed to update gateway last seen %v", err)
-			} else {
-				log.Printf("Gateway last seen updated successfully %v", p.Heartbeat.GatewayId)
-			}
+			s.handleHeartbeat(ctx, connection, msg.GetHeartbeat())
 
 		case *proto.GatewayEnvelope_CmdAck:
-			log.Println("Command Ack", p.CmdAck)
-			_, err := s.gatewayRepo.CreateGatewayEventAck(ctx, store.CreateGatewayEventAcksParams{
-				GatewayID: uuid.Must(uuid.Parse(p.CmdAck.GatewayId)),
-				LastAckedSeq: func() int64 {
-					fmt.Println(p.CmdAck)
-					seq, err := strconv.ParseInt(p.CmdAck.CmdId, 10, 64)
-					if err != nil {
-						log.Println("Failed to parse command ID", slog.String("err", err.Error()))
-						return 0
-					} else {
-						return seq
-					}
-				}(),
-			})
-			if err != nil {
-				log.Printf("Failed to create gateway event ack %v", err)
-			} else {
-				log.Printf("Gateway event ack created successfully %v", p.CmdAck.GatewayId)
+			if err := s.handleCommandAck(ctx, connection, msg.GetCmdAck()); err != nil {
+				s.log.Error(
+					"Command ACK error",
+					slog.String("gateway_id", connection.GatewayID),
+					slog.String("error", err.Error()),
+				)
+				continue
 			}
 
 		default:
 			log.Printf("Unknown message")
-		}
-	}
-}
-
-
-func (s *cpServer) reconcileGateway(
-	ctx context.Context,
-	conn *registry.GatewayConn,
-) error {
-
-	gatewayID, err :=
-		uuid.Parse(conn.GatewayID)
-
-	if err != nil {
-		return fmt.Errorf(
-			"invalid gateway ID: %w",
-			err,
-		)
-	}
-
-	// --------------------------------------------
-	// 1. Get authoritative cursor from CP
-	// --------------------------------------------
-
-	lastAck, err :=
-		s.gatewayRepo.GetLastAckedSeqForGateway(
-			ctx,
-			gatewayID,
-		)
-
-	if err != nil {
-
-		s.log.Error(
-			"failed to get gateway event ACK",
-			slog.String(
-				"gateway_id",
-				conn.GatewayID,
-			),
-			slog.String(
-				"error",
-				err.Error(),
-			),
-		)
-
-		return err
-	}
-
-	// --------------------------------------------
-	// 2. Get every event after cursor
-	// --------------------------------------------
-
-	events, err :=
-		s.gatewayRepo.ListGatewayEventsAfter(
-			ctx,
-			store.ListGatewayEventsAfterParams{
-				GatewayID: gatewayID,
-				Seq:       lastAck,
-			},
-		)
-
-	if err != nil {
-		return fmt.Errorf(
-			"load gateway events: %w",
-			err,
-		)
-	}
-
-	if len(events) == 0 {
-		return nil
-	}
-
-	// --------------------------------------------
-	// 3. Compact complete snapshots
-	// --------------------------------------------
-
-	events =
-		dispatcher.CompactGatewayEvents(
-			events,
-		)
-
-	// --------------------------------------------
-	// 4. Send in original sequence order
-	// --------------------------------------------
-
-	for _, event := range events {
-
-		cmd, err :=
-			dispatcher.GatewayEventToCmd(
-				event,
-			)
-
-		if err != nil {
-			return fmt.Errorf(
-				"convert event %d: %w",
-				event.Seq,
-				err,
-			)
-		}
-
-		envelope := &proto.CPEnvelope{
-			Seq: event.Seq,
-
-			EventId: event.EventID.String(),
-
-			SentAt: timestamppb.Now(),
-
-			Payload: &proto.CPEnvelope_Cmd{
-				Cmd: cmd,
-			},
-		}
-
-		if err := conn.Send(envelope); err != nil {
-			return fmt.Errorf(
-				"send event %d: %w",
-				event.Seq,
-				err,
-			)
-		}
-	}
-
-	return nil
-}
-
-
-func (s *cpServer) receiveLoop(
-	ctx context.Context,
-	stream proto.ControlPlaneService_ConnectServer,
-	conn *registry.GatewayConn,
-) error {
-
-	for {
-
-		msg, err := stream.Recv()
-
-		if err == io.EOF {
-			s.log.Info(
-				"gateway disconnected",
-				slog.String(
-					"gateway_id",
-					conn.GatewayID,
-				),
-			)
-
-			return nil
-		}
-
-		if err != nil {
-			return fmt.Errorf(
-				"gateway stream receive: %w",
-				err,
-			)
-		}
-
-		conn.LastSeen = time.Now()
-
-		switch p := msg.Payload.(type) {
-
-		case *proto.GatewayEnvelope_Hello:
-
-			if err := s.handleHello(
-				ctx,
-				conn,
-				p.Hello,
-			); err != nil {
-				return err
-			}
-
-		case *proto.GatewayEnvelope_Heartbeat:
-
-			if err := s.handleHeartbeat(
-				ctx,
-				conn,
-				p.Heartbeat,
-			); err != nil {
-				s.log.Warn(
-					"heartbeat handling failed",
-					"error", err,
-				)
-			}
-
-		case *proto.GatewayEnvelope_CmdAck:
-
-			if err := s.handleCommandAck(
-				ctx,
-				conn,
-				p.CmdAck,
-			); err != nil {
-
-				s.log.Error(
-					"command ACK handling failed",
-					"error", err,
-				)
-
-				return err
-			}
-
-		default:
-
-			s.log.Warn(
-				"unknown gateway message",
-				"gateway_id",
-				conn.GatewayID,
-			)
 		}
 	}
 }
@@ -579,6 +230,8 @@ func (s *cpServer) handleCommandAck(
 		)
 	}
 
+	fmt.Println(seq)
+
 	gatewayID, err :=
 		uuid.Parse(conn.GatewayID)
 
@@ -591,7 +244,7 @@ func (s *cpServer) handleCommandAck(
 	// --------------------------------------------
 
 	latest, err :=
-		s.gatewayRepo.GetLatestGatewayEventSeq(
+		s.eventRepo.GetLatestGatewayEventSeq(
 			ctx,
 			gatewayID,
 		)
@@ -614,10 +267,10 @@ func (s *cpServer) handleCommandAck(
 	// --------------------------------------------
 
 	if err :=
-		s.gatewayRepo.AckGatewayEvents(
+		s.eventRepo.AckGatewayEvents(
 			ctx,
 			store.AckGatewayEventsParams{
-				GatewayID:     gatewayID,
+				GatewayID:    gatewayID,
 				LastAckedSeq: seq,
 			},
 		); err != nil {
@@ -634,11 +287,7 @@ func (s *cpServer) handleCommandAck(
 	return nil
 }
 
-func (s *cpServer) handleHello(
-	ctx context.Context,
-	conn *registry.GatewayConn,
-	hello *proto.Hello,
-) error {
+func (s *cpServer) handleHello(ctx context.Context, conn *registry.GatewayConn, hello *proto.HelloMessage) error {
 
 	if hello.GatewayId != conn.GatewayID {
 		return status.Error(
@@ -647,9 +296,8 @@ func (s *cpServer) handleHello(
 		)
 	}
 
-	gatewayID, err :=
-		uuid.Parse(conn.GatewayID)
-if err != nil {
+	gatewayID, err := uuid.Parse(conn.GatewayID)
+	if err != nil {
 		return err
 	}
 
@@ -665,7 +313,7 @@ if err != nil {
 				},
 			},
 		)
-if err != nil {
+	if err != nil {
 		s.log.Warn(
 			"failed to update gateway binary version",
 			"gateway_id",
@@ -687,12 +335,13 @@ if err != nil {
 	)
 }
 
-
 func (s *cpServer) handleHeartbeat(
 	ctx context.Context,
 	conn *registry.GatewayConn,
-	heartbeat *proto.Heartbeat,
+	heartbeat *proto.HeartbeatMessage,
 ) error {
+
+	log.Println("HeartBeat", heartbeat.Seq)
 
 	if heartbeat.GatewayId != conn.GatewayID {
 		return status.Error(
@@ -718,112 +367,36 @@ func (s *cpServer) handleHeartbeat(
 }
 
 
-func (s *cpServer) Connect(
-	stream proto.ControlPlaneService_ConnectServer,
+func (s *cpServer) reconcileGateway(
+	ctx context.Context,
+	conn *registry.GatewayConn,
 ) error {
 
-	// ==================================================
-	// 1. Authenticate mTLS identity
-	// ==================================================
-
-	gw, err :=
-		s.authenticateGateway(stream)
+	gatewayID, err :=
+		uuid.Parse(conn.GatewayID)
 
 	if err != nil {
-		return err
+		return fmt.Errorf(
+			"invalid gateway ID: %w",
+			err,
+		)
 	}
 
-	// ==================================================
-	// 2. Receive Hello
-	// ==================================================
+	// --------------------------------------------
+	// 1. Get authoritative cursor from CP
+	// --------------------------------------------
 
-	hello, err :=
-		s.receiveHello(stream)
+	lastAck, err := s.eventRepo.GetLastAckedSeqForGateway(ctx, gatewayID)
+
+	fmt.Println(lastAck)
 
 	if err != nil {
-		return err
-	}
-
-	// ==================================================
-	// 3. Verify Hello identity against certificate
-	// ==================================================
-
-	gatewayID := gw.ID.String()
-
-	if hello.GatewayId != gatewayID {
-
-		return status.Error(
-			codes.Unauthenticated,
-			"gateway identity mismatch",
-		)
-	}
-
-	// ==================================================
-	// 4. Register connection
-	// ==================================================
-
-	ctx, cancel :=
-		context.WithCancel(
-			stream.Context(),
-		)
-
-	defer cancel()
-
-	conn :=
-		registry.NewGatewayConn(
-			ctx,
-			cancel,
-			stream,
-			gatewayID,
-			hello.TenantId,
-			uint64(hello.PolicyVersion),
-		)
-
-	if _, exists :=
-		s.registry.GetConnection(gatewayID); exists {
-
-		return status.Error(
-			codes.AlreadyExists,
-			"gateway already connected",
-		)
-	}
-
-	s.registry.Register(conn)
-
-	defer s.registry.Unregister(
-		gatewayID,
-	)
-
-	s.log.Info(
-		"gateway connected",
-		slog.String(
-			"gateway_id",
-			gatewayID,
-		),
-		slog.String(
-			"tenant_id",
-			hello.TenantId,
-		),
-		slog.Uint64(
-			"policy_version",
-			uint64(hello.PolicyVersion),
-		),
-	)
-
-	// ==================================================
-	// 5. Reconcile durable gateway events
-	// ==================================================
-
-	if err := s.reconcileGateway(
-		ctx,
-		conn,
-	); err != nil {
 
 		s.log.Error(
-			"gateway reconciliation failed",
+			"failed to get gateway event ACK",
 			slog.String(
 				"gateway_id",
-				gatewayID,
+				conn.GatewayID,
 			),
 			slog.String(
 				"error",
@@ -831,66 +404,70 @@ func (s *cpServer) Connect(
 			),
 		)
 
-		return status.Error(
-			codes.Internal,
-			"gateway reconciliation failed",
-		)
+		return err
 	}
 
-	// ==================================================
-	// 6. Policy reconciliation
-	// ==================================================
+	// --------------------------------------------
+	// 2. Get every event after cursor
+	// --------------------------------------------
 
-	tenantUUID, err :=
-		uuid.Parse(hello.TenantId)
+	events, err := s.eventRepo.ListGatewayEventsAfter(ctx, store.ListGatewayEventsAfterParams{GatewayID: gatewayID, Seq: lastAck})
 
 	if err != nil {
-		return status.Error(
-			codes.InvalidArgument,
-			"invalid tenant ID",
-		)
+		return fmt.Errorf("load gateway events: %w", err)
 	}
 
-	if uint64(hello.PolicyVersion) <
-		s.distributor.LatestVersion(
-			tenantUUID,
-		) {
-
-		go func() {
-
-			if err :=
-				s.distributor.PushToGateway(
-					ctx,
-					conn,
-					tenantUUID,
-				); err != nil {
-
-				s.log.Error(
-					"policy reconciliation failed",
-					slog.String(
-						"gateway_id",
-						gatewayID,
-					),
-					slog.String(
-						"error",
-						err.Error(),
-					),
-				)
-			}
-
-		}()
+	if len(events) == 0 {
+		return nil
 	}
 
-	// ==================================================
-	// 7. Normal stream
-	// ==================================================
+	// --------------------------------------------
+	// 3. Compact complete snapshots
+	// --------------------------------------------
 
-	return s.receiveLoop(
-		ctx,
-		stream,
-		conn,
-	)
+	events = s.eventRepo.CompactGatewayEvents(events)
+
+	// --------------------------------------------
+	// 4. Send in original sequence order
+	// --------------------------------------------
+
+	for _, event := range events {
+		fmt.Println(event)
+
+		cmd, err := gatewayevents.GatewayEventToCmd(event)
+
+		if err != nil {
+			return fmt.Errorf(
+				"convert event %d: %w",
+				event.Seq,
+				err,
+			)
+		}
+
+		cmd.Seq = event.Seq
+		cmd.EventId = event.EventID.String()
+
+		envelope := &proto.CPEnvelope{
+			SentAt: timestamppb.Now(),
+			Payload: &proto.CPEnvelope_Cmd{
+				Cmd: cmd,
+			},
+		}
+
+		if err := conn.Send(envelope); err != nil {
+			return fmt.Errorf(
+				"send event %d: %w",
+				event.Seq,
+				err,
+			)
+		}
+	}
+
+	return nil
 }
+
+
+
 
 func (t *cpServer) ExchangeToken(ctx context.Context, req *proto.ExchangeTokenRequest) (*proto.ExchangeTokenResponse, error) {
 	if req.TokenHash == "" || req.GatewayName == "" {

@@ -1,7 +1,10 @@
-package dispatcher
+package events
+
 import (
+	"encoding/json"
 	"fmt"
 	"time"
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
@@ -143,4 +146,38 @@ func BuildCommand(
 			job.Type,
 		)
 	}
+}
+
+
+func MarshalCommand(job CommandJob) ([]byte, error) {
+	return json.Marshal(
+		persistedCommand{
+			Type:                  job.Type,
+			GatewayID:             job.GatewayID,
+			ConnectorID:           job.ConnectorID,
+			SessionID:             job.SessionID,
+			RevokedSerialNumbers:  job.RevokedSerialNumbers,
+			ConnectorInfo:         job.ConnectorInfo,
+		},
+	)
+}
+
+func UnmarshalCommand(data []byte) (CommandJob, error) {
+	var command persistedCommand
+
+	if err := json.Unmarshal(data, &command); err != nil {
+		return CommandJob{}, fmt.Errorf(
+			"unmarshal command payload: %w",
+			err,
+		)
+	}
+
+	return CommandJob{
+		Type:                  command.Type,
+		GatewayID:             command.GatewayID,
+		ConnectorID:           command.ConnectorID,
+		SessionID:             command.SessionID,
+		RevokedSerialNumbers:  command.RevokedSerialNumbers,
+		ConnectorInfo:         command.ConnectorInfo,
+	}, nil
 }

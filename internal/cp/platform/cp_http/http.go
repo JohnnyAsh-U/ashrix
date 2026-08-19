@@ -12,12 +12,15 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/auth"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/repositories"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
+
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/redis"
@@ -44,7 +47,7 @@ func InitializeHttpServer(
 	policyDistributor *policy.PolicyDistributor,
 	log *slog.Logger,
 	CASigner pki.CASigner,
-	dispatcher dispatcher.CommandDispatcher,
+	gatewayRegistry *registry.GatewayRegistry,
 ) *Server {
 
 	//Mailer config
@@ -68,6 +71,9 @@ func InitializeHttpServer(
 	r.Use(middleware.Metadata)
 	r.Use(chimiddleware.Timeout(30 * time.Second))
 
+	//GatewayDispatcher
+	eventsDispatcher := events.NewGatewayDispatcher(respositories.Event, gatewayRegistry, log)
+
 	//Apps routes
 	appService := app.NewService(respositories.App)
 	appHandler := app.NewAppHandler(appService)
@@ -86,12 +92,13 @@ func InitializeHttpServer(
 	idpService := identity.NewIDPService(
 		respositories.IDP,
 		respositories.App,
+		respositories.Event,
 		respositories.Gateway,
 		idpSession,
 		redisStore.Client(),
 		cfg,
 		[]byte(cfg.PKIConfig.IDPSecretEncryptionKey),
-		dispatcher,
+		eventsDispatcher,
 	)
 	idpHandler := identity.NewIDPHandler(idpService, log)
 
@@ -110,12 +117,12 @@ func InitializeHttpServer(
 	)
 
 	//Gateway routes
-	gatewayService := gateway.NewService(respositories.Gateway, respositories.PKICA, dispatcher)
+	gatewayService := gateway.NewService(respositories.Gateway, respositories.PKICA, respositories.Event, eventsDispatcher)
 	gatewayHandler := gateway.NewGatewayHandler(gatewayService, CASigner)
 
 
 	//Connectors routes
-	connectorService := connector.NewService(respositories.Connector, respositories.PKICA, respositories.Gateway, dispatcher)
+	connectorService := connector.NewService(respositories.Connector, respositories.PKICA,respositories.Event, respositories.Gateway, eventsDispatcher)
 	connectorHandler := connector.NewConnectorHandler(connectorService, CASigner)
 
 

@@ -1,16 +1,20 @@
-package dispatcher
+package events
 
 import (
 	"context"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
+	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type GatewayDispatcher struct {
-	store    *store.Queries
+	repo     Repository
 	registry *registry.GatewayRegistry
 
 	wakeMu sync.Mutex
@@ -21,16 +25,15 @@ type GatewayDispatcher struct {
 }
 
 func NewGatewayDispatcher(
-	q *store.Queries,
+	repo Repository,
 	reg *registry.GatewayRegistry,
 	logger *slog.Logger,
 ) *GatewayDispatcher {
 
 	return &GatewayDispatcher{
-		store:    q,
+		repo:     repo,
 		registry: reg,
 		logger:   logger,
-
 		wakeups: make(
 			map[string]chan struct{},
 		),
@@ -43,19 +46,13 @@ func (d *GatewayDispatcher) Wakeup(
 
 	d.wakeMu.Lock()
 
-	ch, exists :=
-		d.wakeups[gatewayID]
+	ch, exists := d.wakeups[gatewayID]
 
 	if !exists {
-
 		ch = make(chan struct{}, 1)
-
 		d.wakeups[gatewayID] = ch
 
-		go d.worker(
-			gatewayID,
-			ch,
-		)
+		go d.worker(gatewayID, ch)
 	}
 
 	d.wakeMu.Unlock()
@@ -87,7 +84,7 @@ func (d *GatewayDispatcher) worker(
 				context.Background(),
 				30*time.Second,
 			)
-			err := d.deliverPending(ctx, conn)
+		err := d.deliverPending(ctx, conn)
 
 		cancel()
 
@@ -121,16 +118,16 @@ func (d *GatewayDispatcher) deliverPending(
 	}
 
 	lastAck, err :=
-		d.store.GetLastAckedSeqForGateway(
+		d.repo.GetLastAckedSeqForGateway(
 			ctx,
 			gatewayID,
 		)
-		if err != nil {
+	if err != nil {
 		return err
 	}
 
 	events, err :=
-		d.store.ListGatewayEventsAfter(
+		d.repo.ListGatewayEventsAfter(
 			ctx,
 			store.ListGatewayEventsAfterParams{
 				GatewayID: gatewayID,
@@ -145,17 +142,11 @@ func (d *GatewayDispatcher) deliverPending(
 	if len(events) == 0 {
 		return nil
 	}
-events =
-		dispatcher.CompactGatewayEvents(
-			events,
-		)
+	events = d.repo.CompactGatewayEvents(events)
 
 	for _, event := range events {
 
-		cmd, err :=
-			dispatcher.GatewayEventToCmd(
-				event,
-			)
+		cmd, err := GatewayEventToCmd(event,)
 
 		if err != nil {
 			return err
@@ -163,17 +154,10 @@ events =
 
 		envelope :=
 			&proto.CPEnvelope{
-				Seq: event.Seq,
-
-				EventId:
-					event.EventID.String(),
-					SentAt:
-					timestamppb.Now(),
-
-				Payload:
-					&proto.CPEnvelope_Cmd{
-						Cmd: cmd,
-					},
+				SentAt:  timestamppb.Now(),
+				Payload: &proto.CPEnvelope_Cmd{
+					Cmd: cmd,
+				},
 			}
 
 		if err := conn.Send(
@@ -185,12 +169,6 @@ events =
 
 	return nil
 }
-
-
-
-
-
-
 
 // job := dispatcher.CommandJob{
 // 	Type:       dispatcher.CmdRevokeConnector,

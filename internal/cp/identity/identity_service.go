@@ -6,7 +6,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -14,9 +13,9 @@ import (
 	// "strings"
 	"sync"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -35,7 +34,7 @@ import (
 type IDPService struct {
 	repo    Repository
 	appRepo app.Repository
-	// orgRepo     org.Repository
+	eventsRepo     events.Repository
 	gatewayRepo gateway.Repository
 	idpSession  *IDPSession
 	cache       *redis.Client
@@ -44,25 +43,25 @@ type IDPService struct {
 	adapters    map[string]oidc.ProviderAdapter
 	adapterMu   sync.RWMutex // Separate mutex for adapter operations
 	key         []byte       // 32 bytes, from KMS/Vault in production — for encrypting and decrypting the client_secret
-	dispatcher  dispatcher.CommandDispatcher
+	dispatcher  *events.GatewayDispatcher
 }
 
 func NewIDPService(
 	repo Repository,
 	appRepo app.Repository,
-	// orgRepo org.Repository,
+	eventsRepo events.Repository,
 	gateRepo gateway.Repository,
 	idpSession *IDPSession,
 	cache *redis.Client,
 	cfg *config.Config,
 	key []byte,
-	dispatcher dispatcher.CommandDispatcher,
+	dispatcher *events.GatewayDispatcher,
 ) *IDPService {
 
 	return &IDPService{
 		repo:    repo,
 		appRepo: appRepo,
-		// orgRepo:     orgRepo,
+		eventsRepo:     eventsRepo,
 		gatewayRepo: gateRepo,
 		idpSession:  idpSession,
 		cache:       cache,
@@ -539,28 +538,19 @@ func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID)
 		return store.UserSession{}, err
 	}
 
-	payload := dispatcher.CommandJob{
-		Type:      dispatcher.CmdRevokeUserSession,
+	payload := events.CommandJob{
+		Type:      events.CmdRevokeUserSession,
 		GatewayID: session.GatewayID.String(),
 		SessionID: session.ID.String(),
 	}
 
-	isSentRevokeSessionCmd := s.dispatcher.Dispatch(payload)
+	_, err = s.eventsRepo.CreateEvent(ctx, payload)
 
-	if isSentRevokeSessionCmd {
-		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, session.GatewayID)
-		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: session.GatewayID,
-			Command:   string(dispatcher.CmdRevokeUserSession),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payload)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push revoke session command: %s", session.ID.String())
+	if err != nil {
+		return store.UserSession{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
+
+	s.dispatcher.Wakeup(session.GatewayID.String())
 
 	return session, nil
 }

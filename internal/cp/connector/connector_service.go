@@ -5,16 +5,15 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"database/sql"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
@@ -30,12 +29,13 @@ import (
 type Service struct {
 	repo        Repository
 	pkiRepo     pkica.Repository
+	eventRepo   events.Repository
 	gatewayRepo gateway.Repository
-	dispatcher  dispatcher.CommandDispatcher
+	dispatcher  *events.GatewayDispatcher
 }
 
-func NewService(repo Repository, pkiRepo pkica.Repository, gatewayRepo gateway.Repository, dispatcher dispatcher.CommandDispatcher) *Service {
-	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo, dispatcher: dispatcher}
+func NewService(repo Repository, pkiRepo pkica.Repository,eventRepo   events.Repository, gatewayRepo gateway.Repository, dispatcher *events.GatewayDispatcher) *Service {
+	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo, eventRepo: eventRepo, dispatcher: dispatcher}
 }
 
 // mapToConnectorResponse converts a store.Connector to a GatewayResponse DTO.
@@ -93,7 +93,7 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 	return mapToConnectorResponse(connector), nil
 }
 
-func (s Service) SyncConnectorToGateway(ctx context.Context, gatewayID uuid.UUID) {
+func (s *Service) SyncConnectorToGateway(ctx context.Context, gatewayID uuid.UUID) {
 	//Get all Connectors after creation
 	connectors, _ := s.repo.ListActiveConnectorsByGateway(ctx, gatewayID)
 
@@ -105,31 +105,14 @@ func (s Service) SyncConnectorToGateway(ctx context.Context, gatewayID uuid.UUID
 		})
 	}
 
-	payload := dispatcher.CommandJob{
-		Type:          dispatcher.CmdConnectorSync,
+	payload := events.CommandJob{
+		Type:          events.CmdConnectorSync,
 		GatewayID:     gatewayID.String(),
 		ConnectorInfo: connectorsInfo,
 	}
 
-	// Push Connectors to the gateway
-	isSentConnectorSyncCmd := s.dispatcher.Dispatch(payload)
-
-	//log error if command is not sent
-	if isSentConnectorSyncCmd {
-		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, gatewayID)
-		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: gatewayID,
-			Command:   string(dispatcher.CmdConnectorSync),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payload)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push connector sync command: %s", gatewayID.String())
-	}
-
+	_, _ = s.eventRepo.CreateEvent(ctx, payload)
+	s.dispatcher.Wakeup(gatewayID.String())
 }
 
 // ListGatewaysByOrg lists all connectors for a given organization.
@@ -433,54 +416,28 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		revokedSerials = append(revokedSerials, crl.SerialNumber)
 	}
 
-	payload := dispatcher.CommandJob{
-		Type:        dispatcher.CmdRevokeConnectorCert,
+	payload := events.CommandJob{
+		Type:        events.CmdRevokeConnectorCert,
 		GatewayID:   connector.GatewayID.String(),
 		ConnectorID: connectorId.String(),
 	}
 
-	// Push RevokeConnectorCertCmd to gateway if connected
-	isSentRevokeConnectorCertCmd := s.dispatcher.Dispatch(payload)
+	_, err = s.eventRepo.CreateEvent(ctx, payload)
 
-	//log error if command is not sent
-	if isSentRevokeConnectorCertCmd {
-		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, connector.GatewayID)
-		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: connector.GatewayID,
-			Command:   string(dispatcher.CmdRevokeConnectorCert),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payload)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push revoke connector cert command: %s", connectorId.String())
+	if err != nil {
+		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
 
-	payload2 := dispatcher.CommandJob{
-		Type:                 dispatcher.CmdCrlSync,
+	payload2 := events.CommandJob{
+		Type:                 events.CmdCrlSync,
 		GatewayID:            connector.GatewayID.String(),
 		RevokedSerialNumbers: revokedSerials,
 	}
 
-	// Push CrlSyncCmd to the gateway
-	isSentCrlSyncCmd := s.dispatcher.Dispatch(payload2)
+	_, err = s.eventRepo.CreateEvent(ctx, payload2)
 
-	//log error if command is not sent
-	if isSentCrlSyncCmd {
-		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, connector.GatewayID)
-		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: connector.GatewayID,
-			Command:   string(dispatcher.CmdCrlSync),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payload2)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push crl sync command: %s", connector.GatewayID.String())
+	if err != nil {
+		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
 
 	//Send Updated Active Connectors list to Gateway
@@ -551,30 +508,18 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 	}
 
 	//payload
-	payload := dispatcher.CommandJob{
-		Type:        dispatcher.CmdRevokeConnector,
+	payload := events.CommandJob{
+		Type:        events.CmdRevokeConnector,
 		GatewayID:   Connector.GatewayID.String(),
 		ConnectorID: Connector.ID.String(),
 	}
 
-	// Push RevokeConnectorCmd to gateway if connected
-	isSentRevokeConnectorCmd := s.dispatcher.Dispatch(payload)
+	_, err = s.eventRepo.CreateEvent(ctx, payload)
 
-	//log error if command is not sent
-	if isSentRevokeConnectorCmd {
-		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, revokedConnector.GatewayID)
-		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: revokedConnector.GatewayID,
-			Command:   string(dispatcher.CmdRevokeConnector),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payload)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push revoke connector command: %s", id.String())
+	if err != nil {
+		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
+
 
 	//Get all the active CRLs
 	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
@@ -584,29 +529,16 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 		revokedSerials = append(revokedSerials, crl.SerialNumber)
 	}
 
-	payload2 := dispatcher.CommandJob{
-		Type:                 dispatcher.CmdCrlSync,
+	payload2 := events.CommandJob{
+		Type:                 events.CmdCrlSync,
 		GatewayID:            Connector.GatewayID.String(),
 		RevokedSerialNumbers: revokedSerials,
 	}
 
-	//Push CrlSyncCmd to the gateway
-	isSentCrlSyncCmd := s.dispatcher.Dispatch(payload2)
+	_, err = s.eventRepo.CreateEvent(ctx, payload2)
 
-	//log error if command is not sent
-	if isSentCrlSyncCmd {
-		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, revokedConnector.GatewayID)
-		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: revokedConnector.GatewayID,
-			Command:   string(dispatcher.CmdCrlSync),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payload2)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push crl sync command: %s", id.String())
+	if err != nil {
+		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
 
 	//Send Updated Active Connectors list to Gateway
@@ -614,6 +546,8 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 
 	return mapToConnectorResponse(revokedConnector), nil
 }
+
+
 
 func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID, canonicalString, signature string) (gen.ConnectorStatusResponse, *dto.AppError) {
 

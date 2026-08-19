@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/pki"
@@ -24,16 +25,39 @@ import (
 
 type Service struct {
 	repo       Repository
+	eventRepo  events.Repository
 	pkiRepo    pkica.Repository
-	dispatcher dispatcher.CommandDispatcher
+	dispatcher *events.GatewayDispatcher
 }
 
-func NewService(repo Repository, pkiRepo pkica.Repository, dispatcher dispatcher.CommandDispatcher) *Service {
-	return &Service{repo: repo, pkiRepo: pkiRepo, dispatcher: dispatcher}
+func NewService(repo Repository, pkiRepo pkica.Repository, eventRepo events.Repository, dispatcher *events.GatewayDispatcher) *Service {
+	return &Service{repo: repo, pkiRepo: pkiRepo, eventRepo: eventRepo, dispatcher: dispatcher}
 }
 
 // mapToGatewayResponse converts a store.Gateway to a GatewayResponse DTO.
-func mapToGatewayResponse(g store.Gateway) GatewayResponse {
+func mapToGatewayResponse(g store.CreateGatewayRow) GatewayResponse {
+	resp := GatewayResponse{
+		ID:        g.ID.String(),
+		Name:      g.Name,
+		OrgID:     g.OrgID.String(),
+		Version:   g.Version.String,
+		Status:    g.Status,
+		CreatedAt: g.CreatedAt,
+	}
+	if g.LastHeartbeat.Valid {
+		resp.LastHeartBeat = g.LastHeartbeat.Time
+	}
+	if g.EnrolledAt.Valid {
+		resp.EnrolledAt = g.EnrolledAt.Time
+	}
+	if g.RevokedAt.Valid {
+		resp.RevokedAt = g.RevokedAt.Time
+	}
+	return resp
+}
+
+// mapToGatewayResponse converts a store.Gateway to a GatewayResponse DTO.
+func mapToGatewayResponse2(g store.Gateway) GatewayResponse {
 	resp := GatewayResponse{
 		ID:        g.ID.String(),
 		Name:      g.Name,
@@ -92,7 +116,7 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 
 	var responses []GatewayResponse
 	for _, g := range gateways {
-		responses = append(responses, mapToGatewayResponse(g))
+		responses = append(responses, mapToGatewayResponse2(g))
 	}
 	return responses, nil
 }
@@ -127,7 +151,7 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdr
 	if err != nil {
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to re-enroll gateway", err.Error())
 	}
-	return mapToGatewayResponse(gateway), nil
+	return mapToGatewayResponse2(gateway), nil
 }
 
 // EnrollGateway enrolls a gateway using a token hash and CSR.
@@ -358,7 +382,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No active cert to revoke, but we can return the gateway response as success
-			return mapToGatewayResponse(gateway), nil
+			return mapToGatewayResponse2(gateway), nil
 		}
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
 	}
@@ -386,28 +410,15 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 
 	// Dispatch RevokeGatewayCertCmd to the gateway if connected
 
-	payload := dispatcher.CommandJob{
-		Type:      dispatcher.CmdRevokeGatewayCert,
+	payload := events.CommandJob{
+		Type:      events.CmdRevokeGatewayCert,
 		GatewayID: gatewayID.String(),
 	}
 
-	isSentRevokeGatewayCertCmd := s.dispatcher.Dispatch(payload)
+	_, err = s.eventRepo.CreateEvent(ctx, payload)
 
-	//if command is sent then create gateway event
-	if isSentRevokeGatewayCertCmd {
-		lastSeq, _ := s.repo.GetLastEventSeqForGateway(ctx, gatewayID)
-
-		s.repo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: gateway.ID,
-			Command:   string(dispatcher.CmdRevokeGatewayCert),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payload)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push revoke gateway cert command: %s", gateway.ID.String())
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
 
 	//Get all the active CRLs
@@ -418,30 +429,19 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 		revokedSerials = append(revokedSerials, crl.SerialNumber)
 	}
 
-	payloadRevokedSerials := dispatcher.CommandJob{
-		Type:                 dispatcher.CmdCrlSync,
+	payloadRevokedSerials := events.CommandJob{
+		Type:                 events.CmdCrlSync,
 		GatewayID:            gateway.ID.String(),
 		RevokedSerialNumbers: revokedSerials,
 	}
 
-	//Push CrlSyncCmd to the gateway
-	isSentCrlSyncCmd := s.dispatcher.Dispatch(payloadRevokedSerials)
+	_, err = s.eventRepo.CreateEvent(ctx, payloadRevokedSerials)
 
-	//log error if command is not sent
-	if isSentCrlSyncCmd {
-		lastSeq, _ := s.repo.GetLastEventSeqForGateway(ctx, gatewayID)
-		s.repo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: gateway.ID,
-			Command:   string(dispatcher.CmdCrlSync),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payloadRevokedSerials)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push CRL sync command: %s", gatewayID.String())
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
+
+	s.dispatcher.Wakeup(gatewayID.String())
 
 	// Fetch updated gateway status
 	updatedGateway, err := s.repo.GetGatewayByID(ctx, gatewayID)
@@ -449,7 +449,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse(updatedGateway), nil
+	return mapToGatewayResponse2(updatedGateway), nil
 }
 
 // RevokeGateway revokes an entire gateway.
@@ -507,28 +507,15 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 		}
 	}
 
-	payload := dispatcher.CommandJob{
-		Type:      dispatcher.CmdRevokeGateway,
+	payload := events.CommandJob{
+		Type:      events.CmdRevokeGateway,
 		GatewayID: id.String(),
 	}
 
-	// Push RevokeGatewayCmd to the gateway if connected and close stream
-	isSentRevokeGatewayCmd := s.dispatcher.Dispatch(payload)
+	_, err = s.eventRepo.CreateEvent(ctx, payload)
 
-	//log error if command is not sent
-	if isSentRevokeGatewayCmd {
-		lastSeq, _ := s.repo.GetLastEventSeqForGateway(ctx, id)
-		s.repo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: gateway.ID,
-			Command:   string(dispatcher.CmdRevokeGateway),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payload)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push revoke gateway command: %s", id.String())
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
 
 	//Get all the active CRLs
@@ -539,29 +526,19 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 		revokedSerials = append(revokedSerials, crl.SerialNumber)
 	}
 
-	payloadCrlSync := dispatcher.CommandJob{
-		Type:                 dispatcher.CmdCrlSync,
+	payloadCrlSync := events.CommandJob{
+		Type:                 events.CmdCrlSync,
 		GatewayID:            id.String(),
 		RevokedSerialNumbers: revokedSerials,
 	}
 
-	//Push CrlSyncCmd to the gateway
-	isSentCrlSyncCmd := s.dispatcher.Dispatch(payloadCrlSync)
+	_, err = s.eventRepo.CreateEvent(ctx, payloadCrlSync)
 
-	if isSentCrlSyncCmd {
-		lastSeq, _ := s.repo.GetLastEventSeqForGateway(ctx, id)
-		s.repo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: gateway.ID,
-			Command:   string(dispatcher.CmdCrlSync),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payloadCrlSync)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push CRL sync command: %s", id.String())
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
+
+	s.dispatcher.Wakeup(id.String())
 
 	// Fetch updated gateway status
 	updatedGateway, err := s.repo.GetGatewayByID(ctx, id)
@@ -569,7 +546,7 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse(updatedGateway), nil
+	return mapToGatewayResponse2(updatedGateway), nil
 }
 
 // DrainGateway sets status to 'draining' and pushes DrainGatewayCmd.
@@ -605,28 +582,18 @@ func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayRespon
 	}
 
 	// Push DrainGatewayCmd if connected
-	payload := dispatcher.CommandJob{
-		Type:      dispatcher.CmdDrainGateway,
+	payload := events.CommandJob{
+		Type:      events.CmdDrainGateway,
 		GatewayID: id.String(),
 	}
 
-	isSent := s.dispatcher.Dispatch(payload)
+	_, err = s.eventRepo.CreateEvent(ctx, payload)
 
-	//log error if command is not sent
-	if isSent {
-		lastSeq, _ := s.repo.GetLastEventSeqForGateway(ctx, id)
-		s.repo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
-			GatewayID: gateway.ID,
-			Command:   string(dispatcher.CmdDrainGateway),
-			Seq:       lastSeq + 1,
-			Payload: func() json.RawMessage {
-				rawJSON, _ := json.Marshal(payload)
-				return rawJSON
-			}(),
-		})
-	} else {
-		fmt.Printf("Failed to push drain gateway command: %s", id.String())
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
+
+	s.dispatcher.Wakeup(id.String())
 
 	// Fetch updated gateway
 	updatedGateway, err := s.repo.GetGatewayByID(ctx, id)
@@ -634,7 +601,7 @@ func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayRespon
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse(updatedGateway), nil
+	return mapToGatewayResponse2(updatedGateway), nil
 }
 
 // StructToJSONRaw converts any Go struct into a json.RawMessage

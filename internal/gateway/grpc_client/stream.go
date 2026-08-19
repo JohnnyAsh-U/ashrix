@@ -298,9 +298,9 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 			h.log.Info("revoking session in Redis", zap.String("session_id", cmd.RevokeSession.SessionId))
 			if h.redisClient != nil {
 				if err := h.session.RevokeByCPSession(ctx, cmd.RevokeSession.SessionId); err != nil{
-					h.CommandStatusUpdate(p.Cmd.CmdId, false, err.Error())
+					h.CommandStatusUpdate(p.Cmd.Seq, false, err.Error())
 				} else {
-					h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+					h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 				}
 			}
 			h.log.Info("sent status update", zap.String("session_id", cmd.RevokeSession.SessionId))
@@ -308,22 +308,22 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		case *pb.Command_RevokeConnector:
 			h.log.Info("revoking connector; cutting connection", zap.String("connector_id", cmd.RevokeConnector.ConnectorId))
 			h.cutConnectorConnection(cmd.RevokeConnector.ConnectorId)
-			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_RevokeConnectorCert:
 			h.log.Info("revoking connector cert; cutting connection", zap.String("connector_id", cmd.RevokeConnectorCert.ConnectorId))
 			h.cutConnectorConnection(cmd.RevokeConnectorCert.ConnectorId)
-			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_RotateConnectorCert:
 			h.log.Info("rotating connector cert; cutting connection", zap.String("connector_id", cmd.RotateConnectorCert.ConnectorId))
 			h.cutConnectorConnection(cmd.RotateConnectorCert.ConnectorId)
-			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_CrlSync:
 			h.log.Info("received CRL sync", zap.Int("revoked_certs_count", len(cmd.CrlSync.RevokedSerialNumbers)))
 			h.registry.SetCrlEntries(cmd.CrlSync.RevokedSerialNumbers)
-			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_ConnectorSync:
 			h.log.Info("received authorized connectors list sync", zap.Int("connectors_count", len(cmd.ConnectorSync.Connectors)))
@@ -332,7 +332,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 				statusMap[c.Id] = c.Status
 			}
 			h.registry.SetAuthorizedConnectors(statusMap)
-			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 
 		case *pb.Command_RotateGatewayCert:
@@ -345,17 +345,17 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 		case *pb.Command_RevokeGatewayCert:
 			h.log.Error("gateway certificate revoked - reconnecting")
-			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 			_ = h.cm.Close()
 
 		case *pb.Command_RevokeGateway:
 			h.log.Error("gateway revoked - terminating connection")
-			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 			_ = h.cm.Close()
 
 		case *pb.Command_DrainGateway:
 			h.log.Warn("gateway entering draining state")
-			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 		}
 
 	default:
@@ -439,17 +439,15 @@ func (sm *StreamManager) setStream(s pb.ControlPlaneService_ConnectClient, activ
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 func (h *StreamManager) CommandStatusUpdate(
-	cmdID string, 
+	cmdID int64, 
 	hasApplied bool,
 	errMsg string,
 ) {
 	h.Send(&pb.GatewayEnvelope{
 		Payload: &pb.GatewayEnvelope_CmdAck{
-			CmdAck: &pb.CmdAck{
-				CmdId:             cmdID,
+			CmdAck: &pb.CommandAck{
+				ProcessedThroughSeq:             cmdID,
 				GatewayId:         h.cfg.GatewayID,
-				Success:           hasApplied,
-				Error:             errMsg,
 				TimeStamp:         timestamppb.Now(),
 			},
 		},

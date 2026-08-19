@@ -63,15 +63,15 @@ message ExchangeTokenRequest {
 }
 
 message NormalizedIdentity {
-  string                    tenant_id   = 1;
-  string                    provider_id = 2;
-  string                    user_id     = 3;
-  string                    email       = 4;
-  string                    name        = 5;
-  repeated string           groups      = 6;
-  string                    provider    = 7;
+  string                    tenant_id     = 1;
+  string                    provider_id   = 2;
+  string                    user_id       = 3;
+  string                    email         = 4;
+  string                    name          = 5;
+  repeated string           groups        = 6;
+  string                    provider      = 7;
   string                    cp_session_id = 8;
-  google.protobuf.Timestamp auth_time   = 9;
+  google.protobuf.Timestamp auth_time     = 9;
 }
 
 message ExchangeTokenResponse {
@@ -92,7 +92,7 @@ message GatewayEnvelope {
   oneof payload {
     HelloMessage     hello     = 10;
     HeartbeatMessage heartbeat = 11;
-    CommandAck           cmd_ack   = 12;
+    CommandAck       cmd_ack   = 12;
   }
 }
 
@@ -108,7 +108,7 @@ message CPEnvelope {
 }
 
 message Command {
-  int64 seq = 1;
+  int64  seq      = 1;
   string event_id = 2;
   oneof payload {
     RotateGatewayCertCmd   rotate_gateway_cert   = 3;
@@ -125,18 +125,25 @@ message Command {
 }
 
 message RotateGatewayCertCmd {}
+
 message RevokeGatewayCertCmd {}
+
 message RevokeGatewayCmd {}
+
 message RevokeSessionCmd {
   string session_id = 1;
 }
+
 message DrainGatewayCmd {}
+
 message RevokeConnectorCmd {
   string connector_id = 1;
 }
+
 message RotateConnectorCertCmd {
   string connector_id = 1;
 }
+
 message RevokeConnectorCertCmd {
   string connector_id = 1;
 }
@@ -150,7 +157,7 @@ message ConnectorSyncCmd {
 }
 
 message ConnectorInfo {
-  string id = 1;
+  string id     = 1;
   string status = 2;
 }
 
@@ -160,16 +167,15 @@ message ConnectorInfo {
 
 message HelloMessage {
   string gateway_id     = 1;  // stable ID — never changes
-  string tenant_id = 2;
+  string tenant_id      = 2;
   string binary_version = 3;  // Ashrix binary version for compatibility checks
   int64  policy_version = 4;  // policy bundle version currently applied
 }
 
-
 message CommandAck {
-  string gateway_id = 1;
-  int64 processed_through_seq = 2;
-  google.protobuf.Timestamp time_stamp   = 3;
+  string                    gateway_id            = 1;
+  int64                     processed_through_seq = 2;
+  google.protobuf.Timestamp time_stamp            = 3;
 
 }
 
@@ -208,8 +214,6 @@ message PolicyBundle {
   bytes signature = 4;
 }
 
-
-
 // message AccessLogEntry {
 //   string session_id         = 1;
 //   string client_cert_serial = 2; // who connected — cert serial as stable identity
@@ -242,8 +246,6 @@ message PolicyBundle {
 //   double mem_usage_bytes                       = 14;
 // }
 
-
 // message AccessLogBatch {
 //   repeated AccessLogEntry entries = 1;
 // }
-
