@@ -485,7 +485,7 @@ WHERE c.gateway_id = $1
       SELECT 1
       FROM component_certificates cc
       WHERE cc.component_id = c.id
-        AND cc.component_type = 'gateway'
+        AND cc.component_type = 'connector'
         AND cc.revoked_at IS NULL
         AND cc.expires_at > NOW()
   )

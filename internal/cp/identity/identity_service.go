@@ -17,6 +17,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -32,8 +33,8 @@ import (
 )
 
 type IDPService struct {
-	repo        Repository
-	appRepo     app.Repository
+	repo    Repository
+	appRepo app.Repository
 	// orgRepo     org.Repository
 	gatewayRepo gateway.Repository
 	idpSession  *IDPSession
@@ -43,7 +44,7 @@ type IDPService struct {
 	adapters    map[string]oidc.ProviderAdapter
 	adapterMu   sync.RWMutex // Separate mutex for adapter operations
 	key         []byte       // 32 bytes, from KMS/Vault in production — for encrypting and decrypting the client_secret
-	dispatcher    dispatcher.CommandDispatcher
+	dispatcher  dispatcher.CommandDispatcher
 }
 
 func NewIDPService(
@@ -59,8 +60,8 @@ func NewIDPService(
 ) *IDPService {
 
 	return &IDPService{
-		repo:        repo,
-		appRepo:     appRepo,
+		repo:    repo,
+		appRepo: appRepo,
 		// orgRepo:     orgRepo,
 		gatewayRepo: gateRepo,
 		idpSession:  idpSession,
@@ -68,7 +69,7 @@ func NewIDPService(
 		cfg:         cfg,
 		adapters:    make(map[string]oidc.ProviderAdapter),
 		key:         key,
-		dispatcher:    dispatcher,
+		dispatcher:  dispatcher,
 	}
 }
 
@@ -147,6 +148,85 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UU
 
 	return adapters, nil
 }
+
+func (r *IDPService) AddAppToIDP(ctx context.Context, AppID, IdpID string, isRequired bool) (store.AppIdpMapping, *dto.AppError) {
+	orgID := middleware.OrgIDFromCtx(ctx)
+
+	orgIDUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		return store.AppIdpMapping{}, dto.NewBadRequestError("Invalid Organization ID format")
+	}
+
+	//Get the app id and verify if it belongs to tenant
+	app, err := r.appRepo.GetByID(ctx, uuid.MustParse(AppID))
+	if err != nil {
+		return store.AppIdpMapping{}, dto.NewNotFoundError("App not found")
+	}
+	if app.OrgID != orgIDUUID {
+		return store.AppIdpMapping{}, dto.NewNotFoundError("App not found")
+	}
+
+	//Get the idp and verify if it belongs to tenant
+	 idpConfig, err := r.repo.GetIdentityConfigByID(ctx, uuid.MustParse(IdpID))
+	 if err != nil {
+		return store.AppIdpMapping{}, dto.NewNotFoundError("IDP not found")
+	 }
+	 if idpConfig.OrgID != orgIDUUID {
+		return store.AppIdpMapping{}, dto.NewNotFoundError("IDP not found")
+	 }
+
+	//Create the relations
+	mapping, err := r.repo.CreateAppIdPMapping(ctx, store.AddAppIdpMappingParams{
+		AppID:   uuid.MustParse(AppID),
+		IdpID:   uuid.MustParse(IdpID),
+		IsRequired: isRequired,
+	})
+	if err != nil {
+		return store.AppIdpMapping{}, dto.NewErrInternal("Failed to create app to idp mapping")
+	}
+	return mapping, nil
+}
+
+
+func (r *IDPService) RemoveAppFromIDP(ctx context.Context, AppID, IdpID string) (store.AppIdpMapping, *dto.AppError) {
+	orgID := middleware.OrgIDFromCtx(ctx)
+
+	orgIDUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		return store.AppIdpMapping{}, dto.NewBadRequestError("Invalid Organization ID format")
+	}
+
+	//Get the app id and verify if it belongs to tenant
+	app, err := r.appRepo.GetByID(ctx, uuid.MustParse(AppID))
+	if err != nil {
+		return store.AppIdpMapping{}, dto.NewNotFoundError("App not found")
+	}
+	if app.OrgID != orgIDUUID {
+		return store.AppIdpMapping{}, dto.NewNotFoundError("App not found")
+	}
+
+	//Get the idp and verify if it belongs to tenant
+	 idpConfig, err := r.repo.GetIdentityConfigByID(ctx, uuid.MustParse(IdpID))
+	 if err != nil {
+		return store.AppIdpMapping{}, dto.NewNotFoundError("IDP not found")
+	 }
+	 if idpConfig.OrgID != orgIDUUID {
+		return store.AppIdpMapping{}, dto.NewNotFoundError("IDP not found")
+	 }
+
+	//Delete the relations
+	mapping, err := r.repo.DeleteAppIdpMapping(ctx, store.DeleteAppIdpMappingParams{
+		AppID:   uuid.MustParse(AppID),
+		IdpID:   uuid.MustParse(IdpID),
+	})
+
+	if err != nil {
+		return store.AppIdpMapping{}, dto.NewErrInternal("Failed to create app to idp mapping")
+	}
+	return mapping, nil
+}
+
+
 
 func (r *IDPService) CheckGatewayBelongsToTenant(ctx context.Context, gatewayID, OrgID uuid.UUID) (bool, error) {
 	//Get the GatewayURL
@@ -460,8 +540,8 @@ func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID)
 	}
 
 	payload := dispatcher.CommandJob{
-		Type:        dispatcher.CmdRevokeUserSession,
-		GatewayID:   session.GatewayID.String(),
+		Type:      dispatcher.CmdRevokeUserSession,
+		GatewayID: session.GatewayID.String(),
 		SessionID: session.ID.String(),
 	}
 
@@ -488,7 +568,7 @@ func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID)
 // RevokeAllUserSession Revoke All User Session for Gateway
 func (s *IDPService) RevokeAllUserSession(ctx context.Context, userID, orgID uuid.UUID) error {
 	sessions, err := s.repo.GetUserSessionsByOrgAndUser(ctx, store.GetUserActiveSessionParams{
-		OrgID: orgID,
+		OrgID:  orgID,
 		UserID: userID,
 	})
 	if err != nil {

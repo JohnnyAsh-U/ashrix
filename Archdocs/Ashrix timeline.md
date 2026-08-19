@@ -1,12 +1,11 @@
-* Implement each Cmd Action, replay: RevokeSession, RotateConnectorCert, RotateGatewayCert, => Implement Rotating of Cert.
+* Implement each Cmd Action, replay: RevokeSession, RotateConnectorCert, RotateGatewayCert, CRLList, ConnectorSync => Implement Rotating of Cert.
+Run the latest seq of these cmds
 
 * Revocation of Cert or Component Shut down the component and clear the certificate.
 
 * Implement Connector Telemetry to CP DB
 
 * Update Policy Bundle Action 
-
-* App Mapping to IDP on CP
 
 * To add dispatcher to creation of Connectors for connector sync status
 

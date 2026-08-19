@@ -134,56 +134,56 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 
 	s.registry.HandleHello(gatewayID)
 
-	// Push CRL entries list immediately
-	crls, err := s.PkiCARepo.GetCRLEntry(ctx)
-	if err == nil {
-		var serials []string
-		for _, c := range crls {
-			serials = append(serials, c.SerialNumber)
-		}
-		crlSyncEnvelope := &proto.CPEnvelope{
-			SentAt: timestamppb.Now(),
-			Payload: &proto.CPEnvelope_Cmd{
-				Cmd: &proto.Command{
-					Payload: &proto.Command_CrlSync{
-						CrlSync: &proto.CrlSyncCmd{
-							RevokedSerialNumbers: serials,
-						},
-					},
-				},
-			},
-		}
-		if err := stream.Send(crlSyncEnvelope); err != nil {
-			s.log.Error("failed to send initial CRL sync", slog.String("err", err.Error()))
-		}
-	}
+	// // Push CRL entries list immediately
+	// crls, err := s.PkiCARepo.GetCRLEntry(ctx)
+	// if err == nil {
+	// 	var serials []string
+	// 	for _, c := range crls {
+	// 		serials = append(serials, c.SerialNumber)
+	// 	}
+	// 	crlSyncEnvelope := &proto.CPEnvelope{
+	// 		SentAt: timestamppb.Now(),
+	// 		Payload: &proto.CPEnvelope_Cmd{
+	// 			Cmd: &proto.Command{
+	// 				Payload: &proto.Command_CrlSync{
+	// 					CrlSync: &proto.CrlSyncCmd{
+	// 						RevokedSerialNumbers: serials,
+	// 					},
+	// 				},
+	// 			},
+	// 		},
+	// 	}
+	// 	if err := stream.Send(crlSyncEnvelope); err != nil {
+	// 		s.log.Error("failed to send initial CRL sync", slog.String("err", err.Error()))
+	// 	}
+	// }
 
-	// Push authorized connectors list immediately
-	conns, err := s.connectorRepo.ListActiveConnectorsByGateway(ctx, gatewayUUID)
-	if err == nil {
-		var connectorInfos []*proto.ConnectorInfo
-		for _, c := range conns {
-			connectorInfos = append(connectorInfos, &proto.ConnectorInfo{
-				Id:     c.ID.String(),
-				Status: c.Status,
-			})
-		}
-		connSyncEnvelope := &proto.CPEnvelope{
-			SentAt: timestamppb.Now(),
-			Payload: &proto.CPEnvelope_Cmd{
-				Cmd: &proto.Command{
-					Payload: &proto.Command_ConnectorSync{
-						ConnectorSync: &proto.ConnectorSyncCmd{
-							Connectors: connectorInfos,
-						},
-					},
-				},
-			},
-		}
-		if err := stream.Send(connSyncEnvelope); err != nil {
-			s.log.Error("failed to send initial connector sync", slog.String("err", err.Error()))
-		}
-	}
+	// // Push authorized connectors list immediately
+	// conns, err := s.connectorRepo.ListActiveConnectorsByGateway(ctx, gatewayUUID)
+	// if err == nil {
+	// 	var connectorInfos []*proto.ConnectorInfo
+	// 	for _, c := range conns {
+	// 		connectorInfos = append(connectorInfos, &proto.ConnectorInfo{
+	// 			Id:     c.ID.String(),
+	// 			Status: c.Status,
+	// 		})
+	// 	}
+	// 	connSyncEnvelope := &proto.CPEnvelope{
+	// 		SentAt: timestamppb.Now(),
+	// 		Payload: &proto.CPEnvelope_Cmd{
+	// 			Cmd: &proto.Command{
+	// 				Payload: &proto.Command_ConnectorSync{
+	// 					ConnectorSync: &proto.ConnectorSyncCmd{
+	// 						Connectors: connectorInfos,
+	// 					},
+	// 				},
+	// 			},
+	// 		},
+	// 	}
+	// 	if err := stream.Send(connSyncEnvelope); err != nil {
+	// 		s.log.Error("failed to send initial connector sync", slog.String("err", err.Error()))
+	// 	}
+	// }
 
 	tenantUUID, err := uuid.Parse(tenantID)
 	if err != nil {
@@ -247,6 +247,7 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 			_, err := s.gatewayRepo.CreateGatewayEventAck(ctx, store.CreateGatewayEventAcksParams{
 				GatewayID:        uuid.Must(uuid.Parse(p.CmdAck.GatewayId)),
 				LastAckedSeq:  func () int64  {
+					fmt.Println(p.CmdAck)
 					seq,err:= strconv.ParseInt(p.CmdAck.CmdId,10,64)
 					if err != nil {
 						log.Println("Failed to parse command ID", slog.String("err", err.Error()))

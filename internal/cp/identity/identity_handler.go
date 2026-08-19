@@ -253,6 +253,72 @@ func (i *IDPHandler) UpdateIdentityConfig(w http.ResponseWriter, r *http.Request
 }
 
 
+// @Summary Add APP to IDP
+// @Description Add App to IDP
+// @Tags IDP
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param app body CreateAppIDPRelation true "Add App IDP"
+// @Success 200
+// @Failure 400 {object} dto.AppError
+// @Failure 500 {object} dto.AppError
+// @Router /idp-configs/app [post]
+func (h *IDPHandler) AddAppToIDP(w http.ResponseWriter, r *http.Request) {
+
+	var req CreateAppIDPRelation
+	if err := dto.DecodeJSON(w, r, &req); err != nil {
+		dto.SendError(w, err)
+		return
+	}
+
+	if validationErrors := dto.ValidateStruct(req); validationErrors != nil {
+		dto.SendError(w, dto.NewBadRequestError(validationErrors))
+		return
+	}
+
+	appidp, idpErr := h.idpService.AddAppToIDP(r.Context(), req.AppID, req.IDPID, req.IsRequired)
+	if idpErr != nil {
+		dto.SendError(w, idpErr)
+		return
+	}
+	dto.SendSuccess(w, http.StatusOK, appidp)
+}
+
+
+// @Summary Remove APP from IDP
+// @Description Remove App from IDP
+// @Tags IDP
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param app body RemoveAppIDPRelation true "Add App IDP"
+// @Success 204
+// @Failure 400 {object} dto.AppError
+// @Failure 500 {object} dto.AppError
+// @Router /idp-configs/app [delete]
+func (h *IDPHandler) RemoveAppFromIDP(w http.ResponseWriter, r *http.Request) {
+
+	var req RemoveAppIDPRelation
+	if err := dto.DecodeJSON(w, r, &req); err != nil {
+		dto.SendError(w, err)
+		return
+	}
+
+	if validationErrors := dto.ValidateStruct(req); validationErrors != nil {
+		dto.SendError(w, dto.NewBadRequestError(validationErrors))
+		return
+	}
+
+	appidp, idpErr := h.idpService.RemoveAppFromIDP(r.Context(), req.AppID, req.IDPID)
+	if idpErr != nil {
+		dto.SendError(w, idpErr)
+		return
+	}
+	dto.SendSuccess(w, http.StatusNoContent, appidp)
+}
+
+
 
 // @Summary Delete an identityconfig
 // @Description Delete an identityconfigD.
@@ -353,6 +419,7 @@ func (h *IDPHandler) IdentityRoutes(rg chi.Router) {
     rg.Post("/", h.CreateIdentityConfig)
     rg.Get("/", h.ListIdentityConfigs)
     rg.Put("/{id}", h.UpdateIdentityConfig)
+	rg.Post("/app", h.AddAppToIDP)
     rg.Delete("/{id}", h.DeleteIdentityConfig)
 	rg.Delete("/revoke-session/{id}", h.RevokeUserSessionHandler)
 }

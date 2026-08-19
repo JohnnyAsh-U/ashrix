@@ -74,9 +74,14 @@ RETURNING *;
 
 
 
--- name: AddAppIdPMapping :one
+-- name: AddAppIdpMapping :one
 INSERT INTO app_idp_mappings (app_id, idp_id, is_required) 
 VALUES ($1, $2, $3) 
+RETURNING *;
+
+-- name: DeleteAppIdpMapping :one
+DELETE FROM app_idp_mappings
+WHERE app_id = $1 AND idp_id = $2
 RETURNING *;
 
 -- name: ListAppIdPs :many

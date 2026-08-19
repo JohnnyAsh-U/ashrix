@@ -21,6 +21,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/utils"
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -85,6 +86,46 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 	if err != nil {
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create connector", err.Error())
 	}
+
+	//Get all Connectors after creation
+	connectors, err := s.repo.ListActiveConnectorsByGateway(ctx, connector.GatewayID)
+	if err != nil {
+		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to list gateways", err.Error())
+	}
+
+	var connectorsInfo []*proto.ConnectorInfo
+	for _, connector := range connectors {
+		connectorsInfo = append(connectorsInfo, &proto.ConnectorInfo{
+			Id:     connector.ID.String(),
+			Status: connector.Status,
+		})
+	}
+
+	payload := dispatcher.CommandJob{
+		Type:               dispatcher.CmdConnectorSync,
+		GatewayID:          connector.GatewayID.String(),
+		ConnectorInfo:      connectorsInfo,
+	}
+
+	// Push Connectors to the gateway
+	isSentConnectorSyncCmd := s.dispatcher.Dispatch(payload)
+
+	//log error if command is not sent
+	if isSentConnectorSyncCmd {
+		lastSeq, _ := s.gatewayRepo.GetLastEventSeqForGateway(ctx, connector.GatewayID)
+		s.gatewayRepo.CreateGatewayEvent(ctx, store.CreateGatewayEventParams{
+			GatewayID: connector.GatewayID,
+			Command:   string(dispatcher.CmdConnectorSync),
+			Seq:       lastSeq + 1,
+			Payload: func() json.RawMessage {
+				rawJSON, _ := json.Marshal(payload)
+				return rawJSON
+			}(),
+		})
+	} else {
+		fmt.Printf("Failed to push connector sync command: %s", connector.GatewayID.String())
+	}
+
 	return mapToConnectorResponse(connector), nil
 }
 

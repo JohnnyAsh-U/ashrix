@@ -19,6 +19,9 @@ type Repository interface {
 	GetUserSessionByID(ctx context.Context, id uuid.UUID) (store.UserSession, error)
 	GetUserSessionsByOrgAndUser(ctx context.Context, params store.GetUserActiveSessionParams) ([]store.UserSession, error)
 	RevokeUserSession(ctx context.Context, id uuid.UUID) (store.UserSession, error)
+
+	CreateAppIdPMapping(ctx context.Context, params store.AddAppIdpMappingParams) (store.AppIdpMapping, error)
+	DeleteAppIdpMapping(ctx context.Context, params store.DeleteAppIdpMappingParams) (store.AppIdpMapping, error)
 }
 
 type postgresRepository struct {
@@ -72,6 +75,16 @@ func (r *postgresRepository) RevokeUserSession(ctx context.Context,  id uuid.UUI
 func (r *postgresRepository) GetUserSessionByID(ctx context.Context, id uuid.UUID) (store.UserSession, error) {
 	return r.q.GetUserSessionByID(ctx, id)
 }
+
+
+func (r *postgresRepository) CreateAppIdPMapping(ctx context.Context, params store.AddAppIdpMappingParams) (store.AppIdpMapping, error) {
+	return r.q.AddAppIdpMapping(ctx, params)
+}
+
+func (r *postgresRepository) DeleteAppIdpMapping(ctx context.Context, params store.DeleteAppIdpMappingParams) (store.AppIdpMapping, error) {
+	return r.q.DeleteAppIdpMapping(ctx, params)
+}
+
 
 
 

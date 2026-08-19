@@ -33,7 +33,7 @@ type CommandJob struct {
 	ConnectorID         string
 	SessionID           string
 	RevokedSerialNumbers []string
-	ConnectorInfo       *gen.ConnectorInfo
+	ConnectorInfo       []*gen.ConnectorInfo
 }
 
 type CommandDispatcher interface {
@@ -175,9 +175,7 @@ func (d *BoundedDispatcher) processJob(job CommandJob) {
 		envelope = buildEnvelope(&gen.Command{
 			Payload: &gen.Command_ConnectorSync{
 				ConnectorSync: &gen.ConnectorSyncCmd{
-					Connectors: []*gen.ConnectorInfo{
-						job.ConnectorInfo,
-					},
+					Connectors: job.ConnectorInfo,
 				},
 			},
 		})

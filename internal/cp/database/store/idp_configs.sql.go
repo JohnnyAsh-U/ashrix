@@ -12,20 +12,20 @@ import (
 	"github.com/google/uuid"
 )
 
-const addAppIdPMapping = `-- name: AddAppIdPMapping :one
+const addAppIdpMapping = `-- name: AddAppIdpMapping :one
 INSERT INTO app_idp_mappings (app_id, idp_id, is_required) 
 VALUES ($1, $2, $3) 
 RETURNING id, app_id, idp_id, is_required, created_at
 `
 
-type AddAppIdPMappingParams struct {
+type AddAppIdpMappingParams struct {
 	AppID      uuid.UUID `json:"app_id"`
 	IdpID      uuid.UUID `json:"idp_id"`
 	IsRequired bool      `json:"is_required"`
 }
 
-func (q *Queries) AddAppIdPMapping(ctx context.Context, arg AddAppIdPMappingParams) (AppIdpMapping, error) {
-	row := q.db.QueryRow(ctx, addAppIdPMapping, arg.AppID, arg.IdpID, arg.IsRequired)
+func (q *Queries) AddAppIdpMapping(ctx context.Context, arg AddAppIdpMappingParams) (AppIdpMapping, error) {
+	row := q.db.QueryRow(ctx, addAppIdpMapping, arg.AppID, arg.IdpID, arg.IsRequired)
 	var i AppIdpMapping
 	err := row.Scan(
 		&i.ID,
@@ -107,6 +107,30 @@ func (q *Queries) CreateIDPConfig(ctx context.Context, arg CreateIDPConfigParams
 		&i.IsVerified,
 		&i.CreatedAt,
 		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const deleteAppIdpMapping = `-- name: DeleteAppIdpMapping :one
+DELETE FROM app_idp_mappings
+WHERE app_id = $1 AND idp_id = $2
+RETURNING id, app_id, idp_id, is_required, created_at
+`
+
+type DeleteAppIdpMappingParams struct {
+	AppID uuid.UUID `json:"app_id"`
+	IdpID uuid.UUID `json:"idp_id"`
+}
+
+func (q *Queries) DeleteAppIdpMapping(ctx context.Context, arg DeleteAppIdpMappingParams) (AppIdpMapping, error) {
+	row := q.db.QueryRow(ctx, deleteAppIdpMapping, arg.AppID, arg.IdpID)
+	var i AppIdpMapping
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.IdpID,
+		&i.IsRequired,
+		&i.CreatedAt,
 	)
 	return i, err
 }

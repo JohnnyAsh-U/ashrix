@@ -332,6 +332,8 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 				statusMap[c.Id] = c.Status
 			}
 			h.registry.SetAuthorizedConnectors(statusMap)
+			h.CommandStatusUpdate(p.Cmd.CmdId, true, "")
+
 
 		case *pb.Command_RotateGatewayCert:
 			h.log.Warn("gateway certificate rotation requested")

@@ -15,7 +15,7 @@ import (
 type Querier interface {
 	// Called at the end of /verify-otp during setup. Creates the org and links it.
 	ActivateAdmin(ctx context.Context, arg ActivateAdminParams) (Admin, error)
-	AddAppIdPMapping(ctx context.Context, arg AddAppIdPMappingParams) (AppIdpMapping, error)
+	AddAppIdpMapping(ctx context.Context, arg AddAppIdpMappingParams) (AppIdpMapping, error)
 	// Called once during SSO binding confirmation flow.
 	// Stores sub claim, links IdP config, marks sso_bound.
 	BindAdminSSO(ctx context.Context, arg BindAdminSSOParams) (Admin, error)
@@ -82,6 +82,7 @@ type Querier interface {
 	DeactivateCACert(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Soft delete. Policies referencing this app remain for audit history.
 	DeleteApp(ctx context.Context, arg DeleteAppParams) (App, error)
+	DeleteAppIdpMapping(ctx context.Context, arg DeleteAppIdpMappingParams) (AppIdpMapping, error)
 	// Housekeeping. Run periodically via background job.
 	DeleteExpiredAdminSessions(ctx context.Context) error
 	// Soft delete. Cannot delete if it is the only verified active IdP
