@@ -10,6 +10,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
+
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 )
 
 // managementConn holds the gRPC management stream.
@@ -18,17 +21,29 @@ type ManagementConn struct {
 	Conn        *grpc.ClientConn
 	Stream      pb.ConnectorService_ConnectClient
 	GatewayUrl  string
-	TenantID string
+	TenantID    string
 	ConnectorID string
 	Apps        []*pb.ConnectorApps
 	StartedAt   time.Time
 	log         *zap.Logger
+
+	PKI        *startup.PKIInitialiser
+	AppStorage storage.Storage
 }
 
 // dialManagement opens the gRPC management connection to the gateway.
 // This is ALWAYS gRPC — registration, heartbeat, cmd sync.
 // Separate from the tunnel transport which may be QUIC or WebSocket.
-func OpenStream(ctx context.Context, gatewayUrl string, connectorID,TenantID string, tlsConfig *tls.Config, log *zap.Logger, apps []*pb.ConnectorApps) (*ManagementConn, error) {
+func OpenStream(
+	ctx context.Context,
+	gatewayUrl string,
+	connectorID, TenantID string,
+	tlsConfig *tls.Config,
+	log *zap.Logger,
+	apps []*pb.ConnectorApps,
+	pki *startup.PKIInitialiser,
+	appStorage storage.Storage,
+) (*ManagementConn, error) {
 	log.Info("dialing management plane", zap.String("addr", gatewayUrl))
 
 	now := time.Now()
@@ -54,9 +69,11 @@ func OpenStream(ctx context.Context, gatewayUrl string, connectorID,TenantID str
 		log:         log,
 		GatewayUrl:  gatewayUrl,
 		ConnectorID: connectorID,
-		TenantID: TenantID,
+		TenantID:    TenantID,
 		StartedAt:   now,
-		Apps: apps,
+		Apps:        apps,
+		PKI:         pki,
+		AppStorage:  appStorage,
 	}, nil
 }
 

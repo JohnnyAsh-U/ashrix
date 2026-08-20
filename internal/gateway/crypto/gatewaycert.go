@@ -141,7 +141,7 @@ func (g *GatewayPKI) Stop() {
 // RenewNow forces an immediate renewal attempt
 // Used when the CP sends a rotation command
 func (g *GatewayPKI) RenewNow() error {
-	return g.renew()
+	return g.renew(true)
 }
 
 // Rotator checks expiry every 5mins and renews when < 30 days remain
@@ -158,7 +158,7 @@ func (g *GatewayPKI) rotator() {
 			if remaining < 30*24*time.Hour {
 				g.log.Info("certificate expiring soon", zap.Duration("remaining", remaining))
 
-				if err := g.renew(); err != nil {
+				if err := g.renew(false); err != nil {
 					g.log.Error("cert renewal failed", zap.Error(err))
 				}
 			}
@@ -174,7 +174,7 @@ func (g *GatewayPKI) rotator() {
 // calls the CP, and hot-swaps the certificate
 // The write lock is held only during the final swap - not during the network call.
 // This means TLS handshakes are never blocked by a slow CP
-func (g *GatewayPKI) renew() error {
+func (g *GatewayPKI) renew(force bool) error {
 	// Step 1: Read current state (read lock, fast) ------------
 	g.mu.RLock()
 	remaining := time.Until(g.leaf.NotAfter)
@@ -182,7 +182,7 @@ func (g *GatewayPKI) renew() error {
 	g.mu.RUnlock()
 
 	//Another goroutines may have already renewed (e.g. RenewNow() race)
-	if remaining > 90*24*time.Hour {
+	if !force && remaining > 90*24*time.Hour {
 		g.log.Debug("Renewal Skipped - Cert still fresh", zap.Duration("remaining", remaining))
 		return nil
 	}

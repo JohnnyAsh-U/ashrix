@@ -154,7 +154,7 @@ func runStart() (err error) {
 		attempt++
 
 		log.Info("Opening management stream with gateway", zap.String("addr", gRPCURL), zap.Int("attempt", attempt))
-		streamConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tenantID, tlsConfig, log, apps)
+		streamConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tenantID, tlsConfig, log, apps, result.PKI, appStorage)
 		if err != nil {
 			log.Error("Failed to open Gateway stream", zap.String("cp_url", gRPCURL), zap.Error(err))
 			select {

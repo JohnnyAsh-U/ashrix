@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
@@ -261,14 +262,28 @@ func (h *StreamManager) heartbeater(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			seq++
+			var connStatuses []*pb.ConnectorsStatus
+			for _, entry := range h.registry.All() {
+				statusStr := "disconnected"
+				if entry.IsRoutable() && entry.IsManagementAttached() {
+					statusStr = "connected"
+				}
+				connStatuses = append(connStatuses, &pb.ConnectorsStatus{
+					ConnectorId: entry.ConnectorID,
+					Status:      statusStr,
+					LastChecked: timestamppb.Now(),
+				})
+			}
+
 			h.Send(&pb.GatewayEnvelope{
 				Payload: &pb.GatewayEnvelope_Heartbeat{
 					Heartbeat: &pb.HeartbeatMessage{
 						Seq:               seq,
-						GatewayId: h.cfg.GatewayID,
+						GatewayId:         h.cfg.GatewayID,
 						ActiveConnections: int32(h.registry.ActiveSessions()),
 						ActiveSessions:    int32(h.registry.ActiveSessions()),
 						ConnectorCount:    int32(h.registry.ActiveConnectors()),
+						ConnectorStatus:   connStatuses,
 					},
 				},
 			})
@@ -306,18 +321,45 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 			h.log.Info("sent status update", zap.String("session_id", cmd.RevokeSession.SessionId))
 
 		case *pb.Command_RevokeConnector:
-			h.log.Info("revoking connector; cutting connection", zap.String("connector_id", cmd.RevokeConnector.ConnectorId))
-			h.cutConnectorConnection(cmd.RevokeConnector.ConnectorId)
+			h.log.Info("revoking connector; sending command to connector", zap.String("connector_id", cmd.RevokeConnector.ConnectorId))
+			if entry, ok := h.registry.GetByConnectorID(cmd.RevokeConnector.ConnectorId); ok && entry.ManagementSession != nil {
+				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
+					Payload: &pb.GatewayConnectorEnvelope_Cmd{
+						Cmd: &pb.ConnectorCmd{
+							Cmd:     "REVOKE_CONNECTOR",
+							Payload: cmd.RevokeConnector.ConnectorId,
+						},
+					},
+				})
+			}
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_RevokeConnectorCert:
-			h.log.Info("revoking connector cert; cutting connection", zap.String("connector_id", cmd.RevokeConnectorCert.ConnectorId))
-			h.cutConnectorConnection(cmd.RevokeConnectorCert.ConnectorId)
+			h.log.Info("revoking connector cert; sending command to connector", zap.String("connector_id", cmd.RevokeConnectorCert.ConnectorId))
+			if entry, ok := h.registry.GetByConnectorID(cmd.RevokeConnectorCert.ConnectorId); ok && entry.ManagementSession != nil {
+				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
+					Payload: &pb.GatewayConnectorEnvelope_Cmd{
+						Cmd: &pb.ConnectorCmd{
+							Cmd:     "REVOKE_CONNECTOR_CERT",
+							Payload: cmd.RevokeConnectorCert.ConnectorId,
+						},
+					},
+				})
+			}
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_RotateConnectorCert:
-			h.log.Info("rotating connector cert; cutting connection", zap.String("connector_id", cmd.RotateConnectorCert.ConnectorId))
-			h.cutConnectorConnection(cmd.RotateConnectorCert.ConnectorId)
+			h.log.Info("rotating connector cert; sending command to connector", zap.String("connector_id", cmd.RotateConnectorCert.ConnectorId))
+			if entry, ok := h.registry.GetByConnectorID(cmd.RotateConnectorCert.ConnectorId); ok && entry.ManagementSession != nil {
+				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
+					Payload: &pb.GatewayConnectorEnvelope_Cmd{
+						Cmd: &pb.ConnectorCmd{
+							Cmd:     "ROTATE_CONNECTOR_CERT",
+							Payload: cmd.RotateConnectorCert.ConnectorId,
+						},
+					},
+				})
+			}
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_CrlSync:
@@ -337,21 +379,38 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 		case *pb.Command_RotateGatewayCert:
 			h.log.Warn("gateway certificate rotation requested")
-			// if h.onAuthError != nil {
-			// 	go func() {
-			// 		_ = h.onAuthError(ctx)
-			// 	}()
-			// }
+			go func() {
+				renewErr := h.pki.RenewNow()
+				if renewErr != nil {
+					h.log.Error("gateway certificate rotation failed", zap.Error(renewErr))
+					h.CommandStatusUpdate(p.Cmd.Seq, false, renewErr.Error())
+				} else {
+					h.log.Info("gateway certificate rotation succeeded, refreshing connection")
+					h.CommandStatusUpdate(p.Cmd.Seq, true, "")
+					//ONly run after commandstatusupdate is sent
+					_ = h.cm.RefreshConnection(ctx)
+				}
+			}()
 
 		case *pb.Command_RevokeGatewayCert:
-			h.log.Error("gateway certificate revoked - reconnecting")
+			h.log.Error("gateway certificate revoked - clearing credentials and shutting down")
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
+			_ = h.pki.ClearCredential()
 			_ = h.cm.Close()
+			go func() {
+				time.Sleep(1 * time.Second)
+				_ = syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+			}()
 
 		case *pb.Command_RevokeGateway:
-			h.log.Error("gateway revoked - terminating connection")
+			h.log.Error("gateway revoked - clearing credentials and shutting down")
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
+			_ = h.pki.ClearCredential()
 			_ = h.cm.Close()
+			go func() {
+				time.Sleep(1 * time.Second)
+				_ = syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+			}()
 
 		case *pb.Command_DrainGateway:
 			h.log.Warn("gateway entering draining state")

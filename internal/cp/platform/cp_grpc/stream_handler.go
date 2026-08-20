@@ -362,8 +362,26 @@ func (s *cpServer) handleHeartbeat(
 			ctx,
 			gatewayID,
 		)
+	if err != nil {
+		return err
+	}
 
-	return err
+	for _, connStat := range heartbeat.ConnectorStatus {
+		cID, err := uuid.Parse(connStat.ConnectorId)
+		if err != nil {
+			s.log.Warn("invalid connector ID in heartbeat telemetry", "connector_id", connStat.ConnectorId, "error", err)
+			continue
+		}
+		_, err = s.connectorRepo.UpdateConnectorStatus(ctx, store.UpdateConnectorStatusParams{
+			ID:     cID,
+			Status: connStat.Status,
+		})
+		if err != nil {
+			s.log.Warn("failed to update connector status in DB", "connector_id", connStat.ConnectorId, "error", err)
+		}
+	}
+
+	return nil
 }
 
 

@@ -61,7 +61,7 @@ func Renew(
 	}
 
 	// ── 4. Send renewal request ───────────────────────────────────
-	apiResp, err := sendRenewRequest(ctx, cpURL, connectorID, csrPEM, proof, timestamp)
+	apiResp, err := sendRenewRequest(ctx, cpURL, connectorID, csrPEM, proof)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -72,14 +72,13 @@ func Renew(
 
 }
 
-func sendRenewRequest(ctx context.Context, cpUrl, connectorID string, csrPEM []byte, proof string,
-	timestamp int64) (*APIRegisterResponse, error) {
+func sendRenewRequest(ctx context.Context, cpUrl, connectorID string, csrPEM []byte, proof string) (*APIRegisterResponse, error) {
 
 	body, err := json.Marshal(&gen.ConnectorRenewCertRequest{
 		ConnectorId: connectorID,
 		Signature:   proof,
 		CsrPem:      string(csrPEM),
-		Timestamp:   timestamppb.New(time.Unix(timestamp, 0).UTC()),
+		Timestamp:   timestamppb.Now(),
 	})
 
 	if err != nil {
@@ -101,7 +100,6 @@ func sendRenewRequest(ctx context.Context, cpUrl, connectorID string, csrPEM []b
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Ashrix-Connector-ID", connectorID)
 
 	resp, err := http.DefaultClient.Do(req)
 

@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -549,6 +548,53 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 	return mapToGatewayResponse2(updatedGateway), nil
 }
 
+
+// Send Rotate Gateway Cert Cmd
+func (s *Service) RotateGatewayCert(ctx context.Context, id uuid.UUID) (GatewayResponse, *dto.AppError) {
+	// Retrieve the admin's OrgID from context
+	adminOrgIDStr := middleware.OrgIDFromCtx(ctx)
+	adminOrgID, parseErr := uuid.Parse(adminOrgIDStr)
+	if parseErr != nil {
+		return GatewayResponse{}, dto.NewBadRequestError("Invalid Organization ID format")
+	}
+
+	// Fetch the gateway to verify it exists
+	gateway, err := s.repo.GetGatewayByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GatewayResponse{}, dto.NewNotFoundError("Gateway Not Found")
+		}
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+	}
+
+	// Verify that the gateway belongs to the admin's organization
+	if adminOrgID != gateway.OrgID {
+		return GatewayResponse{}, dto.NewUnauthorizedError("OrgID Error")
+	}
+
+	payload := events.CommandJob{
+		Type:      events.CmdRotateGatewayCert,
+		GatewayID: id.String(),
+	}
+
+	_, err = s.eventRepo.CreateEvent(ctx, payload)
+
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
+	}
+
+	s.dispatcher.Wakeup(id.String())
+
+	// Fetch updated gateway
+	updatedGateway, err := s.repo.GetGatewayByID(ctx, id)
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+	}
+
+	return mapToGatewayResponse2(updatedGateway), nil
+}
+
+
 // DrainGateway sets status to 'draining' and pushes DrainGatewayCmd.
 func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayResponse, *dto.AppError) {
 	// Retrieve the admin's OrgID from context
@@ -602,13 +648,4 @@ func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayRespon
 	}
 
 	return mapToGatewayResponse2(updatedGateway), nil
-}
-
-// StructToJSONRaw converts any Go struct into a json.RawMessage
-func StructToJSONRaw(v any) (json.RawMessage, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return json.RawMessage(bytes), nil
 }

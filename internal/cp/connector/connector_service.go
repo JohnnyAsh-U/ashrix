@@ -548,6 +548,48 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 }
 
 
+// Send Rotate Command to Gateway for Connector
+func (s *Service) SendRotateConnectorCmd(ctx context.Context, connectorId uuid.UUID) (ConnectorResponse, *dto.AppError) {
+	// Retrieve the admin's OrgID from context
+	adminOrgIDStr := middleware.OrgIDFromCtx(ctx)
+	adminOrgID, parseErr := uuid.Parse(adminOrgIDStr)
+	if parseErr != nil {
+		return ConnectorResponse{}, dto.NewBadRequestError("Invalid Organization ID format")
+	}
+
+	// Fetch the Connector to verify it exists
+	Connector, err := s.repo.GetConnectorByID(ctx, connectorId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ConnectorResponse{}, dto.NewNotFoundError("Connector Not Found")
+		}
+		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())
+	}
+
+	// Verify that the Connector belongs to the admin's organization
+	if adminOrgID != Connector.OrgID {
+		return ConnectorResponse{}, dto.NewUnauthorizedError("OrgID Error")
+	}
+
+	payload := events.CommandJob{
+		Type:        events.CmdRotateConnectorCert,
+		GatewayID:   Connector.GatewayID.String(),
+		ConnectorID: Connector.ID.String(),
+	}
+
+	_, err = s.eventRepo.CreateEvent(ctx, payload)
+
+	s.dispatcher.Wakeup(Connector.GatewayID.String())
+
+
+	if err != nil {
+		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
+	}
+
+	return mapToConnectorResponse(Connector), nil
+}
+
+
 
 func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID, canonicalString, signature string) (gen.ConnectorStatusResponse, *dto.AppError) {
 

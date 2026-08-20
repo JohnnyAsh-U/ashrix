@@ -1,16 +1,4 @@
-* Implement each Cmd Action, replay: RevokeSession, RotateConnectorCert, RotateGatewayCert, CRLList, ConnectorSync => Implement Rotating of Cert.
-Run the latest seq of these cmds
-
-* Revocation of Cert or Component Shut down the component and clear the certificate.
-
-* Implement Connector Telemetry to CP DB
-
 * Update Policy Bundle Action 
-
-
-* To add apps and url permitted to be accessible from the gateway to avoid lateral movements, so a dispatcher for apps to sync it with gateway
-
-
 
 Testing
 * Testing Authorisation

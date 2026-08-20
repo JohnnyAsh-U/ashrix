@@ -271,6 +271,35 @@ func (h *GatewayHandler) RevokeGateway(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, http.StatusOK, gateway)
 }
 
+// @Summary Rotate gateway certificate
+// @Description Rotate a gateway's certificate.
+// @Tags Gateways
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Gateway ID"
+// @Success 200 {object} GatewayResponse
+// @Failure 400 {object} dto.AppError
+// @Failure 500 {object} dto.AppError
+// @Router /gateways/{id}/certs/rotate [put]
+func (h *GatewayHandler) SendRotateGatewayCmd(w http.ResponseWriter, r *http.Request) {
+	gatewayIDStr := chi.URLParam(r, "id")
+
+	gatewayID, parseErr := uuid.Parse(gatewayIDStr)
+	if parseErr != nil {
+		dto.SendError(w, dto.NewBadRequestError("Invalid Gateway ID format"))
+		return
+	}
+
+	gateway, appErr := h.service.RotateGatewayCert(r.Context(), gatewayID)
+	if appErr != nil {
+		dto.SendError(w, appErr)
+		return
+	}
+	dto.SendSuccess(w, http.StatusOK, gateway)
+}
+
+
 // DrainGateway
 // @Summary Drain a gateway
 // @Description Drain a gateway.
@@ -314,4 +343,5 @@ func (h *GatewayHandler) WithAuthRoutes(rg chi.Router) {
 	rg.Put("/{id}/certs/revoke", h.RevokeGatewayCert)
 	rg.Put("/{id}/revoke", h.RevokeGateway)
 	rg.Put("/{id}/drain", h.DrainGateway)
+	rg.Put("/{id}/certs/rotate", h.SendRotateGatewayCmd)
 }

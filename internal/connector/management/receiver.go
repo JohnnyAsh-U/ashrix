@@ -3,6 +3,8 @@ package management
 import (
 	"context"
 	"fmt"
+	"syscall"
+	"time"
 
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"go.uber.org/zap"
@@ -30,10 +32,29 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 
 		switch p := msg.Payload.(type) {
 		case *proto.GatewayConnectorEnvelope_Cmd:
-			c.log.Debug("received command",
+			c.log.Info("received command",
 				zap.String("cmd", p.Cmd.Cmd),
 				zap.String("payload", p.Cmd.Payload),
 			)
+			switch p.Cmd.Cmd {
+			case "ROTATE_CONNECTOR_CERT":
+				go func() {
+					c.log.Warn("starting connector cert rotation")
+					if err := c.PKI.Renew(ctx, true); err != nil {
+						c.log.Error("connector cert rotation failed", zap.Error(err))
+					} else {
+						c.log.Info("connector cert rotation succeeded, exiting to reconnect with new cert")
+						_ = syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+					}
+				}()
+			case "REVOKE_CONNECTOR_CERT", "REVOKE_CONNECTOR":
+				go func() {
+					c.log.Error("connector certificate or component revoked - clearing credentials and shutting down")
+					_ = c.AppStorage.ClearCredential()
+					time.Sleep(500 * time.Millisecond)
+					_ = syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+				}()
+			}
 		default:
 			c.log.Warn("received unknown message type",
 				zap.String("type", fmt.Sprintf("%T", p)),

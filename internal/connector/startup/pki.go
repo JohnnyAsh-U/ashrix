@@ -112,7 +112,7 @@ func (p *PKIInitialiser) TLSConfig() *tls.Config {
 // Generates new keypair, sends possession proof, hot-swaps on success.
 // Called by: StartRotator() when cert is within 30 days of expiry.
 // Called by: gateway rotation command.
-func (p *PKIInitialiser) Renew(ctx context.Context) error {
+func (p *PKIInitialiser) Renew(ctx context.Context, force bool) error {
 
 	// ── Read current state (read lock — fast) ─────────────────────
 	p.mu.RLock()
@@ -121,7 +121,7 @@ func (p *PKIInitialiser) Renew(ctx context.Context) error {
 	p.mu.RUnlock()
 
 	// Another goroutine may have already renewed
-	if remaining > 30*24*time.Hour {
+	if !force && remaining > 30*24*time.Hour {
 		p.log.Debug("renewal skipped — cert still fresh",
 			zap.Duration("remaining", remaining),
 		)
@@ -227,7 +227,7 @@ func (p *PKIInitialiser) rotator() {
 				p.log.Info("cert approaching expiry — renewing",
 					zap.Duration("remaining", remaining),
 				)
-				if err := p.Renew(context.Background()); err != nil {
+				if err := p.Renew(context.Background(), false); err != nil {
 					p.log.Error("background renewal failed",
 						zap.Error(err),
 					)

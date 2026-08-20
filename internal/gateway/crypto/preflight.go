@@ -11,7 +11,7 @@ import (
 func (g *GatewayPKI) PreflightRenew(ctx context.Context) error {
 	g.log.Warn("Certificate expired - attempting pre-flight renewal", zap.Time("Expired at", g.leaf.NotAfter))
 
-	if err := g.renew(); err != nil {
+	if err := g.renew(true); err != nil {
 		return err
 	}
 	g.log.Info("Preflight renewal successful", zap.Time("new_expiry", g.leaf.NotAfter))

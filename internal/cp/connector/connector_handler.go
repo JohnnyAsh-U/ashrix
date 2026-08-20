@@ -339,6 +339,35 @@ func (h *ConnectorHandler) RevokeConnector(w http.ResponseWriter, r *http.Reques
 	dto.SendSuccess(w, http.StatusOK, connector)
 }
 
+
+// RotateConnectorCert handles the request to rotate a connector's certificate.
+// @Summary Rotate a connector's certificate
+// @Description Rotate a connector's certificate.
+// @Tags Connectors
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Connector ID"
+// @Success 200 {object} ConnectorResponse
+// @Failure 400 {object} dto.AppError
+// @Failure 500 {object} dto.AppError
+// @Router /connectors/{id}/certs/rotate [put]
+func (h *ConnectorHandler) SendRotateConnectorCmd(w http.ResponseWriter, r *http.Request) {
+	connectorIDStr := chi.URLParam(r, "id")
+	connectorID, parseErr := uuid.Parse(connectorIDStr)
+	if parseErr != nil {
+		dto.SendError(w, dto.NewBadRequestError("Invalid Connector ID format"))
+		return
+	}
+	
+	connector, appErr := h.service.SendRotateConnectorCmd(r.Context(), connectorID)
+	if appErr != nil {
+		dto.SendError(w, appErr)
+		return
+	}
+	dto.SendSuccess(w, http.StatusOK, connector)
+}
+
 // Routes registers the gateway-related routes to the provided router group.
 func (h *ConnectorHandler) WithoutAuthRoutes(rg chi.Router) {
 	rg.Use(middleware.InternalOnlyMiddleware)
@@ -354,4 +383,5 @@ func (h *ConnectorHandler) WithAuthRoutes(rg chi.Router) {
 	rg.Put("/{id}/re-create", h.ReCreateConnector)
 	rg.Put("/{id}/certs/revoke", h.RevokeConnectorCert)
 	rg.Put("/{id}/revoke", h.RevokeConnector)
+	rg.Put("/{id}/certs/rotate", h.SendRotateConnectorCmd)
 }
