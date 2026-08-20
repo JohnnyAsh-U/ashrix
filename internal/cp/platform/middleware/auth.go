@@ -142,7 +142,6 @@ func RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
 
 
 func ParseAccessToken(tokenStr string, jwtKey []byte) (*AccessClaims, error) {
-	fmt.Println(tokenStr)
 	token, err := jwt.ParseWithClaims(tokenStr, &AccessClaims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -150,7 +149,6 @@ func ParseAccessToken(tokenStr string, jwtKey []byte) (*AccessClaims, error) {
 		return jwtKey, nil
 	})
 	if err != nil || !token.Valid {
-		fmt.Println(err)
 		return nil, errors.New("invalid token")
 	}
 

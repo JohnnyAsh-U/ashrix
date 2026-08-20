@@ -236,10 +236,10 @@ func (s *Service) EnrollConnector(ctx context.Context, token, csr string, signer
 
 func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID, signature string, csr string, timestamp int64, signer pki.CASigner) (gen.ConnectorRenewCertResponse, *dto.AppError) {
 	//Check timestamp is within 60 secsy
-	timeNow := time.Now().Unix()
-	if timeNow-timestamp > 60 {
-		return gen.ConnectorRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp Expired")
-	}
+reqTime := time.Unix(timestamp, 0)
+if time.Since(reqTime) > 60*time.Second || time.Until(reqTime) > 60*time.Second {
+    return gen.ConnectorRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp out of acceptable window (+/- 60s)")
+}
 
 	// get connector
 	connector, err := s.repo.GetActiveConnectorByID(ctx, connectorID)
@@ -275,10 +275,10 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 	}
 
 	//Check timestamp is within 60 secsy
-	timeNow = time.Now().Unix()
-	if timeNow-timestamp > 60 {
-		return gen.ConnectorRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp Expired")
-	}
+reqTime = time.Unix(timestamp, 0)
+if time.Since(reqTime) > 60*time.Second || time.Until(reqTime) > 60*time.Second {
+    return gen.ConnectorRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp out of acceptable window (+/- 60s)")
+}
 
 	// Issue new cert
 	// get active intermediate CA

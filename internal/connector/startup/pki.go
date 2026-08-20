@@ -11,7 +11,7 @@ import (
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
-	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
+	// pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"go.uber.org/zap"
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 )
@@ -138,11 +138,6 @@ func (p *PKIInitialiser) Renew(ctx context.Context, force bool) error {
 		return fmt.Errorf("renew: %w", err)
 	}
 
-	// ── Save renewed cert + key ────────────────────────────────
-
-	// if err := SaveCred(result, p.certPath, p.keyPath, p.trustPath, newKey, p.context, p.secret); err != nil {
-	// 	return err
-	// }
 
 	if err := p.appStorage.SaveCredential(result, newKey); err != nil {
 		return err
@@ -153,13 +148,13 @@ func (p *PKIInitialiser) Renew(ctx context.Context, force bool) error {
 		zap.String("key", p.keyPath),
 	)
 
-	key, cert, err := pki_utils.LoadKeyAndCert(p.keyPath, p.certPath, p.secret, p.context)
+	cred, err := p.appStorage.LoadCredential()
 	if err != nil {
-		return fmt.Errorf("failed to load gateway identity: %w", err)
+		return fmt.Errorf("failed to load credential: %w", err)
 	}
 
 	// Sanity check — CP must have extended the expiry
-	if !cert.NotAfter.After(p.leaf.NotAfter) {
+	if !cred.Cert.NotAfter.After(p.leaf.NotAfter) {
 		return fmt.Errorf("renew: CP returned cert with same or earlier expiry")
 	}
 
@@ -170,22 +165,23 @@ func (p *PKIInitialiser) Renew(ctx context.Context, force bool) error {
 	}
 
 	tlsCert := tls.Certificate{
-		Certificate: [][]byte{cert.Raw},
-		PrivateKey:  key,
-		Leaf:        cert,
+		Certificate: [][]byte{cred.Cert.Raw},
+		PrivateKey:  cred.PrivKey,
+		Leaf:        cred.Cert,
 	}
 
 	// ── Hot-swap under write lock (fast — pointer swaps only) ─────
 	// TLS handshakes are never blocked — lock held for microseconds
 	p.mu.Lock()
 	p.tlscert = &tlsCert
-	p.leaf = cert
-	p.privKey = key
+	p.leaf = cred.Cert
+	p.privKey = cred.PrivKey
+	p.pool = CertPool
 	p.mu.Unlock()
 
 	p.log.Info("certificate renewed and hot-swapped",
-		zap.Time("new_expiry", cert.NotAfter),
-		zap.Duration("valid_for", time.Until(cert.NotAfter)),
+		zap.Time("new_expiry", cred.Cert.NotAfter),
+		zap.Duration("valid_for", time.Until(cred.Cert.NotAfter)),
 	)
 	return nil
 }
@@ -206,7 +202,7 @@ func (p *PKIInitialiser) Stop() {
 }
 
 func (p *PKIInitialiser) rotator() {
-	ticker := time.NewTicker(15 * time.Minute)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	p.log.Debug("cert rotator started")
@@ -227,7 +223,7 @@ func (p *PKIInitialiser) rotator() {
 				p.log.Info("cert approaching expiry — renewing",
 					zap.Duration("remaining", remaining),
 				)
-				if err := p.Renew(context.Background(), false); err != nil {
+				if err := p.Renew(context.Background(), true); err != nil {
 					p.log.Error("background renewal failed",
 						zap.Error(err),
 					)

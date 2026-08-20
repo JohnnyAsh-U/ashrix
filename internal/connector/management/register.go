@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"sync"
+	"time"
+
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
@@ -29,6 +31,12 @@ type ManagementConn struct {
 
 	PKI        *startup.PKIInitialiser
 	AppStorage storage.Storage
+
+	// ... your existing struct fields ...
+	
+	// Add rotation guard fields
+	rotatingMu sync.Mutex
+	isRotating bool
 }
 
 // dialManagement opens the gRPC management connection to the gateway.

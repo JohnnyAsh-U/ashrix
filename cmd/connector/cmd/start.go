@@ -110,6 +110,7 @@ func runStart() (err error) {
 		os.Exit(1)
 	}
 
+	result.PKI.StartRotator()
 	defer result.PKI.Stop()
 
 	log.Info("Startup Complete",

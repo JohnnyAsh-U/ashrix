@@ -2,7 +2,6 @@ package cp_http
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -86,7 +85,6 @@ func InitializeHttpServer(
 	//IDP Routes
 	idpSession, err := identity.NewIDPSession(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix", redisStore.Client())
 	if err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 	idpService := identity.NewIDPService(

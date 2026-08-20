@@ -2,7 +2,6 @@ package cp_grpc
 
 import (
 	"context"
-	"fmt"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -51,8 +50,6 @@ func StreamIdentityInterceptor(
 	if org != "Ashrix" || ou != "Gateway" || cn == "" {
 		return status.Error(codes.Unauthenticated, "Identity check failed")
 	}
-	fmt.Println(cert.Subject)
-
 	return handler(srv, &wrappedStream{
 		ServerStream: ss,
 		ctx:          newCtx,

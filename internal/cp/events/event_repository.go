@@ -53,8 +53,6 @@ func (s *postgresRepository) CreateEvent(
 		)
 	}
 
-	fmt.Println("Here")
-
 	payload, err := MarshalCommand(job)
 	if err != nil {
 		return GatewayEvent{}, err
@@ -65,8 +63,6 @@ func (s *postgresRepository) CreateEvent(
 		return GatewayEvent{}, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	fmt.Println("Here2")
-
 
 	// qtx := r.queries.WithTx(tx)
 

@@ -54,14 +54,17 @@ func Renew(
 	// ── 3. Build possession proof ─────────────────────────────────
 	// Proves to CP that we hold the current private key.
 	// CP verifies against the public key in the current cert.
-	timestamp := time.Now().UTC().Unix()
+	// 3. Build possession proof with a single, locked timestamp
+    now := time.Now().UTC()
+    timestamp := now.Unix()
+
 	proof, err := buildPossessionProof(currentKey, csrPEM, connectorID, timestamp)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build possession proof: %w", err)
 	}
 
 	// ── 4. Send renewal request ───────────────────────────────────
-	apiResp, err := sendRenewRequest(ctx, cpURL, connectorID, csrPEM, proof)
+	apiResp, err := sendRenewRequest(ctx, cpURL, connectorID, csrPEM, proof, now)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -72,13 +75,13 @@ func Renew(
 
 }
 
-func sendRenewRequest(ctx context.Context, cpUrl, connectorID string, csrPEM []byte, proof string) (*APIRegisterResponse, error) {
+func sendRenewRequest(ctx context.Context, cpUrl, connectorID string, csrPEM []byte, proof string, reqTime time.Time) (*APIRegisterResponse, error) {
 
 	body, err := json.Marshal(&gen.ConnectorRenewCertRequest{
 		ConnectorId: connectorID,
 		Signature:   proof,
 		CsrPem:      string(csrPEM),
-		Timestamp:   timestamppb.Now(),
+		Timestamp:   timestamppb.New(reqTime),
 	})
 
 	if err != nil {
@@ -96,7 +99,7 @@ func sendRenewRequest(ctx context.Context, cpUrl, connectorID string, csrPEM []b
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("Cannot reach CP: %w", err)
+		return nil, fmt.Errorf("Cannot CP: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -104,7 +107,7 @@ func sendRenewRequest(ctx context.Context, cpUrl, connectorID string, csrPEM []b
 	resp, err := http.DefaultClient.Do(req)
 
 	if err != nil {
-		return nil, fmt.Errorf("Cannot react CP %w", err)
+		return nil, fmt.Errorf("Cannot reach CP %w", err)
 	}
 
 	defer resp.Body.Close()

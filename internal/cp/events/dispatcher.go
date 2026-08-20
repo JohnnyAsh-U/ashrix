@@ -146,11 +146,14 @@ func (d *GatewayDispatcher) deliverPending(
 
 	for _, event := range events {
 
-		cmd, err := GatewayEventToCmd(event,)
+		cmd, err := GatewayEventToCmd(event)
 
 		if err != nil {
 			return err
 		}
+
+		cmd.Seq = event.Seq
+		cmd.EventId = event.EventID.String()
 
 		envelope :=
 			&proto.CPEnvelope{

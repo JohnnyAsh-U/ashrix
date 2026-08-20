@@ -35,8 +35,6 @@ func LoadFromViper() (*Config, error) {
 	viper.SetDefault("session_ttl", "8h")
 	viper.SetDefault("cookie_secure", "false")
 
-	fmt.Println(viper.GetDuration("session_ttl"))
-
 	
 
 	cfg := &Config{

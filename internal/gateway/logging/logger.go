@@ -1,7 +1,6 @@
 package logging
 
 import (
-	"fmt"
 	"os"
 
 	"go.uber.org/zap"
@@ -62,7 +61,6 @@ func initDev(cfg Config) error {
 
 	App = zap.New(core, zap.AddCaller())
 
-	fmt.Println(cfg.LogDir)
 
 	// Audit log
 	auditFile, err := os.OpenFile(

@@ -230,8 +230,6 @@ func (s *cpServer) handleCommandAck(
 		)
 	}
 
-	fmt.Println(seq)
-
 	gatewayID, err :=
 		uuid.Parse(conn.GatewayID)
 
@@ -406,8 +404,6 @@ func (s *cpServer) reconcileGateway(
 
 	lastAck, err := s.eventRepo.GetLastAckedSeqForGateway(ctx, gatewayID)
 
-	fmt.Println(lastAck)
-
 	if err != nil {
 
 		s.log.Error(
@@ -450,8 +446,6 @@ func (s *cpServer) reconcileGateway(
 	// --------------------------------------------
 
 	for _, event := range events {
-		fmt.Println(event)
-
 		cmd, err := gatewayevents.GatewayEventToCmd(event)
 
 		if err != nil {
@@ -493,7 +487,6 @@ func (t *cpServer) ExchangeToken(ctx context.Context, req *proto.ExchangeTokenRe
 	}
 	key := fmt.Sprintf("session:%s:%s", req.GatewayName, req.TokenHash)
 
-	fmt.Println(key)
 	data, err := t.redisClient.GetDel(ctx, key).Result()
 	if err == redis.Nil {
 		t.log.Warn("Token not found or already consumed", slog.Any("err", err))

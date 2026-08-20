@@ -2,6 +2,7 @@ package management
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"syscall"
 	"time"
@@ -10,7 +11,9 @@ import (
 	"go.uber.org/zap"
 )
 
-//The management receiver
+var ErrCertRotated = errors.New("certificate rotated, triggering session reconnect")
+
+// The management receiver
 func (c *ManagementConn) RunReceiver(ctx context.Context) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -24,7 +27,17 @@ func (c *ManagementConn) RunReceiver(ctx context.Context) (err error) {
 
 // receiver receives messages from the management stream and handles them.
 func (c *ManagementConn) receiver(ctx context.Context) error {
+	// Create a channel to catch rotation signal from background worker
+	rotateCh := make(chan error, 1)
+
 	for {
+		// Non-blocking check to see if a rotation signaled an exit
+		select {
+		case err := <-rotateCh:
+			return err
+		default:
+		}
+
 		msg, err := c.Stream.Recv()
 		if err != nil {
 			return fmt.Errorf("management stream recv: %w", err)
@@ -38,15 +51,7 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 			)
 			switch p.Cmd.Cmd {
 			case "ROTATE_CONNECTOR_CERT":
-				go func() {
-					c.log.Warn("starting connector cert rotation")
-					if err := c.PKI.Renew(ctx, true); err != nil {
-						c.log.Error("connector cert rotation failed", zap.Error(err))
-					} else {
-						c.log.Info("connector cert rotation succeeded, exiting to reconnect with new cert")
-						_ = syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-					}
-				}()
+				go c.handleCertRotation(ctx, rotateCh)
 			case "REVOKE_CONNECTOR_CERT", "REVOKE_CONNECTOR":
 				go func() {
 					c.log.Error("connector certificate or component revoked - clearing credentials and shutting down")
@@ -62,5 +67,38 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 
 		}
 	}
-	
+
+}
+
+func (c *ManagementConn) handleCertRotation(ctx context.Context, rotateCh chan<- error) {
+	c.rotatingMu.Lock()
+	if c.isRotating {
+		c.rotatingMu.Unlock()
+		c.log.Warn("connector cert rotation already in progress, skipping duplicate command")
+		return
+	}
+	c.isRotating = true
+	c.rotatingMu.Unlock()
+
+	defer func() {
+		c.rotatingMu.Lock()
+		c.isRotating = false
+		c.rotatingMu.Unlock()
+	}()
+
+	c.log.Warn("starting connector cert rotation")
+
+	// Perform renewal & hot-swap in memory
+	if err := c.PKI.Renew(ctx, true); err != nil {
+		c.log.Error("connector cert rotation failed", zap.Error(err))
+		return
+	}
+
+	c.log.Info("connector cert rotation succeeded — triggering soft connection reset")
+
+	// Signal receiver to exit gracefully with ErrCertRotated
+	select {
+	case rotateCh <- ErrCertRotated:
+	default:
+	}
 }

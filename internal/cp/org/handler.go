@@ -1,7 +1,6 @@
 package org
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
@@ -89,7 +88,6 @@ func (h *OrgHandler) GetOrgByID(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} dto.AppError
 // @Router /orgs/slug/{slug} [get]
 func (h *OrgHandler) GetOrgBySlug(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("GetOrgBySlug")
 	slug := chi.URLParam(r, "slug")
 	svc, err := h.service.GetOrgBySlug(r.Context(), slug)
 	if err != nil {

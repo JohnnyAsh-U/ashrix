@@ -7,7 +7,6 @@ import (
 )
 
 func VerifyRegisterResponse(resp *APIRegisterResponse) error {
-	fmt.Println(resp.Success)
 
 	if resp.Data.GatewayId == "" {
 		return fmt.Errorf("Missing gateway_id in CP Response")
@@ -37,7 +36,6 @@ func VerifyRegisterResponse(resp *APIRegisterResponse) error {
 
 
 func VerifyRenewResponse(resp *APIRenewResponse) error {
-	fmt.Println(resp.Success)
 
 	if resp.Data.GatewayId == "" {
 		return fmt.Errorf("Missing gateway_id in CP Response")

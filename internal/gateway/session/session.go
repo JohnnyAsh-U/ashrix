@@ -47,7 +47,6 @@ func cpSessionIndexKey(cpSessionID string) string {
 
 func (sm *SessionManager) Get(r *http.Request) (*proto.NormalizedIdentity, error) {
 	cookie, err := r.Cookie(sessionCookie)
-	fmt.Println(cookie)
 	if err != nil || cookie.Value == "" {
 		return nil, fmt.Errorf("no session cookie")
 	}

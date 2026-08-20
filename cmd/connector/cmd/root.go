@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -63,7 +62,6 @@ func init() {
 func initConfig() {
 	home, err := os.UserConfigDir()
 	if err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 	var BaseDir string
