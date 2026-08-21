@@ -74,6 +74,27 @@ message TunnelChunk {
   }
 }
 
+message RequestHeader {
+  string              app_id      = 1;
+  string              session_id  = 10;
+  string              method      = 2;
+  string              path        = 3;
+  string              query       = 4;
+  map<string, string> headers     = 5;
+  string              user_id     = 6;
+  string              user_email  = 7;
+  string              request_id  = 8;
+  int64               body_length = 9;
+}
+
+message ResponseHeader {
+  int32               status_code = 1;
+  map<string, string> headers     = 2;
+}
+
+
+
+
 // 1. Wrapper for map[string][]string
 message HeaderList {
   repeated string values = 1;
@@ -147,23 +168,21 @@ message WSClose {
   string reason = 2;
 }
 
-message RequestHeader {
-  string              app_id      = 1;
-  string              session_id  = 10;
-  string              method      = 2;
-  string              path        = 3;
-  string              query       = 4;
-  map<string, string> headers     = 5;
-  string              user_id     = 6;
-  string              user_email  = 7;
-  string              request_id  = 8;
-  int64               body_length = 9;
+message Frame {
+  // You can still keep a version field if you like
+  uint32 version = 1; 
+  
+  oneof payload {
+    HTTPRequest http_request = 2;
+    HTTPResponse http_response = 3;
+    WSOpen ws_open = 4;
+    WSOpenResponse ws_open_response = 5;
+    WSData ws_data = 6;
+    WSClose ws_close = 7;
+    // Error / Ping / Pong can be empty messages or enums
+  }
 }
 
-message ResponseHeader {
-  int32               status_code = 1;
-  map<string, string> headers     = 2;
-}
 
 //====================================================================================
 //  Management Service to gateway

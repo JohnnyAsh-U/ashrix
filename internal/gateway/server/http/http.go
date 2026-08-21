@@ -64,7 +64,7 @@ func NewProxyServer(
 	r.Use(logging.AccessLogMiddleware(log)) // <-- add here
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
-	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig())) // <-- updated
+	// r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig())) // <-- updated
 	r.Use(chimiddleware.Timeout(30 * time.Second))
 
 	r.Use(session.SessionMiddleware(connectorRegistry, sessions, redisClient, cfg, log))
