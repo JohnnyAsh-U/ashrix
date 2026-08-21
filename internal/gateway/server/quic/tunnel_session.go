@@ -12,8 +12,8 @@ type quicTunnelSession struct {
 	conn *quic.Conn
 }
 
-func (s *quicTunnelSession) OpenStream() (registry.Stream, error) {
-	stream, err := s.conn.OpenStreamSync(context.Background())
+func (s *quicTunnelSession) OpenStream(ctx context.Context) (registry.Stream, error) {
+	stream, err := s.conn.OpenStreamSync(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Open Tunnel Stream: %w", err)
 	}

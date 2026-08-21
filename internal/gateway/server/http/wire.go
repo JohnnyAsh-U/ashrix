@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
 const maxEvelopeSize = 64*1024 //64KB envelopes are metadata, never bodies
@@ -75,4 +77,23 @@ func flattenHeaders(h http.Header) map[string]string {
 		}
 	}
 	return out
+}
+
+func cloneHeaders(h http.Header) map[string]*proto.HeaderList {
+	out := make(map[string]*proto.HeaderList, len(h))
+
+	for k, vals := range h {
+		copied := make([]string, len(vals))
+		copy(copied, vals)
+		out[k] = &proto.HeaderList{
+			Values: copied,
+		}
+	}
+
+	return out
+}
+
+
+func isWebSocketRequest(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
 }

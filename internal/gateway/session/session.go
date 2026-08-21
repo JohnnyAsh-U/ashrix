@@ -45,10 +45,10 @@ func cpSessionIndexKey(cpSessionID string) string {
 	return cpSessionIndexPrefix + cpSessionID
 }
 
-func (sm *SessionManager) Get(r *http.Request) (*proto.NormalizedIdentity, error) {
+func (sm *SessionManager) Get(r *http.Request) (*proto.NormalizedIdentity, string, error) {
 	cookie, err := r.Cookie(sessionCookie)
 	if err != nil || cookie.Value == "" {
-		return nil, fmt.Errorf("no session cookie")
+		return nil, "", fmt.Errorf("no session cookie")
 	}
 	data, err := sm.redis.Get(
 		r.Context(),
@@ -57,16 +57,16 @@ func (sm *SessionManager) Get(r *http.Request) (*proto.NormalizedIdentity, error
 
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return nil, ErrSessionNotFound
+			return nil, "", ErrSessionNotFound
 		}
 
-		return nil, fmt.Errorf("redis get session: %w", err)
+		return nil, "", fmt.Errorf("redis get session: %w", err)
 	}
 	var id proto.NormalizedIdentity
 	if err := json.Unmarshal([]byte(data), &id); err != nil {
-		return nil, fmt.Errorf("corrupt session")
+		return nil, "", fmt.Errorf("corrupt session")
 	}
-	return &id, nil
+	return &id, sessionKey(cookie.Value), nil
 }
 
 func (sm *SessionManager) Create(w http.ResponseWriter, r *http.Request, identity *proto.NormalizedIdentity) error {
@@ -176,6 +176,7 @@ func (sm *SessionManager) Destroy(w http.ResponseWriter, r *http.Request) error 
 		} else if errors.Is(err, redis.Nil) {
 			// Session already gone.
 		}
+		
 	}
 
 	http.SetCookie(w, &http.Cookie{

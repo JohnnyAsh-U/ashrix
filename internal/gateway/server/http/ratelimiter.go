@@ -88,7 +88,8 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *zap.Logger) func(http.
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if isInternalPath(r.URL.Path) {
+			appIsPublic := session.AppIsPublicFromCtx(r.Context())
+			if isInternalPath(r.URL.Path) || appIsPublic {
 				next.ServeHTTP(w, r)
 				return
 			}

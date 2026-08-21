@@ -22,8 +22,9 @@ type decisionContextKey struct{}
 func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			appIsPublic := session.AppIsPublicFromCtx(r.Context())
 			// Skip policy check for exempt paths
-			if isInternalPath(r.URL.Path) {
+			if isInternalPath(r.URL.Path) || appIsPublic {
 				next.ServeHTTP(w, r)
 				return
 			}

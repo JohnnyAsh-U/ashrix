@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"io"
 
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
@@ -38,12 +39,16 @@ func (s *ManagementSession) Close() {
 //they are different streams, different lifecycles.
 
 type TunnelSession interface {
-	OpenStream() (Stream, error)
+	OpenStream(ctx context.Context) (Stream, error)
 	Close() error
 }
 
 type Stream interface {
-	Read(p []byte) (int, error)
-	Write(p []byte) (int, error)
+	io.Reader
+	io.Writer
+
+
 	Close() error
+	// CancelRead(code uint64)
+	// CancelWrite(code uint64)
 }

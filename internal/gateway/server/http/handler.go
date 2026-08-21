@@ -1,6 +1,7 @@
 package http_proxy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
@@ -20,48 +22,58 @@ import (
 )
 
 type Handler struct {
-	log      *zap.Logger
-	registry *registry.Registry
-	session  *session.SessionManager
-	rateLimiter *session.RedisLimiter
-	redisClient *redis.Client
-	grpcClient *gateway_grpc.SafeClient
-	cfg *config.Config
+	log            *zap.Logger
+	registry       *registry.Registry
+	session        *session.SessionManager
+	rateLimiter    *session.RedisLimiter
+	redisClient    *redis.Client
+	grpcClient     *gateway_grpc.SafeClient
+	cfg            *config.Config
+	streamRegistry *registry.ActiveStreamRegistry
 }
 
 func NewHandler(
-	log *zap.Logger, 
-	registry *registry.Registry, 
-	session *session.SessionManager, 
-	limiter *session.RedisLimiter, 
+	log *zap.Logger,
+	registry *registry.Registry,
+	session *session.SessionManager,
+	limiter *session.RedisLimiter,
 	redisClient *redis.Client,
 	grpcClient *gateway_grpc.SafeClient,
+	streamRegistry *registry.ActiveStreamRegistry,
 	cfg *config.Config,
 
-
-	) *Handler {
+) *Handler {
 
 	return &Handler{
-		log: log, 
-		registry: registry, 
-		session: session, 
-		rateLimiter: limiter, 
-		redisClient: redisClient,
-		grpcClient: grpcClient,
-		cfg: cfg,
+		log:            log,
+		registry:       registry,
+		session:        session,
+		rateLimiter:    limiter,
+		redisClient:    redisClient,
+		grpcClient:     grpcClient,
+		cfg:            cfg,
+		streamRegistry: streamRegistry,
 	}
 }
 
 func (h *Handler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
-	connectorID := session.ConnectorIDFromCtx(r.Context())
-	AppID := session.AppIDFromCtx(r.Context())
-	Identity := session.IdentityFromCtx(r.Context())
 
-	// 1. Extract hostname
-	// 2. Identify Target Org/App
-	// 3. Verify Session Cookie
-	// 4. Check Policy
-	// 5. Proxy to Connector gRPC stream
+	ctx := r.Context()
+	connectorID := session.ConnectorIDFromCtx(ctx)
+	AppID := session.AppIDFromCtx(ctx)
+	Identity := session.IdentityFromCtx(ctx)
+	sessionID := session.SessionIDFromCtx(ctx)
+
+	var userID, userEmail, userSessionID string
+	if Identity != nil {
+		userID = Identity.UserId
+		userEmail = Identity.Email
+	}
+
+	if sessionID == "" {
+		userSessionID = "no-session"
+	}
+
 	entry, ok := h.registry.GetByConnectorID(connectorID)
 	if !ok || entry == nil {
 		h.log.Warn("no connector for this subdomain")
@@ -69,13 +81,32 @@ func (h *Handler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if entry.TunnelSession == nil {
-		h.log.Warn("connector entry missing TunnelSession", zap.String("connector_id", entry.ConnectorID))
+	if !entry.IsRoutable() {
 		http.Error(w, "connector unavailable", http.StatusBadGateway)
 		return
 	}
 
-	stream, err := entry.TunnelSession.OpenStream()
+	streamCtx, cancel := context.WithCancel(ctx)
+	streamID := uuid.NewString()
+	h.log.Debug("Opening tunnel stream", zap.String("stream_id", streamID), zap.String("connector_id", entry.ConnectorID))
+
+	h.streamRegistry.Register(sessionID, streamID, cancel)
+
+	defer func() {
+		cancel()
+		h.streamRegistry.Unregister(sessionID, streamID)
+		h.log.Debug("Tunnel stream closed", zap.String("stream_id", streamID), zap.String("connector_id", entry.ConnectorID))
+	}()
+
+
+	//Get Tunnel Session
+	tunnel, ok := h.registry.GetTunnelSession(entry.ConnectorID)
+	if !ok || tunnel == nil {
+		h.log.Warn("no tunnel session for this connector")
+		http.Error(w, "connector unavailable", http.StatusBadGateway)
+		return
+	}
+	stream, err := tunnel.OpenStream(streamCtx)
 	if err != nil {
 		h.log.Warn("Failed to open tunnel stream", zap.String("connector_id", entry.ConnectorID), zap.Error(err))
 		http.Error(w, "tunnel error", http.StatusBadGateway)
@@ -83,26 +114,41 @@ func (h *Handler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer stream.Close()
 
-	//Write request envelope + body to stream
+	if isWebSocketRequest(r){
+		h.proxyWebSocket(w, r)
+	}
+
+	h.proxyHTTP(w, r)
+
+
+
+
+
+
+
+
+
+
+	// Write request envelope + body to stream
 	envelope := gen.RequestHeader{
 		Method:     r.Method,
 		AppId:      AppID,
 		Path:       r.URL.Path,
 		Query:      r.URL.RawQuery,
-		UserId:     Identity.UserId,
-		UserEmail:  Identity.Email,
+		UserId:     userID,    // Defaults to "" if Identity is nil
+		UserEmail:  userEmail, // Defaults to "" if Identity is nil
 		Headers:    flattenHeaders(r.Header),
-		RequestId:  "req-456",
+		RequestId:  uuid.NewString(),
+		SessionId:  userSessionID, // Defaults to "no-session" if sessionID is empty
 		BodyLength: r.ContentLength,
 	}
-
 	if err := writeEvelope(stream, &envelope); err != nil {
 		h.log.Error("Failed to write request envelope", zap.Error(err))
 		http.Error(w, "failed to write request envelope", http.StatusInternalServerError)
 		return
 	}
 
-	if r.ContentLength > 0 {
+	if r.Body != nil {
 		if _, err := io.Copy(stream, r.Body); err != nil {
 			h.log.Error("Failed to write request body", zap.Error(err))
 			http.Error(w, "failed to write request body", http.StatusInternalServerError)
@@ -167,58 +213,56 @@ func (h *Handler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	// w.Write([]byte("Ashrix Gateway: Proxy logic pending connector integration"))
 }
 
-
 func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	clientIP := r.RemoteAddr
-		if !h.rateLimiter.Allow(r.Context(), clientIP) {
-			http.Error(w, "Too Many Request", http.StatusTooManyRequests)
-			return
-		}
+	if !h.rateLimiter.Allow(r.Context(), clientIP) {
+		http.Error(w, "Too Many Request", http.StatusTooManyRequests)
+		return
+	}
 
-		//Read the user cookie
-		stateCookie, err := r.Cookie("state")
-		if err != nil || stateCookie.Value == "" {
-			http.Error(w, "Missing Parameter Cookie", http.StatusBadRequest)
-			return
-		}
+	//Read the user cookie
+	stateCookie, err := r.Cookie("state")
+	if err != nil || stateCookie.Value == "" {
+		http.Error(w, "Missing Parameter Cookie", http.StatusBadRequest)
+		return
+	}
 
-		//Verify and consule state
-		stateKey := fmt.Sprintf("oauth_state:%s", stateCookie.Value)
-		stateData, err := h.redisClient.GetDel(r.Context(), stateKey).Result()
-		if err != nil {
-			http.Error(w, "Missing Parameter Redis", http.StatusBadRequest)
-			return
-		}
+	//Verify and consule state
+	stateKey := fmt.Sprintf("oauth_state:%s", stateCookie.Value)
+	stateData, err := h.redisClient.GetDel(r.Context(), stateKey).Result()
+	if err != nil {
+		http.Error(w, "Missing Parameter Redis", http.StatusBadRequest)
+		return
+	}
 
-		var statePayload map[string]string
-		json.Unmarshal([]byte(stateData), &statePayload)
-		redirectURI := statePayload["redirect_uri"]
-		// redirectURI := "http://app.ashrix.io:8000"
+	var statePayload map[string]string
+	json.Unmarshal([]byte(stateData), &statePayload)
+	redirectURI := statePayload["redirect_uri"]
+	// redirectURI := "http://app.ashrix.io:8000"
 
-		//Exchange token with CP via mTLS grpc
-		tokenStateFromCP := r.URL.Query().Get("state")
+	//Exchange token with CP via mTLS grpc
+	tokenStateFromCP := r.URL.Query().Get("state")
 
-		tokenHash := crypto.HashToken(tokenStateFromCP)
+	tokenHash := crypto.HashToken(tokenStateFromCP)
 
-		protoIdentity, err := h.grpcClient.ExchangeToken(r.Context(), &gen.ExchangeTokenRequest{
-			TokenHash:   tokenHash,
-			GatewayName: h.cfg.GatewayName,
-		})
+	protoIdentity, err := h.grpcClient.ExchangeToken(r.Context(), &gen.ExchangeTokenRequest{
+		TokenHash:   tokenHash,
+		GatewayName: h.cfg.GatewayName,
+	})
 
+	if err != nil {
+		http.Error(w, "Invalid Token", http.StatusBadRequest)
+		return
+	}
 
-		if err != nil {
-			http.Error(w, "Invalid Token", http.StatusBadRequest)
-			return
-		}
+	if err := h.session.Create(w, r, protoIdentity); err != nil {
+		h.log.Error("Session Creation Failed", zap.String("err", err.Error()))
+		http.Error(w, "Internal Error", http.StatusNotFound)
+		return
+	}
 
-		if err := h.session.Create(w, r, protoIdentity); err != nil {
-			h.log.Error("Session Creation Failed", zap.String("err", err.Error()))
-			http.Error(w, "Internal Error", http.StatusNotFound)
-			return
-		}
-
-		h.log.Info("Session Creation")
-		http.Redirect(w, r, redirectURI, http.StatusTemporaryRedirect)
+	h.log.Info("Session Creation")
+	http.Redirect(w, r, redirectURI, http.StatusTemporaryRedirect)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -227,8 +271,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status": "ok"}`))
 }
 
-
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status": "ok"}`))
+	w.Write([]byte(`{"status": "ok"}`))
 }

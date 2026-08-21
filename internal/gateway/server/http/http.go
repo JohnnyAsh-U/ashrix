@@ -27,7 +27,7 @@ type ProxyServer struct {
 func NewProxyServer(
 	cfg *config.Config, 
 	grpcClient *gateway_grpc.SafeClient, 
-	registry *registry.Registry, 
+	connectorRegistry *registry.Registry, 
 	redisClient *redis.Client, 
 	sessions *session.SessionManager,
 	log *zap.Logger,
@@ -35,8 +35,9 @@ func NewProxyServer(
 ) *ProxyServer {
 
 	rateLimiter := session.NewRedisLimiter(redisClient, 10, time.Minute)
+	activeStreams := registry.NewActiveStreamRegistry()
 	handler := NewHandler(
-		log, registry, sessions, rateLimiter, redisClient, grpcClient, cfg,
+		log, connectorRegistry, sessions, rateLimiter, redisClient, grpcClient, activeStreams, cfg,
 	)
 
 	// 1. Initialize posture dependencies
@@ -66,7 +67,7 @@ func NewProxyServer(
 	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig())) // <-- updated
 	r.Use(chimiddleware.Timeout(30 * time.Second))
 
-	r.Use(session.SessionMiddleware(registry, sessions, redisClient, cfg, log))
+	r.Use(session.SessionMiddleware(connectorRegistry, sessions, redisClient, cfg, log))
 	r.Use(posture.PostureMiddleware(collector, log))
 	r.Use(RateLimiterMiddleware(DefaultRateLimiterConfig(redisClient), log)) // ← after session
 	r.Use(policy.PolicyMiddleware(engine, cfg, log))

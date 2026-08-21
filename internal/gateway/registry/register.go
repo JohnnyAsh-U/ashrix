@@ -14,21 +14,21 @@ import (
 // one currently-connected connector.
 // Lives entirely in memory. Rebuilt on every reconnect.
 type ConnectorEntry struct {
-	ConnectorID      string
-	Apps             []*pb.ConnectorApps
+	ConnectorID string
+	Apps        []*pb.ConnectorApps
 
-	TenantID         string
-	ManagementSession *ManagementSession // live stream — nil if tunnel-only entry
-	ManagementConnAt time.Time
-	LastHeartbeat    time.Time
+	TenantID           string
+	ManagementSession  *ManagementSession // live stream — nil if tunnel-only entry
+	ManagementConnAt   time.Time
+	LastHeartbeat      time.Time
 	managementAttached bool
-	
+
 	//Data plane - Quic primary
-	TunnelSession    TunnelSession    // live QUIC/gRPC session — nil until tunnel connects
-	TunnelTransport        string // "quic", "grpc", "websocket"
-	TunnelConnAt time.Time
-	tunnelAttached bool
-	State            string // "active", "suspended"
+	TunnelSession   TunnelSession // live QUIC/gRPC session — nil until tunnel connects
+	TunnelTransport string        // "quic", "grpc", "websocket"
+	TunnelConnAt    time.Time
+	tunnelAttached  bool
+	State           string // "active", "suspended"
 
 	gRPCCert *x509.Certificate
 	quicCert *x509.Certificate
@@ -41,12 +41,12 @@ type ConnectorEntry struct {
 // This is intentionally the ONLY shared mutable state connecting
 // the CP-facing and connector-facing halves of the gateway.
 type Registry struct {
-	mu         sync.RWMutex
-	connectors map[string]*ConnectorEntry // connector_id → entry
-	routing    map[string]string          // subdomain → connector_id
-	crlSerials map[string]struct{}
+	mu             sync.RWMutex
+	connectors     map[string]*ConnectorEntry // connector_id → entry
+	routing        map[string]string          // subdomain → connector_id
+	crlSerials     map[string]struct{}
 	authConnectors map[string]string // connector_id -> status
-	log *zap.Logger
+	log            *zap.Logger
 }
 
 func New(log *zap.Logger) *Registry {
@@ -93,7 +93,6 @@ func (r *Registry) IsConnectorAuthorized(connectorID string) (string, bool) {
 	return status, exists
 }
 
-
 func (r *Registry) getOrCreateLocked(connectorID string) *ConnectorEntry {
 	if entry, ok := r.connectors[connectorID]; ok {
 		return entry
@@ -102,7 +101,6 @@ func (r *Registry) getOrCreateLocked(connectorID string) *ConnectorEntry {
 	r.connectors[connectorID] = entry
 	return entry
 }
-
 
 // AttachManagement is called by the gRPC connector server when a
 // connector's management stream registers successfully.
@@ -142,7 +140,6 @@ func (r *Registry) AttachManagement(
 
 	return entry
 }
-
 
 // AttachTunnel is called by the QUIC (or gRPC/WS fallback) tunnel
 // server when a connector's data-plane connection registers.
@@ -192,6 +189,7 @@ func (r *Registry) DetachManagement(connectorID string, session *ManagementSessi
 	}
 
 	entry.ManagementSession = nil
+	entry.managementAttached = false
 	r.removeIfFullyDetachedLocked(connectorID, entry)
 }
 
@@ -206,6 +204,7 @@ func (r *Registry) DetachTunnel(connectorID string, session TunnelSession) {
 	}
 
 	entry.TunnelSession = nil
+	entry.tunnelAttached = false
 	r.removeIfFullyDetachedLocked(connectorID, entry)
 }
 
@@ -228,7 +227,6 @@ func (r *Registry) rebuildRoutingLocked(entry *ConnectorEntry) {
 	}
 }
 
-
 // ── Routability — THIS is the answer to scenario A ────────────────────
 //
 // A connector is only routable for HTTP traffic if BOTH planes are
@@ -245,8 +243,6 @@ func (r *Registry) GetBySubdomain(subdomain string) (*ConnectorEntry, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	
-
 	connectorID, ok := r.routing[subdomain]
 	if !ok {
 		return nil, false
@@ -254,7 +250,6 @@ func (r *Registry) GetBySubdomain(subdomain string) (*ConnectorEntry, bool) {
 	entry := r.connectors[connectorID]
 	return entry, entry != nil
 }
-
 
 func (r *Registry) GetByConnectorID(id string) (*ConnectorEntry, bool) {
 	r.mu.RLock()
@@ -279,7 +274,6 @@ func (r *Registry) SetState(connectorID, state string) {
 	}
 }
 
-
 // ManagementIsStale checks if heartbeat is too old to trust —
 // used to decide whether to keep routing traffic during a
 // management-plane blip (scenario B).
@@ -300,10 +294,9 @@ func (r *Registry) All() []*ConnectorEntry {
 	return out
 }
 
-
-//When Gateway connects or reconnects to cp, verify the 
-//connectors connected and remove unauthorized connectors
-//Check the certificates on CRL list, if present remove the connectors
+// When Gateway connects or reconnects to cp, verify the
+// connectors connected and remove unauthorized connectors
+// Check the certificates on CRL list, if present remove the connectors
 func (r *Registry) VerifyGatewayConnections() {
 	// get authconnectors and connectors and compare
 	//Remove the connectors which are not present in the authconnectors
@@ -312,24 +305,13 @@ func (r *Registry) VerifyGatewayConnections() {
 	fmt.Println("Gateway Verifying connections...")
 	fmt.Println("Auth connectors:", r.authConnectors)
 	var toClose []string
-	
+
 	for connectorID, entry := range r.connectors {
 		authorized := false
 		if _, ok := r.authConnectors[connectorID]; ok {
 			authorized = true
 		}
-
-		revoked := false
-        if entry.gRPCCert != nil && r.IsCrlRevoked(entry.gRPCCert.SerialNumber.String()) {
-            revoked = true
-        }
-        if entry.quicCert != nil && r.IsCrlRevoked(entry.quicCert.SerialNumber.String()) {
-            revoked = true
-        }
-
-        if !authorized || revoked {
-            toClose = append(toClose, connectorID)
-        }
+		revoked := r.connectorRevokedLocked(entry)
 
 		if !authorized || revoked {
 			toClose = append(toClose, connectorID)
@@ -355,26 +337,24 @@ func (r *Registry) ActiveSessions() int {
 	return len(r.connectors)
 }
 
-
 func (r *Registry) ForceCloseConnector(connectorID string) {
-    r.mu.RLock()
-    entry, ok := r.connectors[connectorID]
+	r.mu.RLock()
+	entry, ok := r.connectors[connectorID]
 
-
-    if !ok {
+	if !ok {
 		r.mu.RUnlock()
-        return
-    }
+		return
+	}
 
 	mgmt := entry.ManagementSession
 	tunnel := entry.TunnelSession
-		r.mu.RUnlock()
+	r.mu.RUnlock()
 
-		r.log.Warn("Force disconnecting connector",
+	r.log.Warn("Force disconnecting connector",
 		zap.String("connector_id", connectorID),
 	)
 
-   // Close network transports outside lock
+	// Close network transports outside lock
 	if mgmt != nil {
 		mgmt.Close()
 	}
@@ -383,7 +363,6 @@ func (r *Registry) ForceCloseConnector(connectorID string) {
 	}
 }
 
-
 func (e *ConnectorEntry) IsManagementAttached() bool {
 	return e.ManagementSession != nil
 }
@@ -391,7 +370,6 @@ func (e *ConnectorEntry) IsManagementAttached() bool {
 func (e *ConnectorEntry) IsTunnelAttached() bool {
 	return e.TunnelSession != nil
 }
-
 
 func (r *Registry) connectorRevokedLocked(entry *ConnectorEntry) bool {
 	if entry.gRPCCert != nil {
@@ -407,4 +385,16 @@ func (r *Registry) connectorRevokedLocked(entry *ConnectorEntry) bool {
 	return false
 }
 
+func (r *Registry) GetTunnelSession(connectorID string) (TunnelSession, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
+	entry, ok := r.connectors[connectorID]
+	if !ok {
+		return nil, false
+	}
+	if !entry.IsRoutable() {
+		return nil, false
+	}
+	return entry.TunnelSession, entry.TunnelSession != nil
+}

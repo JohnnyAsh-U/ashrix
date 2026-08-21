@@ -42,17 +42,17 @@ message ConnectorStatusResponse {
   string                 gateway_id   = 2;
   string                 gateway_url  = 3;
   string                 gateway_ip   = 4;
-  string                 tenant_id   = 5;
+  string                 tenant_id    = 5;
   repeated ConnectorApps apps         = 6;
 }
 
 message ConnectorApps {
-  string id          = 1;
-  string name        = 2;
-  string subdomain   = 3;
-  string upstream    = 4; //must be host:port
-  string protocol    = 5;
-  bool   is_public   = 6;
+  string id        = 1;
+  string name      = 2;
+  string subdomain = 3;
+  string upstream  = 4; //must be host:port
+  string protocol  = 5;
+  bool   is_public = 6;
 }
 
 //=================================================================================
@@ -74,8 +74,82 @@ message TunnelChunk {
   }
 }
 
+// 1. Wrapper for map[string][]string
+message HeaderList {
+  repeated string values = 1;
+}
+
+// 2. FrameType Enum
+enum FrameType {
+  FRAME_TYPE_UNSPECIFIED      = 0;
+  FRAME_TYPE_HTTP_REQUEST     = 1;
+  FRAME_TYPE_HTTP_RESPONSE    = 2;
+  FRAME_TYPE_WS_OPEN          = 3;
+  FRAME_TYPE_WS_OPEN_RESPONSE = 4;
+  FRAME_TYPE_WS_DATA          = 5;
+  FRAME_TYPE_WS_PING          = 6;
+  FRAME_TYPE_WS_PONG          = 7;
+  FRAME_TYPE_WS_CLOSE         = 8;
+  FRAME_TYPE_ERROR            = 9;
+}
+
+// 3. Payload Messages
+
+message HTTPRequest {
+  string                  request_id   = 1;
+  string                  session_id   = 2;
+  string                  tenant_id    = 3;
+  string                  user_id      = 4;
+  string                  user_email   = 5;
+  string                  connector_id = 6;
+  string                  app_id       = 7;
+  string                  method       = 8;
+  string                  host         = 9;
+  string                  path         = 10;
+  string                  query        = 11;
+  map<string, HeaderList> headers      = 12;
+  int64                   body_length  = 13;
+}
+
+message HTTPResponse {
+  string                  request_id  = 1;
+  int32                   status_code = 2;
+  map<string, HeaderList> headers     = 3;
+  int64                   body_length = 4;
+}
+
+message WSOpen {
+  string                  request_id   = 1;
+  string                  session_id   = 2;
+  string                  tenant_id    = 3;
+  string                  user_id      = 4;
+  string                  connector_id = 5;
+  string                  app_id       = 6;
+  string                  host         = 7;
+  string                  path         = 8;
+  string                  query        = 9;
+  map<string, HeaderList> headers      = 10;
+}
+
+message WSOpenResponse {
+  string                  request_id  = 1;
+  int32                   status_code = 2;
+  map<string, HeaderList> headers     = 3;
+}
+
+message WSData {
+  int32 message_type = 1;
+  bytes data         = 2;
+}
+
+message WSClose {
+  int32  code   = 1;
+  string reason = 2;
+}
+
 message RequestHeader {
   string              app_id      = 1;
+  string              session_id  = 10;
   string              method      = 2;
   string              path        = 3;
   string              query       = 4;
@@ -83,7 +157,7 @@ message RequestHeader {
   string              user_id     = 6;
   string              user_email  = 7;
   string              request_id  = 8;
-  int64              body_length = 9;
+  int64               body_length = 9;
 }
 
 message ResponseHeader {
@@ -124,11 +198,11 @@ message ConnectorCmd {
 }
 
 message ConnectorHello {
-  string          connector_id = 1;
-  string          tenant_id = 2;
-  string          version      = 3;
+  string                 connector_id = 1;
+  string                 tenant_id    = 2;
+  string                 version      = 3;
   repeated ConnectorApps apps         = 4;
-  string          transport    = 5; //quic, grpc, websocket
+  string                 transport    = 5; //quic, grpc, websocket
 }
 
 message ConnectorHeartbeat {
@@ -150,9 +224,6 @@ message ConnectorReject {
   bool   permanent = 3;
 }
 
-
-
-
 // message Heartbeat {
 //   NodeIdentity identity            = 1; // full state snapshot — CP needs no separate query
 //   int32        active_connections  = 2; // live connections (connectors + clients)
@@ -166,5 +237,3 @@ message ConnectorReject {
 //   string                    status       = 2; //connected | disconnected
 //   google.protobuf.Timestamp last_checked = 3;
 // }
-
-

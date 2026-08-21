@@ -73,6 +73,9 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			// Inject claims into context for downstream handlers.
 			ctx := context.WithValue(r.Context(), ConnectorID, connector.ConnectorID)
 			ctx = context.WithValue(ctx, AppID, foundApp.Id)
+			ctx = context.WithValue(ctx, AppIsPublic, foundApp.IsPublic)
+
+
 
 			//Check if public no session needed
 			if foundApp.IsPublic {
@@ -80,12 +83,11 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 				return
 			}
 
-			identity, err := session.Get(r)
-
-			fmt.Println(identity)
+			identity, sessionID, err := session.Get(r)
 
 			if err == nil {
 				ctx := context.WithValue(ctx, Identity, identity)
+				ctx = context.WithValue(ctx, SessionID, sessionID)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}

@@ -584,9 +584,54 @@ func (*TunnelChunk_ResHeader) isTunnelChunk_Payload() {}
 
 func (*TunnelChunk_EndStream) isTunnelChunk_Payload() {}
 
+type HeaderList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []string               `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HeaderList) Reset() {
+	*x = HeaderList{}
+	mi := &file_ashrix_connector_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeaderList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeaderList) ProtoMessage() {}
+
+func (x *HeaderList) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeaderList.ProtoReflect.Descriptor instead.
+func (*HeaderList) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *HeaderList) GetValues() []string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
 type RequestHeader struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AppId         string                 `protobuf:"bytes,1,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	SessionId     string                 `protobuf:"bytes,10,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	Method        string                 `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`
 	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
 	Query         string                 `protobuf:"bytes,4,opt,name=query,proto3" json:"query,omitempty"`
@@ -601,7 +646,7 @@ type RequestHeader struct {
 
 func (x *RequestHeader) Reset() {
 	*x = RequestHeader{}
-	mi := &file_ashrix_connector_proto_msgTypes[7]
+	mi := &file_ashrix_connector_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -613,7 +658,7 @@ func (x *RequestHeader) String() string {
 func (*RequestHeader) ProtoMessage() {}
 
 func (x *RequestHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[7]
+	mi := &file_ashrix_connector_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -626,12 +671,19 @@ func (x *RequestHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestHeader.ProtoReflect.Descriptor instead.
 func (*RequestHeader) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{7}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RequestHeader) GetAppId() string {
 	if x != nil {
 		return x.AppId
+	}
+	return ""
+}
+
+func (x *RequestHeader) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -702,7 +754,7 @@ type ResponseHeader struct {
 
 func (x *ResponseHeader) Reset() {
 	*x = ResponseHeader{}
-	mi := &file_ashrix_connector_proto_msgTypes[8]
+	mi := &file_ashrix_connector_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -714,7 +766,7 @@ func (x *ResponseHeader) String() string {
 func (*ResponseHeader) ProtoMessage() {}
 
 func (x *ResponseHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[8]
+	mi := &file_ashrix_connector_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -727,7 +779,7 @@ func (x *ResponseHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResponseHeader.ProtoReflect.Descriptor instead.
 func (*ResponseHeader) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{8}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ResponseHeader) GetStatusCode() int32 {
@@ -759,7 +811,7 @@ type ConnectorGatewayEnvelope struct {
 
 func (x *ConnectorGatewayEnvelope) Reset() {
 	*x = ConnectorGatewayEnvelope{}
-	mi := &file_ashrix_connector_proto_msgTypes[9]
+	mi := &file_ashrix_connector_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -771,7 +823,7 @@ func (x *ConnectorGatewayEnvelope) String() string {
 func (*ConnectorGatewayEnvelope) ProtoMessage() {}
 
 func (x *ConnectorGatewayEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[9]
+	mi := &file_ashrix_connector_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -784,7 +836,7 @@ func (x *ConnectorGatewayEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorGatewayEnvelope.ProtoReflect.Descriptor instead.
 func (*ConnectorGatewayEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{9}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ConnectorGatewayEnvelope) GetConnectorId() string {
@@ -856,7 +908,7 @@ type GatewayConnectorEnvelope struct {
 
 func (x *GatewayConnectorEnvelope) Reset() {
 	*x = GatewayConnectorEnvelope{}
-	mi := &file_ashrix_connector_proto_msgTypes[10]
+	mi := &file_ashrix_connector_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -868,7 +920,7 @@ func (x *GatewayConnectorEnvelope) String() string {
 func (*GatewayConnectorEnvelope) ProtoMessage() {}
 
 func (x *GatewayConnectorEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[10]
+	mi := &file_ashrix_connector_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -881,7 +933,7 @@ func (x *GatewayConnectorEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayConnectorEnvelope.ProtoReflect.Descriptor instead.
 func (*GatewayConnectorEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{10}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GatewayConnectorEnvelope) GetPayload() isGatewayConnectorEnvelope_Payload {
@@ -950,7 +1002,7 @@ type ConnectorCmd struct {
 
 func (x *ConnectorCmd) Reset() {
 	*x = ConnectorCmd{}
-	mi := &file_ashrix_connector_proto_msgTypes[11]
+	mi := &file_ashrix_connector_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -962,7 +1014,7 @@ func (x *ConnectorCmd) String() string {
 func (*ConnectorCmd) ProtoMessage() {}
 
 func (x *ConnectorCmd) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[11]
+	mi := &file_ashrix_connector_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -975,7 +1027,7 @@ func (x *ConnectorCmd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorCmd.ProtoReflect.Descriptor instead.
 func (*ConnectorCmd) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{11}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ConnectorCmd) GetCmd() string {
@@ -1005,7 +1057,7 @@ type ConnectorHello struct {
 
 func (x *ConnectorHello) Reset() {
 	*x = ConnectorHello{}
-	mi := &file_ashrix_connector_proto_msgTypes[12]
+	mi := &file_ashrix_connector_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1017,7 +1069,7 @@ func (x *ConnectorHello) String() string {
 func (*ConnectorHello) ProtoMessage() {}
 
 func (x *ConnectorHello) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[12]
+	mi := &file_ashrix_connector_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1030,7 +1082,7 @@ func (x *ConnectorHello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorHello.ProtoReflect.Descriptor instead.
 func (*ConnectorHello) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{12}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ConnectorHello) GetConnectorId() string {
@@ -1081,7 +1133,7 @@ type ConnectorHeartbeat struct {
 
 func (x *ConnectorHeartbeat) Reset() {
 	*x = ConnectorHeartbeat{}
-	mi := &file_ashrix_connector_proto_msgTypes[13]
+	mi := &file_ashrix_connector_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1093,7 +1145,7 @@ func (x *ConnectorHeartbeat) String() string {
 func (*ConnectorHeartbeat) ProtoMessage() {}
 
 func (x *ConnectorHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[13]
+	mi := &file_ashrix_connector_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1106,7 +1158,7 @@ func (x *ConnectorHeartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorHeartbeat.ProtoReflect.Descriptor instead.
 func (*ConnectorHeartbeat) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{13}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ConnectorHeartbeat) GetSeq() int64 {
@@ -1154,7 +1206,7 @@ type ConnectorHelloAck struct {
 
 func (x *ConnectorHelloAck) Reset() {
 	*x = ConnectorHelloAck{}
-	mi := &file_ashrix_connector_proto_msgTypes[14]
+	mi := &file_ashrix_connector_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1166,7 +1218,7 @@ func (x *ConnectorHelloAck) String() string {
 func (*ConnectorHelloAck) ProtoMessage() {}
 
 func (x *ConnectorHelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[14]
+	mi := &file_ashrix_connector_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1179,7 +1231,7 @@ func (x *ConnectorHelloAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorHelloAck.ProtoReflect.Descriptor instead.
 func (*ConnectorHelloAck) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{14}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ConnectorHelloAck) GetSessionId() string {
@@ -1207,7 +1259,7 @@ type ConnectorReject struct {
 
 func (x *ConnectorReject) Reset() {
 	*x = ConnectorReject{}
-	mi := &file_ashrix_connector_proto_msgTypes[15]
+	mi := &file_ashrix_connector_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1219,7 +1271,7 @@ func (x *ConnectorReject) String() string {
 func (*ConnectorReject) ProtoMessage() {}
 
 func (x *ConnectorReject) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[15]
+	mi := &file_ashrix_connector_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1232,7 +1284,7 @@ func (x *ConnectorReject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorReject.ProtoReflect.Descriptor instead.
 func (*ConnectorReject) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{15}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ConnectorReject) GetReason() string {
@@ -1309,9 +1361,15 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"res_header\x18\x04 \x01(\v2\x15.proto.ResponseHeaderH\x00R\tresHeader\x12\x1f\n" +
 	"\n" +
 	"end_stream\x18\x05 \x01(\bH\x00R\tendStreamB\t\n" +
-	"\apayload\"\xd9\x02\n" +
+	"\apayload\"$\n" +
+	"\n" +
+	"HeaderList\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\"\xf8\x02\n" +
 	"\rRequestHeader\x12\x15\n" +
-	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12\x16\n" +
+	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\n" +
+	" \x01(\tR\tsessionId\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x14\n" +
 	"\x05query\x18\x04 \x01(\tR\x05query\x12;\n" +
@@ -1384,7 +1442,7 @@ func file_ashrix_connector_proto_rawDescGZIP() []byte {
 	return file_ashrix_connector_proto_rawDescData
 }
 
-var file_ashrix_connector_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_ashrix_connector_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_ashrix_connector_proto_goTypes = []any{
 	(*ConnectorEnrollRequest)(nil),     // 0: proto.ConnectorEnrollRequest
 	(*ConnectorEnrollResponse)(nil),    // 1: proto.ConnectorEnrollResponse
@@ -1393,40 +1451,41 @@ var file_ashrix_connector_proto_goTypes = []any{
 	(*ConnectorStatusResponse)(nil),    // 4: proto.ConnectorStatusResponse
 	(*ConnectorApps)(nil),              // 5: proto.ConnectorApps
 	(*TunnelChunk)(nil),                // 6: proto.TunnelChunk
-	(*RequestHeader)(nil),              // 7: proto.RequestHeader
-	(*ResponseHeader)(nil),             // 8: proto.ResponseHeader
-	(*ConnectorGatewayEnvelope)(nil),   // 9: proto.ConnectorGatewayEnvelope
-	(*GatewayConnectorEnvelope)(nil),   // 10: proto.GatewayConnectorEnvelope
-	(*ConnectorCmd)(nil),               // 11: proto.ConnectorCmd
-	(*ConnectorHello)(nil),             // 12: proto.ConnectorHello
-	(*ConnectorHeartbeat)(nil),         // 13: proto.ConnectorHeartbeat
-	(*ConnectorHelloAck)(nil),          // 14: proto.ConnectorHelloAck
-	(*ConnectorReject)(nil),            // 15: proto.ConnectorReject
-	nil,                                // 16: proto.RequestHeader.HeadersEntry
-	nil,                                // 17: proto.ResponseHeader.HeadersEntry
-	(*timestamppb.Timestamp)(nil),      // 18: google.protobuf.Timestamp
+	(*HeaderList)(nil),                 // 7: proto.HeaderList
+	(*RequestHeader)(nil),              // 8: proto.RequestHeader
+	(*ResponseHeader)(nil),             // 9: proto.ResponseHeader
+	(*ConnectorGatewayEnvelope)(nil),   // 10: proto.ConnectorGatewayEnvelope
+	(*GatewayConnectorEnvelope)(nil),   // 11: proto.GatewayConnectorEnvelope
+	(*ConnectorCmd)(nil),               // 12: proto.ConnectorCmd
+	(*ConnectorHello)(nil),             // 13: proto.ConnectorHello
+	(*ConnectorHeartbeat)(nil),         // 14: proto.ConnectorHeartbeat
+	(*ConnectorHelloAck)(nil),          // 15: proto.ConnectorHelloAck
+	(*ConnectorReject)(nil),            // 16: proto.ConnectorReject
+	nil,                                // 17: proto.RequestHeader.HeadersEntry
+	nil,                                // 18: proto.ResponseHeader.HeadersEntry
+	(*timestamppb.Timestamp)(nil),      // 19: google.protobuf.Timestamp
 }
 var file_ashrix_connector_proto_depIdxs = []int32{
-	18, // 0: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
-	18, // 1: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
-	18, // 2: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
-	18, // 3: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
+	19, // 0: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
+	19, // 1: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
+	19, // 2: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
+	19, // 3: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
 	5,  // 4: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
-	7,  // 5: proto.TunnelChunk.req_header:type_name -> proto.RequestHeader
-	8,  // 6: proto.TunnelChunk.res_header:type_name -> proto.ResponseHeader
-	16, // 7: proto.RequestHeader.headers:type_name -> proto.RequestHeader.HeadersEntry
-	17, // 8: proto.ResponseHeader.headers:type_name -> proto.ResponseHeader.HeadersEntry
-	18, // 9: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	12, // 10: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
-	13, // 11: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
-	14, // 12: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
-	15, // 13: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
-	11, // 14: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
+	8,  // 5: proto.TunnelChunk.req_header:type_name -> proto.RequestHeader
+	9,  // 6: proto.TunnelChunk.res_header:type_name -> proto.ResponseHeader
+	17, // 7: proto.RequestHeader.headers:type_name -> proto.RequestHeader.HeadersEntry
+	18, // 8: proto.ResponseHeader.headers:type_name -> proto.ResponseHeader.HeadersEntry
+	19, // 9: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	13, // 10: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
+	14, // 11: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
+	15, // 12: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
+	16, // 13: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
+	12, // 14: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
 	5,  // 15: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
 	6,  // 16: proto.TunnelService.Tunnel:input_type -> proto.TunnelChunk
-	9,  // 17: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
+	10, // 17: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
 	6,  // 18: proto.TunnelService.Tunnel:output_type -> proto.TunnelChunk
-	10, // 19: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
+	11, // 19: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
 	18, // [18:20] is the sub-list for method output_type
 	16, // [16:18] is the sub-list for method input_type
 	16, // [16:16] is the sub-list for extension type_name
@@ -1446,11 +1505,11 @@ func file_ashrix_connector_proto_init() {
 		(*TunnelChunk_ResHeader)(nil),
 		(*TunnelChunk_EndStream)(nil),
 	}
-	file_ashrix_connector_proto_msgTypes[9].OneofWrappers = []any{
+	file_ashrix_connector_proto_msgTypes[10].OneofWrappers = []any{
 		(*ConnectorGatewayEnvelope_Hello)(nil),
 		(*ConnectorGatewayEnvelope_Heartbeat)(nil),
 	}
-	file_ashrix_connector_proto_msgTypes[10].OneofWrappers = []any{
+	file_ashrix_connector_proto_msgTypes[11].OneofWrappers = []any{
 		(*GatewayConnectorEnvelope_HelloAck)(nil),
 		(*GatewayConnectorEnvelope_Reject)(nil),
 		(*GatewayConnectorEnvelope_Cmd)(nil),
@@ -1461,7 +1520,7 @@ func file_ashrix_connector_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_connector_proto_rawDesc), len(file_ashrix_connector_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   18,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
