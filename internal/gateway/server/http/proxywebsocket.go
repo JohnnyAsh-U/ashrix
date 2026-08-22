@@ -94,6 +94,9 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+
+
+
 	typ, payload, err := frame.ReadFrame(stream)
 	if err != nil {
 		h.log.Error("failed to read response header", zap.Error(err))
@@ -120,18 +123,23 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	
+
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
 	})
+
 	if err != nil {
 		stream.Close()
 		h.log.Error("Failed to upgrade websocket connection", zap.Error(err))
 		h.log.Warn("Tunnel stream closed", zap.String("stream_id", streamID), zap.String("connector_id", entry.ConnectorID))
 		return
 	}
+	conn.SetReadLimit(16 << 20)
+
 	defer conn.Close(websocket.StatusNormalClosure, "closed")
 
-	err = proxyWebSocketData(ctx, conn, stream, h.log)
+	err = proxyWebSocketData(streamCtx, conn, stream, h.log)
 
 	if err != nil && streamCtx.Err() == nil {
 		h.log.Error("websocket copy loop failed", zap.Error(err))
@@ -175,7 +183,7 @@ func websocketToTunnel(ctx context.Context, client *websocket.Conn, stream io.Re
 			return err
 		}
 
-		data, err := io.ReadAll(io.LimitReader(reader, 16<<20))
+		data, err := io.ReadAll(reader)
 		if err != nil {
 			return err
 		}

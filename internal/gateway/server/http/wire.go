@@ -95,5 +95,9 @@ func cloneHeaders(h http.Header) map[string]*proto.HeaderList {
 
 
 func isWebSocketRequest(r *http.Request) bool {
+	fmt.Println("==============================================")
+	fmt.Println(r.Header.Get("Connection"))
+	fmt.Println(r.Header.Get("Upgrade"))
+	fmt.Println("==============================================")
 	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
 }

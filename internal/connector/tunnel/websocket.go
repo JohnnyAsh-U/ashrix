@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/coder/websocket"
-
-	// "github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
 
@@ -39,18 +38,19 @@ func (c *ConnectorTunnel) handleWebSocketStream(ctx context.Context, stream tran
 	}
 
 	// ADD THIS LOOP: Map the protobuf headers into the upstream HTTP request
-	var req http.Request
+	// var headers http.Header 
+	headers := make(map[string][]string)
 	if request.Headers != nil {
 		for key, headerList := range request.Headers {
 			if headerList != nil {
-				req.Header[key] = headerList.Values
+				headers[key] = headerList.Values
 			}
 		}
 	}
 
 	// ── Build WS request ────────────────────────────────────────
 	conn, _, err := websocket.Dial(ctx, upstream, &websocket.DialOptions{
-		HTTPHeader: req.Header,
+		HTTPHeader: headers,
 	})
 
 	if err != nil {
@@ -62,6 +62,8 @@ func (c *ConnectorTunnel) handleWebSocketStream(ctx context.Context, stream tran
 		})
 		return
 	}
+	conn.SetReadLimit(16 << 20)
+
 
 	defer conn.Close(websocket.StatusNormalClosure, "connection closed by upstream")
 
@@ -115,7 +117,7 @@ func connectorToTunnel(ctx context.Context, stream transport.Stream, conn *webso
 			return err
 		}
 
-		data, err := io.ReadAll(io.LimitReader(r, 16<<20))
+		data, err := io.ReadAll(r)
 		if err != nil {
 			return err
 		}

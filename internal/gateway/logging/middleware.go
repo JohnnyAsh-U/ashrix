@@ -1,6 +1,9 @@
 package logging
 
 import (
+	"bufio"
+	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -51,6 +54,15 @@ func (lrw *logResponseWriter) Flush() {
 	if f, ok := lrw.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+func (lrw *logResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+    h, ok := lrw.ResponseWriter.(http.Hijacker)
+    if !ok {
+        return nil, nil, fmt.Errorf("underlying ResponseWriter does not support hijacking")
+    }
+
+    return h.Hijack()
 }
 
 // AccessLogMiddleware logs every request. Place it early in the

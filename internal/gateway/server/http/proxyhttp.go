@@ -87,9 +87,9 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 		BodyLength:  r.ContentLength,
 		Headers:     frame.HeadersToProto(r.Header),
 	}
-	fmt.Println("===========================================")
-	fmt.Println(r.Header)
-	fmt.Println("===========================================")
+	// fmt.Println("===========================================")
+	// fmt.Println(r.Header)
+	// fmt.Println("===========================================")
 
 	if err := frame.WriteFrame(stream, proto.FrameType_FRAME_TYPE_HTTP_REQUEST, &envelope); err != nil {
 		h.log.Error("failed to write request header", zap.Error(err))
@@ -110,6 +110,12 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+
+
+
+
+
+	
 	typ, payload, err := frame.ReadFrame(stream)
 
 	if err != nil {

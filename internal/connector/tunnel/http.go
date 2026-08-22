@@ -75,9 +75,9 @@ func (c *ConnectorTunnel) handleHTTPRequest(ctx context.Context,stream transport
 	// Strip headers user should not control
 	// req.Header.Del("X-Forwarded-For")
 	req.Host = "localhost"
-	fmt.Println("===========================================")
-	fmt.Println(req.Header)
-	fmt.Println("===========================================")
+	// fmt.Println("===========================================")
+	// fmt.Println(req.Header)
+	// fmt.Println("===========================================")
 
 
 	// ── Call internal app ─────────────────────────────────────────
