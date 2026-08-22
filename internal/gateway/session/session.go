@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
@@ -28,13 +29,14 @@ var (
 )
 
 type SessionManager struct {
-	redis  *redis.Client
-	ttl    time.Duration
-	secure bool
+	redis          *redis.Client
+	ttl            time.Duration
+	streamRegistry *registry.ActiveStreamRegistry
+	secure         bool
 }
 
-func NewSessionManager(redis *redis.Client, ttl time.Duration, secure bool) *SessionManager {
-	return &SessionManager{redis: redis, ttl: ttl, secure: secure}
+func NewSessionManager(redis *redis.Client, ttl time.Duration, streamRegistry *registry.ActiveStreamRegistry, secure bool) *SessionManager {
+	return &SessionManager{redis: redis, ttl: ttl, streamRegistry: streamRegistry, secure: secure}
 }
 
 func sessionKey(sessionID string) string {
@@ -176,7 +178,7 @@ func (sm *SessionManager) Destroy(w http.ResponseWriter, r *http.Request) error 
 		} else if errors.Is(err, redis.Nil) {
 			// Session already gone.
 		}
-		
+
 	}
 
 	http.SetCookie(w, &http.Cookie{
@@ -220,6 +222,7 @@ func (sm *SessionManager) RevokeByCPSession(
 	pipe := sm.redis.TxPipeline()
 
 	for _, sid := range sessionIDs {
+		sm.streamRegistry.RevokeSession(sid)
 		pipe.Del(
 			ctx,
 			sessionKey(sid),
@@ -245,6 +248,8 @@ func (sm *SessionManager) RevokeGatewaySession(
 	if sessionID == "" {
 		return fmt.Errorf("missing session id")
 	}
+
+	sm.streamRegistry.RevokeSession(sessionID)
 
 	data, err := sm.redis.Get(
 		ctx,

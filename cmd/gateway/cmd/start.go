@@ -199,8 +199,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	//-------------------Session Initializing------------------------
+	activeStreams := registry.NewActiveStreamRegistry()
 
-	sessions := session.NewSessionManager(redisStore.Client(), cfg.SessionTTL, cfg.CookieSecure)
+	sessions := session.NewSessionManager(redisStore.Client(), cfg.SessionTTL, activeStreams, cfg.CookieSecure)
 	log.Info("Session Initialized")
 
 	// 1. Connection Manager
@@ -241,7 +242,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Instantiate new servers
 	grpcServer := grpc.NewGRPCServer(cfg, pki.GetTLSConfig(), log, reg)
 	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log, reg)
-	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), sessions, log, engine)
+	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), sessions, log,activeStreams, engine)
 
 	// Start servers in background
 	go func() {

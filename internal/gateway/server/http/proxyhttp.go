@@ -87,6 +87,9 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 		BodyLength:  r.ContentLength,
 		Headers:     frame.HeadersToProto(r.Header),
 	}
+	fmt.Println("===========================================")
+	fmt.Println(r.Header)
+	fmt.Println("===========================================")
 
 	if err := frame.WriteFrame(stream, proto.FrameType_FRAME_TYPE_HTTP_REQUEST, &envelope); err != nil {
 		h.log.Error("failed to write request header", zap.Error(err))
@@ -95,7 +98,7 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Body != nil {
-		if err := h.copyRequestBody(streamCtx, stream, r.Body); err != nil {
+		if err := h.copyRequestBody(stream, r.Body); err != nil {
 			h.log.Error("failed to write request body", zap.Error(err))
 			// Differentiate between a 413 Payload Too Large and a 502 Stream Error
 			if err.Error() == "request body exceeds limit" {
@@ -153,7 +156,7 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) copyRequestBody(ctx context.Context, dst io.Writer, src io.Reader) error {
+func (h *Handler) copyRequestBody(dst io.Writer, src io.Reader) error {
 
 	reader := io.Reader(src)
 

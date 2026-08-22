@@ -102,6 +102,7 @@ func SecurityHeadersMiddleware(cfg SecurityConfig) func(http.Handler) http.Handl
 			if hsts != "" && r.TLS != nil {
 				w.Header().Set("Strict-Transport-Security", hsts)
 			}
+			// w.Header().Set("Content-")
 
 			// Strip server fingerprint
 			if cfg.StripServerHeader {

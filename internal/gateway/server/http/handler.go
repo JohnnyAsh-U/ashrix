@@ -58,6 +58,7 @@ func (h *Handler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	if isWebSocketRequest(r){
 		h.proxyWebSocket(w, r)
+		return
 	}
 
 	h.proxyHTTP(w, r)
