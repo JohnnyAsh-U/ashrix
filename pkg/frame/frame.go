@@ -12,26 +12,25 @@ import (
 )
 
 const (
-	ProtocolVersion uint8 = 0
 	MaxFrameSize          = 16 << 20 // 16 MiB control frame
 )
 
-type FrameType uint8
+// type FrameType uint8
 
-const (
-	FrameHTTPRequest FrameType = iota + 1
-	FrameHTTPResponse
-	FrameWSOpen
-	FrameWSOpenResponse
-	FrameWSData
-	FrameWSPing
-	FrameWSPong
-	FrameWSClose
-	FrameError
-)
+// const (
+// 	FrameHTTPRequest FrameType = iota + 1
+// 	FrameHTTPResponse
+// 	FrameWSOpen
+// 	FrameWSOpenResponse
+// 	FrameWSData
+// 	FrameWSPing
+// 	FrameWSPong
+// 	FrameWSClose
+// 	FrameError
+// )
 
 
-func WriteFrame(w io.Writer, typ pb.FrameType, payload proto.Message) error {
+func WriteFrame(w io.Writer, payload proto.Message) error {
 
 	data, err := proto.Marshal(payload)
 
@@ -43,10 +42,8 @@ func WriteFrame(w io.Writer, typ pb.FrameType, payload proto.Message) error {
 		return errors.New("frame too large")
 	}
 
-	header := make([]byte, 6)
-	header[0] = ProtocolVersion
-	header[1] = byte(typ)
-	binary.BigEndian.PutUint32(header[2:], uint32(len(data)))
+	header := make([]byte, 4)
+	binary.BigEndian.PutUint32(header[0:], uint32(len(data)))
 
 	if _, err := w.Write(header); err != nil {
 		return fmt.Errorf("write frame header: %w", err)
@@ -60,32 +57,25 @@ func WriteFrame(w io.Writer, typ pb.FrameType, payload proto.Message) error {
 
 }
 
-func ReadFrame(r io.Reader) (FrameType, []byte, error) {
+func ReadFrame(r io.Reader) ([]byte, error) {
 
-	var header [6]byte
+	var header [4]byte
 
 	if _, err := io.ReadFull(r, header[:]); err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
-	if header[0] != ProtocolVersion {
-		return 0, nil, fmt.Errorf("unsupported protocol version %d", header[0])
-
-	}
-
-	typ := FrameType(header[1])
-
-	length := binary.BigEndian.Uint32(header[2:])
+	length := binary.BigEndian.Uint32(header[0:])
 	if length > MaxFrameSize {
-		return 0, nil, errors.New("frame too large")
+		return nil, errors.New("frame too large")
 	}
 
 	payload := make([]byte, length)
 	if _, err := io.ReadFull(r, payload); err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
-	return typ, payload, nil
+	return payload, nil
 }
 
 func DecodeFrame(payload []byte, dst proto.Message) error {

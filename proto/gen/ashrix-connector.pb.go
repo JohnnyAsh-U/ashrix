@@ -23,74 +23,102 @@ const (
 )
 
 // 2. FrameType Enum
-type FrameType int32
+type RequestType int32
 
 const (
-	FrameType_FRAME_TYPE_UNSPECIFIED      FrameType = 0
-	FrameType_FRAME_TYPE_HTTP_REQUEST     FrameType = 1
-	FrameType_FRAME_TYPE_HTTP_RESPONSE    FrameType = 2
-	FrameType_FRAME_TYPE_WS_OPEN          FrameType = 3
-	FrameType_FRAME_TYPE_WS_OPEN_RESPONSE FrameType = 4
-	FrameType_FRAME_TYPE_WS_DATA          FrameType = 5
-	FrameType_FRAME_TYPE_WS_PING          FrameType = 6
-	FrameType_FRAME_TYPE_WS_PONG          FrameType = 7
-	FrameType_FRAME_TYPE_WS_CLOSE         FrameType = 8
-	FrameType_FRAME_TYPE_ERROR            FrameType = 9
+	RequestType_UNSPECIFIED_REQUEST RequestType = 0
+	RequestType_HTTP_REQUEST        RequestType = 1
+	RequestType_WS_REQUEST          RequestType = 3
 )
 
-// Enum value maps for FrameType.
+// Enum value maps for RequestType.
 var (
-	FrameType_name = map[int32]string{
-		0: "FRAME_TYPE_UNSPECIFIED",
-		1: "FRAME_TYPE_HTTP_REQUEST",
-		2: "FRAME_TYPE_HTTP_RESPONSE",
-		3: "FRAME_TYPE_WS_OPEN",
-		4: "FRAME_TYPE_WS_OPEN_RESPONSE",
-		5: "FRAME_TYPE_WS_DATA",
-		6: "FRAME_TYPE_WS_PING",
-		7: "FRAME_TYPE_WS_PONG",
-		8: "FRAME_TYPE_WS_CLOSE",
-		9: "FRAME_TYPE_ERROR",
+	RequestType_name = map[int32]string{
+		0: "UNSPECIFIED_REQUEST",
+		1: "HTTP_REQUEST",
+		3: "WS_REQUEST",
 	}
-	FrameType_value = map[string]int32{
-		"FRAME_TYPE_UNSPECIFIED":      0,
-		"FRAME_TYPE_HTTP_REQUEST":     1,
-		"FRAME_TYPE_HTTP_RESPONSE":    2,
-		"FRAME_TYPE_WS_OPEN":          3,
-		"FRAME_TYPE_WS_OPEN_RESPONSE": 4,
-		"FRAME_TYPE_WS_DATA":          5,
-		"FRAME_TYPE_WS_PING":          6,
-		"FRAME_TYPE_WS_PONG":          7,
-		"FRAME_TYPE_WS_CLOSE":         8,
-		"FRAME_TYPE_ERROR":            9,
+	RequestType_value = map[string]int32{
+		"UNSPECIFIED_REQUEST": 0,
+		"HTTP_REQUEST":        1,
+		"WS_REQUEST":          3,
 	}
 )
 
-func (x FrameType) Enum() *FrameType {
-	p := new(FrameType)
+func (x RequestType) Enum() *RequestType {
+	p := new(RequestType)
 	*p = x
 	return p
 }
 
-func (x FrameType) String() string {
+func (x RequestType) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (FrameType) Descriptor() protoreflect.EnumDescriptor {
+func (RequestType) Descriptor() protoreflect.EnumDescriptor {
 	return file_ashrix_connector_proto_enumTypes[0].Descriptor()
 }
 
-func (FrameType) Type() protoreflect.EnumType {
+func (RequestType) Type() protoreflect.EnumType {
 	return &file_ashrix_connector_proto_enumTypes[0]
 }
 
-func (x FrameType) Number() protoreflect.EnumNumber {
+func (x RequestType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use FrameType.Descriptor instead.
-func (FrameType) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use RequestType.Descriptor instead.
+func (RequestType) EnumDescriptor() ([]byte, []int) {
 	return file_ashrix_connector_proto_rawDescGZIP(), []int{0}
+}
+
+type FlowType int32
+
+const (
+	FlowType_UNSPECIFIED_TYPE FlowType = 0
+	FlowType_APP_TO_APP       FlowType = 1
+	FlowType_USER_TO_APP      FlowType = 2
+)
+
+// Enum value maps for FlowType.
+var (
+	FlowType_name = map[int32]string{
+		0: "UNSPECIFIED_TYPE",
+		1: "APP_TO_APP",
+		2: "USER_TO_APP",
+	}
+	FlowType_value = map[string]int32{
+		"UNSPECIFIED_TYPE": 0,
+		"APP_TO_APP":       1,
+		"USER_TO_APP":      2,
+	}
+)
+
+func (x FlowType) Enum() *FlowType {
+	p := new(FlowType)
+	*p = x
+	return p
+}
+
+func (x FlowType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FlowType) Descriptor() protoreflect.EnumDescriptor {
+	return file_ashrix_connector_proto_enumTypes[1].Descriptor()
+}
+
+func (FlowType) Type() protoreflect.EnumType {
+	return &file_ashrix_connector_proto_enumTypes[1]
+}
+
+func (x FlowType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FlowType.Descriptor instead.
+func (FlowType) EnumDescriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{1}
 }
 
 type ConnectorEnrollRequest struct {
@@ -525,304 +553,6 @@ func (x *ConnectorApps) GetIsPublic() bool {
 	return false
 }
 
-type TunnelChunk struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Payload:
-	//
-	//	*TunnelChunk_Ready
-	//	*TunnelChunk_ReqHeader
-	//	*TunnelChunk_BodyChunk
-	//	*TunnelChunk_ResHeader
-	//	*TunnelChunk_EndStream
-	Payload       isTunnelChunk_Payload `protobuf_oneof:"payload"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TunnelChunk) Reset() {
-	*x = TunnelChunk{}
-	mi := &file_ashrix_connector_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TunnelChunk) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TunnelChunk) ProtoMessage() {}
-
-func (x *TunnelChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TunnelChunk.ProtoReflect.Descriptor instead.
-func (*TunnelChunk) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *TunnelChunk) GetPayload() isTunnelChunk_Payload {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-func (x *TunnelChunk) GetReady() bool {
-	if x != nil {
-		if x, ok := x.Payload.(*TunnelChunk_Ready); ok {
-			return x.Ready
-		}
-	}
-	return false
-}
-
-func (x *TunnelChunk) GetReqHeader() *RequestHeader {
-	if x != nil {
-		if x, ok := x.Payload.(*TunnelChunk_ReqHeader); ok {
-			return x.ReqHeader
-		}
-	}
-	return nil
-}
-
-func (x *TunnelChunk) GetBodyChunk() []byte {
-	if x != nil {
-		if x, ok := x.Payload.(*TunnelChunk_BodyChunk); ok {
-			return x.BodyChunk
-		}
-	}
-	return nil
-}
-
-func (x *TunnelChunk) GetResHeader() *ResponseHeader {
-	if x != nil {
-		if x, ok := x.Payload.(*TunnelChunk_ResHeader); ok {
-			return x.ResHeader
-		}
-	}
-	return nil
-}
-
-func (x *TunnelChunk) GetEndStream() bool {
-	if x != nil {
-		if x, ok := x.Payload.(*TunnelChunk_EndStream); ok {
-			return x.EndStream
-		}
-	}
-	return false
-}
-
-type isTunnelChunk_Payload interface {
-	isTunnelChunk_Payload()
-}
-
-type TunnelChunk_Ready struct {
-	Ready bool `protobuf:"varint,1,opt,name=ready,proto3,oneof"`
-}
-
-type TunnelChunk_ReqHeader struct {
-	ReqHeader *RequestHeader `protobuf:"bytes,2,opt,name=req_header,json=reqHeader,proto3,oneof"`
-}
-
-type TunnelChunk_BodyChunk struct {
-	BodyChunk []byte `protobuf:"bytes,3,opt,name=body_chunk,json=bodyChunk,proto3,oneof"`
-}
-
-type TunnelChunk_ResHeader struct {
-	ResHeader *ResponseHeader `protobuf:"bytes,4,opt,name=res_header,json=resHeader,proto3,oneof"`
-}
-
-type TunnelChunk_EndStream struct {
-	EndStream bool `protobuf:"varint,5,opt,name=end_stream,json=endStream,proto3,oneof"`
-}
-
-func (*TunnelChunk_Ready) isTunnelChunk_Payload() {}
-
-func (*TunnelChunk_ReqHeader) isTunnelChunk_Payload() {}
-
-func (*TunnelChunk_BodyChunk) isTunnelChunk_Payload() {}
-
-func (*TunnelChunk_ResHeader) isTunnelChunk_Payload() {}
-
-func (*TunnelChunk_EndStream) isTunnelChunk_Payload() {}
-
-type RequestHeader struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AppId         string                 `protobuf:"bytes,1,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	SessionId     string                 `protobuf:"bytes,10,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Method        string                 `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`
-	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
-	Query         string                 `protobuf:"bytes,4,opt,name=query,proto3" json:"query,omitempty"`
-	Headers       map[string]string      `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	UserId        string                 `protobuf:"bytes,6,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	UserEmail     string                 `protobuf:"bytes,7,opt,name=user_email,json=userEmail,proto3" json:"user_email,omitempty"`
-	RequestId     string                 `protobuf:"bytes,8,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	BodyLength    int64                  `protobuf:"varint,9,opt,name=body_length,json=bodyLength,proto3" json:"body_length,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RequestHeader) Reset() {
-	*x = RequestHeader{}
-	mi := &file_ashrix_connector_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RequestHeader) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RequestHeader) ProtoMessage() {}
-
-func (x *RequestHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RequestHeader.ProtoReflect.Descriptor instead.
-func (*RequestHeader) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *RequestHeader) GetAppId() string {
-	if x != nil {
-		return x.AppId
-	}
-	return ""
-}
-
-func (x *RequestHeader) GetSessionId() string {
-	if x != nil {
-		return x.SessionId
-	}
-	return ""
-}
-
-func (x *RequestHeader) GetMethod() string {
-	if x != nil {
-		return x.Method
-	}
-	return ""
-}
-
-func (x *RequestHeader) GetPath() string {
-	if x != nil {
-		return x.Path
-	}
-	return ""
-}
-
-func (x *RequestHeader) GetQuery() string {
-	if x != nil {
-		return x.Query
-	}
-	return ""
-}
-
-func (x *RequestHeader) GetHeaders() map[string]string {
-	if x != nil {
-		return x.Headers
-	}
-	return nil
-}
-
-func (x *RequestHeader) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *RequestHeader) GetUserEmail() string {
-	if x != nil {
-		return x.UserEmail
-	}
-	return ""
-}
-
-func (x *RequestHeader) GetRequestId() string {
-	if x != nil {
-		return x.RequestId
-	}
-	return ""
-}
-
-func (x *RequestHeader) GetBodyLength() int64 {
-	if x != nil {
-		return x.BodyLength
-	}
-	return 0
-}
-
-type ResponseHeader struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	StatusCode    int32                  `protobuf:"varint,1,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
-	Headers       map[string]string      `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResponseHeader) Reset() {
-	*x = ResponseHeader{}
-	mi := &file_ashrix_connector_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResponseHeader) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResponseHeader) ProtoMessage() {}
-
-func (x *ResponseHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResponseHeader.ProtoReflect.Descriptor instead.
-func (*ResponseHeader) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *ResponseHeader) GetStatusCode() int32 {
-	if x != nil {
-		return x.StatusCode
-	}
-	return 0
-}
-
-func (x *ResponseHeader) GetHeaders() map[string]string {
-	if x != nil {
-		return x.Headers
-	}
-	return nil
-}
-
 // 1. Wrapper for map[string][]string
 type HeaderList struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -833,7 +563,7 @@ type HeaderList struct {
 
 func (x *HeaderList) Reset() {
 	*x = HeaderList{}
-	mi := &file_ashrix_connector_proto_msgTypes[9]
+	mi := &file_ashrix_connector_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -845,7 +575,7 @@ func (x *HeaderList) String() string {
 func (*HeaderList) ProtoMessage() {}
 
 func (x *HeaderList) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[9]
+	mi := &file_ashrix_connector_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -858,7 +588,7 @@ func (x *HeaderList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeaderList.ProtoReflect.Descriptor instead.
 func (*HeaderList) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{9}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *HeaderList) GetValues() []string {
@@ -868,7 +598,7 @@ func (x *HeaderList) GetValues() []string {
 	return nil
 }
 
-type HTTPRequest struct {
+type StreamFrame struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
@@ -883,25 +613,27 @@ type HTTPRequest struct {
 	Query         string                 `protobuf:"bytes,11,opt,name=query,proto3" json:"query,omitempty"`
 	Headers       map[string]*HeaderList `protobuf:"bytes,12,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	BodyLength    int64                  `protobuf:"varint,13,opt,name=body_length,json=bodyLength,proto3" json:"body_length,omitempty"`
+	StreamType    RequestType            `protobuf:"varint,14,opt,name=stream_type,json=streamType,proto3,enum=proto.RequestType" json:"stream_type,omitempty"`
+	FlowType      FlowType               `protobuf:"varint,15,opt,name=flow_type,json=flowType,proto3,enum=proto.FlowType" json:"flow_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *HTTPRequest) Reset() {
-	*x = HTTPRequest{}
-	mi := &file_ashrix_connector_proto_msgTypes[10]
+func (x *StreamFrame) Reset() {
+	*x = StreamFrame{}
+	mi := &file_ashrix_connector_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *HTTPRequest) String() string {
+func (x *StreamFrame) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*HTTPRequest) ProtoMessage() {}
+func (*StreamFrame) ProtoMessage() {}
 
-func (x *HTTPRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[10]
+func (x *StreamFrame) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_connector_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -912,604 +644,115 @@ func (x *HTTPRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HTTPRequest.ProtoReflect.Descriptor instead.
-func (*HTTPRequest) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{10}
+// Deprecated: Use StreamFrame.ProtoReflect.Descriptor instead.
+func (*StreamFrame) Descriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *HTTPRequest) GetRequestId() string {
+func (x *StreamFrame) GetRequestId() string {
 	if x != nil {
 		return x.RequestId
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetSessionId() string {
+func (x *StreamFrame) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetTenantId() string {
+func (x *StreamFrame) GetTenantId() string {
 	if x != nil {
 		return x.TenantId
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetUserId() string {
+func (x *StreamFrame) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetUserEmail() string {
+func (x *StreamFrame) GetUserEmail() string {
 	if x != nil {
 		return x.UserEmail
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetConnectorId() string {
+func (x *StreamFrame) GetConnectorId() string {
 	if x != nil {
 		return x.ConnectorId
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetAppId() string {
+func (x *StreamFrame) GetAppId() string {
 	if x != nil {
 		return x.AppId
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetMethod() string {
+func (x *StreamFrame) GetMethod() string {
 	if x != nil {
 		return x.Method
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetHost() string {
+func (x *StreamFrame) GetHost() string {
 	if x != nil {
 		return x.Host
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetPath() string {
+func (x *StreamFrame) GetPath() string {
 	if x != nil {
 		return x.Path
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetQuery() string {
+func (x *StreamFrame) GetQuery() string {
 	if x != nil {
 		return x.Query
 	}
 	return ""
 }
 
-func (x *HTTPRequest) GetHeaders() map[string]*HeaderList {
+func (x *StreamFrame) GetHeaders() map[string]*HeaderList {
 	if x != nil {
 		return x.Headers
 	}
 	return nil
 }
 
-func (x *HTTPRequest) GetBodyLength() int64 {
+func (x *StreamFrame) GetBodyLength() int64 {
 	if x != nil {
 		return x.BodyLength
 	}
 	return 0
 }
 
-type HTTPResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	StatusCode    int32                  `protobuf:"varint,2,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
-	Headers       map[string]*HeaderList `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	BodyLength    int64                  `protobuf:"varint,4,opt,name=body_length,json=bodyLength,proto3" json:"body_length,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *HTTPResponse) Reset() {
-	*x = HTTPResponse{}
-	mi := &file_ashrix_connector_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *HTTPResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*HTTPResponse) ProtoMessage() {}
-
-func (x *HTTPResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[11]
+func (x *StreamFrame) GetStreamType() RequestType {
 	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+		return x.StreamType
 	}
-	return mi.MessageOf(x)
+	return RequestType_UNSPECIFIED_REQUEST
 }
 
-// Deprecated: Use HTTPResponse.ProtoReflect.Descriptor instead.
-func (*HTTPResponse) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *HTTPResponse) GetRequestId() string {
+func (x *StreamFrame) GetFlowType() FlowType {
 	if x != nil {
-		return x.RequestId
+		return x.FlowType
 	}
-	return ""
+	return FlowType_UNSPECIFIED_TYPE
 }
-
-func (x *HTTPResponse) GetStatusCode() int32 {
-	if x != nil {
-		return x.StatusCode
-	}
-	return 0
-}
-
-func (x *HTTPResponse) GetHeaders() map[string]*HeaderList {
-	if x != nil {
-		return x.Headers
-	}
-	return nil
-}
-
-func (x *HTTPResponse) GetBodyLength() int64 {
-	if x != nil {
-		return x.BodyLength
-	}
-	return 0
-}
-
-type WSOpen struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	TenantId      string                 `protobuf:"bytes,3,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	ConnectorId   string                 `protobuf:"bytes,5,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
-	AppId         string                 `protobuf:"bytes,6,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	Host          string                 `protobuf:"bytes,7,opt,name=host,proto3" json:"host,omitempty"`
-	Path          string                 `protobuf:"bytes,8,opt,name=path,proto3" json:"path,omitempty"`
-	Query         string                 `protobuf:"bytes,9,opt,name=query,proto3" json:"query,omitempty"`
-	Headers       map[string]*HeaderList `protobuf:"bytes,10,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *WSOpen) Reset() {
-	*x = WSOpen{}
-	mi := &file_ashrix_connector_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *WSOpen) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*WSOpen) ProtoMessage() {}
-
-func (x *WSOpen) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WSOpen.ProtoReflect.Descriptor instead.
-func (*WSOpen) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *WSOpen) GetRequestId() string {
-	if x != nil {
-		return x.RequestId
-	}
-	return ""
-}
-
-func (x *WSOpen) GetSessionId() string {
-	if x != nil {
-		return x.SessionId
-	}
-	return ""
-}
-
-func (x *WSOpen) GetTenantId() string {
-	if x != nil {
-		return x.TenantId
-	}
-	return ""
-}
-
-func (x *WSOpen) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *WSOpen) GetConnectorId() string {
-	if x != nil {
-		return x.ConnectorId
-	}
-	return ""
-}
-
-func (x *WSOpen) GetAppId() string {
-	if x != nil {
-		return x.AppId
-	}
-	return ""
-}
-
-func (x *WSOpen) GetHost() string {
-	if x != nil {
-		return x.Host
-	}
-	return ""
-}
-
-func (x *WSOpen) GetPath() string {
-	if x != nil {
-		return x.Path
-	}
-	return ""
-}
-
-func (x *WSOpen) GetQuery() string {
-	if x != nil {
-		return x.Query
-	}
-	return ""
-}
-
-func (x *WSOpen) GetHeaders() map[string]*HeaderList {
-	if x != nil {
-		return x.Headers
-	}
-	return nil
-}
-
-type WSOpenResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	StatusCode    int32                  `protobuf:"varint,2,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
-	Headers       map[string]*HeaderList `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *WSOpenResponse) Reset() {
-	*x = WSOpenResponse{}
-	mi := &file_ashrix_connector_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *WSOpenResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*WSOpenResponse) ProtoMessage() {}
-
-func (x *WSOpenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WSOpenResponse.ProtoReflect.Descriptor instead.
-func (*WSOpenResponse) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{13}
-}
-
-func (x *WSOpenResponse) GetRequestId() string {
-	if x != nil {
-		return x.RequestId
-	}
-	return ""
-}
-
-func (x *WSOpenResponse) GetStatusCode() int32 {
-	if x != nil {
-		return x.StatusCode
-	}
-	return 0
-}
-
-func (x *WSOpenResponse) GetHeaders() map[string]*HeaderList {
-	if x != nil {
-		return x.Headers
-	}
-	return nil
-}
-
-type WSData struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MessageType   int32                  `protobuf:"varint,1,opt,name=message_type,json=messageType,proto3" json:"message_type,omitempty"`
-	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *WSData) Reset() {
-	*x = WSData{}
-	mi := &file_ashrix_connector_proto_msgTypes[14]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *WSData) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*WSData) ProtoMessage() {}
-
-func (x *WSData) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[14]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WSData.ProtoReflect.Descriptor instead.
-func (*WSData) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{14}
-}
-
-func (x *WSData) GetMessageType() int32 {
-	if x != nil {
-		return x.MessageType
-	}
-	return 0
-}
-
-func (x *WSData) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
-type WSClose struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          int32                  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
-	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *WSClose) Reset() {
-	*x = WSClose{}
-	mi := &file_ashrix_connector_proto_msgTypes[15]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *WSClose) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*WSClose) ProtoMessage() {}
-
-func (x *WSClose) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[15]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WSClose.ProtoReflect.Descriptor instead.
-func (*WSClose) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{15}
-}
-
-func (x *WSClose) GetCode() int32 {
-	if x != nil {
-		return x.Code
-	}
-	return 0
-}
-
-func (x *WSClose) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-type Frame struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// You can still keep a version field if you like
-	Version uint32 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
-	// Types that are valid to be assigned to Payload:
-	//
-	//	*Frame_HttpRequest
-	//	*Frame_HttpResponse
-	//	*Frame_WsOpen
-	//	*Frame_WsOpenResponse
-	//	*Frame_WsData
-	//	*Frame_WsClose
-	Payload       isFrame_Payload `protobuf_oneof:"payload"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Frame) Reset() {
-	*x = Frame{}
-	mi := &file_ashrix_connector_proto_msgTypes[16]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Frame) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Frame) ProtoMessage() {}
-
-func (x *Frame) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[16]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Frame.ProtoReflect.Descriptor instead.
-func (*Frame) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *Frame) GetVersion() uint32 {
-	if x != nil {
-		return x.Version
-	}
-	return 0
-}
-
-func (x *Frame) GetPayload() isFrame_Payload {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-func (x *Frame) GetHttpRequest() *HTTPRequest {
-	if x != nil {
-		if x, ok := x.Payload.(*Frame_HttpRequest); ok {
-			return x.HttpRequest
-		}
-	}
-	return nil
-}
-
-func (x *Frame) GetHttpResponse() *HTTPResponse {
-	if x != nil {
-		if x, ok := x.Payload.(*Frame_HttpResponse); ok {
-			return x.HttpResponse
-		}
-	}
-	return nil
-}
-
-func (x *Frame) GetWsOpen() *WSOpen {
-	if x != nil {
-		if x, ok := x.Payload.(*Frame_WsOpen); ok {
-			return x.WsOpen
-		}
-	}
-	return nil
-}
-
-func (x *Frame) GetWsOpenResponse() *WSOpenResponse {
-	if x != nil {
-		if x, ok := x.Payload.(*Frame_WsOpenResponse); ok {
-			return x.WsOpenResponse
-		}
-	}
-	return nil
-}
-
-func (x *Frame) GetWsData() *WSData {
-	if x != nil {
-		if x, ok := x.Payload.(*Frame_WsData); ok {
-			return x.WsData
-		}
-	}
-	return nil
-}
-
-func (x *Frame) GetWsClose() *WSClose {
-	if x != nil {
-		if x, ok := x.Payload.(*Frame_WsClose); ok {
-			return x.WsClose
-		}
-	}
-	return nil
-}
-
-type isFrame_Payload interface {
-	isFrame_Payload()
-}
-
-type Frame_HttpRequest struct {
-	HttpRequest *HTTPRequest `protobuf:"bytes,2,opt,name=http_request,json=httpRequest,proto3,oneof"`
-}
-
-type Frame_HttpResponse struct {
-	HttpResponse *HTTPResponse `protobuf:"bytes,3,opt,name=http_response,json=httpResponse,proto3,oneof"`
-}
-
-type Frame_WsOpen struct {
-	WsOpen *WSOpen `protobuf:"bytes,4,opt,name=ws_open,json=wsOpen,proto3,oneof"`
-}
-
-type Frame_WsOpenResponse struct {
-	WsOpenResponse *WSOpenResponse `protobuf:"bytes,5,opt,name=ws_open_response,json=wsOpenResponse,proto3,oneof"`
-}
-
-type Frame_WsData struct {
-	WsData *WSData `protobuf:"bytes,6,opt,name=ws_data,json=wsData,proto3,oneof"`
-}
-
-type Frame_WsClose struct {
-	WsClose *WSClose `protobuf:"bytes,7,opt,name=ws_close,json=wsClose,proto3,oneof"` // Error / Ping / Pong can be empty messages or enums
-}
-
-func (*Frame_HttpRequest) isFrame_Payload() {}
-
-func (*Frame_HttpResponse) isFrame_Payload() {}
-
-func (*Frame_WsOpen) isFrame_Payload() {}
-
-func (*Frame_WsOpenResponse) isFrame_Payload() {}
-
-func (*Frame_WsData) isFrame_Payload() {}
-
-func (*Frame_WsClose) isFrame_Payload() {}
 
 type ConnectorGatewayEnvelope struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
@@ -1526,7 +769,7 @@ type ConnectorGatewayEnvelope struct {
 
 func (x *ConnectorGatewayEnvelope) Reset() {
 	*x = ConnectorGatewayEnvelope{}
-	mi := &file_ashrix_connector_proto_msgTypes[17]
+	mi := &file_ashrix_connector_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1538,7 +781,7 @@ func (x *ConnectorGatewayEnvelope) String() string {
 func (*ConnectorGatewayEnvelope) ProtoMessage() {}
 
 func (x *ConnectorGatewayEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[17]
+	mi := &file_ashrix_connector_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1551,7 +794,7 @@ func (x *ConnectorGatewayEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorGatewayEnvelope.ProtoReflect.Descriptor instead.
 func (*ConnectorGatewayEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{17}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ConnectorGatewayEnvelope) GetConnectorId() string {
@@ -1623,7 +866,7 @@ type GatewayConnectorEnvelope struct {
 
 func (x *GatewayConnectorEnvelope) Reset() {
 	*x = GatewayConnectorEnvelope{}
-	mi := &file_ashrix_connector_proto_msgTypes[18]
+	mi := &file_ashrix_connector_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1635,7 +878,7 @@ func (x *GatewayConnectorEnvelope) String() string {
 func (*GatewayConnectorEnvelope) ProtoMessage() {}
 
 func (x *GatewayConnectorEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[18]
+	mi := &file_ashrix_connector_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1648,7 +891,7 @@ func (x *GatewayConnectorEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayConnectorEnvelope.ProtoReflect.Descriptor instead.
 func (*GatewayConnectorEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{18}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GatewayConnectorEnvelope) GetPayload() isGatewayConnectorEnvelope_Payload {
@@ -1717,7 +960,7 @@ type ConnectorCmd struct {
 
 func (x *ConnectorCmd) Reset() {
 	*x = ConnectorCmd{}
-	mi := &file_ashrix_connector_proto_msgTypes[19]
+	mi := &file_ashrix_connector_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1729,7 +972,7 @@ func (x *ConnectorCmd) String() string {
 func (*ConnectorCmd) ProtoMessage() {}
 
 func (x *ConnectorCmd) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[19]
+	mi := &file_ashrix_connector_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1742,7 +985,7 @@ func (x *ConnectorCmd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorCmd.ProtoReflect.Descriptor instead.
 func (*ConnectorCmd) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{19}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ConnectorCmd) GetCmd() string {
@@ -1772,7 +1015,7 @@ type ConnectorHello struct {
 
 func (x *ConnectorHello) Reset() {
 	*x = ConnectorHello{}
-	mi := &file_ashrix_connector_proto_msgTypes[20]
+	mi := &file_ashrix_connector_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1784,7 +1027,7 @@ func (x *ConnectorHello) String() string {
 func (*ConnectorHello) ProtoMessage() {}
 
 func (x *ConnectorHello) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[20]
+	mi := &file_ashrix_connector_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1797,7 +1040,7 @@ func (x *ConnectorHello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorHello.ProtoReflect.Descriptor instead.
 func (*ConnectorHello) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{20}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ConnectorHello) GetConnectorId() string {
@@ -1848,7 +1091,7 @@ type ConnectorHeartbeat struct {
 
 func (x *ConnectorHeartbeat) Reset() {
 	*x = ConnectorHeartbeat{}
-	mi := &file_ashrix_connector_proto_msgTypes[21]
+	mi := &file_ashrix_connector_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1860,7 +1103,7 @@ func (x *ConnectorHeartbeat) String() string {
 func (*ConnectorHeartbeat) ProtoMessage() {}
 
 func (x *ConnectorHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[21]
+	mi := &file_ashrix_connector_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1873,7 +1116,7 @@ func (x *ConnectorHeartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorHeartbeat.ProtoReflect.Descriptor instead.
 func (*ConnectorHeartbeat) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{21}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ConnectorHeartbeat) GetSeq() int64 {
@@ -1921,7 +1164,7 @@ type ConnectorHelloAck struct {
 
 func (x *ConnectorHelloAck) Reset() {
 	*x = ConnectorHelloAck{}
-	mi := &file_ashrix_connector_proto_msgTypes[22]
+	mi := &file_ashrix_connector_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1933,7 +1176,7 @@ func (x *ConnectorHelloAck) String() string {
 func (*ConnectorHelloAck) ProtoMessage() {}
 
 func (x *ConnectorHelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[22]
+	mi := &file_ashrix_connector_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1946,7 +1189,7 @@ func (x *ConnectorHelloAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorHelloAck.ProtoReflect.Descriptor instead.
 func (*ConnectorHelloAck) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{22}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ConnectorHelloAck) GetSessionId() string {
@@ -1974,7 +1217,7 @@ type ConnectorReject struct {
 
 func (x *ConnectorReject) Reset() {
 	*x = ConnectorReject{}
-	mi := &file_ashrix_connector_proto_msgTypes[23]
+	mi := &file_ashrix_connector_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1986,7 +1229,7 @@ func (x *ConnectorReject) String() string {
 func (*ConnectorReject) ProtoMessage() {}
 
 func (x *ConnectorReject) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_connector_proto_msgTypes[23]
+	mi := &file_ashrix_connector_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1999,7 +1242,7 @@ func (x *ConnectorReject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorReject.ProtoReflect.Descriptor instead.
 func (*ConnectorReject) Descriptor() ([]byte, []int) {
-	return file_ashrix_connector_proto_rawDescGZIP(), []int{23}
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ConnectorReject) GetReason() string {
@@ -2065,48 +1308,11 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\tsubdomain\x18\x03 \x01(\tR\tsubdomain\x12\x1a\n" +
 	"\bupstream\x18\x04 \x01(\tR\bupstream\x12\x1a\n" +
 	"\bprotocol\x18\x05 \x01(\tR\bprotocol\x12\x1b\n" +
-	"\tis_public\x18\x06 \x01(\bR\bisPublic\"\xe1\x01\n" +
-	"\vTunnelChunk\x12\x16\n" +
-	"\x05ready\x18\x01 \x01(\bH\x00R\x05ready\x125\n" +
-	"\n" +
-	"req_header\x18\x02 \x01(\v2\x14.proto.RequestHeaderH\x00R\treqHeader\x12\x1f\n" +
-	"\n" +
-	"body_chunk\x18\x03 \x01(\fH\x00R\tbodyChunk\x126\n" +
-	"\n" +
-	"res_header\x18\x04 \x01(\v2\x15.proto.ResponseHeaderH\x00R\tresHeader\x12\x1f\n" +
-	"\n" +
-	"end_stream\x18\x05 \x01(\bH\x00R\tendStreamB\t\n" +
-	"\apayload\"\xf8\x02\n" +
-	"\rRequestHeader\x12\x15\n" +
-	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12\x1d\n" +
-	"\n" +
-	"session_id\x18\n" +
-	" \x01(\tR\tsessionId\x12\x16\n" +
-	"\x06method\x18\x02 \x01(\tR\x06method\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path\x12\x14\n" +
-	"\x05query\x18\x04 \x01(\tR\x05query\x12;\n" +
-	"\aheaders\x18\x05 \x03(\v2!.proto.RequestHeader.HeadersEntryR\aheaders\x12\x17\n" +
-	"\auser_id\x18\x06 \x01(\tR\x06userId\x12\x1d\n" +
-	"\n" +
-	"user_email\x18\a \x01(\tR\tuserEmail\x12\x1d\n" +
-	"\n" +
-	"request_id\x18\b \x01(\tR\trequestId\x12\x1f\n" +
-	"\vbody_length\x18\t \x01(\x03R\n" +
-	"bodyLength\x1a:\n" +
-	"\fHeadersEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xab\x01\n" +
-	"\x0eResponseHeader\x12\x1f\n" +
-	"\vstatus_code\x18\x01 \x01(\x05R\n" +
-	"statusCode\x12<\n" +
-	"\aheaders\x18\x02 \x03(\v2\".proto.ResponseHeader.HeadersEntryR\aheaders\x1a:\n" +
-	"\fHeadersEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"$\n" +
+	"\tis_public\x18\x06 \x01(\bR\bisPublic\"$\n" +
 	"\n" +
 	"HeaderList\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\tR\x06values\"\xdb\x03\n" +
-	"\vHTTPRequest\x12\x1d\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\"\xbe\x04\n" +
+	"\vStreamFrame\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1d\n" +
 	"\n" +
@@ -2122,64 +1328,15 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\x04path\x18\n" +
 	" \x01(\tR\x04path\x12\x14\n" +
 	"\x05query\x18\v \x01(\tR\x05query\x129\n" +
-	"\aheaders\x18\f \x03(\v2\x1f.proto.HTTPRequest.HeadersEntryR\aheaders\x12\x1f\n" +
+	"\aheaders\x18\f \x03(\v2\x1f.proto.StreamFrame.HeadersEntryR\aheaders\x12\x1f\n" +
 	"\vbody_length\x18\r \x01(\x03R\n" +
-	"bodyLength\x1aM\n" +
+	"bodyLength\x123\n" +
+	"\vstream_type\x18\x0e \x01(\x0e2\x12.proto.RequestTypeR\n" +
+	"streamType\x12,\n" +
+	"\tflow_type\x18\x0f \x01(\x0e2\x0f.proto.FlowTypeR\bflowType\x1aM\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12'\n" +
-	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01\"\xfa\x01\n" +
-	"\fHTTPResponse\x12\x1d\n" +
-	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1f\n" +
-	"\vstatus_code\x18\x02 \x01(\x05R\n" +
-	"statusCode\x12:\n" +
-	"\aheaders\x18\x03 \x03(\v2 .proto.HTTPResponse.HeadersEntryR\aheaders\x12\x1f\n" +
-	"\vbody_length\x18\x04 \x01(\x03R\n" +
-	"bodyLength\x1aM\n" +
-	"\fHeadersEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12'\n" +
-	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01\"\xf9\x02\n" +
-	"\x06WSOpen\x12\x1d\n" +
-	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1d\n" +
-	"\n" +
-	"session_id\x18\x02 \x01(\tR\tsessionId\x12\x1b\n" +
-	"\ttenant_id\x18\x03 \x01(\tR\btenantId\x12\x17\n" +
-	"\auser_id\x18\x04 \x01(\tR\x06userId\x12!\n" +
-	"\fconnector_id\x18\x05 \x01(\tR\vconnectorId\x12\x15\n" +
-	"\x06app_id\x18\x06 \x01(\tR\x05appId\x12\x12\n" +
-	"\x04host\x18\a \x01(\tR\x04host\x12\x12\n" +
-	"\x04path\x18\b \x01(\tR\x04path\x12\x14\n" +
-	"\x05query\x18\t \x01(\tR\x05query\x124\n" +
-	"\aheaders\x18\n" +
-	" \x03(\v2\x1a.proto.WSOpen.HeadersEntryR\aheaders\x1aM\n" +
-	"\fHeadersEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12'\n" +
-	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01\"\xdd\x01\n" +
-	"\x0eWSOpenResponse\x12\x1d\n" +
-	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1f\n" +
-	"\vstatus_code\x18\x02 \x01(\x05R\n" +
-	"statusCode\x12<\n" +
-	"\aheaders\x18\x03 \x03(\v2\".proto.WSOpenResponse.HeadersEntryR\aheaders\x1aM\n" +
-	"\fHeadersEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12'\n" +
-	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01\"?\n" +
-	"\x06WSData\x12!\n" +
-	"\fmessage_type\x18\x01 \x01(\x05R\vmessageType\x12\x12\n" +
-	"\x04data\x18\x02 \x01(\fR\x04data\"5\n" +
-	"\aWSClose\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xe5\x02\n" +
-	"\x05Frame\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\rR\aversion\x127\n" +
-	"\fhttp_request\x18\x02 \x01(\v2\x12.proto.HTTPRequestH\x00R\vhttpRequest\x12:\n" +
-	"\rhttp_response\x18\x03 \x01(\v2\x13.proto.HTTPResponseH\x00R\fhttpResponse\x12(\n" +
-	"\aws_open\x18\x04 \x01(\v2\r.proto.WSOpenH\x00R\x06wsOpen\x12A\n" +
-	"\x10ws_open_response\x18\x05 \x01(\v2\x15.proto.WSOpenResponseH\x00R\x0ewsOpenResponse\x12(\n" +
-	"\aws_data\x18\x06 \x01(\v2\r.proto.WSDataH\x00R\x06wsData\x12+\n" +
-	"\bws_close\x18\a \x01(\v2\x0e.proto.WSCloseH\x00R\awsCloseB\t\n" +
-	"\apayload\"\xe7\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01\"\xe7\x01\n" +
 	"\x18ConnectorGatewayEnvelope\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x123\n" +
 	"\asent_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06sentAt\x12-\n" +
@@ -2213,20 +1370,17 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\x0fConnectorReject\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x1c\n" +
-	"\tpermanent\x18\x03 \x01(\bR\tpermanent*\x92\x02\n" +
-	"\tFrameType\x12\x1a\n" +
-	"\x16FRAME_TYPE_UNSPECIFIED\x10\x00\x12\x1b\n" +
-	"\x17FRAME_TYPE_HTTP_REQUEST\x10\x01\x12\x1c\n" +
-	"\x18FRAME_TYPE_HTTP_RESPONSE\x10\x02\x12\x16\n" +
-	"\x12FRAME_TYPE_WS_OPEN\x10\x03\x12\x1f\n" +
-	"\x1bFRAME_TYPE_WS_OPEN_RESPONSE\x10\x04\x12\x16\n" +
-	"\x12FRAME_TYPE_WS_DATA\x10\x05\x12\x16\n" +
-	"\x12FRAME_TYPE_WS_PING\x10\x06\x12\x16\n" +
-	"\x12FRAME_TYPE_WS_PONG\x10\a\x12\x17\n" +
-	"\x13FRAME_TYPE_WS_CLOSE\x10\b\x12\x14\n" +
-	"\x10FRAME_TYPE_ERROR\x10\t2E\n" +
-	"\rTunnelService\x124\n" +
-	"\x06Tunnel\x12\x12.proto.TunnelChunk\x1a\x12.proto.TunnelChunk(\x010\x012c\n" +
+	"\tpermanent\x18\x03 \x01(\bR\tpermanent*H\n" +
+	"\vRequestType\x12\x17\n" +
+	"\x13UNSPECIFIED_REQUEST\x10\x00\x12\x10\n" +
+	"\fHTTP_REQUEST\x10\x01\x12\x0e\n" +
+	"\n" +
+	"WS_REQUEST\x10\x03*A\n" +
+	"\bFlowType\x12\x14\n" +
+	"\x10UNSPECIFIED_TYPE\x10\x00\x12\x0e\n" +
+	"\n" +
+	"APP_TO_APP\x10\x01\x12\x0f\n" +
+	"\vUSER_TO_APP\x10\x022c\n" +
 	"\x10ConnectorService\x12O\n" +
 	"\aConnect\x12\x1f.proto.ConnectorGatewayEnvelope\x1a\x1f.proto.GatewayConnectorEnvelope(\x010\x01BFZDgithub.com/JohnnyAsh-U/ashrix-api/proto/ashrix-connector.proto;protob\x06proto3"
 
@@ -2242,82 +1396,53 @@ func file_ashrix_connector_proto_rawDescGZIP() []byte {
 	return file_ashrix_connector_proto_rawDescData
 }
 
-var file_ashrix_connector_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_ashrix_connector_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_ashrix_connector_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_ashrix_connector_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_ashrix_connector_proto_goTypes = []any{
-	(FrameType)(0),                     // 0: proto.FrameType
-	(*ConnectorEnrollRequest)(nil),     // 1: proto.ConnectorEnrollRequest
-	(*ConnectorEnrollResponse)(nil),    // 2: proto.ConnectorEnrollResponse
-	(*ConnectorRenewCertRequest)(nil),  // 3: proto.ConnectorRenewCertRequest
-	(*ConnectorRenewCertResponse)(nil), // 4: proto.ConnectorRenewCertResponse
-	(*ConnectorStatusResponse)(nil),    // 5: proto.ConnectorStatusResponse
-	(*ConnectorApps)(nil),              // 6: proto.ConnectorApps
-	(*TunnelChunk)(nil),                // 7: proto.TunnelChunk
-	(*RequestHeader)(nil),              // 8: proto.RequestHeader
-	(*ResponseHeader)(nil),             // 9: proto.ResponseHeader
-	(*HeaderList)(nil),                 // 10: proto.HeaderList
-	(*HTTPRequest)(nil),                // 11: proto.HTTPRequest
-	(*HTTPResponse)(nil),               // 12: proto.HTTPResponse
-	(*WSOpen)(nil),                     // 13: proto.WSOpen
-	(*WSOpenResponse)(nil),             // 14: proto.WSOpenResponse
-	(*WSData)(nil),                     // 15: proto.WSData
-	(*WSClose)(nil),                    // 16: proto.WSClose
-	(*Frame)(nil),                      // 17: proto.Frame
-	(*ConnectorGatewayEnvelope)(nil),   // 18: proto.ConnectorGatewayEnvelope
-	(*GatewayConnectorEnvelope)(nil),   // 19: proto.GatewayConnectorEnvelope
-	(*ConnectorCmd)(nil),               // 20: proto.ConnectorCmd
-	(*ConnectorHello)(nil),             // 21: proto.ConnectorHello
-	(*ConnectorHeartbeat)(nil),         // 22: proto.ConnectorHeartbeat
-	(*ConnectorHelloAck)(nil),          // 23: proto.ConnectorHelloAck
-	(*ConnectorReject)(nil),            // 24: proto.ConnectorReject
-	nil,                                // 25: proto.RequestHeader.HeadersEntry
-	nil,                                // 26: proto.ResponseHeader.HeadersEntry
-	nil,                                // 27: proto.HTTPRequest.HeadersEntry
-	nil,                                // 28: proto.HTTPResponse.HeadersEntry
-	nil,                                // 29: proto.WSOpen.HeadersEntry
-	nil,                                // 30: proto.WSOpenResponse.HeadersEntry
-	(*timestamppb.Timestamp)(nil),      // 31: google.protobuf.Timestamp
+	(RequestType)(0),                   // 0: proto.RequestType
+	(FlowType)(0),                      // 1: proto.FlowType
+	(*ConnectorEnrollRequest)(nil),     // 2: proto.ConnectorEnrollRequest
+	(*ConnectorEnrollResponse)(nil),    // 3: proto.ConnectorEnrollResponse
+	(*ConnectorRenewCertRequest)(nil),  // 4: proto.ConnectorRenewCertRequest
+	(*ConnectorRenewCertResponse)(nil), // 5: proto.ConnectorRenewCertResponse
+	(*ConnectorStatusResponse)(nil),    // 6: proto.ConnectorStatusResponse
+	(*ConnectorApps)(nil),              // 7: proto.ConnectorApps
+	(*HeaderList)(nil),                 // 8: proto.HeaderList
+	(*StreamFrame)(nil),                // 9: proto.StreamFrame
+	(*ConnectorGatewayEnvelope)(nil),   // 10: proto.ConnectorGatewayEnvelope
+	(*GatewayConnectorEnvelope)(nil),   // 11: proto.GatewayConnectorEnvelope
+	(*ConnectorCmd)(nil),               // 12: proto.ConnectorCmd
+	(*ConnectorHello)(nil),             // 13: proto.ConnectorHello
+	(*ConnectorHeartbeat)(nil),         // 14: proto.ConnectorHeartbeat
+	(*ConnectorHelloAck)(nil),          // 15: proto.ConnectorHelloAck
+	(*ConnectorReject)(nil),            // 16: proto.ConnectorReject
+	nil,                                // 17: proto.StreamFrame.HeadersEntry
+	(*timestamppb.Timestamp)(nil),      // 18: google.protobuf.Timestamp
 }
 var file_ashrix_connector_proto_depIdxs = []int32{
-	31, // 0: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
-	31, // 1: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
-	31, // 2: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
-	31, // 3: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
-	6,  // 4: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
-	8,  // 5: proto.TunnelChunk.req_header:type_name -> proto.RequestHeader
-	9,  // 6: proto.TunnelChunk.res_header:type_name -> proto.ResponseHeader
-	25, // 7: proto.RequestHeader.headers:type_name -> proto.RequestHeader.HeadersEntry
-	26, // 8: proto.ResponseHeader.headers:type_name -> proto.ResponseHeader.HeadersEntry
-	27, // 9: proto.HTTPRequest.headers:type_name -> proto.HTTPRequest.HeadersEntry
-	28, // 10: proto.HTTPResponse.headers:type_name -> proto.HTTPResponse.HeadersEntry
-	29, // 11: proto.WSOpen.headers:type_name -> proto.WSOpen.HeadersEntry
-	30, // 12: proto.WSOpenResponse.headers:type_name -> proto.WSOpenResponse.HeadersEntry
-	11, // 13: proto.Frame.http_request:type_name -> proto.HTTPRequest
-	12, // 14: proto.Frame.http_response:type_name -> proto.HTTPResponse
-	13, // 15: proto.Frame.ws_open:type_name -> proto.WSOpen
-	14, // 16: proto.Frame.ws_open_response:type_name -> proto.WSOpenResponse
-	15, // 17: proto.Frame.ws_data:type_name -> proto.WSData
-	16, // 18: proto.Frame.ws_close:type_name -> proto.WSClose
-	31, // 19: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	21, // 20: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
-	22, // 21: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
-	23, // 22: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
-	24, // 23: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
-	20, // 24: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
-	6,  // 25: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
-	10, // 26: proto.HTTPRequest.HeadersEntry.value:type_name -> proto.HeaderList
-	10, // 27: proto.HTTPResponse.HeadersEntry.value:type_name -> proto.HeaderList
-	10, // 28: proto.WSOpen.HeadersEntry.value:type_name -> proto.HeaderList
-	10, // 29: proto.WSOpenResponse.HeadersEntry.value:type_name -> proto.HeaderList
-	7,  // 30: proto.TunnelService.Tunnel:input_type -> proto.TunnelChunk
-	18, // 31: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
-	7,  // 32: proto.TunnelService.Tunnel:output_type -> proto.TunnelChunk
-	19, // 33: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
-	32, // [32:34] is the sub-list for method output_type
-	30, // [30:32] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	18, // 0: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
+	18, // 1: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
+	18, // 2: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
+	18, // 3: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
+	7,  // 4: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
+	17, // 5: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
+	0,  // 6: proto.StreamFrame.stream_type:type_name -> proto.RequestType
+	1,  // 7: proto.StreamFrame.flow_type:type_name -> proto.FlowType
+	18, // 8: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	13, // 9: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
+	14, // 10: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
+	15, // 11: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
+	16, // 12: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
+	12, // 13: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
+	7,  // 14: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
+	8,  // 15: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
+	10, // 16: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
+	11, // 17: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
+	17, // [17:18] is the sub-list for method output_type
+	16, // [16:17] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_connector_proto_init() }
@@ -2325,26 +1450,11 @@ func file_ashrix_connector_proto_init() {
 	if File_ashrix_connector_proto != nil {
 		return
 	}
-	file_ashrix_connector_proto_msgTypes[6].OneofWrappers = []any{
-		(*TunnelChunk_Ready)(nil),
-		(*TunnelChunk_ReqHeader)(nil),
-		(*TunnelChunk_BodyChunk)(nil),
-		(*TunnelChunk_ResHeader)(nil),
-		(*TunnelChunk_EndStream)(nil),
-	}
-	file_ashrix_connector_proto_msgTypes[16].OneofWrappers = []any{
-		(*Frame_HttpRequest)(nil),
-		(*Frame_HttpResponse)(nil),
-		(*Frame_WsOpen)(nil),
-		(*Frame_WsOpenResponse)(nil),
-		(*Frame_WsData)(nil),
-		(*Frame_WsClose)(nil),
-	}
-	file_ashrix_connector_proto_msgTypes[17].OneofWrappers = []any{
+	file_ashrix_connector_proto_msgTypes[8].OneofWrappers = []any{
 		(*ConnectorGatewayEnvelope_Hello)(nil),
 		(*ConnectorGatewayEnvelope_Heartbeat)(nil),
 	}
-	file_ashrix_connector_proto_msgTypes[18].OneofWrappers = []any{
+	file_ashrix_connector_proto_msgTypes[9].OneofWrappers = []any{
 		(*GatewayConnectorEnvelope_HelloAck)(nil),
 		(*GatewayConnectorEnvelope_Reject)(nil),
 		(*GatewayConnectorEnvelope_Cmd)(nil),
@@ -2354,10 +1464,10 @@ func file_ashrix_connector_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_connector_proto_rawDesc), len(file_ashrix_connector_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   30,
+			NumEnums:      2,
+			NumMessages:   16,
 			NumExtensions: 0,
-			NumServices:   2,
+			NumServices:   1,
 		},
 		GoTypes:           file_ashrix_connector_proto_goTypes,
 		DependencyIndexes: file_ashrix_connector_proto_depIdxs,

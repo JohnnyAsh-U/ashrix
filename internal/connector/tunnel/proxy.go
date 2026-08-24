@@ -15,8 +15,8 @@ import (
 var httpClient = &http.Client{
 	Timeout: 5 * time.Second,
 	Transport: &http.Transport{
-		MaxIdleConns:       100,
-		IdleConnTimeout:    90 * time.Second,
+		MaxIdleConns:    100,
+		IdleConnTimeout: 90 * time.Second,
 		// DisableCompression: true,
 	},
 }
@@ -29,38 +29,30 @@ func (c *ConnectorTunnel) handleRequestStream(ctx context.Context, stream transp
 	defer func() {
 		if r := recover(); r != nil {
 			c.log.Error("panic in handleRequestStream", zap.Any("panic", r))
-			c.writeError(stream, "", 500, "internal server error due to panic")
 		}
 	}()
 
-	typ, payload, err := frame.ReadFrame(stream)
-
+	payload, err := frame.ReadFrame(stream)
 
 	if err != nil {
 		c.log.Error("failed to read connector response", zap.Error(err))
-		c.writeError(stream, "", 502, "connector response error")
 		return
 	}
 
-	switch typ {
-		case frame.FrameType(proto.FrameType_FRAME_TYPE_HTTP_REQUEST):
-			var httpRequest proto.HTTPRequest
-			if err := frame.DecodeFrame(payload, &httpRequest); err != nil {
-				c.log.Error("failed to decode connector response", zap.Error(err))
-				c.writeError(stream, "", 502, "invalid connector response")
-				return
-			}
-			c.handleHTTPRequest(ctx, stream, &httpRequest)
-		case frame.FrameType(proto.FrameType_FRAME_TYPE_WS_OPEN):
-			var wsOpen proto.WSOpen
-			if err := frame.DecodeFrame(payload, &wsOpen); err != nil {
-				c.log.Error("failed to decode connector response", zap.Error(err))
-				c.writeError(stream, "", 502, "invalid connector response")
-				return
-			}
-			c.handleWebSocketStream(ctx, stream, &wsOpen)
-		default:
-			c.writeError(stream, "", 502, "invalid connector response")
-			return
+	var streamFrame proto.StreamFrame
+	if err := frame.DecodeFrame(payload, &streamFrame); err != nil {
+		c.log.Error("failed to decode connector response", zap.Error(err))
+		return
+	}
+
+	switch streamFrame.StreamType {
+	case proto.RequestType_HTTP_REQUEST:
+
+		c.handleHTTPRequest(ctx, stream, &streamFrame)
+	case proto.RequestType_WS_REQUEST:
+
+		c.handleWebSocketStream(ctx, stream, &streamFrame)
+	default:
+		return
 	}
 }

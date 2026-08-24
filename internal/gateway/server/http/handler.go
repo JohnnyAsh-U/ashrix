@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -114,6 +115,15 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Info("Session Creation")
 	http.Redirect(w, r, redirectURI, http.StatusTemporaryRedirect)
+}
+
+
+func isWebSocketRequest(r *http.Request) bool {
+	fmt.Println("==============================================")
+	fmt.Println(r.Header.Get("Connection"))
+	fmt.Println(r.Header.Get("Upgrade"))
+	fmt.Println("==============================================")
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

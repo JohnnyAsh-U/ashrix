@@ -25,10 +25,10 @@ type ProxyServer struct {
 }
 
 func NewProxyServer(
-	cfg *config.Config, 
-	grpcClient *gateway_grpc.SafeClient, 
-	connectorRegistry *registry.Registry, 
-	redisClient *redis.Client, 
+	cfg *config.Config,
+	grpcClient *gateway_grpc.SafeClient,
+	connectorRegistry *registry.Registry,
+	redisClient *redis.Client,
 	sessions *session.SessionManager,
 	log *zap.Logger,
 	activeStreams *registry.ActiveStreamRegistry,
@@ -75,9 +75,7 @@ func NewProxyServer(
 	r.Get("/health", handler.Health)
 	r.Get("/logout", handler.Logout)
 	r.Get("/_auth/callback", handler.Callback)
-	r.Get("/*", handler.ProxyHandler)
-
-
+	r.HandleFunc("/*", handler.ProxyHandler)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.HTTPPort),

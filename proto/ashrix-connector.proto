@@ -55,45 +55,9 @@ message ConnectorApps {
   bool   is_public = 6;
 }
 
-//=================================================================================
-//    Tunnel Service
-//===========================================================================================
-//Each Tunnel call = one proxied Http Request stream
-//Connector preopens streams signalling ready and Gateway sends request into a waiting stream
-service TunnelService {
-  rpc Tunnel(stream TunnelChunk) returns (stream TunnelChunk);
-}
-
-message TunnelChunk {
-  oneof payload {
-    bool           ready      = 1;
-    RequestHeader  req_header = 2;
-    bytes          body_chunk = 3;
-    ResponseHeader res_header = 4;
-    bool           end_stream = 5;
-  }
-}
-
-message RequestHeader {
-  string              app_id      = 1;
-  string              session_id  = 10;
-  string              method      = 2;
-  string              path        = 3;
-  string              query       = 4;
-  map<string, string> headers     = 5;
-  string              user_id     = 6;
-  string              user_email  = 7;
-  string              request_id  = 8;
-  int64               body_length = 9;
-}
-
-message ResponseHeader {
-  int32               status_code = 1;
-  map<string, string> headers     = 2;
-}
-
-
-
+// =============================================================================
+// StreamRequest Proto Types
+// =============================================================================
 
 // 1. Wrapper for map[string][]string
 message HeaderList {
@@ -101,22 +65,21 @@ message HeaderList {
 }
 
 // 2. FrameType Enum
-enum FrameType {
-  FRAME_TYPE_UNSPECIFIED      = 0;
-  FRAME_TYPE_HTTP_REQUEST     = 1;
-  FRAME_TYPE_HTTP_RESPONSE    = 2;
-  FRAME_TYPE_WS_OPEN          = 3;
-  FRAME_TYPE_WS_OPEN_RESPONSE = 4;
-  FRAME_TYPE_WS_DATA          = 5;
-  FRAME_TYPE_WS_PING          = 6;
-  FRAME_TYPE_WS_PONG          = 7;
-  FRAME_TYPE_WS_CLOSE         = 8;
-  FRAME_TYPE_ERROR            = 9;
+enum RequestType {
+  UNSPECIFIED_REQUEST = 0;
+  HTTP_REQUEST        = 1;
+  WS_REQUEST          = 3;
+}
+
+enum FlowType {
+  UNSPECIFIED_TYPE = 0;
+  APP_TO_APP       = 1;
+  USER_TO_APP      = 2;
 }
 
 // 3. Payload Messages
 
-message HTTPRequest {
+message StreamFrame {
   string                  request_id   = 1;
   string                  session_id   = 2;
   string                  tenant_id    = 3;
@@ -130,65 +93,16 @@ message HTTPRequest {
   string                  query        = 11;
   map<string, HeaderList> headers      = 12;
   int64                   body_length  = 13;
+  RequestType             stream_type  = 14;
+  FlowType                flow_type    = 15;
 }
-
-message HTTPResponse {
-  string                  request_id  = 1;
-  int32                   status_code = 2;
-  map<string, HeaderList> headers     = 3;
-  int64                   body_length = 4;
-}
-
-message WSOpen {
-  string                  request_id   = 1;
-  string                  session_id   = 2;
-  string                  tenant_id    = 3;
-  string                  user_id      = 4;
-  string                  connector_id = 5;
-  string                  app_id       = 6;
-  string                  host         = 7;
-  string                  path         = 8;
-  string                  query        = 9;
-  map<string, HeaderList> headers      = 10;
-}
-
-message WSOpenResponse {
-  string                  request_id  = 1;
-  int32                   status_code = 2;
-  map<string, HeaderList> headers     = 3;
-}
-
-message WSData {
-  int32 message_type = 1;
-  bytes data         = 2;
-}
-
-message WSClose {
-  int32  code   = 1;
-  string reason = 2;
-}
-
-message Frame {
-  // You can still keep a version field if you like
-  uint32 version = 1; 
-  
-  oneof payload {
-    HTTPRequest http_request = 2;
-    HTTPResponse http_response = 3;
-    WSOpen ws_open = 4;
-    WSOpenResponse ws_open_response = 5;
-    WSData ws_data = 6;
-    WSClose ws_close = 7;
-    // Error / Ping / Pong can be empty messages or enums
-  }
-}
-
 
 //====================================================================================
 //  Management Service to gateway
 //==========================================================================================
 //Sends Heartbeat to gateway, send hello to gateway
 service ConnectorService {
+  //GRPC Tunnel
   rpc Connect(stream ConnectorGatewayEnvelope) returns (stream GatewayConnectorEnvelope);
 }
 

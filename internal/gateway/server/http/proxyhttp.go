@@ -1,11 +1,11 @@
 package http_proxy
 
 import (
+	"bufio"
 	"context"
-	"fmt"
 	"io"
+	"maps"
 	"net/http"
-	"strings"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
@@ -73,7 +73,7 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	defer stream.Close()
 
 	// Write request envelope + body to stream
-	envelope := proto.HTTPRequest{
+	envelope := proto.StreamFrame{
 		Method:      r.Method,
 		AppId:       AppID,
 		SessionId:   userSessionID,
@@ -86,170 +86,35 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 		RequestId:   requestID,
 		BodyLength:  r.ContentLength,
 		Headers:     frame.HeadersToProto(r.Header),
+		StreamType: proto.RequestType_HTTP_REQUEST,
+		FlowType: proto.FlowType_USER_TO_APP,
 	}
-	// fmt.Println("===========================================")
-	// fmt.Println(r.Header)
-	// fmt.Println("===========================================")
-
-	if err := frame.WriteFrame(stream, proto.FrameType_FRAME_TYPE_HTTP_REQUEST, &envelope); err != nil {
+	
+	if err := frame.WriteFrame(stream, &envelope); err != nil {
 		h.log.Error("failed to write request header", zap.Error(err))
 		http.Error(w, "failed to send request to connector", http.StatusBadGateway)
 		return
 	}
 
-	if r.Body != nil {
-		if err := h.copyRequestBody(stream, r.Body); err != nil {
-			h.log.Error("failed to write request body", zap.Error(err))
-			// Differentiate between a 413 Payload Too Large and a 502 Stream Error
-			if err.Error() == "request body exceeds limit" {
-				http.Error(w, "Payload Too Large", http.StatusRequestEntityTooLarge)
-			} else {
-				http.Error(w, "failed to send request to connector", http.StatusBadGateway)
-			}
-			return
-		}
+
+	if err := r.Write(stream); err != nil {
+		h.log.Error("failed to write request header", zap.Error(err))
+		http.Error(w, "failed to send request to connector", http.StatusBadGateway)
+		return
 	}
 
+	br := bufio.NewReader(stream)
 
-
-
-
-
-	
-	typ, payload, err := frame.ReadFrame(stream)
-
+	resp, err := http.ReadResponse(br, r)
 	if err != nil {
-		if streamCtx.Err() != nil {
-			return
-		}
-		h.log.Error("failed to read connector response", zap.Error(err))
-		http.Error(w, "connector response error jjjj", http.StatusBadGateway)
+		http.Error(w, err.Error(), 502)
 		return
 	}
 
-	if typ != frame.FrameType(proto.FrameType_FRAME_TYPE_HTTP_RESPONSE) {
-		http.Error(w, "invalid connector response", http.StatusBadGateway)
-		return
+	maps.Copy(w.Header(), resp.Header)
+	w.WriteHeader(resp.StatusCode)
 
-	}
-
-	var response proto.HTTPResponse
-
-	if err := frame.DecodeFrame(payload, &response); err != nil {
-		http.Error(w, "invalid connector response", http.StatusBadGateway)
-		return
-	}
-
-	if response.StatusCode < 100 || response.StatusCode > 599 {
-		http.Error(w, "invalid connector status", http.StatusBadGateway)
-		return
-	}
-
-	copyResponseHeaders(w.Header(), response.Headers)
-
-	w.WriteHeader(int(response.StatusCode))
-
-	if responseBodyAllowed(r, int(response.StatusCode)) {
-		written, err := io.Copy(w, stream)
-
-		h.log.Debug(
-			"HTTP response body completed",
-			zap.String("request_id", requestID),
-			zap.Int64("bytes_written", written),
-			zap.Int64("expected_bytes", response.BodyLength),
-			zap.Error(err),
-		)
-	}
+	io.Copy(w, resp.Body)
+	resp.Body.Close()
 }
 
-func (h *Handler) copyRequestBody(dst io.Writer, src io.Reader) error {
-
-	reader := io.Reader(src)
-
-	if h.maxRequestBody > 0 {
-		reader = io.LimitReader(src, h.maxRequestBody+1)
-	}
-	n, err := io.Copy(dst, reader)
-
-	if err != nil {
-		return err
-	}
-
-	if h.maxRequestBody > 0 && n > h.maxRequestBody {
-		return fmt.Errorf("request body exceeds limit")
-	}
-	return nil
-}
-
-func responseBodyAllowed(r *http.Request, status int) bool {
-
-	if r.Method == http.MethodHead {
-		return false
-	}
-
-	if status >= 100 && status < 200 {
-		return false
-	}
-
-	if status == http.StatusNoContent {
-		return false
-	}
-
-	if status == http.StatusNotModified {
-		return false
-	}
-
-	return true
-}
-func copyResponseHeaders(dst http.Header, src map[string]*proto.HeaderList) {
-	for key, headerList := range src {
-		// Safety check in case a map value is nil
-		if headerList == nil {
-			continue
-		}
-
-		if isHopByHopHeader(key) {
-			continue
-		}
-		if isHopByHopHeader(key) || isGatewayOwnedHeader(key) {
-			continue
-		}
-		// Loop through the slice inside the Protobuf wrapper
-		for _, value := range headerList.Values {
-			dst.Set(key, value)
-		}
-	}
-}
-
-func isGatewayOwnedHeader(name string) bool {
-	switch strings.ToLower(name) {
-	case
-		// "content-security-policy",
-		// "strict-transport-security",
-		// "x-content-type-options",
-		// "x-frame-options",
-		// "referrer-policy",
-		"permissions-policy":
-		return true
-	default:
-		return false
-	}
-}
-
-func isHopByHopHeader(name string) bool {
-	switch strings.ToLower(name) {
-	case
-		"connection",
-		"keep-alive",
-		"proxy-authenticate",
-		"proxy-authorization",
-		"te",
-		"trailer",
-		"transfer-encoding",
-		"upgrade":
-		return true
-
-	default:
-		return false
-	}
-}

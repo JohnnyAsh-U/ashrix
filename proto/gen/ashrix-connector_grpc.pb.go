@@ -19,118 +19,6 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TunnelService_Tunnel_FullMethodName = "/proto.TunnelService/Tunnel"
-)
-
-// TunnelServiceClient is the client API for TunnelService service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// =================================================================================
-//
-//	Tunnel Service
-//
-// ===========================================================================================
-// Each Tunnel call = one proxied Http Request stream
-// Connector preopens streams signalling ready and Gateway sends request into a waiting stream
-type TunnelServiceClient interface {
-	Tunnel(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[TunnelChunk, TunnelChunk], error)
-}
-
-type tunnelServiceClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewTunnelServiceClient(cc grpc.ClientConnInterface) TunnelServiceClient {
-	return &tunnelServiceClient{cc}
-}
-
-func (c *tunnelServiceClient) Tunnel(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[TunnelChunk, TunnelChunk], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &TunnelService_ServiceDesc.Streams[0], TunnelService_Tunnel_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[TunnelChunk, TunnelChunk]{ClientStream: stream}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TunnelService_TunnelClient = grpc.BidiStreamingClient[TunnelChunk, TunnelChunk]
-
-// TunnelServiceServer is the server API for TunnelService service.
-// All implementations must embed UnimplementedTunnelServiceServer
-// for forward compatibility.
-//
-// =================================================================================
-//
-//	Tunnel Service
-//
-// ===========================================================================================
-// Each Tunnel call = one proxied Http Request stream
-// Connector preopens streams signalling ready and Gateway sends request into a waiting stream
-type TunnelServiceServer interface {
-	Tunnel(grpc.BidiStreamingServer[TunnelChunk, TunnelChunk]) error
-	mustEmbedUnimplementedTunnelServiceServer()
-}
-
-// UnimplementedTunnelServiceServer must be embedded to have
-// forward compatible implementations.
-//
-// NOTE: this should be embedded by value instead of pointer to avoid a nil
-// pointer dereference when methods are called.
-type UnimplementedTunnelServiceServer struct{}
-
-func (UnimplementedTunnelServiceServer) Tunnel(grpc.BidiStreamingServer[TunnelChunk, TunnelChunk]) error {
-	return status.Error(codes.Unimplemented, "method Tunnel not implemented")
-}
-func (UnimplementedTunnelServiceServer) mustEmbedUnimplementedTunnelServiceServer() {}
-func (UnimplementedTunnelServiceServer) testEmbeddedByValue()                       {}
-
-// UnsafeTunnelServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to TunnelServiceServer will
-// result in compilation errors.
-type UnsafeTunnelServiceServer interface {
-	mustEmbedUnimplementedTunnelServiceServer()
-}
-
-func RegisterTunnelServiceServer(s grpc.ServiceRegistrar, srv TunnelServiceServer) {
-	// If the following call panics, it indicates UnimplementedTunnelServiceServer was
-	// embedded by pointer and is nil.  This will cause panics if an
-	// unimplemented method is ever invoked, so we test this at initialization
-	// time to prevent it from happening at runtime later due to I/O.
-	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
-		t.testEmbeddedByValue()
-	}
-	s.RegisterService(&TunnelService_ServiceDesc, srv)
-}
-
-func _TunnelService_Tunnel_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(TunnelServiceServer).Tunnel(&grpc.GenericServerStream[TunnelChunk, TunnelChunk]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TunnelService_TunnelServer = grpc.BidiStreamingServer[TunnelChunk, TunnelChunk]
-
-// TunnelService_ServiceDesc is the grpc.ServiceDesc for TunnelService service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
-var TunnelService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.TunnelService",
-	HandlerType: (*TunnelServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "Tunnel",
-			Handler:       _TunnelService_Tunnel_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
-		},
-	},
-	Metadata: "ashrix-connector.proto",
-}
-
-const (
 	ConnectorService_Connect_FullMethodName = "/proto.ConnectorService/Connect"
 )
 
@@ -145,6 +33,7 @@ const (
 // ==========================================================================================
 // Sends Heartbeat to gateway, send hello to gateway
 type ConnectorServiceClient interface {
+	// GRPC Tunnel
 	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectorGatewayEnvelope, GatewayConnectorEnvelope], error)
 }
 
@@ -180,6 +69,7 @@ type ConnectorService_ConnectClient = grpc.BidiStreamingClient[ConnectorGatewayE
 // ==========================================================================================
 // Sends Heartbeat to gateway, send hello to gateway
 type ConnectorServiceServer interface {
+	// GRPC Tunnel
 	Connect(grpc.BidiStreamingServer[ConnectorGatewayEnvelope, GatewayConnectorEnvelope]) error
 	mustEmbedUnimplementedConnectorServiceServer()
 }
