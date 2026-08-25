@@ -2,8 +2,6 @@ package tunnel
 
 import (
 	"context"
-	"net/http"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -12,14 +10,6 @@ import (
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
-var httpClient = &http.Client{
-	Timeout: 5 * time.Second,
-	Transport: &http.Transport{
-		MaxIdleConns:    100,
-		IdleConnTimeout: 90 * time.Second,
-		// DisableCompression: true,
-	},
-}
 
 // handleRequestStream reads a request from the stream,
 // proxies it to the internal app, streams response back.

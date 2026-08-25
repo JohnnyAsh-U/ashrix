@@ -8,8 +8,8 @@ ORDER BY issued_at DESC;
 
 
 -- name: CreateUserSessionForGateway :one
-INSERT INTO user_sessions (org_id, user_id, gateway_id, expires_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO user_sessions (org_id, user_id, gateway_id, expires_at, issued_at)
+VALUES ($1, $2, $3, $4, NOW())
 RETURNING *;
 
 -- name: RevokeActiveUserSession :one

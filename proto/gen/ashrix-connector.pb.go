@@ -615,6 +615,8 @@ type StreamFrame struct {
 	BodyLength    int64                  `protobuf:"varint,13,opt,name=body_length,json=bodyLength,proto3" json:"body_length,omitempty"`
 	StreamType    RequestType            `protobuf:"varint,14,opt,name=stream_type,json=streamType,proto3,enum=proto.RequestType" json:"stream_type,omitempty"`
 	FlowType      FlowType               `protobuf:"varint,15,opt,name=flow_type,json=flowType,proto3,enum=proto.FlowType" json:"flow_type,omitempty"`
+	SocksUsername string                 `protobuf:"bytes,16,opt,name=socks_username,json=socksUsername,proto3" json:"socks_username,omitempty"`
+	SocksPassword string                 `protobuf:"bytes,17,opt,name=socks_password,json=socksPassword,proto3" json:"socks_password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -752,6 +754,20 @@ func (x *StreamFrame) GetFlowType() FlowType {
 		return x.FlowType
 	}
 	return FlowType_UNSPECIFIED_TYPE
+}
+
+func (x *StreamFrame) GetSocksUsername() string {
+	if x != nil {
+		return x.SocksUsername
+	}
+	return ""
+}
+
+func (x *StreamFrame) GetSocksPassword() string {
+	if x != nil {
+		return x.SocksPassword
+	}
+	return ""
 }
 
 type ConnectorGatewayEnvelope struct {
@@ -1311,7 +1327,7 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\tis_public\x18\x06 \x01(\bR\bisPublic\"$\n" +
 	"\n" +
 	"HeaderList\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\tR\x06values\"\xbe\x04\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\"\x8c\x05\n" +
 	"\vStreamFrame\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1d\n" +
@@ -1333,7 +1349,9 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"bodyLength\x123\n" +
 	"\vstream_type\x18\x0e \x01(\x0e2\x12.proto.RequestTypeR\n" +
 	"streamType\x12,\n" +
-	"\tflow_type\x18\x0f \x01(\x0e2\x0f.proto.FlowTypeR\bflowType\x1aM\n" +
+	"\tflow_type\x18\x0f \x01(\x0e2\x0f.proto.FlowTypeR\bflowType\x12%\n" +
+	"\x0esocks_username\x18\x10 \x01(\tR\rsocksUsername\x12%\n" +
+	"\x0esocks_password\x18\x11 \x01(\tR\rsocksPassword\x1aM\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12'\n" +
 	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01\"\xe7\x01\n" +

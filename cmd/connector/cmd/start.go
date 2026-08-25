@@ -6,6 +6,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/logger"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/socks"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
@@ -22,6 +23,12 @@ import (
 )
 
 func init() {
+	startCmd.Flags().String("socks-addr", ":1080", "Local SOCKS5 proxy server address")
+	startCmd.Flags().String("socks-user", "", "Local SOCKS5 username")
+	startCmd.Flags().String("socks-pass", "", "Local SOCKS5 password")
+	_ = viper.BindPFlag("socks_addr", startCmd.Flags().Lookup("socks-addr"))
+	_ = viper.BindPFlag("socks_user", startCmd.Flags().Lookup("socks-user"))
+	_ = viper.BindPFlag("socks_pass", startCmd.Flags().Lookup("socks-pass"))
 	rootCmd.AddCommand(startCmd)
 }
 
@@ -274,6 +281,21 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 		// Record connection time to check for stability
 		connectTime := time.Now()
 
+		socksAddr := viper.GetString("socks_addr")
+		socksUser := viper.GetString("socks_user")
+		socksPass := viper.GetString("socks_pass")
+
+		var socksServer *socks.Server
+		if socksUser != "" && socksPass != "" {
+			log.Info("Starting SOCKS5 proxy server on connector", zap.String("addr", socksAddr), zap.String("username", socksUser))
+			socksServer = socks.NewServer(socksAddr, socksUser, socksPass, transportProto, log)
+			go func() {
+				if err := socksServer.Start(ctx); err != nil {
+					log.Error("SOCKS5 server error", zap.Error(err))
+				}
+			}()
+		}
+
 		// Tunnel: accept and proxy requests
 		errCh := make(chan error, 1)
 		connTunnel := tunnel.NewTunnel(log, apps)
@@ -289,10 +311,16 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 				log.Error("Tunnel error", zap.Error(tunnelErr))
 			}
 		case <-ctx.Done():
+			if socksServer != nil {
+				socksServer.Stop()
+			}
 			transportProto.Close()
 			return ctx.Err()
 		}
 
+		if socksServer != nil {
+			socksServer.Stop()
+		}
 		transportProto.Close()
 
 		// Reset attempt counter if the connection was stable (> 60 seconds)

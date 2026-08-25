@@ -95,6 +95,8 @@ message StreamFrame {
   int64                   body_length  = 13;
   RequestType             stream_type  = 14;
   FlowType                flow_type    = 15;
+  string                  socks_username = 16;
+  string                  socks_password = 17;
 }
 
 //====================================================================================

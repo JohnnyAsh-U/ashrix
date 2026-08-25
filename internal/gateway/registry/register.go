@@ -258,6 +258,32 @@ func (r *Registry) GetByConnectorID(id string) (*ConnectorEntry, bool) {
 	return entry, ok
 }
 
+func (r *Registry) GetByAppID(appID string) (*ConnectorEntry, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, entry := range r.connectors {
+		for _, app := range entry.Apps {
+			if app.Id == appID {
+				return entry, true
+			}
+		}
+	}
+	return nil, false
+}
+
+func (r *Registry) GetAppByID(appID string) (*pb.ConnectorApps, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, entry := range r.connectors {
+		for _, app := range entry.Apps {
+			if app.Id == appID {
+				return app, true
+			}
+		}
+	}
+	return nil, false
+}
+
 func (r *Registry) UpdateHeartbeat(connectorID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

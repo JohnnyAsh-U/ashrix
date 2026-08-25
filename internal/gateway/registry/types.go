@@ -2,9 +2,9 @@ package registry
 
 import (
 	"context"
-	"io"
 
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/flow"
 )
 
 // DisconnectReason categorizes operational terminations for structured auditing.
@@ -39,16 +39,6 @@ func (s *ManagementSession) Close() {
 //they are different streams, different lifecycles.
 
 type TunnelSession interface {
-	OpenStream(ctx context.Context) (Stream, error)
+	OpenStream(ctx context.Context, req flow.OpenRequest) (flow.Stream, error)
 	Close() error
-}
-
-type Stream interface {
-	io.Reader
-	io.Writer
-
-
-	Close() error
-	// CancelRead(code uint64)
-	// CancelWrite(code uint64)
 }

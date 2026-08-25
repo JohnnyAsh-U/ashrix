@@ -107,7 +107,7 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UU
 		idpconfigs = tenantConfigs
 	}
 
-	var configs []*oidc.IdentityProvider
+	var configs []oidc.IdentityProvider
 	for _, appCfg := range idpconfigs {
 
 		// Create IdentityProvider from app config + provider details
@@ -126,15 +126,16 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UU
 			GroupsClaim:     appCfg.GroupClaim,
 			ExtraConfig:     appCfg.ExtraConfig,
 		}
-		configs = append(configs, &cfg)
+		configs = append(configs, cfg)
 	}
 
 	// Build adapters for each config
 	adapters := make([]oidc.ProviderAdapter, 0, len(configs))
 	for _, cfg := range configs {
 
-		adapter, err := r.getOrCreateAdapter(ctx, cfg)
+		adapter, err := r.getOrCreateAdapter(ctx, &cfg)
 		if err != nil {
+			fmt.Println(err)
 			// Log error but continue with other providers
 			continue
 		}
@@ -394,7 +395,7 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (s
 
 	tenantUUID, err := uuid.Parse(stateData.TenantID)
 	userUUID, err := uuid.Parse(identity.UserID)
-	gatewayUUID, err := uuid.Parse(stateData.TenantID)
+	gatewayUUID, err := uuid.Parse(stateData.GatewayID)
 
 	if err != nil {
 		return "", "", fmt.Errorf("Parse Error: %w", err)

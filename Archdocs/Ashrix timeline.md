@@ -1,11 +1,10 @@
-* Update Policy Bundle Action 
-
-Testing
-* Testing Authorisation
-
-# Connector
 * Remove tray from connector and restructure to cli
 * Redo connector installer
+
+Testing
+* Update Policy Bundle Action and Testing Authentication Authorisation
+
+*App To App Communication using Sock5 proxy
 
 
 # AccessLogs and Audit Logging

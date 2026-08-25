@@ -14,6 +14,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	gateway_grpc "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/grpc_client"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"go.uber.org/zap"
 )
@@ -27,6 +28,7 @@ type Handler struct {
 	grpcClient     *gateway_grpc.SafeClient
 	cfg            *config.Config
 	streamRegistry *registry.ActiveStreamRegistry
+	router         *router.Router
 	maxRequestBody int64
 }
 
@@ -39,7 +41,7 @@ func NewHandler(
 	grpcClient *gateway_grpc.SafeClient,
 	streamRegistry *registry.ActiveStreamRegistry,
 	cfg *config.Config,
-
+	rtr *router.Router,
 ) *Handler {
 
 	return &Handler{
@@ -51,6 +53,7 @@ func NewHandler(
 		grpcClient:     grpcClient,
 		cfg:            cfg,
 		streamRegistry: streamRegistry,
+		router:         rtr,
 		maxRequestBody: 500,
 	}
 }
@@ -119,10 +122,6 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 
 func isWebSocketRequest(r *http.Request) bool {
-	fmt.Println("==============================================")
-	fmt.Println(r.Header.Get("Connection"))
-	fmt.Println(r.Header.Get("Upgrade"))
-	fmt.Println("==============================================")
 	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
 }
 

@@ -77,20 +77,20 @@ func KeycloakPreset(tenantID, baseURL, realm, clientID, clientSecret, adminUser,
 		DisplayName: "Keycloak",
 		Enabled:     true,
 		// OIDCConfig: OIDCProviderConfig{
-			IssuerURL:   fmt.Sprintf("%s/realms/%s", baseURL, realm),
-			ClientID:    clientID,
-			Scopes:      []string{"openid", "email", "profile", "groups"},
-			EmailClaim:  "email",
-			NameClaim:   "name",
-			GroupsClaim: "groups",
-			ExtraConfig: json.RawMessage(
-				fmt.Sprintf(`{"admin_url": "%s", "realm": "%s", "admin_user": "%s", "admin_pass": "%s"}`,
-					baseURL,
-					realm,
-					adminUser,
-					adminPass,
-				),
+		IssuerURL:   fmt.Sprintf("%s/realms/%s", baseURL, realm),
+		ClientID:    clientID,
+		Scopes:      []string{"openid", "email", "profile", "groups"},
+		EmailClaim:  "email",
+		NameClaim:   "name",
+		GroupsClaim: "groups",
+		ExtraConfig: json.RawMessage(
+			fmt.Sprintf(`{"admin_url": "%s", "realm": "%s", "admin_user": "%s", "admin_pass": "%s"}`,
+				baseURL,
+				realm,
+				adminUser,
+				adminPass,
 			),
+		),
 	}
 }
 
@@ -99,20 +99,19 @@ func GenericOIDCPreset(
 	emailClaim, nameClaim, groupsClaim string,
 	extraClaims json.RawMessage,
 ) *IdentityProvider {
-	
-	
+
 	return &IdentityProvider{
-		TenantID:    tenantID,
-		Type:        "generic",
-		DisplayName: "Custom OIDC Provider",
-		Enabled:     true,
-		IssuerURL: issuerURL,
-		ClientID: clientID,
+		TenantID:        tenantID,
+		Type:            "generic",
+		DisplayName:     "Custom OIDC Provider",
+		Enabled:         true,
+		IssuerURL:       issuerURL,
+		ClientID:        clientID,
 		ClientSecretEnc: clientSecret,
-		Scopes: []string{"openid", "email", "profile"},
-		EmailClaim: emailClaim,
-		NameClaim: nameClaim,
-		GroupsClaim: groupsClaim,
-		ExtraConfig: extraClaims,
+		Scopes:          []string{"openid", "email", "profile"},
+		EmailClaim:      emailClaim,
+		NameClaim:       nameClaim,
+		GroupsClaim:     groupsClaim,
+		ExtraConfig:     extraClaims,
 	}
 }

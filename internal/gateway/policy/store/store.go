@@ -27,7 +27,15 @@ const (
 	bucketPolicies   = "policies"
 	bucketTombstones = "tombstones"
 	bucketSyncMeta   = "sync_meta"
+	bucketSOCKS5Creds = "socks5_credentials"
 )
+
+type SOCKS5Credential struct {
+	ConnectorID  string    `json:"connector_id"`
+	Username     string    `json:"username"`
+	PasswordHash string    `json:"password_hash"`
+	CreatedAt    time.Time `json:"created_at"`
+}
 
 // BoltStore persists policies durably. All writes are atomic bbolt transactions.
 type BoltStore struct {
@@ -50,7 +58,7 @@ func OpenBoltStore(dataDir string) (*BoltStore, error) {
 	}
 
 	if err := db.Update(func(tx *bolt.Tx) error {
-		for _, name := range []string{bucketPolicies, bucketTombstones, bucketSyncMeta} {
+		for _, name := range []string{bucketPolicies, bucketTombstones, bucketSyncMeta, bucketSOCKS5Creds} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
 				return err
 			}
@@ -61,6 +69,84 @@ func OpenBoltStore(dataDir string) (*BoltStore, error) {
 	}
 
 	return &BoltStore{db: db}, nil
+}
+
+func (s *BoltStore) SetSOCKS5Credential(ctx context.Context, cred *SOCKS5Credential) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucketSOCKS5Creds))
+		data, err := json.Marshal(cred)
+		if err != nil {
+			return err
+		}
+		if err := b.Put([]byte("conn:"+cred.ConnectorID), data); err != nil {
+			return err
+		}
+		return b.Put([]byte("user:"+cred.Username), data)
+	})
+}
+
+func (s *BoltStore) GetSOCKS5CredentialByConnectorID(ctx context.Context, connectorID string) (*SOCKS5Credential, error) {
+	var cred SOCKS5Credential
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucketSOCKS5Creds))
+		v := b.Get([]byte("conn:" + connectorID))
+		if v == nil {
+			return ErrNotFound
+		}
+		return json.Unmarshal(v, &cred)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &cred, nil
+}
+
+func (s *BoltStore) GetSOCKS5CredentialByUsername(ctx context.Context, username string) (*SOCKS5Credential, error) {
+	var cred SOCKS5Credential
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucketSOCKS5Creds))
+		v := b.Get([]byte("user:" + username))
+		if v == nil {
+			return ErrNotFound
+		}
+		return json.Unmarshal(v, &cred)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &cred, nil
+}
+
+func (s *BoltStore) DeleteSOCKS5Credential(ctx context.Context, connectorID string) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucketSOCKS5Creds))
+		v := b.Get([]byte("conn:" + connectorID))
+		if v == nil {
+			return nil
+		}
+		var cred SOCKS5Credential
+		if err := json.Unmarshal(v, &cred); err == nil {
+			_ = b.Delete([]byte("user:" + cred.Username))
+		}
+		return b.Delete([]byte("conn:" + connectorID))
+	})
+}
+
+func (s *BoltStore) ListSOCKS5Credentials(ctx context.Context) ([]*SOCKS5Credential, error) {
+	var out []*SOCKS5Credential
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucketSOCKS5Creds))
+		return b.ForEach(func(k, v []byte) error {
+			if len(k) > 5 && string(k[:5]) == "conn:" {
+				cred := new(SOCKS5Credential)
+				if err := json.Unmarshal(v, cred); err == nil {
+					out = append(out, cred)
+				}
+			}
+			return nil
+		})
+	})
+	return out, err
 }
 
 func (s *BoltStore) Close() error { return s.db.Close() }

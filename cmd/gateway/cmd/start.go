@@ -20,6 +20,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
@@ -181,6 +182,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 	defer policyStore.Close()
 	log.Info("Initialising Policy And Engine Done...")
 
+	rtr := router.NewRouter(reg, engine, policyStore)
+
 	//-----------------------Load TLS and Open stream -----------------------------------------------
 	// This is the real liveness check - If CP is unreachable or
 	// rejects the cert, we check if connection is successful
@@ -241,8 +244,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// Instantiate new servers
 	grpcServer := grpc.NewGRPCServer(cfg, pki.GetTLSConfig(), log, reg)
-	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log, reg)
-	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), sessions, log,activeStreams, engine)
+	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log, reg, rtr)
+	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), sessions, log, activeStreams, engine, rtr)
 
 	// Start servers in background
 	go func() {

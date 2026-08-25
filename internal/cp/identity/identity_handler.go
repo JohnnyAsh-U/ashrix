@@ -62,7 +62,7 @@ func (i *IDPHandler) IDPResolverHandler(w http.ResponseWriter, r *http.Request) 
 	//Resolve the AppIDPProviders
 	adapters, err := i.idpService.ResolveAppIDP(ctx, appUUID, gatewayUUID)
 	if err != nil {
-		dto.SendError(w, dto.NewNotFoundError("Not Found"))
+		dto.SendError(w, dto.NewNotFoundError(err.Error()))
 		return
 	}
 	adapterResponse := make([]IDPResolverProvider, len(adapters))
@@ -385,14 +385,18 @@ func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
+// @Param id path string true "Session ID"
 // @Success 200
 // @Failure 400 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
-// @Router /revoke-session [post]
+// @Router /idp-configs/revoke-session/{id} [delete]
 func (h *IDPHandler) RevokeUserSessionHandler(w http.ResponseWriter, r *http.Request) {
 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
+
+	fmt.Println(id)
+
 	if err != nil {
 		dto.SendError(w, dto.NewBadRequestError("Invalid Session ID format"))
 		return

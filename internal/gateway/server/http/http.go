@@ -11,6 +11,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/posture"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -33,11 +34,12 @@ func NewProxyServer(
 	log *zap.Logger,
 	activeStreams *registry.ActiveStreamRegistry,
 	engine *policy.PolicyEngine,
+	rtr *router.Router,
 ) *ProxyServer {
 
 	rateLimiter := session.NewRedisLimiter(redisClient, 10, time.Minute)
 	handler := NewHandler(
-		log, connectorRegistry, sessions, rateLimiter, redisClient, grpcClient, activeStreams, cfg,
+		log, connectorRegistry, sessions, rateLimiter, redisClient, grpcClient, activeStreams, cfg, rtr,
 	)
 
 	// 1. Initialize posture dependencies
@@ -70,7 +72,7 @@ func NewProxyServer(
 	r.Use(session.SessionMiddleware(connectorRegistry, sessions, redisClient, cfg, log))
 	r.Use(posture.PostureMiddleware(collector, log))
 	r.Use(RateLimiterMiddleware(DefaultRateLimiterConfig(redisClient), log)) // ← after session
-	r.Use(policy.PolicyMiddleware(engine, cfg, log))
+	// r.Use(policy.PolicyMiddleware(engine, cfg, log))
 
 	r.Get("/health", handler.Health)
 	r.Get("/logout", handler.Logout)
