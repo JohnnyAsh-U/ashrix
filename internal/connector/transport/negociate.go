@@ -45,7 +45,7 @@ func Negotiate(
 		tlsCfg := cfg.TLSConfig
 		if tlsCfg == nil {
 			tlsCfg = &tls.Config{
-				InsecureSkipVerify: true, // dev only
+				InsecureSkipVerify: false, // dev only
 				NextProtos:         []string{"ashrix-tunnel"},
 			}
 		}
@@ -61,32 +61,6 @@ func Negotiate(
 			zap.Error(err),
 		)
 	}
-
-	// ── 2. gRPC/HTTP2 — Toyota ────────────────────────────────────
-	// HTTP/2 multiplexing. Works everywhere TCP 443 is open.
-	// Blocked by: transparent proxies stripping HTTP/2 headers.
-	// {
-	// 	grpcCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	// 	defer cancel()
-
-	// 	tlsCfg := cfg.TLSConfig
-	// 	if tlsCfg == nil {
-	// 		tlsCfg = &tls.Config{
-	// 			InsecureSkipVerify: true, // dev only
-	// 		}
-	// 	}
-
-	// 	session, err := DialGRPC(grpcCtx, cfg.GatewayGRPCAddr, tlsCfg, log)
-	// 	if err == nil {
-	// 		log.Info("transport negotiated: gRPC/HTTP2",
-	// 			zap.String("addr", cfg.GatewayGRPCAddr),
-	// 		)
-	// 		return session, nil
-	// 	}
-	// 	log.Warn("gRPC unavailable — trying WebSocket",
-	// 		zap.Error(err),
-	// 	)
-	// }
 
 	// ── 3. WebSocket — Bike with a motor ──────────────────────────
 	// Last resort. TCP 443 WebSocket survives most DPI.

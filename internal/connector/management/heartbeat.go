@@ -37,6 +37,7 @@ func (c *ManagementConn) RunHeartbeat(ctx context.Context, seconds time.Duration
 						TunnelState:     "connected",
 						TunnelTransport: "grpc",
 						UptimeSeconds:   c.uptimeSeconds(),
+						ActiveStreams: c.ActiveStreams.Load(),
 					},
 				},
 			})

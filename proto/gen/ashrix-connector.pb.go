@@ -121,6 +121,61 @@ func (FlowType) EnumDescriptor() ([]byte, []int) {
 	return file_ashrix_connector_proto_rawDescGZIP(), []int{1}
 }
 
+type CommandType int32
+
+const (
+	CommandType_CMD_UNSPECIFIED           CommandType = 0
+	CommandType_CMD_ROTATE_CONNECTOR_CERT CommandType = 1
+	CommandType_CMD_REVOKE_CONNECTOR_CERT CommandType = 2
+	CommandType_CMD_REVOKE_CONNECTOR      CommandType = 3
+	CommandType_CMD_RELOAD_CONNECTOR      CommandType = 4
+)
+
+// Enum value maps for CommandType.
+var (
+	CommandType_name = map[int32]string{
+		0: "CMD_UNSPECIFIED",
+		1: "CMD_ROTATE_CONNECTOR_CERT",
+		2: "CMD_REVOKE_CONNECTOR_CERT",
+		3: "CMD_REVOKE_CONNECTOR",
+		4: "CMD_RELOAD_CONNECTOR",
+	}
+	CommandType_value = map[string]int32{
+		"CMD_UNSPECIFIED":           0,
+		"CMD_ROTATE_CONNECTOR_CERT": 1,
+		"CMD_REVOKE_CONNECTOR_CERT": 2,
+		"CMD_REVOKE_CONNECTOR":      3,
+		"CMD_RELOAD_CONNECTOR":      4,
+	}
+)
+
+func (x CommandType) Enum() *CommandType {
+	p := new(CommandType)
+	*p = x
+	return p
+}
+
+func (x CommandType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CommandType) Descriptor() protoreflect.EnumDescriptor {
+	return file_ashrix_connector_proto_enumTypes[2].Descriptor()
+}
+
+func (CommandType) Type() protoreflect.EnumType {
+	return &file_ashrix_connector_proto_enumTypes[2]
+}
+
+func (x CommandType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CommandType.Descriptor instead.
+func (CommandType) EnumDescriptor() ([]byte, []int) {
+	return file_ashrix_connector_proto_rawDescGZIP(), []int{2}
+}
+
 type ConnectorEnrollRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
@@ -968,7 +1023,7 @@ func (*GatewayConnectorEnvelope_Cmd) isGatewayConnectorEnvelope_Payload() {}
 
 type ConnectorCmd struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Cmd           string                 `protobuf:"bytes,1,opt,name=cmd,proto3" json:"cmd,omitempty"`
+	Cmd           CommandType            `protobuf:"varint,1,opt,name=cmd,proto3,enum=proto.CommandType" json:"cmd,omitempty"`
 	Payload       string                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1004,11 +1059,11 @@ func (*ConnectorCmd) Descriptor() ([]byte, []int) {
 	return file_ashrix_connector_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *ConnectorCmd) GetCmd() string {
+func (x *ConnectorCmd) GetCmd() CommandType {
 	if x != nil {
 		return x.Cmd
 	}
-	return ""
+	return CommandType_CMD_UNSPECIFIED
 }
 
 func (x *ConnectorCmd) GetPayload() string {
@@ -1365,9 +1420,9 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\thello_ack\x18\x01 \x01(\v2\x18.proto.ConnectorHelloAckH\x00R\bhelloAck\x120\n" +
 	"\x06reject\x18\x02 \x01(\v2\x16.proto.ConnectorRejectH\x00R\x06reject\x12'\n" +
 	"\x03cmd\x18\x03 \x01(\v2\x13.proto.ConnectorCmdH\x00R\x03cmdB\t\n" +
-	"\apayload\":\n" +
-	"\fConnectorCmd\x12\x10\n" +
-	"\x03cmd\x18\x01 \x01(\tR\x03cmd\x12\x18\n" +
+	"\apayload\"N\n" +
+	"\fConnectorCmd\x12$\n" +
+	"\x03cmd\x18\x01 \x01(\x0e2\x12.proto.CommandTypeR\x03cmd\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\tR\apayload\"\xb2\x01\n" +
 	"\x0eConnectorHello\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1b\n" +
@@ -1398,7 +1453,13 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\x10UNSPECIFIED_TYPE\x10\x00\x12\x0e\n" +
 	"\n" +
 	"APP_TO_APP\x10\x01\x12\x0f\n" +
-	"\vUSER_TO_APP\x10\x022c\n" +
+	"\vUSER_TO_APP\x10\x02*\x94\x01\n" +
+	"\vCommandType\x12\x13\n" +
+	"\x0fCMD_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19CMD_ROTATE_CONNECTOR_CERT\x10\x01\x12\x1d\n" +
+	"\x19CMD_REVOKE_CONNECTOR_CERT\x10\x02\x12\x18\n" +
+	"\x14CMD_REVOKE_CONNECTOR\x10\x03\x12\x18\n" +
+	"\x14CMD_RELOAD_CONNECTOR\x10\x042c\n" +
 	"\x10ConnectorService\x12O\n" +
 	"\aConnect\x12\x1f.proto.ConnectorGatewayEnvelope\x1a\x1f.proto.GatewayConnectorEnvelope(\x010\x01BFZDgithub.com/JohnnyAsh-U/ashrix-api/proto/ashrix-connector.proto;protob\x06proto3"
 
@@ -1414,53 +1475,55 @@ func file_ashrix_connector_proto_rawDescGZIP() []byte {
 	return file_ashrix_connector_proto_rawDescData
 }
 
-var file_ashrix_connector_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_ashrix_connector_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_ashrix_connector_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_ashrix_connector_proto_goTypes = []any{
 	(RequestType)(0),                   // 0: proto.RequestType
 	(FlowType)(0),                      // 1: proto.FlowType
-	(*ConnectorEnrollRequest)(nil),     // 2: proto.ConnectorEnrollRequest
-	(*ConnectorEnrollResponse)(nil),    // 3: proto.ConnectorEnrollResponse
-	(*ConnectorRenewCertRequest)(nil),  // 4: proto.ConnectorRenewCertRequest
-	(*ConnectorRenewCertResponse)(nil), // 5: proto.ConnectorRenewCertResponse
-	(*ConnectorStatusResponse)(nil),    // 6: proto.ConnectorStatusResponse
-	(*ConnectorApps)(nil),              // 7: proto.ConnectorApps
-	(*HeaderList)(nil),                 // 8: proto.HeaderList
-	(*StreamFrame)(nil),                // 9: proto.StreamFrame
-	(*ConnectorGatewayEnvelope)(nil),   // 10: proto.ConnectorGatewayEnvelope
-	(*GatewayConnectorEnvelope)(nil),   // 11: proto.GatewayConnectorEnvelope
-	(*ConnectorCmd)(nil),               // 12: proto.ConnectorCmd
-	(*ConnectorHello)(nil),             // 13: proto.ConnectorHello
-	(*ConnectorHeartbeat)(nil),         // 14: proto.ConnectorHeartbeat
-	(*ConnectorHelloAck)(nil),          // 15: proto.ConnectorHelloAck
-	(*ConnectorReject)(nil),            // 16: proto.ConnectorReject
-	nil,                                // 17: proto.StreamFrame.HeadersEntry
-	(*timestamppb.Timestamp)(nil),      // 18: google.protobuf.Timestamp
+	(CommandType)(0),                   // 2: proto.CommandType
+	(*ConnectorEnrollRequest)(nil),     // 3: proto.ConnectorEnrollRequest
+	(*ConnectorEnrollResponse)(nil),    // 4: proto.ConnectorEnrollResponse
+	(*ConnectorRenewCertRequest)(nil),  // 5: proto.ConnectorRenewCertRequest
+	(*ConnectorRenewCertResponse)(nil), // 6: proto.ConnectorRenewCertResponse
+	(*ConnectorStatusResponse)(nil),    // 7: proto.ConnectorStatusResponse
+	(*ConnectorApps)(nil),              // 8: proto.ConnectorApps
+	(*HeaderList)(nil),                 // 9: proto.HeaderList
+	(*StreamFrame)(nil),                // 10: proto.StreamFrame
+	(*ConnectorGatewayEnvelope)(nil),   // 11: proto.ConnectorGatewayEnvelope
+	(*GatewayConnectorEnvelope)(nil),   // 12: proto.GatewayConnectorEnvelope
+	(*ConnectorCmd)(nil),               // 13: proto.ConnectorCmd
+	(*ConnectorHello)(nil),             // 14: proto.ConnectorHello
+	(*ConnectorHeartbeat)(nil),         // 15: proto.ConnectorHeartbeat
+	(*ConnectorHelloAck)(nil),          // 16: proto.ConnectorHelloAck
+	(*ConnectorReject)(nil),            // 17: proto.ConnectorReject
+	nil,                                // 18: proto.StreamFrame.HeadersEntry
+	(*timestamppb.Timestamp)(nil),      // 19: google.protobuf.Timestamp
 }
 var file_ashrix_connector_proto_depIdxs = []int32{
-	18, // 0: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
-	18, // 1: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
-	18, // 2: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
-	18, // 3: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
-	7,  // 4: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
-	17, // 5: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
+	19, // 0: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
+	19, // 1: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
+	19, // 2: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
+	19, // 3: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
+	8,  // 4: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
+	18, // 5: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
 	0,  // 6: proto.StreamFrame.stream_type:type_name -> proto.RequestType
 	1,  // 7: proto.StreamFrame.flow_type:type_name -> proto.FlowType
-	18, // 8: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	13, // 9: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
-	14, // 10: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
-	15, // 11: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
-	16, // 12: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
-	12, // 13: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
-	7,  // 14: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
-	8,  // 15: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
-	10, // 16: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
-	11, // 17: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
-	17, // [17:18] is the sub-list for method output_type
-	16, // [16:17] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	19, // 8: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	14, // 9: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
+	15, // 10: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
+	16, // 11: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
+	17, // 12: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
+	13, // 13: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
+	2,  // 14: proto.ConnectorCmd.cmd:type_name -> proto.CommandType
+	8,  // 15: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
+	9,  // 16: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
+	11, // 17: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
+	12, // 18: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
+	18, // [18:19] is the sub-list for method output_type
+	17, // [17:18] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_connector_proto_init() }
@@ -1482,7 +1545,7 @@ func file_ashrix_connector_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_connector_proto_rawDesc), len(file_ashrix_connector_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,

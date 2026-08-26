@@ -23,6 +23,7 @@ type oktaAdapter struct {
 type extraOktaConfig struct {
 	Domain     string `json:"domain"`
 	APIToken string `json:"apiToken"`
+    AuthServerID string `json:"authServerId"`
 }
 
 func newOktaAdapter(base *baseOIDCClient, cfg *IdentityProvider) (*oktaAdapter, error) {

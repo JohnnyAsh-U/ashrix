@@ -121,6 +121,7 @@ message Command {
     RevokeConnectorCertCmd revoke_connector_cert = 10;
     CrlSyncCmd             crl_sync              = 11;
     ConnectorSyncCmd       connector_sync        = 12;
+    ReloadConnectorCmd  reload_connector      = 13;
   }
 }
 
@@ -145,6 +146,10 @@ message RotateConnectorCertCmd {
 }
 
 message RevokeConnectorCertCmd {
+  string connector_id = 1;
+}
+
+message ReloadConnectorCmd {
   string connector_id = 1;
 }
 

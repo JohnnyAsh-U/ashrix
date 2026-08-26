@@ -17,6 +17,7 @@ import (
 func (c *ConnectorTunnel) handleRequestStream(ctx context.Context, stream transport.Stream) {
 	defer stream.Close()
 	defer func() {
+		c.managementConn.ActiveStreams.Add(-1)
 		if r := recover(); r != nil {
 			c.log.Error("panic in handleRequestStream", zap.Any("panic", r))
 		}
@@ -37,7 +38,6 @@ func (c *ConnectorTunnel) handleRequestStream(ctx context.Context, stream transp
 
 	switch streamFrame.StreamType {
 	case proto.RequestType_HTTP_REQUEST:
-
 		c.handleHTTPRequest(ctx, stream, &streamFrame)
 	case proto.RequestType_WS_REQUEST:
 

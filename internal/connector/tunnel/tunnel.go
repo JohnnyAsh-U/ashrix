@@ -3,14 +3,13 @@ package tunnel
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	// "go.uber.org/zap"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
-	"go.uber.org/zap"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-
+	"go.uber.org/zap"
 )
 
 // ConnectorTunnel manages the full lifecycle of the tunnel.
@@ -19,16 +18,15 @@ type ConnectorTunnel struct {
 	startedAt time.Time
 
 	apps []*pb.ConnectorApps
-
-	// Active stream count — reported in heartbeat
-	activeStreams atomic.Int64
+	managementConn *management.ManagementConn
 }
 
-func NewTunnel(log *zap.Logger, apps []*pb.ConnectorApps) *ConnectorTunnel {
+func NewTunnel(log *zap.Logger, apps []*pb.ConnectorApps, managementConn *management.ManagementConn) *ConnectorTunnel {
 	return &ConnectorTunnel{
 		log:       log,
 		startedAt: time.Now(),
 		apps: apps,
+		managementConn: managementConn,
 	}
 }
 
@@ -68,6 +66,8 @@ func (c *ConnectorTunnel) AcceptLoop(
 				return fmt.Errorf("accept stream: %w", err)
 			}
 		}
+
+		c.managementConn.ActiveStreams.Add(1)
 
 		// Handle in goroutine — accept loop never blocks
 		// 100 concurrent users = 100 goroutines = fine

@@ -107,53 +107,6 @@ func runStart() (err error) {
 		cancel()
 	}()
 
-	//-------------------------Startup Workflow---------------------------//
-	//Check Cert -> renew or register
-	log.Info("Running startup workflow and connecting with CP", zap.String("cp_url", CPURL))
-
-	result, err := startup.Run(ctx, CPURL, log, token, appStorage)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "\nFATAL: %s\n\n", err.Error())
-		os.Exit(1)
-	}
-
-	result.PKI.StartRotator()
-	defer result.PKI.Stop()
-
-	log.Info("Startup Complete",
-		zap.String("connector_id", result.Status.ConnectorId),
-		zap.String("gateway_id", result.Status.GatewayId),
-		zap.String("gateway_url", result.Status.GatewayUrl),
-		zap.Int("apps", len(result.Status.Apps)),
-	)
-
-	//------------------------ Build Transport config from status response-------------------------//
-
-	gatewayAddr := result.Status.GatewayIp
-	fmt.Println(gatewayAddr)
-	if gatewayAddr == "" {
-		fmt.Println("Gateway URL not valid")
-		os.Exit(1)
-	}
-
-	tlsConfig := result.PKI.TLSConfig()
-	connectorID := result.Status.ConnectorId
-	tenantID := result.Status.TenantId
-	apps := result.Status.Apps
-
-	//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
-	gRPCURL := result.Status.GatewayIp + ":9444"
-
-	//---------------------------Config for different Transport---------------------------------------------//
-	config := transport.Config{
-		GatewayQUICAddr: result.Status.GatewayIp + ":9445",
-		GatewayGRPCAddr: result.Status.GatewayIp + ":9444",
-		GatewayWSURL:    "wss://" + result.Status.GatewayIp + "/ws",
-		ConnectorID:     connectorID,
-		// T
-		TLSConfig: tlsConfig,
-	}
-
 	attempt := 0
 	for {
 		if ctx.Err() != nil {
@@ -161,8 +114,55 @@ func runStart() (err error) {
 		}
 		attempt++
 
+		//-------------------------Startup Workflow---------------------------//
+		//Check Cert -> renew or register
+		log.Info("Running startup workflow and connecting with CP", zap.String("cp_url", CPURL))
+
+		result, err := startup.Run(ctx, CPURL, log, token, appStorage)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\nFATAL: %s\n\n", err.Error())
+			os.Exit(1)
+		}
+
+		result.PKI.StartRotator()
+		defer result.PKI.Stop()
+
+		log.Info("Startup Complete",
+			zap.String("connector_id", result.Status.ConnectorId),
+			zap.String("gateway_id", result.Status.GatewayId),
+			zap.String("gateway_url", result.Status.GatewayUrl),
+			zap.Int("apps", len(result.Status.Apps)),
+		)
+
+		//------------------------ Build Transport config from status response-------------------------//
+
+		gatewayAddr := result.Status.GatewayIp
+		fmt.Println(gatewayAddr)
+		if gatewayAddr == "" {
+			fmt.Println("Gateway URL not valid")
+			os.Exit(1)
+		}
+
+		tlsConfig := result.PKI.TLSConfig()
+		connectorID := result.Status.ConnectorId
+		tenantID := result.Status.TenantId
+		apps := result.Status.Apps
+
+		//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
+		gRPCURL := result.Status.GatewayIp + ":9444"
+
+		//---------------------------Config for different Transport---------------------------------------------//
+		config := transport.Config{
+			GatewayQUICAddr: result.Status.GatewayIp + ":9445",
+			GatewayGRPCAddr: result.Status.GatewayIp + ":9444",
+			GatewayWSURL:    "wss://" + result.Status.GatewayIp + "/ws",
+			ConnectorID:     connectorID,
+			// T
+			TLSConfig: tlsConfig,
+		}
+
 		log.Info("Opening management stream with gateway", zap.String("addr", gRPCURL), zap.Int("attempt", attempt))
-		streamConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tenantID, tlsConfig, log, apps, result.PKI, appStorage)
+		managementConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tenantID, tlsConfig, log, apps, result.PKI, appStorage)
 		if err != nil {
 			log.Error("Failed to open Gateway stream", zap.String("cp_url", gRPCURL), zap.Error(err))
 			select {
@@ -175,11 +175,11 @@ func runStart() (err error) {
 
 		// ---------------------Hello handshake-------------------------------------------//
 		helloCtx, helloCancel := context.WithTimeout(ctx, 10*time.Second)
-		err = streamConn.Register(helloCtx)
+		err = managementConn.Register(helloCtx)
 		helloCancel()
 		if err != nil {
 			log.Error("Failed to register management stream", zap.Error(err))
-			streamConn.Conn.Close()
+			managementConn.Conn.Close()
 			select {
 			case <-time.After(reconnectDelay(attempt)):
 				continue
@@ -189,7 +189,6 @@ func runStart() (err error) {
 		}
 
 		log.Info("✓ connector management stream ready", zap.String("connector_id", connectorID), zap.String("app_addr", gRPCURL))
-		attempt = 0
 
 		//--------------------Mangement Receiver, HeartBeat, and Tunnel Loop ---------------------------//
 		sessionCtx, sessionCancel := context.WithCancel(ctx)
@@ -202,7 +201,7 @@ func runStart() (err error) {
 					errCh <- fmt.Errorf("management receiver panic: %v", r)
 				}
 			}()
-			errCh <- streamConn.RunReceiver(sessionCtx)
+			errCh <- managementConn.RunReceiver(sessionCtx)
 		}()
 
 		go func() {
@@ -212,7 +211,7 @@ func runStart() (err error) {
 					errCh <- fmt.Errorf("management heartbeat panic: %v", r)
 				}
 			}()
-			errCh <- streamConn.RunHeartbeat(sessionCtx, 10*time.Second)
+			errCh <- managementConn.RunHeartbeat(sessionCtx, 10*time.Second)
 		}()
 
 		go func() {
@@ -222,22 +221,22 @@ func runStart() (err error) {
 					errCh <- fmt.Errorf("tunnel loop panic: %v", r)
 				}
 			}()
-			errCh <- runTunnelLoop(sessionCtx, config, log, apps)
+			errCh <- runTunnelLoop(sessionCtx, config, log, apps, managementConn)
 		}()
 
 		select {
 		case err := <-errCh:
 			if err != nil {
-				log.Error("Session lost due to component error", zap.Error(err))
+				log.Error("Session Shut Down", zap.Error(err))
 			}
 		case <-ctx.Done():
 			sessionCancel()
-			streamConn.Conn.Close()
+			managementConn.Conn.Close()
 			return nil
 		}
 
 		sessionCancel()
-		streamConn.Conn.Close()
+		managementConn.Conn.Close()
 
 		// Sleep briefly before reconnecting
 		select {
@@ -248,7 +247,7 @@ func runStart() (err error) {
 	}
 }
 
-func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger, apps []*pb.ConnectorApps) error {
+func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger, apps []*pb.ConnectorApps, managementConn *management.ManagementConn) error {
 	attempt := 0
 	for {
 		if ctx.Err() != nil {
@@ -298,7 +297,7 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 
 		// Tunnel: accept and proxy requests
 		errCh := make(chan error, 1)
-		connTunnel := tunnel.NewTunnel(log, apps)
+		connTunnel := tunnel.NewTunnel(log, apps, managementConn)
 
 		go func() {
 			errCh <- connTunnel.AcceptLoop(ctx, transportProto)
@@ -347,8 +346,8 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 // reconnectDelay returns exponential backoff with jitter and 60s cap.
 func reconnectDelay(attempt int) time.Duration {
 	base := time.Duration(1<<attempt) * time.Second
-	if base > 60*time.Second {
-		base = 60 * time.Second
+	if base > 10*time.Second {
+		base = 10 * time.Second
 	}
 	jitter := time.Duration(rand.Int63n(int64(base / 5)))
 	return base + jitter

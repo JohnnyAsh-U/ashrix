@@ -14,6 +14,7 @@ const (
 	CmdRotateConnectorCert CommandType = "ROTATE_CONNECTOR_CERT"
 	CmdRevokeConnectorCert CommandType = "REVOKE_CONNECTOR_CERT"
 	CmdRevokeConnector     CommandType = "REVOKE_CONNECTOR"
+	CmdReloadConnector	   CommandType = "RELOAD_CONNECTOR"
 
 	CmdRevokeUserSession CommandType = "REVOKE_USER_SESSION"
 	CmdCrlSync           CommandType = "CRL_SYNC"

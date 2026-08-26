@@ -196,7 +196,9 @@ func (s *Server) handleConnectorMessage(connectorID string, env *gen.ConnectorGa
 		// fmt.Println(s.registry.GetByConnectorID(connectorID))
 		s.log.Debug("heartbeat received",
 			zap.String("connector_id", connectorID),
-			zap.Int64("seq", p.Heartbeat.Seq))
+			zap.Int64("seq", p.Heartbeat.Seq),
+			zap.Int64("activeStreams", p.Heartbeat.ActiveStreams),
+		)
 	default:
 		s.log.Debug("unhandled connector message")
 	}

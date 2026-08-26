@@ -80,21 +80,21 @@ enum FlowType {
 // 3. Payload Messages
 
 message StreamFrame {
-  string                  request_id   = 1;
-  string                  session_id   = 2;
-  string                  tenant_id    = 3;
-  string                  user_id      = 4;
-  string                  user_email   = 5;
-  string                  connector_id = 6;
-  string                  app_id       = 7;
-  string                  method       = 8;
-  string                  host         = 9;
-  string                  path         = 10;
-  string                  query        = 11;
-  map<string, HeaderList> headers      = 12;
-  int64                   body_length  = 13;
-  RequestType             stream_type  = 14;
-  FlowType                flow_type    = 15;
+  string                  request_id     = 1;
+  string                  session_id     = 2;
+  string                  tenant_id      = 3;
+  string                  user_id        = 4;
+  string                  user_email     = 5;
+  string                  connector_id   = 6;
+  string                  app_id         = 7;
+  string                  method         = 8;
+  string                  host           = 9;
+  string                  path           = 10;
+  string                  query          = 11;
+  map<string, HeaderList> headers        = 12;
+  int64                   body_length    = 13;
+  RequestType             stream_type    = 14;
+  FlowType                flow_type      = 15;
   string                  socks_username = 16;
   string                  socks_password = 17;
 }
@@ -128,8 +128,16 @@ message GatewayConnectorEnvelope {
 }
 
 message ConnectorCmd {
-  string cmd     = 1;
-  string payload = 2;
+  CommandType cmd     = 1;
+  string      payload = 2;
+}
+
+enum CommandType {
+  CMD_UNSPECIFIED           = 0;
+  CMD_ROTATE_CONNECTOR_CERT = 1;
+  CMD_REVOKE_CONNECTOR_CERT = 2;
+  CMD_REVOKE_CONNECTOR      = 3;
+  CMD_RELOAD_CONNECTOR      = 4;
 }
 
 message ConnectorHello {

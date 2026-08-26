@@ -46,7 +46,7 @@ CREATE TABLE idp_configs (
     client_id       TEXT        NOT NULL,
     client_secret   TEXT        NOT NULL,        -- AES-256-GCM encrypted, never plaintext
     issuer_url      TEXT        NOT NULL,        -- OIDC discovery base URL
-    scopes          TEXT[]      NOT NULL DEFAULT '{}',
+    scopes          TEXT        NOT NULL DEFAULT '{}',
     email_claim     TEXT        NOT NULL,
     name_claim      TEXT        NOT NULL,
     group_claim     TEXT        NOT NULL,
@@ -144,6 +144,7 @@ CREATE TABLE gateways (
     status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'healthy', 'degraded', 'offline', 'draining')),
     is_active       BOOLEAN NOT NULL DEFAULT true,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    log_to_cp  BOOLEAN     NOT NULL DEFAULT true,
     enrolled_at TIMESTAMPTZ,
     revoked_at      TIMESTAMPTZ,    
     UNIQUE (org_id, name)
@@ -166,6 +167,8 @@ CREATE TABLE connectors (
     status        TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'connected', 'disconnected')),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     is_active       BOOLEAN NOT NULL DEFAULT true,
+    open_sock   BOOLEAN     NOT NULL DEFAULT false,
+    active_streams INT NOT NULL DEFAULT 0,
     enrolled_at TIMESTAMPTZ,
     revoked_at    TIMESTAMPTZ,
 
@@ -190,6 +193,7 @@ CREATE TABLE apps (
     upstream      TEXT        NOT NULL,           -- host:port
     protocol      TEXT        NOT NULL DEFAULT 'http' CHECK (protocol IN ('http', 'tcp', 'ssh')),
     is_public     BOOLEAN     NOT NULL DEFAULT false,
+    sock_pass     TEXT        NOT NULL
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at    TIMESTAMPTZ,
 

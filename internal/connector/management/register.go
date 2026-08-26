@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -37,6 +38,8 @@ type ManagementConn struct {
 	// Add rotation guard fields
 	rotatingMu sync.Mutex
 	isRotating bool
+	// Active stream count — reported in heartbeat
+	ActiveStreams atomic.Int64
 }
 
 // dialManagement opens the gRPC management connection to the gateway.
@@ -143,3 +146,4 @@ func (c *ManagementConn) Register(ctx context.Context) error {
 		return ctx.Err()
 	}
 }
+

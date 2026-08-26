@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"go.uber.org/zap"
 )
@@ -46,19 +47,21 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 		switch p := msg.Payload.(type) {
 		case *proto.GatewayConnectorEnvelope_Cmd:
 			c.log.Info("received command",
-				zap.String("cmd", p.Cmd.Cmd),
+				zap.String("cmd", p.Cmd.Cmd.String()),
 				zap.String("payload", p.Cmd.Payload),
 			)
 			switch p.Cmd.Cmd {
-			case "ROTATE_CONNECTOR_CERT":
+			case pb.CommandType_CMD_ROTATE_CONNECTOR_CERT:
 				go c.handleCertRotation(ctx, rotateCh)
-			case "REVOKE_CONNECTOR_CERT", "REVOKE_CONNECTOR":
+			case pb.CommandType_CMD_REVOKE_CONNECTOR_CERT, pb.CommandType_CMD_REVOKE_CONNECTOR:
 				go func() {
 					c.log.Error("connector certificate or component revoked - clearing credentials and shutting down")
 					_ = c.AppStorage.ClearCredential()
 					time.Sleep(500 * time.Millisecond)
 					_ = syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
 				}()
+			case pb.CommandType_CMD_RELOAD_CONNECTOR:
+				return fmt.Errorf("Received Reload Command")
 			}
 		default:
 			c.log.Warn("received unknown message type",

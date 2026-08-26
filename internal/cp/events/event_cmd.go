@@ -25,15 +25,13 @@ type GatewayEvent struct {
 	CreatedAt time.Time
 }
 
-
-
 func GatewayEventToCmd(
 	event store.GatewayEvent,
 ) (*gen.Command, error) {
 
 	job := CommandJob{
-		Type:         CommandType(event.Command),
-		GatewayID:    event.GatewayID.String(),
+		Type:      CommandType(event.Command),
+		GatewayID: event.GatewayID.String(),
 	}
 
 	if len(event.Payload) > 0 {
@@ -75,6 +73,15 @@ func BuildCommand(
 		return &gen.Command{
 			Payload: &gen.Command_RevokeGateway{
 				RevokeGateway: &gen.RevokeGatewayCmd{},
+			},
+		}, nil
+
+	case CmdReloadConnector:
+		return &gen.Command{
+			Payload: &gen.Command_ReloadConnector{
+				ReloadConnector: &gen.ReloadConnectorCmd{
+					ConnectorId: job.ConnectorID,
+				},
 			},
 		}, nil
 
@@ -125,8 +132,7 @@ func BuildCommand(
 		return &gen.Command{
 			Payload: &gen.Command_CrlSync{
 				CrlSync: &gen.CrlSyncCmd{
-					RevokedSerialNumbers:
-						job.RevokedSerialNumbers,
+					RevokedSerialNumbers: job.RevokedSerialNumbers,
 				},
 			},
 		}, nil
@@ -148,16 +154,15 @@ func BuildCommand(
 	}
 }
 
-
 func MarshalCommand(job CommandJob) ([]byte, error) {
 	return json.Marshal(
 		persistedCommand{
-			Type:                  job.Type,
-			GatewayID:             job.GatewayID,
-			ConnectorID:           job.ConnectorID,
-			SessionID:             job.SessionID,
-			RevokedSerialNumbers:  job.RevokedSerialNumbers,
-			ConnectorInfo:         job.ConnectorInfo,
+			Type:                 job.Type,
+			GatewayID:            job.GatewayID,
+			ConnectorID:          job.ConnectorID,
+			SessionID:            job.SessionID,
+			RevokedSerialNumbers: job.RevokedSerialNumbers,
+			ConnectorInfo:        job.ConnectorInfo,
 		},
 	)
 }
@@ -173,11 +178,11 @@ func UnmarshalCommand(data []byte) (CommandJob, error) {
 	}
 
 	return CommandJob{
-		Type:                  command.Type,
-		GatewayID:             command.GatewayID,
-		ConnectorID:           command.ConnectorID,
-		SessionID:             command.SessionID,
-		RevokedSerialNumbers:  command.RevokedSerialNumbers,
-		ConnectorInfo:         command.ConnectorInfo,
+		Type:                 command.Type,
+		GatewayID:            command.GatewayID,
+		ConnectorID:          command.ConnectorID,
+		SessionID:            command.SessionID,
+		RevokedSerialNumbers: command.RevokedSerialNumbers,
+		ConnectorInfo:        command.ConnectorInfo,
 	}, nil
 }

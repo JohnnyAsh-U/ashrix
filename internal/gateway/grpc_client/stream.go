@@ -326,7 +326,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
 					Payload: &pb.GatewayConnectorEnvelope_Cmd{
 						Cmd: &pb.ConnectorCmd{
-							Cmd:     "REVOKE_CONNECTOR",
+							Cmd:     pb.CommandType_CMD_REVOKE_CONNECTOR,
 							Payload: cmd.RevokeConnector.ConnectorId,
 						},
 					},
@@ -340,7 +340,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
 					Payload: &pb.GatewayConnectorEnvelope_Cmd{
 						Cmd: &pb.ConnectorCmd{
-							Cmd:     "REVOKE_CONNECTOR_CERT",
+							Cmd:     pb.CommandType_CMD_REVOKE_CONNECTOR_CERT,
 							Payload: cmd.RevokeConnectorCert.ConnectorId,
 						},
 					},
@@ -354,8 +354,22 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
 					Payload: &pb.GatewayConnectorEnvelope_Cmd{
 						Cmd: &pb.ConnectorCmd{
-							Cmd:     "ROTATE_CONNECTOR_CERT",
+							Cmd:     pb.CommandType_CMD_ROTATE_CONNECTOR_CERT,
 							Payload: cmd.RotateConnectorCert.ConnectorId,
+						},
+					},
+				})
+			}
+			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
+
+		case *pb.Command_ReloadConnector:
+			h.log.Info("reloading connector; sending command to connector", zap.String("connector_id", cmd.ReloadConnector.ConnectorId))
+			if entry, ok := h.registry.GetByConnectorID(cmd.ReloadConnector.ConnectorId); ok && entry.ManagementSession != nil {
+				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
+					Payload: &pb.GatewayConnectorEnvelope_Cmd{
+						Cmd: &pb.ConnectorCmd{
+							Cmd:     pb.CommandType_CMD_RELOAD_CONNECTOR,
+							Payload: cmd.ReloadConnector.ConnectorId,
 						},
 					},
 				})

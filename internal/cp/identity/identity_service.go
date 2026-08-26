@@ -32,9 +32,9 @@ import (
 )
 
 type IDPService struct {
-	repo    Repository
-	appRepo app.Repository
-	eventsRepo     events.Repository
+	repo        Repository
+	appRepo     app.Repository
+	eventsRepo  events.Repository
 	gatewayRepo gateway.Repository
 	idpSession  *IDPSession
 	cache       *redis.Client
@@ -59,9 +59,9 @@ func NewIDPService(
 ) *IDPService {
 
 	return &IDPService{
-		repo:    repo,
-		appRepo: appRepo,
-		eventsRepo:     eventsRepo,
+		repo:        repo,
+		appRepo:     appRepo,
+		eventsRepo:  eventsRepo,
 		gatewayRepo: gateRepo,
 		idpSession:  idpSession,
 		cache:       cache,
@@ -167,18 +167,18 @@ func (r *IDPService) AddAppToIDP(ctx context.Context, AppID, IdpID string, isReq
 	}
 
 	//Get the idp and verify if it belongs to tenant
-	 idpConfig, err := r.repo.GetIdentityConfigByID(ctx, uuid.MustParse(IdpID))
-	 if err != nil {
+	idpConfig, err := r.repo.GetIdentityConfigByID(ctx, uuid.MustParse(IdpID))
+	if err != nil {
 		return store.AppIdpMapping{}, dto.NewNotFoundError("IDP not found")
-	 }
-	 if idpConfig.OrgID != orgIDUUID {
+	}
+	if idpConfig.OrgID != orgIDUUID {
 		return store.AppIdpMapping{}, dto.NewNotFoundError("IDP not found")
-	 }
+	}
 
 	//Create the relations
 	mapping, err := r.repo.CreateAppIdPMapping(ctx, store.AddAppIdpMappingParams{
-		AppID:   uuid.MustParse(AppID),
-		IdpID:   uuid.MustParse(IdpID),
+		AppID:      uuid.MustParse(AppID),
+		IdpID:      uuid.MustParse(IdpID),
 		IsRequired: isRequired,
 	})
 	if err != nil {
@@ -186,7 +186,6 @@ func (r *IDPService) AddAppToIDP(ctx context.Context, AppID, IdpID string, isReq
 	}
 	return mapping, nil
 }
-
 
 func (r *IDPService) RemoveAppFromIDP(ctx context.Context, AppID, IdpID string) (store.AppIdpMapping, *dto.AppError) {
 	orgID := middleware.OrgIDFromCtx(ctx)
@@ -206,18 +205,18 @@ func (r *IDPService) RemoveAppFromIDP(ctx context.Context, AppID, IdpID string) 
 	}
 
 	//Get the idp and verify if it belongs to tenant
-	 idpConfig, err := r.repo.GetIdentityConfigByID(ctx, uuid.MustParse(IdpID))
-	 if err != nil {
+	idpConfig, err := r.repo.GetIdentityConfigByID(ctx, uuid.MustParse(IdpID))
+	if err != nil {
 		return store.AppIdpMapping{}, dto.NewNotFoundError("IDP not found")
-	 }
-	 if idpConfig.OrgID != orgIDUUID {
+	}
+	if idpConfig.OrgID != orgIDUUID {
 		return store.AppIdpMapping{}, dto.NewNotFoundError("IDP not found")
-	 }
+	}
 
 	//Delete the relations
 	mapping, err := r.repo.DeleteAppIdpMapping(ctx, store.DeleteAppIdpMappingParams{
-		AppID:   uuid.MustParse(AppID),
-		IdpID:   uuid.MustParse(IdpID),
+		AppID: uuid.MustParse(AppID),
+		IdpID: uuid.MustParse(IdpID),
 	})
 
 	if err != nil {
@@ -225,8 +224,6 @@ func (r *IDPService) RemoveAppFromIDP(ctx context.Context, AppID, IdpID string) 
 	}
 	return mapping, nil
 }
-
-
 
 func (r *IDPService) CheckGatewayBelongsToTenant(ctx context.Context, gatewayID, OrgID uuid.UUID) (bool, error) {
 	//Get the GatewayURL
@@ -256,18 +253,36 @@ func (r *IDPService) CreateTenantIdentityConfig(ctx context.Context, orgID uuid.
 		return store.IdpConfig{}, fmt.Errorf("encrypt client secret: %w", err)
 	}
 
+	var identityProvider *oidc.IdentityProvider
+	switch req.Type {
+	case "google":
+		identityProvider = oidc.GooglePreset(orgID.String(), req.ClientID, encryptedSecret, req.ExtraConfig)
+	case "entra":
+		identityProvider = oidc.EntraPreset(orgID.String(), req.ClientID, req.ClientSecretEnc, req.ExtraConfig)
+	case "okta":
+		identityProvider = oidc.OktaPreset(orgID.String(), req.ClientID, req.ClientSecretEnc, req.ExtraConfig)
+	case "keycloak":
+		identityProvider = oidc.KeycloakPreset(orgID.String(), req.ClientID, req.ClientSecretEnc, req.ExtraConfig)
+	case "generic":
+		identityProvider = oidc.GenericOIDCPreset(
+			orgID.String(), req.IssuerURL, req.ClientID, req.ClientSecretEnc, req.EmailClaim, req.NameClaim, req.GroupsClaim, req.ExtraConfig,
+		)
+	default:
+		return store.IdpConfig{}, fmt.Errorf("unknown provider type")
+	}
+
 	return r.repo.CreateTenantIdentityConfig(ctx, store.CreateIDPConfigParams{
 		OrgID:        orgID,
-		Name:         req.DisplayName,
-		ProviderType: req.Type,
-		ClientID:     req.ClientID,
-		ClientSecret: encryptedSecret,
-		IssuerUrl:    req.IssuerURL,
-		Scopes:       req.Scopes,
-		EmailClaim:   req.EmailClaim,
-		NameClaim:    req.NameClaim,
-		GroupClaim:   req.GroupsClaim,
-		ExtraConfig:  req.ExtraConfig,
+		Name:         identityProvider.DisplayName,
+		ProviderType: identityProvider.Type,
+		ClientID:     identityProvider.ClientID,
+		ClientSecret: identityProvider.ClientSecretEnc,
+		IssuerUrl:    identityProvider.IssuerURL,
+		Scopes:       identityProvider.Scopes,
+		EmailClaim:   identityProvider.EmailClaim,
+		NameClaim:    identityProvider.NameClaim,
+		GroupClaim:   identityProvider.GroupsClaim,
+		ExtraConfig:  identityProvider.ExtraConfig,
 	})
 }
 
