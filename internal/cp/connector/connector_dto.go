@@ -8,11 +8,13 @@ import (
 type CreateConnector struct {
 	Name  string    `json:"name"`
 	GatewayID uuid.UUID `json:"gateway_id"`
+	OpenSock	  bool 		 `json:"open_sock"`
 }
 
 type ReEnrollConnectorRequest struct {
 	Name  string    `json:"name"`
 	GatewayID uuid.UUID `json:"gateway_id"`
+	OpenSock	  bool 		 `json:"open_sock"`
 }
 
 type RevokeConnectorCertRequest struct {
@@ -35,6 +37,8 @@ type ConnectorResponse struct {
 	Version       string    `json:"version"`
 	LastHeartBeat time.Time `json:"last_heartbeat"`
 	Status        string    `json:"status"`
+	OpenSock	  bool 		 `json:"open_sock"`
+	ActiveStream  int32	 `json:"active_stream"`
 	CreatedAt     time.Time `json:"created_at"`
 	EnrolledAt    time.Time `json:"enrolled_at"`
 	RevokedAt     time.Time `json:"revoked_at"`

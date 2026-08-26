@@ -24,7 +24,8 @@ message GatewayEnrollResponse {
   string                    certificate  = 5;
   string                    trust_bundle = 6;
   string                    cp_pub_key   = 7;
-  google.protobuf.Timestamp expires_at   = 8;
+  bool                      log_to_cp    = 8;
+  google.protobuf.Timestamp expires_at   = 9;
 }
 
 message GatewayRenewCertRequest {
@@ -38,7 +39,8 @@ message GatewayRenewCertResponse {
   string                    gateway_id   = 1;
   string                    certificate  = 2;
   string                    trust_bundle = 3;
-  google.protobuf.Timestamp expires_at   = 4;
+  bool                      log_to_cp    = 4;
+  google.protobuf.Timestamp expires_at   = 5;
 }
 
 // =============================================================================
@@ -121,7 +123,7 @@ message Command {
     RevokeConnectorCertCmd revoke_connector_cert = 10;
     CrlSyncCmd             crl_sync              = 11;
     ConnectorSyncCmd       connector_sync        = 12;
-    ReloadConnectorCmd  reload_connector      = 13;
+    ReloadConnectorCmd     reload_connector      = 13;
   }
 }
 

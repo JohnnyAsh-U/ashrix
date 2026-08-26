@@ -46,7 +46,7 @@ CREATE TABLE idp_configs (
     client_id       TEXT        NOT NULL,
     client_secret   TEXT        NOT NULL,        -- AES-256-GCM encrypted, never plaintext
     issuer_url      TEXT        NOT NULL,        -- OIDC discovery base URL
-    scopes          TEXT        NOT NULL DEFAULT '{}',
+    scopes          TEXT[]        NOT NULL DEFAULT '{}',
     email_claim     TEXT        NOT NULL,
     name_claim      TEXT        NOT NULL,
     group_claim     TEXT        NOT NULL,
@@ -193,7 +193,7 @@ CREATE TABLE apps (
     upstream      TEXT        NOT NULL,           -- host:port
     protocol      TEXT        NOT NULL DEFAULT 'http' CHECK (protocol IN ('http', 'tcp', 'ssh')),
     is_public     BOOLEAN     NOT NULL DEFAULT false,
-    sock_pass     TEXT        NOT NULL
+    sock_pass     TEXT        NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at    TIMESTAMPTZ,
 

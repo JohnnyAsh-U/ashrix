@@ -54,7 +54,7 @@ func (h *ConnectorHandler) CreateConnector(w http.ResponseWriter, r *http.Reques
 
 	// Assuming OrgID is passed in the request body.
 	// If OrgID is to be extracted from context (e.g., from JWT), this needs adjustment.
-	connector, appErr := h.service.CreateConnector(r.Context(), req.Name, req.GatewayID)
+	connector, appErr := h.service.CreateConnector(r.Context(), req.Name, req.GatewayID, req.OpenSock)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return
@@ -120,7 +120,7 @@ func (h *ConnectorHandler) ReCreateConnector(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	connector, appErr := h.service.ReCreateConnector(r.Context(), connIDParsed, req.Name, req.GatewayID)
+	connector, appErr := h.service.ReCreateConnector(r.Context(), connIDParsed, req.Name, req.GatewayID, req.OpenSock)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return

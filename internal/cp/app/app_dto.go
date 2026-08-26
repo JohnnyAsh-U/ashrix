@@ -13,6 +13,7 @@ type CreateAppRequest struct {
 	Protocol    string     `json:"protocol" validate:"required,oneof=http https"`
 	IsPublic    *bool      `json:"is_public" validate:"required"`
 	ConnectorID *uuid.UUID `json:"connector_id,omitempty"`
+	SockPass 	string 	   `json:"sock_pass"`
 }
 
 type UpdateAppRequest struct {
@@ -22,6 +23,7 @@ type UpdateAppRequest struct {
 	Protocol    string     `json:"protocol" validate:"required,oneof=http https"`
 	IsPublic    *bool      `json:"is_public" validate:"required"`
 	ConnectorID *uuid.UUID `json:"connector_id,omitempty"`
+	SockPass 	string 	   `json:"sock_pass"`
 }
 
 type AppResponse struct {
@@ -33,5 +35,6 @@ type AppResponse struct {
 	Upstream    string     `json:"upstream"`
 	Protocol    string     `json:"protocol"`
 	IsPublic    bool       `json:"is_public"`
+	SockPass 	string 	   `json:"sock_pass"`
 	CreatedAt   time.Time  `json:"created_at"`
 }

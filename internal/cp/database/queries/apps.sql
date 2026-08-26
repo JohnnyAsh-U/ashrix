@@ -3,8 +3,8 @@
 -- =================================================================
 
 -- name: CreateApp :one
-INSERT INTO apps (org_id, connector_id, name, subdomain, upstream, protocol, is_public)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO apps (org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetAppByID :one
@@ -43,7 +43,8 @@ SET name         = $3,
     upstream     = $5,
     protocol     = $6,
     is_public    = $7,
-    connector_id = $8
+    connector_id = $8,
+    sock_pass = $9
 WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL

@@ -91,7 +91,8 @@ type GatewayEnrollResponse struct {
 	Certificate   string                 `protobuf:"bytes,5,opt,name=certificate,proto3" json:"certificate,omitempty"`
 	TrustBundle   string                 `protobuf:"bytes,6,opt,name=trust_bundle,json=trustBundle,proto3" json:"trust_bundle,omitempty"`
 	CpPubKey      string                 `protobuf:"bytes,7,opt,name=cp_pub_key,json=cpPubKey,proto3" json:"cp_pub_key,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	LogToCp       bool                   `protobuf:"varint,8,opt,name=log_to_cp,json=logToCp,proto3" json:"log_to_cp,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -175,6 +176,13 @@ func (x *GatewayEnrollResponse) GetCpPubKey() string {
 	return ""
 }
 
+func (x *GatewayEnrollResponse) GetLogToCp() bool {
+	if x != nil {
+		return x.LogToCp
+	}
+	return false
+}
+
 func (x *GatewayEnrollResponse) GetExpiresAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.ExpiresAt
@@ -255,7 +263,8 @@ type GatewayRenewCertResponse struct {
 	GatewayId     string                 `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
 	Certificate   string                 `protobuf:"bytes,2,opt,name=certificate,proto3" json:"certificate,omitempty"`
 	TrustBundle   string                 `protobuf:"bytes,3,opt,name=trust_bundle,json=trustBundle,proto3" json:"trust_bundle,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	LogToCp       bool                   `protobuf:"varint,4,opt,name=log_to_cp,json=logToCp,proto3" json:"log_to_cp,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -309,6 +318,13 @@ func (x *GatewayRenewCertResponse) GetTrustBundle() string {
 		return x.TrustBundle
 	}
 	return ""
+}
+
+func (x *GatewayRenewCertResponse) GetLogToCp() bool {
+	if x != nil {
+		return x.LogToCp
+	}
+	return false
 }
 
 func (x *GatewayRenewCertResponse) GetExpiresAt() *timestamppb.Timestamp {
@@ -1910,7 +1926,7 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"\x14GatewayEnrollRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x17\n" +
 	"\acsr_pem\x18\x02 \x01(\tR\x06csrPem\x128\n" +
-	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xb5\x02\n" +
+	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xd1\x02\n" +
 	"\x15GatewayEnrollResponse\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x1b\n" +
@@ -1921,22 +1937,24 @@ const file_ashrix_gateway_proto_rawDesc = "" +
 	"\vcertificate\x18\x05 \x01(\tR\vcertificate\x12!\n" +
 	"\ftrust_bundle\x18\x06 \x01(\tR\vtrustBundle\x12\x1c\n" +
 	"\n" +
-	"cp_pub_key\x18\a \x01(\tR\bcpPubKey\x129\n" +
+	"cp_pub_key\x18\a \x01(\tR\bcpPubKey\x12\x1a\n" +
+	"\tlog_to_cp\x18\b \x01(\bR\alogToCp\x129\n" +
 	"\n" +
-	"expires_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xa9\x01\n" +
+	"expires_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xa9\x01\n" +
 	"\x17GatewayRenewCertRequest\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x1c\n" +
 	"\tsignature\x18\x02 \x01(\tR\tsignature\x12\x17\n" +
 	"\acsr_pem\x18\x03 \x01(\tR\x06csrPem\x128\n" +
-	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xb9\x01\n" +
+	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xd5\x01\n" +
 	"\x18GatewayRenewCertResponse\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12 \n" +
 	"\vcertificate\x18\x02 \x01(\tR\vcertificate\x12!\n" +
-	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x129\n" +
+	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x12\x1a\n" +
+	"\tlog_to_cp\x18\x04 \x01(\bR\alogToCp\x129\n" +
 	"\n" +
-	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"X\n" +
+	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"X\n" +
 	"\x14ExchangeTokenRequest\x12!\n" +
 	"\fgateway_name\x18\x01 \x01(\tR\vgatewayName\x12\x1d\n" +
 	"\n" +

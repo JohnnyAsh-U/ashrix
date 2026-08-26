@@ -241,7 +241,8 @@ type ConnectorEnrollResponse struct {
 	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
 	Certificate   string                 `protobuf:"bytes,2,opt,name=certificate,proto3" json:"certificate,omitempty"`
 	TrustBundle   string                 `protobuf:"bytes,3,opt,name=trust_bundle,json=trustBundle,proto3" json:"trust_bundle,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	OpenSock      bool                   `protobuf:"varint,4,opt,name=open_sock,json=openSock,proto3" json:"open_sock,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -295,6 +296,13 @@ func (x *ConnectorEnrollResponse) GetTrustBundle() string {
 		return x.TrustBundle
 	}
 	return ""
+}
+
+func (x *ConnectorEnrollResponse) GetOpenSock() bool {
+	if x != nil {
+		return x.OpenSock
+	}
+	return false
 }
 
 func (x *ConnectorEnrollResponse) GetExpiresAt() *timestamppb.Timestamp {
@@ -377,7 +385,8 @@ type ConnectorRenewCertResponse struct {
 	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
 	Certificate   string                 `protobuf:"bytes,2,opt,name=certificate,proto3" json:"certificate,omitempty"`
 	TrustBundle   string                 `protobuf:"bytes,3,opt,name=trust_bundle,json=trustBundle,proto3" json:"trust_bundle,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	OpenSock      bool                   `protobuf:"varint,4,opt,name=open_sock,json=openSock,proto3" json:"open_sock,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -433,6 +442,13 @@ func (x *ConnectorRenewCertResponse) GetTrustBundle() string {
 	return ""
 }
 
+func (x *ConnectorRenewCertResponse) GetOpenSock() bool {
+	if x != nil {
+		return x.OpenSock
+	}
+	return false
+}
+
 func (x *ConnectorRenewCertResponse) GetExpiresAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.ExpiresAt
@@ -447,7 +463,8 @@ type ConnectorStatusResponse struct {
 	GatewayUrl    string                 `protobuf:"bytes,3,opt,name=gateway_url,json=gatewayUrl,proto3" json:"gateway_url,omitempty"`
 	GatewayIp     string                 `protobuf:"bytes,4,opt,name=gateway_ip,json=gatewayIp,proto3" json:"gateway_ip,omitempty"`
 	TenantId      string                 `protobuf:"bytes,5,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	Apps          []*ConnectorApps       `protobuf:"bytes,6,rep,name=apps,proto3" json:"apps,omitempty"`
+	OpenSock      bool                   `protobuf:"varint,6,opt,name=open_sock,json=openSock,proto3" json:"open_sock,omitempty"`
+	Apps          []*ConnectorApps       `protobuf:"bytes,7,rep,name=apps,proto3" json:"apps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -517,6 +534,13 @@ func (x *ConnectorStatusResponse) GetTenantId() string {
 	return ""
 }
 
+func (x *ConnectorStatusResponse) GetOpenSock() bool {
+	if x != nil {
+		return x.OpenSock
+	}
+	return false
+}
+
 func (x *ConnectorStatusResponse) GetApps() []*ConnectorApps {
 	if x != nil {
 		return x.Apps
@@ -532,6 +556,7 @@ type ConnectorApps struct {
 	Upstream      string                 `protobuf:"bytes,4,opt,name=upstream,proto3" json:"upstream,omitempty"` //must be host:port
 	Protocol      string                 `protobuf:"bytes,5,opt,name=protocol,proto3" json:"protocol,omitempty"`
 	IsPublic      bool                   `protobuf:"varint,6,opt,name=is_public,json=isPublic,proto3" json:"is_public,omitempty"`
+	SockPass      string                 `protobuf:"bytes,7,opt,name=sock_pass,json=sockPass,proto3" json:"sock_pass,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -606,6 +631,13 @@ func (x *ConnectorApps) GetIsPublic() bool {
 		return x.IsPublic
 	}
 	return false
+}
+
+func (x *ConnectorApps) GetSockPass() string {
+	if x != nil {
+		return x.SockPass
+	}
+	return ""
 }
 
 // 1. Wrapper for map[string][]string
@@ -1345,24 +1377,26 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"\x16ConnectorEnrollRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x17\n" +
 	"\acsr_pem\x18\x02 \x01(\tR\x06csrPem\x128\n" +
-	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xbc\x01\n" +
+	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xd9\x01\n" +
 	"\x17ConnectorEnrollResponse\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12 \n" +
 	"\vcertificate\x18\x02 \x01(\tR\vcertificate\x12!\n" +
-	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x129\n" +
+	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x12\x1b\n" +
+	"\topen_sock\x18\x04 \x01(\bR\bopenSock\x129\n" +
 	"\n" +
-	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xaf\x01\n" +
+	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xaf\x01\n" +
 	"\x19ConnectorRenewCertRequest\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1c\n" +
 	"\tsignature\x18\x02 \x01(\tR\tsignature\x12\x17\n" +
 	"\acsr_pem\x18\x03 \x01(\tR\x06csrPem\x128\n" +
-	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xbf\x01\n" +
+	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xdc\x01\n" +
 	"\x1aConnectorRenewCertResponse\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12 \n" +
 	"\vcertificate\x18\x02 \x01(\tR\vcertificate\x12!\n" +
-	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x129\n" +
+	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x12\x1b\n" +
+	"\topen_sock\x18\x04 \x01(\bR\bopenSock\x129\n" +
 	"\n" +
-	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xe2\x01\n" +
+	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xff\x01\n" +
 	"\x17ConnectorStatusResponse\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1d\n" +
 	"\n" +
@@ -1371,15 +1405,17 @@ const file_ashrix_connector_proto_rawDesc = "" +
 	"gatewayUrl\x12\x1d\n" +
 	"\n" +
 	"gateway_ip\x18\x04 \x01(\tR\tgatewayIp\x12\x1b\n" +
-	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12(\n" +
-	"\x04apps\x18\x06 \x03(\v2\x14.proto.ConnectorAppsR\x04apps\"\xa6\x01\n" +
+	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12\x1b\n" +
+	"\topen_sock\x18\x06 \x01(\bR\bopenSock\x12(\n" +
+	"\x04apps\x18\a \x03(\v2\x14.proto.ConnectorAppsR\x04apps\"\xc3\x01\n" +
 	"\rConnectorApps\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
 	"\tsubdomain\x18\x03 \x01(\tR\tsubdomain\x12\x1a\n" +
 	"\bupstream\x18\x04 \x01(\tR\bupstream\x12\x1a\n" +
 	"\bprotocol\x18\x05 \x01(\tR\bprotocol\x12\x1b\n" +
-	"\tis_public\x18\x06 \x01(\bR\bisPublic\"$\n" +
+	"\tis_public\x18\x06 \x01(\bR\bisPublic\x12\x1b\n" +
+	"\tsock_pass\x18\a \x01(\tR\bsockPass\"$\n" +
 	"\n" +
 	"HeaderList\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\"\x8c\x05\n" +

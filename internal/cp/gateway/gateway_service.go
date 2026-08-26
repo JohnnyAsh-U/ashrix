@@ -41,6 +41,7 @@ func mapToGatewayResponse(g store.CreateGatewayRow) GatewayResponse {
 		OrgID:     g.OrgID.String(),
 		Version:   g.Version.String,
 		Status:    g.Status,
+		LogToCP:   g.LogToCp,
 		CreatedAt: g.CreatedAt,
 	}
 	if g.LastHeartbeat.Valid {
@@ -62,6 +63,7 @@ func mapToGatewayResponse2(g store.Gateway) GatewayResponse {
 		Name:      g.Name,
 		OrgID:     g.OrgID.String(),
 		Version:   g.Version.String,
+		LogToCP:   g.LogToCp,
 		Status:    g.Status,
 		CreatedAt: g.CreatedAt,
 	}
@@ -78,7 +80,7 @@ func mapToGatewayResponse2(g store.Gateway) GatewayResponse {
 }
 
 // CreateGateway creates a new gateway.
-func (s *Service) CreateGateway(ctx context.Context, name, IPAdress, PublicURL string) (GatewayResponse, *dto.AppError) {
+func (s *Service) CreateGateway(ctx context.Context, name, IPAdress, PublicURL string, LogToCP bool) (GatewayResponse, *dto.AppError) {
 
 	//Check if the Org is same as the Admin
 	AdminOrgId := middleware.OrgIDFromCtx(ctx)
@@ -98,6 +100,7 @@ func (s *Service) CreateGateway(ctx context.Context, name, IPAdress, PublicURL s
 		DeploymentType: "hosted",
 		PublicUrl:      PublicURL,
 		IpAddress:      IPAdress,
+		LogToCp:        LogToCP,
 	}
 	gateway, err := s.repo.CreateGateway(ctx, params)
 	if err != nil {
@@ -121,7 +124,7 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 }
 
 // ReEnrollGateway re-create a gateway.
-func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdress, PublicURL string) (GatewayResponse, *dto.AppError) {
+func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdress, PublicURL string, LogtoCP bool) (GatewayResponse, *dto.AppError) {
 
 	gatewayRes, err := s.repo.GetGatewayByID(ctx, id)
 
@@ -144,8 +147,10 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdr
 		Name:      name, // Assuming name can be updated during re-enrollment
 		TokenHash: utils.HashToken(token),
 		PublicUrl: PublicURL,
-		IpAddress: PublicURL,
+		IpAddress: IPAdress,
+		LogToCp:   LogtoCP,
 	}
+
 	gateway, err := s.repo.ReCreateGateway(ctx, params)
 	if err != nil {
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to re-enroll gateway", err.Error())
@@ -230,6 +235,7 @@ func (s *Service) EnrollGateway(ctx context.Context, token, csr string, signer p
 		CpPubKey:    string(pki_utils.MarshalPubKey(pubkey)),
 		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
 		TrustBundle: string(signer.TrustBundle()),
+		LogToCp:     gateway.LogToCp,
 		ExpiresAt:   timestamppb.New(gatewayCRT.NotAfter),
 	}, nil
 }
@@ -340,6 +346,7 @@ func (s *Service) RenewGatewayCert(ctx context.Context, gatewayID uuid.UUID, sig
 		GatewayId:   gatewayID.String(),
 		Certificate: string(pki_utils.MarshalCert(gatewayCRT)),
 		TrustBundle: string(signer.TrustBundle()),
+		LogToCp:     gateway.LogToCp,
 		ExpiresAt:   timestamppb.New(gatewayCRT.NotAfter),
 	}, nil
 
@@ -548,7 +555,6 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 	return mapToGatewayResponse2(updatedGateway), nil
 }
 
-
 // Send Rotate Gateway Cert Cmd
 func (s *Service) RotateGatewayCert(ctx context.Context, id uuid.UUID) (GatewayResponse, *dto.AppError) {
 	// Retrieve the admin's OrgID from context
@@ -593,7 +599,6 @@ func (s *Service) RotateGatewayCert(ctx context.Context, id uuid.UUID) (GatewayR
 
 	return mapToGatewayResponse2(updatedGateway), nil
 }
-
 
 // DrainGateway sets status to 'draining' and pushes DrainGatewayCmd.
 func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayResponse, *dto.AppError) {

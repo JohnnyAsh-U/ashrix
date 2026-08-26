@@ -14,9 +14,9 @@ import (
 
 const createApp = `-- name: CreateApp :one
 
-INSERT INTO apps (org_id, connector_id, name, subdomain, upstream, protocol, is_public)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, created_at, deleted_at
+INSERT INTO apps (org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, created_at, deleted_at
 `
 
 type CreateAppParams struct {
@@ -27,6 +27,7 @@ type CreateAppParams struct {
 	Upstream    string      `json:"upstream"`
 	Protocol    string      `json:"protocol"`
 	IsPublic    bool        `json:"is_public"`
+	SockPass    string      `json:"sock_pass"`
 }
 
 // =================================================================
@@ -41,6 +42,7 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		arg.Upstream,
 		arg.Protocol,
 		arg.IsPublic,
+		arg.SockPass,
 	)
 	var i App
 	err := row.Scan(
@@ -52,6 +54,7 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.SockPass,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)
@@ -64,7 +67,7 @@ SET deleted_at = now()
 WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL
-RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, created_at, deleted_at
+RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, created_at, deleted_at
 `
 
 type DeleteAppParams struct {
@@ -85,6 +88,7 @@ func (q *Queries) DeleteApp(ctx context.Context, arg DeleteAppParams) (App, erro
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.SockPass,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)
@@ -92,7 +96,7 @@ func (q *Queries) DeleteApp(ctx context.Context, arg DeleteAppParams) (App, erro
 }
 
 const getAppByID = `-- name: GetAppByID :one
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, created_at, deleted_at FROM apps
 WHERE id         = $1
   AND deleted_at IS NULL
 `
@@ -109,6 +113,7 @@ func (q *Queries) GetAppByID(ctx context.Context, id uuid.UUID) (App, error) {
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.SockPass,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)
@@ -116,7 +121,7 @@ func (q *Queries) GetAppByID(ctx context.Context, id uuid.UUID) (App, error) {
 }
 
 const getAppByIDAndOrg = `-- name: GetAppByIDAndOrg :one
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, created_at, deleted_at FROM apps
 WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL
@@ -139,6 +144,7 @@ func (q *Queries) GetAppByIDAndOrg(ctx context.Context, arg GetAppByIDAndOrgPara
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.SockPass,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)
@@ -146,7 +152,7 @@ func (q *Queries) GetAppByIDAndOrg(ctx context.Context, arg GetAppByIDAndOrgPara
 }
 
 const getAppBySubdomain = `-- name: GetAppBySubdomain :one
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, created_at, deleted_at FROM apps
 WHERE org_id     = $1
   AND subdomain  = $2
   AND deleted_at IS NULL
@@ -170,6 +176,7 @@ func (q *Queries) GetAppBySubdomain(ctx context.Context, arg GetAppBySubdomainPa
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.SockPass,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)
@@ -177,7 +184,7 @@ func (q *Queries) GetAppBySubdomain(ctx context.Context, arg GetAppBySubdomainPa
 }
 
 const listAppsByConnector = `-- name: ListAppsByConnector :many
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, created_at, deleted_at FROM apps
 WHERE connector_id = $1
   AND deleted_at   IS NULL
 `
@@ -200,6 +207,7 @@ func (q *Queries) ListAppsByConnector(ctx context.Context, connectorID pgtype.UU
 			&i.Upstream,
 			&i.Protocol,
 			&i.IsPublic,
+			&i.SockPass,
 			&i.CreatedAt,
 			&i.DeletedAt,
 		); err != nil {
@@ -214,7 +222,7 @@ func (q *Queries) ListAppsByConnector(ctx context.Context, connectorID pgtype.UU
 }
 
 const listAppsByOrg = `-- name: ListAppsByOrg :many
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, created_at, deleted_at FROM apps
 WHERE org_id     = $1
   AND deleted_at IS NULL
 ORDER BY created_at ASC
@@ -238,6 +246,7 @@ func (q *Queries) ListAppsByOrg(ctx context.Context, orgID uuid.UUID) ([]App, er
 			&i.Upstream,
 			&i.Protocol,
 			&i.IsPublic,
+			&i.SockPass,
 			&i.CreatedAt,
 			&i.DeletedAt,
 		); err != nil {
@@ -258,11 +267,12 @@ SET name         = $3,
     upstream     = $5,
     protocol     = $6,
     is_public    = $7,
-    connector_id = $8
+    connector_id = $8,
+    sock_pass = $9
 WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL
-RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, created_at, deleted_at
+RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, created_at, deleted_at
 `
 
 type UpdateAppParams struct {
@@ -274,6 +284,7 @@ type UpdateAppParams struct {
 	Protocol    string      `json:"protocol"`
 	IsPublic    bool        `json:"is_public"`
 	ConnectorID pgtype.UUID `json:"connector_id"`
+	SockPass    string      `json:"sock_pass"`
 }
 
 func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, error) {
@@ -286,6 +297,7 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		arg.Protocol,
 		arg.IsPublic,
 		arg.ConnectorID,
+		arg.SockPass,
 	)
 	var i App
 	err := row.Scan(
@@ -297,6 +309,7 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.SockPass,
 		&i.CreatedAt,
 		&i.DeletedAt,
 	)

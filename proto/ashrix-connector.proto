@@ -20,7 +20,8 @@ message ConnectorEnrollResponse {
   string                    connector_id = 1;
   string                    certificate  = 2;
   string                    trust_bundle = 3;
-  google.protobuf.Timestamp expires_at   = 4;
+  bool                      open_sock    = 4;
+  google.protobuf.Timestamp expires_at   = 5;
 }
 
 message ConnectorRenewCertRequest {
@@ -34,7 +35,8 @@ message ConnectorRenewCertResponse {
   string                    connector_id = 1;
   string                    certificate  = 2;
   string                    trust_bundle = 3;
-  google.protobuf.Timestamp expires_at   = 4;
+  bool                      open_sock    = 4;
+  google.protobuf.Timestamp expires_at   = 5;
 }
 
 message ConnectorStatusResponse {
@@ -43,7 +45,8 @@ message ConnectorStatusResponse {
   string                 gateway_url  = 3;
   string                 gateway_ip   = 4;
   string                 tenant_id    = 5;
-  repeated ConnectorApps apps         = 6;
+  bool                   open_sock    = 6;
+  repeated ConnectorApps apps         = 7;
 }
 
 message ConnectorApps {
@@ -53,6 +56,7 @@ message ConnectorApps {
   string upstream  = 4; //must be host:port
   string protocol  = 5;
   bool   is_public = 6;
+  string sock_pass = 7;
 }
 
 // =============================================================================

@@ -11,9 +11,10 @@ WITH new_gateway AS (
         deployment_type, 
         token_hash, 
         public_url, 
-        ip_address
+        ip_address,
+        log_to_cp
     )
-    VALUES ($1, $2, $3, $4, $5, $6)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
 ),
 init_sequence AS (
@@ -52,6 +53,7 @@ SET created_at = NOW(),
     revoked_at = NULL,
     version = NULL,
     is_active = true,
+    log_to_cp = $6,
     ip_address = $5,
     public_url = $4,
     token_hash = $2,
@@ -154,8 +156,8 @@ RETURNING *;
 -- =================================================================
 
 -- name: CreateConnector :one
-INSERT INTO connectors (org_id, gateway_id, name, token_hash)
-VALUES ($1, $2, $3, $4)
+INSERT INTO connectors (org_id, gateway_id, name, token_hash, open_sock)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 
@@ -166,6 +168,8 @@ SET created_at = NOW(),
     last_seen = NULL,
     revoked_at = NULL,
     is_active = true,
+    active_streams = 0,
+    open_sock = $5,
     token_hash = $2,
     name = $3,
     gateway_id = $4
@@ -242,6 +246,7 @@ ORDER BY created_at ASC;
 -- name: UpdateConnectorStatus :one
 UPDATE connectors
 SET last_seen = now(),
+    active_streams = $3,
     status    = $2
 WHERE id      = $1
   AND is_active = true
@@ -252,7 +257,8 @@ RETURNING *;
 UPDATE connectors
 SET revoked_at = now(),
     status     = 'disconnected',
-    is_active = false
+    is_active = false,
+    active_streams = 0
 WHERE id         = $1
   AND gateway_id     = $2
   AND is_active = true
@@ -264,6 +270,7 @@ RETURNING *;
 UPDATE connectors
 SET revoked_at = now(),
     status     = 'disconnected',
+    active_streams = 0,
     is_active = false
 WHERE gateway_id = $1
   AND revoked_at IS NULL;

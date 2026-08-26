@@ -74,6 +74,7 @@ type App struct {
 	Upstream    string             `json:"upstream"`
 	Protocol    string             `json:"protocol"`
 	IsPublic    bool               `json:"is_public"`
+	SockPass    string             `json:"sock_pass"`
 	CreatedAt   time.Time          `json:"created_at"`
 	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
 }
@@ -130,17 +131,19 @@ type ComponentCertificate struct {
 }
 
 type Connector struct {
-	ID         uuid.UUID          `json:"id"`
-	OrgID      uuid.UUID          `json:"org_id"`
-	GatewayID  uuid.UUID          `json:"gateway_id"`
-	Name       string             `json:"name"`
-	TokenHash  string             `json:"token_hash"`
-	LastSeen   pgtype.Timestamptz `json:"last_seen"`
-	Status     string             `json:"status"`
-	CreatedAt  time.Time          `json:"created_at"`
-	IsActive   bool               `json:"is_active"`
-	EnrolledAt pgtype.Timestamptz `json:"enrolled_at"`
-	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+	ID            uuid.UUID          `json:"id"`
+	OrgID         uuid.UUID          `json:"org_id"`
+	GatewayID     uuid.UUID          `json:"gateway_id"`
+	Name          string             `json:"name"`
+	TokenHash     string             `json:"token_hash"`
+	LastSeen      pgtype.Timestamptz `json:"last_seen"`
+	Status        string             `json:"status"`
+	CreatedAt     time.Time          `json:"created_at"`
+	IsActive      bool               `json:"is_active"`
+	OpenSock      bool               `json:"open_sock"`
+	ActiveStreams int32              `json:"active_streams"`
+	EnrolledAt    pgtype.Timestamptz `json:"enrolled_at"`
+	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
 }
 
 type CrlEntry struct {
@@ -164,6 +167,7 @@ type Gateway struct {
 	Status         string             `json:"status"`
 	IsActive       bool               `json:"is_active"`
 	CreatedAt      time.Time          `json:"created_at"`
+	LogToCp        bool               `json:"log_to_cp"`
 	EnrolledAt     pgtype.Timestamptz `json:"enrolled_at"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }

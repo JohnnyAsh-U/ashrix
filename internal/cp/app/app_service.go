@@ -9,6 +9,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Service struct {
@@ -20,6 +21,8 @@ func NewService(repo Repository) *Service {
 }
 
 func (s *Service) CreateApp(ctx context.Context, orgID uuid.UUID, req CreateAppRequest) (AppResponse, *dto.AppError) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.SockPass), 12)
+
 	params := store.CreateAppParams{
 		OrgID:     orgID,
 		Name:      req.Name,
@@ -27,6 +30,7 @@ func (s *Service) CreateApp(ctx context.Context, orgID uuid.UUID, req CreateAppR
 		Upstream:  req.Upstream,
 		Protocol:  req.Protocol,
 		IsPublic:  *req.IsPublic,
+		SockPass:  string(hash),
 	}
 
 	if req.ConnectorID != nil {
@@ -52,6 +56,22 @@ func (s *Service) GetApp(ctx context.Context, id, orgID uuid.UUID) (AppResponse,
 }
 
 func (s *Service) UpdateApp(ctx context.Context, id, orgID uuid.UUID, req UpdateAppRequest) (AppResponse, *dto.AppError) {
+	app, err := s.repo.GetByID(ctx, id)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return AppResponse{}, dto.NewNotFoundError("App not found")
+		}
+		return AppResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to get app", err.Error())
+	}
+
+	var sockPass []byte
+	sockPass = []byte(app.SockPass)
+
+	if req.SockPass != "" {
+		sockPass, _ = bcrypt.GenerateFromPassword([]byte(req.SockPass), 12)
+	}
+
 	params := store.UpdateAppParams{
 		ID:        id,
 		OrgID:     orgID,
@@ -60,20 +80,21 @@ func (s *Service) UpdateApp(ctx context.Context, id, orgID uuid.UUID, req Update
 		Upstream:  req.Upstream,
 		Protocol:  req.Protocol,
 		IsPublic:  *req.IsPublic,
+		SockPass:  string(sockPass),
 	}
 
 	if req.ConnectorID != nil {
 		params.ConnectorID = pgtype.UUID{Bytes: *req.ConnectorID, Valid: true}
 	}
 
-	app, err := s.repo.Update(ctx, params)
+	updatedApp, err := s.repo.Update(ctx, params)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return AppResponse{}, dto.NewNotFoundError("App not found")
 		}
 		return AppResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to update app", err.Error())
 	}
-	return mapToAppResponse(app), nil
+	return mapToAppResponse(updatedApp), nil
 }
 
 func (s *Service) ListAppsByOrg(ctx context.Context, orgID uuid.UUID) ([]AppResponse, *dto.AppError) {
@@ -112,6 +133,7 @@ func mapToAppResponse(app store.App) AppResponse {
 		Upstream:  app.Upstream,
 		Protocol:  app.Protocol,
 		IsPublic:  app.IsPublic,
+		SockPass:  app.SockPass,
 		CreatedAt: app.CreatedAt,
 	}
 	if app.ConnectorID.Valid {

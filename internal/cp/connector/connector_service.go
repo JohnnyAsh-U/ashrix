@@ -34,16 +34,18 @@ type Service struct {
 	dispatcher  *events.GatewayDispatcher
 }
 
-func NewService(repo Repository, pkiRepo pkica.Repository,eventRepo   events.Repository, gatewayRepo gateway.Repository, dispatcher *events.GatewayDispatcher) *Service {
+func NewService(repo Repository, pkiRepo pkica.Repository, eventRepo events.Repository, gatewayRepo gateway.Repository, dispatcher *events.GatewayDispatcher) *Service {
 	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo, eventRepo: eventRepo, dispatcher: dispatcher}
 }
 
 // mapToConnectorResponse converts a store.Connector to a GatewayResponse DTO.
 func mapToConnectorResponse(g store.Connector) ConnectorResponse {
 	resp := ConnectorResponse{
-		ID:    g.ID.String(),
-		Name:  g.Name,
-		OrgID: g.OrgID.String(),
+		ID:           g.ID.String(),
+		Name:         g.Name,
+		OrgID:        g.OrgID.String(),
+		ActiveStream: g.ActiveStreams,
+		OpenSock:     g.OpenSock,
 		// Version:   g.Version.String,
 		Status:    g.Status,
 		CreatedAt: g.CreatedAt,
@@ -61,7 +63,7 @@ func mapToConnectorResponse(g store.Connector) ConnectorResponse {
 }
 
 // CreateConnector creates a new connector.
-func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uuid.UUID) (ConnectorResponse, *dto.AppError) {
+func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uuid.UUID, OpenSock bool) (ConnectorResponse, *dto.AppError) {
 
 	//Check if the Org is same as the Admin
 	AdminOrgId := middleware.OrgIDFromCtx(ctx)
@@ -81,6 +83,7 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 		Name:      name,
 		GatewayID: gatewayID,
 		TokenHash: utils.HashToken(token),
+		OpenSock:  OpenSock,
 	}
 	connector, err := s.repo.CreateConnector(ctx, params)
 	if err != nil {
@@ -130,7 +133,7 @@ func (s *Service) ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]C
 }
 
 // ReEnrollConnector re-create a connector.
-func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name string, gatewayId uuid.UUID) (ConnectorResponse, *dto.AppError) {
+func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name string, gatewayId uuid.UUID, OpenSock bool) (ConnectorResponse, *dto.AppError) {
 
 	connectorRes, err := s.repo.GetConnectorByID(ctx, id)
 
@@ -153,6 +156,7 @@ func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name stri
 		GatewayID: gatewayId,
 		Name:      name, // Assuming name can be updated during re-enrollment
 		TokenHash: utils.HashToken(token),
+		OpenSock:  OpenSock,
 	}
 	connector, err := s.repo.ReCreateConnector(ctx, params)
 	if err != nil {
@@ -230,16 +234,17 @@ func (s *Service) EnrollConnector(ctx context.Context, token, csr string, signer
 		ConnectorId: conn.ID.String(),
 		Certificate: string(pki_utils.MarshalCert(connCRT)),
 		TrustBundle: string(signer.TrustBundle()),
+		OpenSock:    conn.OpenSock,
 		ExpiresAt:   timestamppb.New(connCRT.NotAfter),
 	}, nil
 }
 
 func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID, signature string, csr string, timestamp int64, signer pki.CASigner) (gen.ConnectorRenewCertResponse, *dto.AppError) {
 	//Check timestamp is within 60 secsy
-reqTime := time.Unix(timestamp, 0)
-if time.Since(reqTime) > 60*time.Second || time.Until(reqTime) > 60*time.Second {
-    return gen.ConnectorRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp out of acceptable window (+/- 60s)")
-}
+	reqTime := time.Unix(timestamp, 0)
+	if time.Since(reqTime) > 60*time.Second || time.Until(reqTime) > 60*time.Second {
+		return gen.ConnectorRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp out of acceptable window (+/- 60s)")
+	}
 
 	// get connector
 	connector, err := s.repo.GetActiveConnectorByID(ctx, connectorID)
@@ -275,10 +280,10 @@ if time.Since(reqTime) > 60*time.Second || time.Until(reqTime) > 60*time.Second 
 	}
 
 	//Check timestamp is within 60 secsy
-reqTime = time.Unix(timestamp, 0)
-if time.Since(reqTime) > 60*time.Second || time.Until(reqTime) > 60*time.Second {
-    return gen.ConnectorRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp out of acceptable window (+/- 60s)")
-}
+	reqTime = time.Unix(timestamp, 0)
+	if time.Since(reqTime) > 60*time.Second || time.Until(reqTime) > 60*time.Second {
+		return gen.ConnectorRenewCertResponse{}, dto.NewUnauthorizedError("Timestamp out of acceptable window (+/- 60s)")
+	}
 
 	// Issue new cert
 	// get active intermediate CA
@@ -342,6 +347,7 @@ if time.Since(reqTime) > 60*time.Second || time.Until(reqTime) > 60*time.Second 
 	return gen.ConnectorRenewCertResponse{
 		Certificate: string(pki_utils.MarshalCert(connCRT)),
 		TrustBundle: string(signer.TrustBundle()),
+		OpenSock:    connector.OpenSock,
 		ExpiresAt:   timestamppb.New(connCRT.NotAfter),
 	}, nil
 }
@@ -520,7 +526,6 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
 
-
 	//Get all the active CRLs
 	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
 
@@ -546,7 +551,6 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 
 	return mapToConnectorResponse(revokedConnector), nil
 }
-
 
 // Send Rotate Command to Gateway for Connector
 func (s *Service) SendRotateConnectorCmd(ctx context.Context, connectorId uuid.UUID) (ConnectorResponse, *dto.AppError) {
@@ -581,15 +585,12 @@ func (s *Service) SendRotateConnectorCmd(ctx context.Context, connectorId uuid.U
 
 	s.dispatcher.Wakeup(Connector.GatewayID.String())
 
-
 	if err != nil {
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
 
 	return mapToConnectorResponse(Connector), nil
 }
-
-
 
 func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID, canonicalString, signature string) (gen.ConnectorStatusResponse, *dto.AppError) {
 
@@ -657,6 +658,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 				Upstream:  g.Upstream,
 				Protocol:  g.Protocol,
 				IsPublic:  g.IsPublic,
+				SockPass:  g.SockPass,
 			}
 			appsResp = append(appsResp, app)
 		}
@@ -667,6 +669,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		GatewayId:   ConnectorRow.GatewayID.String(),
 		GatewayUrl:  GatewayRow.PublicUrl,
 		GatewayIp:   GatewayRow.IpAddress,
+		OpenSock:    ConnectorRow.OpenSock,
 		TenantId:    ConnectorRow.OrgID.String(),
 		Apps:        appsResp,
 	}, nil
