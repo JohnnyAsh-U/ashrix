@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
@@ -50,12 +51,20 @@ func (r *Router) Route(ctx context.Context, req *pb.StreamFrame, evalPolicy bool
 				break
 			}
 		}
-	} else if connEntry, ok := r.registry.GetBySubdomain(req.DestAppName); ok {
-		destConnector = connEntry
-		for _, app := range connEntry.Apps {
-			if app.Subdomain == req.DestAppName {
-				destApp = app
-				break
+	} else {
+		var subDomain string
+		parts := strings.Split(req.DestAppName, ".")
+		if len(parts) > 2 {
+			subDomain = strings.Join(parts[:len(parts)-2], ".")
+		}
+
+		if connEntry, ok := r.registry.GetBySubdomain(subDomain); ok {
+			destConnector = connEntry
+			for _, app := range connEntry.Apps {
+				if app.Subdomain == subDomain {
+					destApp = app
+					break
+				}
 			}
 		}
 	}
@@ -95,6 +104,8 @@ func (r *Router) Route(ctx context.Context, req *pb.StreamFrame, evalPolicy bool
 	if !ok || tunnel == nil {
 		return nil, ErrConnectorOffline
 	}
+
+	req.DestAppId = destApp.Id
 
 	stream, err := tunnel.OpenStream(ctx, req)
 	if err != nil {

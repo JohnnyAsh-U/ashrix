@@ -24,11 +24,7 @@ import (
 
 func init() {
 	startCmd.Flags().String("socks-addr", ":1080", "Local SOCKS5 proxy server address")
-	startCmd.Flags().String("socks-user", "", "Local SOCKS5 username")
-	startCmd.Flags().String("socks-pass", "", "Local SOCKS5 password")
 	_ = viper.BindPFlag("socks_addr", startCmd.Flags().Lookup("socks-addr"))
-	_ = viper.BindPFlag("socks_user", startCmd.Flags().Lookup("socks-user"))
-	_ = viper.BindPFlag("socks_pass", startCmd.Flags().Lookup("socks-pass"))
 	rootCmd.AddCommand(startCmd)
 }
 
@@ -157,8 +153,8 @@ func runStart() (err error) {
 			GatewayGRPCAddr: result.Status.GatewayIp + ":9444",
 			GatewayWSURL:    "wss://" + result.Status.GatewayIp + "/ws",
 			ConnectorID:     connectorID,
-			OpenSock : result.Status.OpenSock,
-			TLSConfig: tlsConfig,
+			OpenSock:        result.Status.OpenSock,
+			TLSConfig:       tlsConfig,
 		}
 
 		log.Info("Opening management stream with gateway", zap.String("addr", gRPCURL), zap.Int("attempt", attempt))
@@ -281,15 +277,24 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 		connectTime := time.Now()
 
 		socksAddr := viper.GetString("socks_addr")
-		socksUser := viper.GetString("socks_user")
-		socksPass := viper.GetString("socks_pass")
 
 		var socksServer *socks.Server
 		if config.OpenSock {
-			log.Info("Starting SOCKS5 proxy server on connector", zap.String("addr", socksAddr), zap.String("username", socksUser))
-			socksServer = socks.NewServer(socksAddr, socksUser, socksPass, transportProto, log)
+			log.Info("Starting SOCKS5 proxy server on connector", zap.String("addr", socksAddr))
+			credentialStore, err := socks.NewCredentialStore()
+			if err != nil {
+				log.Error("SOCKS5 server cred error:", zap.Error(err))
+			}
+			for _, app := range apps {
+				fmt.Println(app)
+				credentialStore.Replace([]socks.Credential{{
+					AppID: app.Id,
+					PasswordHash: app.SockPass,
+				}})
+			}
+			socksServer = socks.NewServer(socksAddr,credentialStore, transportProto, log)
 			go func() {
-				if err := socksServer.Start(ctx); err != nil {
+				if err := socksServer.ListenAndServe(ctx); err != nil {
 					log.Error("SOCKS5 server error", zap.Error(err))
 				}
 			}()
@@ -310,16 +315,10 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 				log.Error("Tunnel error", zap.Error(tunnelErr))
 			}
 		case <-ctx.Done():
-			if socksServer != nil {
-				socksServer.Stop()
-			}
 			transportProto.Close()
 			return ctx.Err()
 		}
 
-		if socksServer != nil {
-			socksServer.Stop()
-		}
 		transportProto.Close()
 
 		// Reset attempt counter if the connection was stable (> 60 seconds)

@@ -149,12 +149,12 @@ func (s *QUICServer) handleIncomingConnectorStream(ctx context.Context, srcConne
 
 	startTime := time.Now()
 
-	destStream, err := s.router.Route(ctx, &streamFrame, true)
+	destStream, err := s.router.Route(ctx, &streamFrame, false)
 	if err != nil {
 		s.log.Warn("routing/policy rejected for incoming connector stream",
 			zap.String("flow_id", streamFrame.RequestId),
 			zap.String("src_connector", srcConnectorID),
-			zap.String("dest_app", streamFrame.DestAppId),
+			zap.String("dest_app", streamFrame.DestAppName),
 			zap.Error(err),
 		)
 		rejectFrame := proto.StreamFrame{
