@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -13,11 +16,14 @@ import (
 )
 
 type Service struct {
-	repo Repository
+	repo          Repository
+	eventRepo     events.Repository
+	connectorRepo connector.Repository
+	dispatcher    *events.GatewayDispatcher
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, eventRepo events.Repository, connectorRepo connector.Repository, dispatcher *events.GatewayDispatcher) *Service {
+	return &Service{repo: repo, eventRepo: eventRepo, connectorRepo: connectorRepo, dispatcher: dispatcher}
 }
 
 func (s *Service) CreateApp(ctx context.Context, orgID uuid.UUID, req CreateAppRequest) (AppResponse, *dto.AppError) {
@@ -41,6 +47,7 @@ func (s *Service) CreateApp(ctx context.Context, orgID uuid.UUID, req CreateAppR
 	if err != nil {
 		return AppResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create app", err.Error())
 	}
+	s.DispatchReloadConnectorCmd(ctx, app.ConnectorID.String())
 	return mapToAppResponse(app), nil
 }
 
@@ -94,6 +101,7 @@ func (s *Service) UpdateApp(ctx context.Context, id, orgID uuid.UUID, req Update
 		}
 		return AppResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to update app", err.Error())
 	}
+	s.DispatchReloadConnectorCmd(ctx, app.ConnectorID.String())
 	return mapToAppResponse(updatedApp), nil
 }
 
@@ -121,7 +129,31 @@ func (s *Service) DeleteApp(ctx context.Context, id, orgID uuid.UUID) (AppRespon
 		}
 		return AppResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to delete app", err.Error())
 	}
+
+	s.DispatchReloadConnectorCmd(ctx, app.ConnectorID.String())
 	return mapToAppResponse(app), nil
+}
+
+func (s *Service) DispatchReloadConnectorCmd(ctx context.Context, connectorID string) {
+	connectorUUID, err := uuid.Parse(connectorID)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(connectorUUID)
+	connector, err := s.connectorRepo.GetConnectorByID(ctx, connectorUUID)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	payload := events.CommandJob{
+		Type:        events.CmdReloadConnector,
+		GatewayID: connector.GatewayID.String(),
+		ConnectorID: connectorID,
+	}
+	_, err = s.eventRepo.CreateEvent(ctx, payload)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	s.dispatcher.Wakeup(connector.GatewayID.String())
 }
 
 func mapToAppResponse(app store.App) AppResponse {

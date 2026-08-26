@@ -22,9 +22,10 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	sessionID := session.SessionIDFromCtx(ctx)
 	requestID := uuid.NewString()
 
-	var userID string
+	var userID, userEmail string
 	if Identity != nil {
 		userID = Identity.UserId
+		userEmail = Identity.Email
 	}
 
 	streamCtx, cancel := context.WithCancel(ctx)
@@ -42,10 +43,10 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	req := &proto.StreamFrame{
 		RequestId:   requestID,
 		FlowType: proto.FlowType_USER_TO_APP,
-		TenantId: Identity.TenantId,
+		// TenantId: Identity.TenantId,
 		SessionId: sessionID,
 		SourceId: userID,
-		SourceEmail: Identity.Email,
+		SourceEmail: userEmail,
 		DestAppId: AppID,
 		Method: r.Method,
 		ProtocolType: proto.ProtocolType_PROTOCOL_TCP,

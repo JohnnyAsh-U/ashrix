@@ -2099,7 +2099,8 @@ func (x *ConnectorsStatus) GetLastChecked() *timestamppb.Timestamp {
 type HelloAck struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ServerVersion string                 `protobuf:"bytes,1,opt,name=server_version,json=serverVersion,proto3" json:"server_version,omitempty"`
-	ServerTime    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
+	Connectors    []*ConnectorInfo       `protobuf:"bytes,2,rep,name=connectors,proto3" json:"connectors,omitempty"`
+	ServerTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2139,6 +2140,13 @@ func (x *HelloAck) GetServerVersion() string {
 		return x.ServerVersion
 	}
 	return ""
+}
+
+func (x *HelloAck) GetConnectors() []*ConnectorInfo {
+	if x != nil {
+		return x.Connectors
+	}
+	return nil
 }
 
 func (x *HelloAck) GetServerTime() *timestamppb.Timestamp {
@@ -4295,10 +4303,13 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\x10ConnectorsStatus\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12=\n" +
-	"\flast_checked\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vlastChecked\"n\n" +
+	"\flast_checked\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vlastChecked\"\xa4\x01\n" +
 	"\bHelloAck\x12%\n" +
-	"\x0eserver_version\x18\x01 \x01(\tR\rserverVersion\x12;\n" +
-	"\vserver_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"\x0eserver_version\x18\x01 \x01(\tR\rserverVersion\x124\n" +
+	"\n" +
+	"connectors\x18\x02 \x03(\v2\x14.proto.ConnectorInfoR\n" +
+	"connectors\x12;\n" +
+	"\vserver_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"serverTime\"\x92\x01\n" +
 	"\fPolicyBundle\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x1b\n" +
@@ -4613,49 +4624,50 @@ var file_ashrix_proto_proto_depIdxs = []int32{
 	61, // 26: proto.CommandAck.time_stamp:type_name -> google.protobuf.Timestamp
 	31, // 27: proto.HeartbeatMessage.connector_status:type_name -> proto.ConnectorsStatus
 	61, // 28: proto.ConnectorsStatus.last_checked:type_name -> google.protobuf.Timestamp
-	61, // 29: proto.HelloAck.server_time:type_name -> google.protobuf.Timestamp
-	59, // 30: proto.PolicyBundle.records:type_name -> proto.PolicyRecord
-	61, // 31: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
-	61, // 32: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
-	61, // 33: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
-	61, // 34: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
-	39, // 35: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
-	2,  // 36: proto.StreamFrame.protocol_type:type_name -> proto.ProtocolType
-	60, // 37: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
-	0,  // 38: proto.StreamFrame.stream_type:type_name -> proto.RequestType
-	1,  // 39: proto.StreamFrame.flow_type:type_name -> proto.FlowType
-	61, // 40: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	45, // 41: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
-	46, // 42: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
-	47, // 43: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
-	48, // 44: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
-	44, // 45: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
-	3,  // 46: proto.ConnectorCmd.cmd:type_name -> proto.CommandType
-	39, // 47: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
-	49, // 48: proto.Schedule.rules:type_name -> proto.ScheduleRule
-	54, // 49: proto.PolicyConditions.mfa:type_name -> proto.MFACondition
-	52, // 50: proto.PolicyConditions.device:type_name -> proto.DeviceCondition
-	53, // 51: proto.PolicyConditions.network:type_name -> proto.NetworkCondition
-	51, // 52: proto.PolicyConditions.time:type_name -> proto.TimeCondition
-	4,  // 53: proto.PolicyRule.effect:type_name -> proto.EffectEnum
-	56, // 54: proto.PolicyRule.subject:type_name -> proto.SubjectSelector
-	57, // 55: proto.PolicyRule.resource:type_name -> proto.ResourceSelector
-	55, // 56: proto.PolicyRule.conditions:type_name -> proto.PolicyConditions
-	61, // 57: proto.PolicyRule.created_at:type_name -> google.protobuf.Timestamp
-	5,  // 58: proto.PolicyRecord.operation:type_name -> proto.OperationEnum
-	58, // 59: proto.PolicyRecord.rule:type_name -> proto.PolicyRule
-	40, // 60: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
-	10, // 61: proto.ControlPlaneService.ExchangeToken:input_type -> proto.ExchangeTokenRequest
-	13, // 62: proto.ControlPlaneService.Connect:input_type -> proto.GatewayEnvelope
-	42, // 63: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
-	12, // 64: proto.ControlPlaneService.ExchangeToken:output_type -> proto.ExchangeTokenResponse
-	14, // 65: proto.ControlPlaneService.Connect:output_type -> proto.CPEnvelope
-	43, // 66: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
-	64, // [64:67] is the sub-list for method output_type
-	61, // [61:64] is the sub-list for method input_type
-	61, // [61:61] is the sub-list for extension type_name
-	61, // [61:61] is the sub-list for extension extendee
-	0,  // [0:61] is the sub-list for field type_name
+	27, // 29: proto.HelloAck.connectors:type_name -> proto.ConnectorInfo
+	61, // 30: proto.HelloAck.server_time:type_name -> google.protobuf.Timestamp
+	59, // 31: proto.PolicyBundle.records:type_name -> proto.PolicyRecord
+	61, // 32: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
+	61, // 33: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
+	61, // 34: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
+	61, // 35: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
+	39, // 36: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
+	2,  // 37: proto.StreamFrame.protocol_type:type_name -> proto.ProtocolType
+	60, // 38: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
+	0,  // 39: proto.StreamFrame.stream_type:type_name -> proto.RequestType
+	1,  // 40: proto.StreamFrame.flow_type:type_name -> proto.FlowType
+	61, // 41: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	45, // 42: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
+	46, // 43: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
+	47, // 44: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
+	48, // 45: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
+	44, // 46: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
+	3,  // 47: proto.ConnectorCmd.cmd:type_name -> proto.CommandType
+	39, // 48: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
+	49, // 49: proto.Schedule.rules:type_name -> proto.ScheduleRule
+	54, // 50: proto.PolicyConditions.mfa:type_name -> proto.MFACondition
+	52, // 51: proto.PolicyConditions.device:type_name -> proto.DeviceCondition
+	53, // 52: proto.PolicyConditions.network:type_name -> proto.NetworkCondition
+	51, // 53: proto.PolicyConditions.time:type_name -> proto.TimeCondition
+	4,  // 54: proto.PolicyRule.effect:type_name -> proto.EffectEnum
+	56, // 55: proto.PolicyRule.subject:type_name -> proto.SubjectSelector
+	57, // 56: proto.PolicyRule.resource:type_name -> proto.ResourceSelector
+	55, // 57: proto.PolicyRule.conditions:type_name -> proto.PolicyConditions
+	61, // 58: proto.PolicyRule.created_at:type_name -> google.protobuf.Timestamp
+	5,  // 59: proto.PolicyRecord.operation:type_name -> proto.OperationEnum
+	58, // 60: proto.PolicyRecord.rule:type_name -> proto.PolicyRule
+	40, // 61: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
+	10, // 62: proto.ControlPlaneService.ExchangeToken:input_type -> proto.ExchangeTokenRequest
+	13, // 63: proto.ControlPlaneService.Connect:input_type -> proto.GatewayEnvelope
+	42, // 64: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
+	12, // 65: proto.ControlPlaneService.ExchangeToken:output_type -> proto.ExchangeTokenResponse
+	14, // 66: proto.ControlPlaneService.Connect:output_type -> proto.CPEnvelope
+	43, // 67: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
+	65, // [65:68] is the sub-list for method output_type
+	62, // [62:65] is the sub-list for method input_type
+	62, // [62:62] is the sub-list for extension type_name
+	62, // [62:62] is the sub-list for extension extendee
+	0,  // [0:62] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_proto_proto_init() }

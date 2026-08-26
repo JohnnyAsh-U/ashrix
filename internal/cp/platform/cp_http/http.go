@@ -74,7 +74,7 @@ func InitializeHttpServer(
 	eventsDispatcher := events.NewGatewayDispatcher(respositories.Event, gatewayRegistry, log)
 
 	//Apps routes
-	appService := app.NewService(respositories.App)
+	appService := app.NewService(respositories.App, respositories.Event, respositories.Connector, eventsDispatcher)
 	appHandler := app.NewAppHandler(appService)
 
 	//Org routes

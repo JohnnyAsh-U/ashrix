@@ -98,21 +98,6 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 		return status.Error(codes.AlreadyExists, "another connection already exists for this gateway")
 	}
 
-	// Wait for the initial Hello message from the gateway
-	msg, err := stream.Recv()
-	if err != nil {
-		return fmt.Errorf("recv hello: %w", err)
-	}
-
-	hello := msg.GetHello()
-	if hello == nil {
-		return fmt.Errorf("expected hello message, got %T", msg.Payload)
-	}
-
-	gatewayID := hello.GatewayId
-	tenantID := hello.TenantId
-	currentPolicyVersion := hello.PolicyVersion
-
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
@@ -120,19 +105,13 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 		ctx,
 		cancel,
 		stream,
-		gatewayID,
-		tenantID,
-		uint64(currentPolicyVersion),
+		gatewayUUID.String(),
+		gw.OrgID.String(),
 	)
 
 	// Register the connection
 	s.registry.Register(connection)
-	defer s.registry.Unregister(gatewayID)
-
-	log.Printf("gateway connected: %s (tenant=%s, policy_version=%d)",
-		gatewayID, tenantID, currentPolicyVersion)
-
-	s.registry.HandleHello(gatewayID)
+	defer s.registry.Unregister(connection.GatewayID)
 
 	// ==================================================
 	// 5. Reconcile durable gateway events
@@ -145,31 +124,13 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 
 		s.log.Error(
 			"gateway reconciliation failed",
-			slog.String(
-				"gateway_id",
-				gatewayID,
-			),
-			slog.String(
-				"error",
-				err.Error(),
-			),
+			slog.String("gateway_id", gatewayIDInCert),
+			slog.String("error", err.Error()),
 		)
-
 		return status.Error(
 			codes.Internal,
 			"gateway reconciliation failed",
 		)
-	}
-
-	tenantUUID, err := uuid.Parse(tenantID)
-	if err != nil {
-		log.Printf("Invalid tenant ID: %s", tenantID)
-		return fmt.Errorf("invalid tenant ID: %w", err)
-	}
-
-	// If the gateway is behind on policy, push the latest immediately
-	if currentPolicyVersion < s.distributor.LatestVersion(tenantUUID) {
-		go s.distributor.PushToGateway(ctx, connection, tenantUUID)
 	}
 
 	for {
@@ -187,6 +148,16 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 		switch msg.Payload.(type) {
 
 		case *proto.GatewayEnvelope_Hello:
+			currentPolicy := msg.GetHello().PolicyVersion
+			tenantID := msg.GetHello().TenantId
+			tenantUUID, _ := uuid.Parse(tenantID)
+			log.Printf("gateway connected: %s (policy_version=%d)",
+				gatewayIDInCert, msg.GetHello().PolicyVersion)
+
+			// If the gateway is behind on policy, push the latest immediately
+			if currentPolicy < s.distributor.LatestVersion(tenantUUID) {
+				go s.distributor.PushToGateway(ctx, connection, tenantUUID)
+			}
 			s.handleHello(ctx, connection, msg.GetHello())
 
 		case *proto.GatewayEnvelope_Heartbeat:
@@ -299,18 +270,15 @@ func (s *cpServer) handleHello(ctx context.Context, conn *registry.GatewayConn, 
 		return err
 	}
 
-	_, err =
-		s.gatewayRepo.UpdateGatewayBinaryVersion(
-			ctx,
-			store.UpdateGatewayBinaryVersionParams{
-				ID: gatewayID,
 
-				Version: pgtype.Text{
-					Valid:  true,
-					String: hello.BinaryVersion,
-				},
-			},
-		)
+	_, err = s.gatewayRepo.UpdateGatewayBinaryVersion(ctx, store.UpdateGatewayBinaryVersionParams{
+		ID: gatewayID,
+		Version: pgtype.Text{
+			Valid:  true,
+			String: hello.BinaryVersion,
+		},
+	},
+	)
 	if err != nil {
 		s.log.Warn(
 			"failed to update gateway binary version",
@@ -321,12 +289,26 @@ func (s *cpServer) handleHello(ctx context.Context, conn *registry.GatewayConn, 
 		)
 	}
 
+	//Get the authorized connectors
+	connectors, err := s.connectorRepo.ListActiveConnectorsByGateway(ctx, gatewayID)
+	if err != nil {
+		s.log.Warn("Failed to get Connectors")
+	}
+	var connectorsInfo []*proto.ConnectorInfo
+	for _, connector := range connectors {
+		connectorsInfo = append(connectorsInfo, &proto.ConnectorInfo{
+			Id:     connector.ID.String(),
+			Status: connector.Status,
+		})
+	}
+
 	return conn.Send(
 		&proto.CPEnvelope{
 			Payload: &proto.CPEnvelope_HelloAck{
 				HelloAck: &proto.HelloAck{
 					ServerVersion: "1.0.0",
 					ServerTime:    timestamppb.Now(),
+					Connectors: connectorsInfo,
 				},
 			},
 		},
@@ -373,6 +355,7 @@ func (s *cpServer) handleHeartbeat(
 		_, err = s.connectorRepo.UpdateConnectorStatus(ctx, store.UpdateConnectorStatusParams{
 			ID:     cID,
 			Status: connStat.Status,
+			ActiveStreams: heartbeat.ActiveSessions,
 		})
 		if err != nil {
 			s.log.Warn("failed to update connector status in DB", "connector_id", connStat.ConnectorId, "error", err)
@@ -381,7 +364,6 @@ func (s *cpServer) handleHeartbeat(
 
 	return nil
 }
-
 
 func (s *cpServer) reconcileGateway(
 	ctx context.Context,
@@ -477,9 +459,6 @@ func (s *cpServer) reconcileGateway(
 
 	return nil
 }
-
-
-
 
 func (t *cpServer) ExchangeToken(ctx context.Context, req *proto.ExchangeTokenRequest) (*proto.ExchangeTokenResponse, error) {
 	if req.TokenHash == "" || req.GatewayName == "" {

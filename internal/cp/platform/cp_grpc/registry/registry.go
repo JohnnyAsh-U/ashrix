@@ -45,23 +45,6 @@ func (r *GatewayRegistry) Register(conn *GatewayConn) {
 	r.byTenant[conn.TenantID][conn.GatewayID] = conn
 }
 
-// HandleHello is called when a hosted gateway sends its initial Hello message.
-// It tells the CP which tenants this gateway instance serves.
-func (r *GatewayRegistry) HandleHello(gatewayID string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	conn, ok := r.byID[gatewayID]
-	if !ok {
-		return
-	}
-
-	conn, ok = r.byTenant[conn.TenantID][gatewayID]
-	if !ok {
-		return
-	}
-}
-
 
 // Unregister removes a gateway connection.
 // Called when the stream dies or the gateway disconnects.

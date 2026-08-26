@@ -206,7 +206,8 @@ message ConnectorsStatus {
 
 message HelloAck {
   string                    server_version = 1;
-  google.protobuf.Timestamp server_time    = 2;
+  repeated ConnectorInfo    connectors     = 2;
+  google.protobuf.Timestamp server_time    = 3;
 }
 
 message PolicyBundle {
@@ -297,8 +298,8 @@ enum FlowType {
 
 enum ProtocolType {
   UNSPECIFIED_PROTOCOL = 0;
-  PROTOCOL_TCP     = 1;
-  PROTOCOL_UDP     = 2;
+  PROTOCOL_TCP         = 1;
+  PROTOCOL_UDP         = 2;
 }
 
 // 3. Payload Messages
@@ -310,7 +311,7 @@ message StreamFrame {
   string                  source_id     = 4;
   string                  source_email  = 5;
   string                  dest_app_id   = 6;
-  string                  dest_app_name   = 7;
+  string                  dest_app_name = 7;
   string                  connector_id  = 8;
   string                  method        = 9;
   ProtocolType            protocol_type = 10;

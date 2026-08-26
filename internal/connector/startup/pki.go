@@ -202,7 +202,7 @@ func (p *PKIInitialiser) Stop() {
 }
 
 func (p *PKIInitialiser) rotator() {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 
 	p.log.Debug("cert rotator started")

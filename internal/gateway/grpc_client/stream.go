@@ -66,7 +66,7 @@ func NewStreamManager(
 		cm:          cm,
 		policyStore: policyStore,
 		cfg:         cfg,
-		pki: pki,
+		pki:         pki,
 		log:         log,
 		sendCh:      make(chan *pb.GatewayEnvelope, sendQueue),
 		registry:    reg,
@@ -122,7 +122,6 @@ func (sm *StreamManager) Run(ctx context.Context) {
 			// renewCtx, renewCancel := context.WithTimeout(ctx, 30*time.Second)
 			renewErr := sm.pki.RenewNow()
 			// renewCancel()
-
 
 			if renewErr != nil {
 				sm.log.Warn("cert renewal failed — retrying with backoff", zap.Error(renewErr))
@@ -225,8 +224,6 @@ func (sm *StreamManager) runSession(ctx context.Context) error {
 	return err
 }
 
-
-
 func (sm *StreamManager) sendLoop(ctx context.Context, stream pb.ControlPlaneService_ConnectClient) error {
 	for {
 		select {
@@ -300,6 +297,11 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 	case *pb.CPEnvelope_HelloAck:
 		h.log.Info("Hello Acknowledged, Gateway Syncing", zap.Time("server_time", p.HelloAck.ServerTime.AsTime()))
+		statusMap := make(map[string]string)
+		for _, c := range p.HelloAck.Connectors {
+			statusMap[c.Id] = c.Status
+		}
+		h.registry.SetAuthorizedConnectors(statusMap)
 
 	case *pb.CPEnvelope_PolicyBundle:
 		h.log.Info("policy bundle received",
@@ -312,7 +314,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		case *pb.Command_RevokeSession:
 			h.log.Info("revoking session in Redis", zap.String("session_id", cmd.RevokeSession.SessionId))
 			if h.redisClient != nil {
-				if err := h.session.RevokeByCPSession(ctx, cmd.RevokeSession.SessionId); err != nil{
+				if err := h.session.RevokeByCPSession(ctx, cmd.RevokeSession.SessionId); err != nil {
 					h.CommandStatusUpdate(p.Cmd.Seq, false, err.Error())
 				} else {
 					h.CommandStatusUpdate(p.Cmd.Seq, true, "")
@@ -389,7 +391,6 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 			}
 			h.registry.SetAuthorizedConnectors(statusMap)
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
-
 
 		case *pb.Command_RotateGatewayCert:
 			h.log.Warn("gateway certificate rotation requested")
@@ -512,21 +513,20 @@ func (sm *StreamManager) setStream(s pb.ControlPlaneService_ConnectClient, activ
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 func (h *StreamManager) CommandStatusUpdate(
-	cmdID int64, 
+	cmdID int64,
 	hasApplied bool,
 	errMsg string,
 ) {
 	h.Send(&pb.GatewayEnvelope{
 		Payload: &pb.GatewayEnvelope_CmdAck{
 			CmdAck: &pb.CommandAck{
-				ProcessedThroughSeq:             cmdID,
-				GatewayId:         h.cfg.GatewayID,
-				TimeStamp:         timestamppb.Now(),
+				ProcessedThroughSeq: cmdID,
+				GatewayId:           h.cfg.GatewayID,
+				TimeStamp:           timestamppb.Now(),
 			},
 		},
 	})
 }
-
 
 func (sm *StreamManager) makeHello(ctx context.Context) *pb.GatewayEnvelope {
 	policyVersion, err := sm.policyStore.GetCheckpoint(ctx)

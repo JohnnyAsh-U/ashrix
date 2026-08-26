@@ -37,7 +37,7 @@ func NewGatewayConn(
 	stream pb.ControlPlaneService_ConnectServer,
 	gatewayID string,
 	tenantID string,
-	policyVersion uint64,
+	// policyVersion uint64,
 ) *GatewayConn {
 
 	return &GatewayConn{
@@ -48,7 +48,7 @@ func NewGatewayConn(
 		ConnectedAt: time.Now(),
 		LastSeen:    time.Now(),
 
-		CurrentPolicyVersion: policyVersion,
+		// CurrentPolicyVersion: policyVersion,
 
 		Ctx:    ctx,
 		Cancel: cancel,

@@ -21,9 +21,10 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 	sessionID := session.SessionIDFromCtx(ctx)
 	requestID := uuid.NewString()
 
-	var userID string
+	var userID, userEmail string
 	if identity != nil {
 		userID = identity.UserId
+		userEmail = identity.Email
 	}
 
 	streamCtx, cancel := context.WithCancel(ctx)
@@ -41,10 +42,10 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 	req := &proto.StreamFrame{
 		RequestId:    requestID,
 		FlowType:     proto.FlowType_USER_TO_APP,
-		TenantId:     identity.TenantId,
+		// TenantId:     identity.TenantId,
 		SessionId:    sessionID,
 		SourceId:     userID,
-		SourceEmail:  identity.Email,
+		SourceEmail:  userEmail,
 		DestAppId:    appID,
 		Method:       r.Method,
 		ProtocolType: proto.ProtocolType_PROTOCOL_TCP,
