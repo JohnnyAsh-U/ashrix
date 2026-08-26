@@ -242,11 +242,9 @@ func (s *Server) routeToGateway(clientConn net.Conn, destination string) error {
 	flowID := uuid.NewString()
 	envelope := proto.StreamFrame{
 		RequestId:     flowID,
-		AppId:         destHost,
+		DestAppId:         destHost,
 		StreamType:    proto.RequestType_HTTP_REQUEST,
 		FlowType:      proto.FlowType_APP_TO_APP,
-		SocksUsername: s.username,
-		SocksPassword: s.password,
 	}
 
 	if err := frame.WriteFrame(qStream, &envelope); err != nil {

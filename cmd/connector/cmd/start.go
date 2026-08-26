@@ -285,7 +285,7 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 		socksPass := viper.GetString("socks_pass")
 
 		var socksServer *socks.Server
-		if socksUser != "" && socksPass != "" && config.OpenSock {
+		if config.OpenSock {
 			log.Info("Starting SOCKS5 proxy server on connector", zap.String("addr", socksAddr), zap.String("username", socksUser))
 			socksServer = socks.NewServer(socksAddr, socksUser, socksPass, transportProto, log)
 			go func() {

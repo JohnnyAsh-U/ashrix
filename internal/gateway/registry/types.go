@@ -39,6 +39,6 @@ func (s *ManagementSession) Close() {
 //they are different streams, different lifecycles.
 
 type TunnelSession interface {
-	OpenStream(ctx context.Context, req flow.OpenRequest) (flow.Stream, error)
+	OpenStream(ctx context.Context, req *gen.StreamFrame) (flow.Stream, error)
 	Close() error
 }

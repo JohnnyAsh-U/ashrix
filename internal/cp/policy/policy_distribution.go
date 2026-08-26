@@ -289,8 +289,8 @@ func policyToRecord(p Policy, timestamp int64) *pb.PolicyRecord {
 		rule.Effect = pb.EffectEnum_EFFECT_ENUM_DENY
 	}
 
-	users, groups := partitionSubjects(p.Subjects)
-	rule.Subject = &pb.SubjectSelector{Users: users, Groups: groups}
+	users, groups, apps := partitionSubjects(p.Subjects)
+	rule.Subject = &pb.SubjectSelector{Users: users, Groups: groups, Apps: apps}
 
 	apps, paths, methods := partitionResources(p.Resources)
 	rule.Resource = &pb.ResourceSelector{AppIds: apps, Paths: paths, Methods: methods}
@@ -354,6 +354,7 @@ func snapshotToRule(snapshot map[string]interface{}, version int64) (*pb.PolicyR
 		rule.Subject = &pb.SubjectSelector{
 			Users:  getStringSlice(subj, "users"),
 			Groups: getStringSlice(subj, "groups"),
+			Apps: getStringSlice(subj, "apps"),
 		}
 	}
 

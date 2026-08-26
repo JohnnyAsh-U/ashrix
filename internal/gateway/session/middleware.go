@@ -23,9 +23,6 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-			fmt.Println(r.Host, r.URL.RequestURI())
-			fmt.Println("From Require Auth")
-
 			// Skip posture collection for health checks and auth callbacks
 			if isInternalPath(r.URL.Path) {
 				next.ServeHTTP(w, r)

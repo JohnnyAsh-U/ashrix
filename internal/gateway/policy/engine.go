@@ -118,9 +118,11 @@ func (e *PolicyEngine) Compile(rule *proto.PolicyRule) (*CompiledPolicy, error) 
 	if rule.Subject != nil {
 		cp.Groups = makeSet(rule.Subject.Groups)
 		cp.Users = makeSet(rule.Subject.Users)
+		cp.SourceAppIDs = makeSet(rule.Subject.Apps)
 	} else {
 		cp.Groups = make(map[string]struct{})
 		cp.Users = make(map[string]struct{})
+		cp.SourceAppIDs = make(map[string]struct{})
 	}
 	if rule.Resource != nil {
 		cp.AppIDs = makeSet(rule.Resource.AppIds)

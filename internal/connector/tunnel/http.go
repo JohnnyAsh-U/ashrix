@@ -24,7 +24,7 @@ func (c *ConnectorTunnel) handleHTTPRequest(ctx context.Context, stream transpor
 	//===============Getting the app from the applist using requestheader app id================//
 	var requestApp *gen.ConnectorApps
 	for i := range c.apps {
-		if c.apps[i].Id == request.AppId {
+		if c.apps[i].Id == request.DestAppId {
 			requestApp = c.apps[i]
 			break
 		}
@@ -38,7 +38,7 @@ func (c *ConnectorTunnel) handleHTTPRequest(ctx context.Context, stream transpor
 	c.log.Debug("proxying request",
 		zap.String("method", request.Method),
 		zap.String("path", request.Path),
-		zap.String("user", request.UserEmail),
+		zap.String("user", request.SourceEmail),
 		zap.String("appName", requestApp.Name),
 	)
 

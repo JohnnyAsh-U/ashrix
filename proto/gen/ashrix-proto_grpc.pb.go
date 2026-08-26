@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             (unknown)
-// source: ashrix-gateway.proto
+// source: ashrix-proto.proto
 
 package proto
 
@@ -164,5 +164,117 @@ var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "ashrix-gateway.proto",
+	Metadata: "ashrix-proto.proto",
+}
+
+const (
+	ConnectorService_Connect_FullMethodName = "/proto.ConnectorService/Connect"
+)
+
+// ConnectorServiceClient is the client API for ConnectorService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// ====================================================================================
+//
+//	Management Service to gateway
+//
+// ==========================================================================================
+// Sends Heartbeat to gateway, send hello to gateway
+type ConnectorServiceClient interface {
+	// GRPC Tunnel
+	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectorGatewayEnvelope, GatewayConnectorEnvelope], error)
+}
+
+type connectorServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewConnectorServiceClient(cc grpc.ClientConnInterface) ConnectorServiceClient {
+	return &connectorServiceClient{cc}
+}
+
+func (c *connectorServiceClient) Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectorGatewayEnvelope, GatewayConnectorEnvelope], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ConnectorService_ServiceDesc.Streams[0], ConnectorService_Connect_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ConnectorGatewayEnvelope, GatewayConnectorEnvelope]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ConnectorService_ConnectClient = grpc.BidiStreamingClient[ConnectorGatewayEnvelope, GatewayConnectorEnvelope]
+
+// ConnectorServiceServer is the server API for ConnectorService service.
+// All implementations must embed UnimplementedConnectorServiceServer
+// for forward compatibility.
+//
+// ====================================================================================
+//
+//	Management Service to gateway
+//
+// ==========================================================================================
+// Sends Heartbeat to gateway, send hello to gateway
+type ConnectorServiceServer interface {
+	// GRPC Tunnel
+	Connect(grpc.BidiStreamingServer[ConnectorGatewayEnvelope, GatewayConnectorEnvelope]) error
+	mustEmbedUnimplementedConnectorServiceServer()
+}
+
+// UnimplementedConnectorServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedConnectorServiceServer struct{}
+
+func (UnimplementedConnectorServiceServer) Connect(grpc.BidiStreamingServer[ConnectorGatewayEnvelope, GatewayConnectorEnvelope]) error {
+	return status.Error(codes.Unimplemented, "method Connect not implemented")
+}
+func (UnimplementedConnectorServiceServer) mustEmbedUnimplementedConnectorServiceServer() {}
+func (UnimplementedConnectorServiceServer) testEmbeddedByValue()                          {}
+
+// UnsafeConnectorServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ConnectorServiceServer will
+// result in compilation errors.
+type UnsafeConnectorServiceServer interface {
+	mustEmbedUnimplementedConnectorServiceServer()
+}
+
+func RegisterConnectorServiceServer(s grpc.ServiceRegistrar, srv ConnectorServiceServer) {
+	// If the following call panics, it indicates UnimplementedConnectorServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ConnectorService_ServiceDesc, srv)
+}
+
+func _ConnectorService_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ConnectorServiceServer).Connect(&grpc.GenericServerStream[ConnectorGatewayEnvelope, GatewayConnectorEnvelope]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ConnectorService_ConnectServer = grpc.BidiStreamingServer[ConnectorGatewayEnvelope, GatewayConnectorEnvelope]
+
+// ConnectorService_ServiceDesc is the grpc.ServiceDesc for ConnectorService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ConnectorService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.ConnectorService",
+	HandlerType: (*ConnectorServiceServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Connect",
+			Handler:       _ConnectorService_Connect_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "ashrix-proto.proto",
 }

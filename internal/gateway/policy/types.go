@@ -37,6 +37,7 @@ const (
 type SubjectSelector struct {
 	Users  []string `json:"users"`
 	Groups []string `json:"groups"`
+	AppIDs []string `json:"app_ids"`
 }
 
 type ResourceSelector struct {

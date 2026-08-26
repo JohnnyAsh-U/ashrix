@@ -334,7 +334,7 @@ CREATE INDEX idx_policies_compile_order
 -- -----------------------------------------------------------
 CREATE TABLE policy_subjects (
     policy_id       UUID NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
-    subject_type    VARCHAR(20) NOT NULL CHECK (subject_type IN ('group', 'user')),
+    subject_type    VARCHAR(20) NOT NULL CHECK (subject_type IN ('group', 'user', 'app')),
     subject_value   VARCHAR(255) NOT NULL,
 
     PRIMARY KEY (policy_id, subject_type, subject_value)

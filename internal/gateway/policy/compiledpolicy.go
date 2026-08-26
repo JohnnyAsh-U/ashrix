@@ -18,6 +18,7 @@ type CompiledPolicy struct {
 	AppIDs         map[string]struct{}
 	Groups         map[string]struct{}
 	Users          map[string]struct{}
+	SourceAppIDs   map[string]struct{}
 	Methods        map[string]struct{}
 	Countries      map[string]struct{}
 	BlockCountries map[string]struct{}
@@ -48,6 +49,11 @@ func (cp *CompiledPolicy) matchesSubject(p Principal) bool {
 	}
 	if len(cp.Users) > 0 {
 		if _, ok := cp.Users[p.UserID]; !ok {
+			return false
+		}
+	}
+	if len(cp.SourceAppIDs) > 0 {
+		if _, ok := cp.SourceAppIDs[p.UserID]; !ok {
 			return false
 		}
 	}

@@ -7,54 +7,6 @@ import (
 	"sync"
 )
 
-type FlowType string
-
-const (
-	FlowUserToApp FlowType = "USER_TO_APP"
-	FlowAppToApp  FlowType = "APP_TO_APP"
-)
-
-type Protocol string
-
-const (
-	ProtocolTCP Protocol = "TCP"
-	ProtocolUDP Protocol = "UDP"
-)
-
-type EndpointType string
-
-const (
-	EndpointUser EndpointType = "USER"
-	EndpointApp  EndpointType = "APP"
-)
-
-type Endpoint struct {
-	Type        EndpointType
-	PrincipalID string
-	DeviceID    string
-	AppID       string
-}
-
-type OpenRequest struct {
-	Version     int
-	FlowID      string
-	FlowType    FlowType
-	Protocol    Protocol
-	Source      Endpoint
-	Destination Endpoint
-
-	HTTPMethod  string
-	HTTPPath    string
-	HTTPHost    string
-	HTTPQuery   string
-	HTTPHeaders map[string][]string
-	BodyLength  int64
-	StreamType  int32 // Maps to proto.RequestType
-
-	SocksUsername string
-	SocksPassword string
-}
-
 type Stream interface {
 	io.Reader
 	io.Writer

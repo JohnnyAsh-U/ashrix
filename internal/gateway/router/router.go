@@ -4,14 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	// "time"
+	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/flow"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -37,28 +36,24 @@ func NewRouter(registry *registry.Registry, policy *policy.PolicyEngine, store *
 	}
 }
 
-func (r *Router) Route(ctx context.Context, req flow.OpenRequest) (flow.Stream, error) {
-	// 1. Validate request.
-	if req.Destination.AppID == "" {
-		return nil, ErrInvalidFlow
-	}
+func (r *Router) Route(ctx context.Context, req *pb.StreamFrame, evalPolicy bool) (flow.Stream, error) {
 
 	// 2. Resolve destination application and connector.
 	var destApp *pb.ConnectorApps
 	var destConnector *registry.ConnectorEntry
 
-	if connEntry, ok := r.registry.GetByAppID(req.Destination.AppID); ok {
+	if connEntry, ok := r.registry.GetByAppID(req.DestAppId); ok {
 		destConnector = connEntry
 		for _, app := range connEntry.Apps {
-			if app.Id == req.Destination.AppID {
+			if app.Id == req.DestAppId {
 				destApp = app
 				break
 			}
 		}
-	} else if connEntry, ok := r.registry.GetBySubdomain(req.Destination.AppID); ok {
+	} else if connEntry, ok := r.registry.GetBySubdomain(req.DestAppName); ok {
 		destConnector = connEntry
 		for _, app := range connEntry.Apps {
-			if app.Subdomain == req.Destination.AppID {
+			if app.Subdomain == req.DestAppName {
 				destApp = app
 				break
 			}
@@ -69,64 +64,29 @@ func (r *Router) Route(ctx context.Context, req flow.OpenRequest) (flow.Stream, 
 		return nil, ErrAppNotFound
 	}
 
-	// Canonicalize App ID
-	req.Destination.AppID = destApp.Id
-
 	if !destConnector.IsRoutable() {
 		return nil, ErrConnectorOffline
 	}
 
-	// 5. Build complete policy context.
-	// var principal policy.Principal
-	// if req.FlowType == flow.FlowUserToApp {
-	// 	principal = policy.Principal{
-	// 		UserID: req.Source.PrincipalID,
-	// 		Email:  req.Source.PrincipalID,
-	// 	}
-	// } else {
-	// 	principal = policy.Principal{
-	// 		UserID: req.Source.PrincipalID, // Connector ID
-	// 		Groups: []string{"m2m"},
-	// 	}
-	// }
+	authCtx := policy.AuthorizationContext{
+		Principal: policy.Principal{
+			UserID: req.SourceId, // App ID
+			Name:   req.SourceEmail,
+		},
+		Resource: policy.Resource{
+			AppID:  req.DestAppId,
+			Path:   req.Path,
+			Method: req.Method,
+		},
+		Time:     time.Now(),
+		TenantID: req.TenantId,
+	}
 
-	// authCtx := policy.AuthorizationContext{
-	// 	Principal: principal,
-	// 	Resource: policy.Resource{
-	// 		AppID:  req.Destination.AppID,
-	// 		Path:   req.HTTPPath,
-	// 		Method: req.HTTPMethod,
-	// 	},
-	// 	Time:     time.Now(),
-	// 	TenantID: destConnector.TenantID,
-	// }
-
-	// // 6. Evaluate policy.
-	// decision := r.policy.Evaluate(authCtx)
-	// if decision.Denied() {
-	// 	return nil, fmt.Errorf("%w: %s", ErrPolicyDenied, decision.Reason)
-	// }
-
-	// 7. For SOCKS flows (App to App), validate SOCKS credentials.
-	if req.FlowType == flow.FlowAppToApp {
-		if req.SocksUsername == "" || req.SocksPassword == "" {
-			return nil, fmt.Errorf("%w: missing socks credentials", ErrUnauthorized)
-		}
-
-		// Retrieve the credential for the source connector
-		cred, err := r.store.GetSOCKS5CredentialByConnectorID(ctx, req.Source.PrincipalID)
-		if err != nil {
-			return nil, fmt.Errorf("%w: socks credential not found for connector: %v", ErrUnauthorized, err)
-		}
-
-		// Important invariant: SOCKS credential must belong to the source connector
-		if cred.Username != req.SocksUsername {
-			return nil, fmt.Errorf("%w: SOCKS username mismatch", ErrUnauthorized)
-		}
-
-		// Compare hash
-		if err := bcrypt.CompareHashAndPassword([]byte(cred.PasswordHash), []byte(req.SocksPassword)); err != nil {
-			return nil, fmt.Errorf("%w: invalid password", ErrUnauthorized)
+	//  Evaluate policy when it is app to app, user to app policy happens at middleware.
+	if evalPolicy {
+		decision := r.policy.Evaluate(authCtx)
+		if decision.Denied() {
+			return nil, fmt.Errorf("%w: %s", ErrPolicyDenied, decision.Reason)
 		}
 	}
 

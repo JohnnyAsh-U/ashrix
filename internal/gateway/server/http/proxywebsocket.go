@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/flow"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -38,30 +38,25 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 		h.log.Debug("Tunnel stream closed", zap.String("stream_id", streamID), zap.String("app_id", appID))
 	}()
 
-	req := flow.OpenRequest{
-		Version:  1,
-		FlowID:   requestID,
-		FlowType: flow.FlowUserToApp,
-		Protocol: flow.ProtocolTCP,
-		Source: flow.Endpoint{
-			Type:        flow.EndpointUser,
-			PrincipalID: userID,
-			DeviceID:    "no-agent",
-		},
-		Destination: flow.Endpoint{
-			Type:  flow.EndpointApp,
-			AppID: appID,
-		},
-		HTTPMethod:  r.Method,
-		HTTPPath:    r.URL.Path,
-		HTTPHost:    r.Host,
-		HTTPQuery:   r.URL.RawQuery,
-		HTTPHeaders: r.Header,
-		BodyLength:  r.ContentLength,
-		StreamType:  int32(proto.RequestType_WS_REQUEST),
+	req := &proto.StreamFrame{
+		RequestId:    requestID,
+		FlowType:     proto.FlowType_USER_TO_APP,
+		TenantId:     identity.TenantId,
+		SessionId:    sessionID,
+		SourceId:     userID,
+		SourceEmail:  identity.Email,
+		DestAppId:    appID,
+		Method:       r.Method,
+		ProtocolType: proto.ProtocolType_PROTOCOL_TCP,
+		Host:         r.Host,
+		Path:         r.URL.Path,
+		Query: r.URL.RawQuery,
+		Headers:      frame.HeadersToProto(r.Header),
+		BodyLength:   r.ContentLength,
+		StreamType:   proto.RequestType_WS_REQUEST,
 	}
 
-	stream, err := h.router.Route(streamCtx, req)
+	stream, err := h.router.Route(streamCtx, req, false)
 	if err != nil {
 		h.log.Warn("Routing failed", zap.String("app_id", appID), zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadGateway)

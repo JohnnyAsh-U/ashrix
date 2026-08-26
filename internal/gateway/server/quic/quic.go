@@ -12,7 +12,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/flow"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"github.com/google/uuid"
 	"github.com/quic-go/quic-go"
 	"go.uber.org/zap"
 )
@@ -149,46 +148,17 @@ func (s *QUICServer) handleIncomingConnectorStream(ctx context.Context, srcConne
 	}
 
 	startTime := time.Now()
-	flowID := streamFrame.RequestId
-	if flowID == "" {
-		flowID = uuid.NewString()
-	}
 
-	var flowType flow.FlowType
-	if streamFrame.FlowType == proto.FlowType_APP_TO_APP {
-		flowType = flow.FlowAppToApp
-	} else {
-		flowType = flow.FlowUserToApp
-	}
-
-	// SECURITY RULE: Overwrite/set the source connector ID to the authenticated srcConnectorID!
-	req := flow.OpenRequest{
-		Version:  1,
-		FlowID:   flowID,
-		FlowType: flowType,
-		Protocol: flow.ProtocolTCP,
-		Source: flow.Endpoint{
-			Type:        flow.EndpointApp,
-			PrincipalID: srcConnectorID, // AUTHORITATIVE identity from cert!
-		},
-		Destination: flow.Endpoint{
-			Type:  flow.EndpointApp,
-			AppID: streamFrame.AppId,
-		},
-		SocksUsername: streamFrame.SocksUsername,
-		SocksPassword: streamFrame.SocksPassword,
-	}
-
-	destStream, err := s.router.Route(ctx, req)
+	destStream, err := s.router.Route(ctx, &streamFrame, true)
 	if err != nil {
 		s.log.Warn("routing/policy rejected for incoming connector stream",
-			zap.String("flow_id", flowID),
+			zap.String("flow_id", streamFrame.RequestId),
 			zap.String("src_connector", srcConnectorID),
-			zap.String("dest_app", streamFrame.AppId),
+			zap.String("dest_app", streamFrame.DestAppId),
 			zap.Error(err),
 		)
 		rejectFrame := proto.StreamFrame{
-			RequestId: flowID,
+			RequestId: streamFrame.RequestId,
 			Method:    "OPEN_ERR",
 		}
 		_ = frame.WriteFrame(srcStream, &rejectFrame)
@@ -197,18 +167,18 @@ func (s *QUICServer) handleIncomingConnectorStream(ctx context.Context, srcConne
 	defer destStream.Close()
 
 	ackFrame := proto.StreamFrame{
-		RequestId: flowID,
+		RequestId: streamFrame.RequestId,
 		Method:    "OPEN_OK",
 	}
 	if err := frame.WriteFrame(srcStream, &ackFrame); err != nil {
-		s.log.Error("failed to write ACK frame to source connector", zap.String("flow_id", flowID), zap.Error(err))
+		s.log.Error("failed to write ACK frame to source connector", zap.String("flow_id", streamFrame.RequestId), zap.Error(err))
 		return
 	}
 
 	s.log.Info("Logical flow routed successfully, starting Relay",
-		zap.String("flow_id", flowID),
+		zap.String("flow_id", streamFrame.RequestId),
 		zap.String("src_connector", srcConnectorID),
-		zap.String("dest_app", streamFrame.AppId),
+		zap.String("dest_app", streamFrame.DestAppId),
 	)
 
 	result := flow.Relay(ctx, srcStream, destStream)
@@ -219,10 +189,10 @@ func (s *QUICServer) handleIncomingConnectorStream(ctx context.Context, srcConne
 	}
 
 	s.log.Info("flow termination audit",
-		zap.String("flow_id", flowID),
-		zap.String("flow_type", string(req.FlowType)),
+		zap.String("flow_id", streamFrame.RequestId),
+		zap.String("flow_type", string(streamFrame.FlowType)),
 		zap.String("source_connector", srcConnectorID),
-		zap.String("destination_app", streamFrame.AppId),
+		zap.String("destination_app", streamFrame.DestAppId),
 		zap.Duration("duration", time.Since(startTime)),
 		zap.Int64("bytes_a_to_b", result.BytesAToB),
 		zap.Int64("bytes_b_to_a", result.BytesBToA),

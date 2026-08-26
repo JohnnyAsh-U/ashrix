@@ -14,52 +14,17 @@ type quicTunnelSession struct {
 	conn *quic.Conn
 }
 
-func (s *quicTunnelSession) OpenStream(ctx context.Context, req flow.OpenRequest) (flow.Stream, error) {
+func (s *quicTunnelSession) OpenStream(ctx context.Context, req *proto.StreamFrame) (flow.Stream, error) {
 	stream, err := s.conn.OpenStreamSync(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Open Tunnel Stream: %w", err)
 	}
-
-	var streamType proto.RequestType
-	if req.StreamType != 0 {
-		streamType = proto.RequestType(req.StreamType)
-	} else if req.FlowType == flow.FlowUserToApp {
-		streamType = proto.RequestType_HTTP_REQUEST
-	}
-
-	var flowType proto.FlowType
-	if req.FlowType == flow.FlowAppToApp {
-		flowType = proto.FlowType_APP_TO_APP
-	} else {
-		flowType = proto.FlowType_USER_TO_APP
-	}
-
-	envelope := proto.StreamFrame{
-		RequestId:   req.FlowID,
-		AppId:       req.Destination.AppID,
-		StreamType:  streamType,
-		FlowType:    flowType,
-		Method:      req.HTTPMethod,
-		Host:        req.HTTPHost,
-		Path:        req.HTTPPath,
-		Query:       req.HTTPQuery,
-		Headers:     frame.HeadersToProto(req.HTTPHeaders),
-		BodyLength:  req.BodyLength,
-	}
-
-	if req.FlowType == flow.FlowUserToApp {
-		envelope.UserId = req.Source.PrincipalID
-		envelope.UserEmail = req.Source.PrincipalID
-	} else {
-		envelope.ConnectorId = req.Source.PrincipalID
-	}
-
 	adapter := &quicStreamAdapter{
 		stream: stream,
 		ctx:    ctx,
 	}
 
-	if err := frame.WriteFrame(adapter, &envelope); err != nil {
+	if err := frame.WriteFrame(adapter, req); err != nil {
 		stream.Close()
 		return nil, fmt.Errorf("failed to write open request frame: %w", err)
 	}

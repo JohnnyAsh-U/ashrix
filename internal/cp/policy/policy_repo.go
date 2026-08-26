@@ -64,13 +64,15 @@ func NewRepository(dbConn *pgxpool.Pool, queries *store.Queries) Repository {
 // SNAPSHOT HELPERS (proto-aligned JSONB)
 // -----------------------------------------------------------
 
-func partitionSubjects(subjs []Subject) (users, groups []string) {
+func partitionSubjects(subjs []Subject) (users, groups, apps []string) {
 	for _, s := range subjs {
 		switch s.Type {
 		case "user":
 			users = append(users, s.Value)
 		case "group":
 			groups = append(groups, s.Value)
+		case "app":
+			apps = append(apps, s.Value)
 		}
 	}
 	return
@@ -92,7 +94,7 @@ func partitionResources(res []Resource) (appIDs, paths, methods []string) {
 
 // buildSnapshotFromRequest builds a proto-aligned JSONB snapshot during Create.
 func buildSnapshotFromRequest(policyID, orgID uuid.UUID, req CreatePolicyRequest, createdAt time.Time) map[string]interface{} {
-	users, groups := partitionSubjects(req.Subjects)
+	users, groups, apps := partitionSubjects(req.Subjects)
 	apps, paths, methods := partitionResources(req.Resources)
 
 	return map[string]any{
@@ -105,6 +107,7 @@ func buildSnapshotFromRequest(policyID, orgID uuid.UUID, req CreatePolicyRequest
 		"subject": map[string]any{
 			"users":  users,
 			"groups": groups,
+			"apps": apps,
 		},
 		"resource": map[string]any{
 			"app_ids": apps,
@@ -119,7 +122,7 @@ func buildSnapshotFromRequest(policyID, orgID uuid.UUID, req CreatePolicyRequest
 
 // buildSnapshotFromPolicy builds a proto-aligned JSONB snapshot during Update.
 func buildSnapshotFromPolicy(p Policy) map[string]interface{} {
-	users, groups := partitionSubjects(p.Subjects)
+	users, groups, apps := partitionSubjects(p.Subjects)
 	apps, paths, methods := partitionResources(p.Resources)
 
 	return map[string]any{
@@ -132,6 +135,7 @@ func buildSnapshotFromPolicy(p Policy) map[string]interface{} {
 		"subject": map[string]any{
 			"users":  users,
 			"groups": groups,
+			"apps" : apps,
 		},
 		"resource": map[string]any{
 			"app_ids": apps,

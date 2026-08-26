@@ -72,7 +72,7 @@ func NewProxyServer(
 	r.Use(session.SessionMiddleware(connectorRegistry, sessions, redisClient, cfg, log))
 	r.Use(posture.PostureMiddleware(collector, log))
 	r.Use(RateLimiterMiddleware(DefaultRateLimiterConfig(redisClient), log)) // ← after session
-	// r.Use(policy.PolicyMiddleware(engine, cfg, log))
+	r.Use(policy.PolicyMiddleware(engine, cfg, log))
 
 	r.Get("/health", handler.Health)
 	r.Get("/logout", handler.Logout)

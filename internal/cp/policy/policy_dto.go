@@ -14,7 +14,7 @@ const (
 )
 
 type Subject struct {
-	Type  string `json:"type" example:"group" enums:"group,user"`  // "group" or "user"
+	Type  string `json:"type" example:"group" enums:"group,user,app"`  // "group" or "user" or "app"
 	Value string `json:"value" example:"engineering"` // "engineering", "u-123"
 }
 
