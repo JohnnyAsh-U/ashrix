@@ -29,15 +29,15 @@ type UpdateIDPConfig struct {
 	IsActive        bool   `json:"is_active"`
 }
 
-type IDPResolverProvider struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+
+type IDPLoginPageData struct {
+	Providers []IDPLoginProvider
 }
 
-type APIIDPResolverResponse struct {
-	AppID       string `json:"app_id"`
-	RedirectURI string `json:"redirect_uri"`
-	Providers   []IDPResolverProvider
+type IDPLoginProvider struct {
+	ID   string
+	Name string
+	URL  string
 }
 
 type IDPConfigResponse struct {

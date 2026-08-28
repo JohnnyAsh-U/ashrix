@@ -37,7 +37,7 @@ func newBaseClient(ctx context.Context, cfg *IdentityProvider, clientSecret stri
 		ClientSecret: clientSecret,
 		Endpoint:     provider.Endpoint(),
 		Scopes:       cfg.Scopes,
-		RedirectURL: "http://localhost:8001/api/v1/authorize/callback",
+		RedirectURL: "http://localhost:8001/authorize/callback",
 	}
 
 	verifier := provider.Verifier(&oidclib.Config{ClientID: cfg.ClientID})

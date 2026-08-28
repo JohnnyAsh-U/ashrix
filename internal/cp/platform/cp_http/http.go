@@ -129,10 +129,18 @@ func InitializeHttpServer(
 	policyHandler := policy.NewPolicyHandler(policyService)
 
 
+	r.Handle("/static/*", idpHandler.StaticHandler())
+
+
 	//Docs - date this in prod
 	r.Get("/docs/*", httpSwagger.Handler(
 		httpSwagger.URL("/docs/doc.json"),
 	))
+
+
+
+	r.Route("/authorize", idpHandler.IdentityAuthRoutes)
+
 
 	r.Route("/api/v1", func(r chi.Router) {
 

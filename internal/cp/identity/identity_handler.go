@@ -1,11 +1,13 @@
 package identity
 
 import (
+	"embed"
 	"fmt"
+	"html/template"
+	iofs "io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
-
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
@@ -13,15 +15,34 @@ import (
 	"github.com/google/uuid"
 )
 
+//go:embed web/*
+var idpTemplateFS embed.FS
+
 type IDPHandler struct {
 	idpService *IDPService
 	log        *slog.Logger
+	templates  *template.Template
 }
 
 func NewIDPHandler(idpService *IDPService, log *slog.Logger) *IDPHandler {
+
+	funcs := template.FuncMap{
+		"providerDisplayName": providerDisplayName,
+		"providerIcon":        providerIcon,
+	}
+
+	tmpl := template.Must(
+		template.New("idp").Funcs(funcs).ParseFS(
+			idpTemplateFS,
+			"web/templates/idp_login.html",
+			"web/templates/error.html",
+		),
+	)
+
 	return &IDPHandler{
 		idpService: idpService,
 		log:        log,
+		templates:  tmpl,
 	}
 }
 
@@ -29,11 +50,11 @@ func NewIDPHandler(idpService *IDPService, log *slog.Logger) *IDPHandler {
 // @Description Resolve IDP for the specified tenant and app.
 // @Tags IDP
 // @Accept json
-// @Produce json
+// @Produce html
 // @Security BearerAuth
 // @Param gid query string true "Gateway ID"
 // @Param aid query string true "App ID"
-// @Success 201 {object} APIIDPResolverResponse
+// @Success 201 {object} string
 // @Failure 400 {object} dto.AppError
 // @Failure 500 {object} dto.AppError
 // @Router /authorize/providers [get]
@@ -60,75 +81,46 @@ func (i *IDPHandler) IDPResolverHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	//Resolve the AppIDPProviders
-	adapters, err := i.idpService.ResolveAppIDP(ctx, appUUID, gatewayUUID)
+	providers, err := i.idpService.ResolveAppIDP(ctx, appUUID, gatewayUUID)
 	if err != nil {
 		dto.SendError(w, dto.NewNotFoundError(err.Error()))
 		return
 	}
-	adapterResponse := make([]IDPResolverProvider, len(adapters))
 
-	for i, a := range adapters {
-		adapterResponse[i] = IDPResolverProvider{
-			ID:   a.GetProviderID(),
-			Name: a.GetProviderType(),
-		}
+	page := IDPLoginPageData{
+		Providers: providers,
 	}
-	response := &APIIDPResolverResponse{
-		// RedirectURI: redirectURI,
-		Providers:   adapterResponse,
-		AppID:       appUUID.String(),
+
+	// ------------------------------------------------------------
+	// Render HTML
+	// ------------------------------------------------------------
+
+	// page := IDPLoginPageData{
+	// 	Providers: providers,
+	// }
+
+	w.Header().Set(
+		"Content-Type",
+		"text/html; charset=utf-8",
+	)
+
+	if err := i.templates.ExecuteTemplate(
+		w,
+		"idp_login.html",
+		page,
+	); err != nil {
+
+		slog.Error(
+			"failed to render IDP login page",
+			"error", err,
+		)
+
+		// Don't attempt to write another status if
+		// the template already started writing.
 	}
-	dto.SendSuccess(w, http.StatusOK, response)
+
+	// dto.SendSuccess(w, http.StatusOK, response)
 }
-
-// @Summary Login IDP
-// @Description Login IDP.
-// @Tags IDP
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param idpdetails body IDPLoginRequest true "IDP Details"
-// @Success 200
-// @Failure 400 {object} dto.AppError
-// @Failure 500 {object} dto.AppError
-// @Router /authorize/login [post]
-func (i *IDPHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var req IDPLoginRequest
-	if err := dto.DecodeJSON(w, r, &req); err != nil {
-		dto.SendError(w, err)
-		return
-	}
-
-	if validationErrors := dto.ValidateStruct(req); validationErrors != nil {
-		dto.SendError(w, dto.NewBadRequestError(validationErrors))
-		return
-	}
-
-	IDPUUID, err := uuid.Parse(req.ProviderID)
-	if err != nil {
-		dto.SendError(w, dto.NewBadRequestError("Not Valid Client App"))
-		return
-	}
-
-	IdpConfig, err := i.idpService.GetIDPByID(ctx, IDPUUID)
-
-	if err != nil {
-		dto.SendError(w, dto.NewForbiddenError("An Error Occurred"))
-		return
-	}
-
-	oidcUrl, err := i.idpService.BuildOAuthUrl(ctx, IdpConfig, req.GatewayID)
-
-	if err != nil {
-		dto.SendError(w, dto.NewNotFoundError("Not Valid Client"))
-		return
-	}
-
-	dto.SendSuccess(w, http.StatusCreated, oidcUrl)
-}
-
 
 // @Summary Create IDP
 // @Description Create IDP.
@@ -169,8 +161,6 @@ func (i *IDPHandler) CreateIdentityConfig(w http.ResponseWriter, r *http.Request
 	dto.SendSuccess(w, http.StatusCreated, IDPConfigToResponse(cfg))
 }
 
-
-
 // @Summary List idps by organization
 // @Description Retrieve a list of idps for a admin organization.
 // @Tags IDP
@@ -202,8 +192,6 @@ func (i *IDPHandler) ListIdentityConfigs(w http.ResponseWriter, r *http.Request)
 
 	dto.SendSuccess(w, http.StatusOK, resp)
 }
-
-
 
 // @Summary Update Identity Config
 // @Description Update Identity Config.
@@ -252,7 +240,6 @@ func (i *IDPHandler) UpdateIdentityConfig(w http.ResponseWriter, r *http.Request
 	dto.SendSuccess(w, http.StatusOK, IDPConfigToResponse(cfg))
 }
 
-
 // @Summary Add APP to IDP
 // @Description Add App to IDP
 // @Tags IDP
@@ -285,7 +272,6 @@ func (h *IDPHandler) AddAppToIDP(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, http.StatusOK, appidp)
 }
 
-
 // @Summary Remove APP from IDP
 // @Description Remove App from IDP
 // @Tags IDP
@@ -317,8 +303,6 @@ func (h *IDPHandler) RemoveAppFromIDP(w http.ResponseWriter, r *http.Request) {
 	}
 	dto.SendSuccess(w, http.StatusNoContent, appidp)
 }
-
-
 
 // @Summary Delete an identityconfig
 // @Description Delete an identityconfigD.
@@ -375,9 +359,8 @@ func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	//Redirect to Gateway with token
 	redirectUrl := fmt.Sprintf("%s/_auth/callback?state=%s", "http://gateway.ashrix.io:8000", url.QueryEscape(token))
 	// dto.SendSuccess(w, http.StatusCreated, redirectUrl)
-	http.Redirect(w,r,redirectUrl, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, redirectUrl, http.StatusTemporaryRedirect)
 }
-
 
 // @Summary Revoke Session Handler
 // @Description Revoke Session Handler.
@@ -395,8 +378,6 @@ func (h *IDPHandler) RevokeUserSessionHandler(w http.ResponseWriter, r *http.Req
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 
-	fmt.Println(id)
-
 	if err != nil {
 		dto.SendError(w, dto.NewBadRequestError("Invalid Session ID format"))
 		return
@@ -411,19 +392,28 @@ func (h *IDPHandler) RevokeUserSessionHandler(w http.ResponseWriter, r *http.Req
 	dto.SendSuccess(w, http.StatusOK, "All sessions revoked successfully")
 }
 
+func (i *IDPHandler) StaticHandler() http.Handler {
+	// Serve the public static assets, not the private templates
+	staticFS, err := iofs.Sub(idpTemplateFS, "web/static")
 
+	if err != nil {
+		panic(err)
+	}
 
+	return http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
+}
 
 func (h *IDPHandler) IdentityAuthRoutes(rg chi.Router) {
 	rg.Get("/providers", h.IDPResolverHandler)
-	rg.Post("/login", h.LoginHandler)
 	rg.Get("/callback", h.CallbackHandler)
 }
+
+
 func (h *IDPHandler) IdentityRoutes(rg chi.Router) {
-    rg.Post("/", h.CreateIdentityConfig)
-    rg.Get("/", h.ListIdentityConfigs)
-    rg.Put("/{id}", h.UpdateIdentityConfig)
+	rg.Post("/", h.CreateIdentityConfig)
+	rg.Get("/", h.ListIdentityConfigs)
+	rg.Put("/{id}", h.UpdateIdentityConfig)
 	rg.Post("/app", h.AddAppToIDP)
-    rg.Delete("/{id}", h.DeleteIdentityConfig)
+	rg.Delete("/{id}", h.DeleteIdentityConfig)
 	rg.Delete("/revoke-session/{id}", h.RevokeUserSessionHandler)
 }

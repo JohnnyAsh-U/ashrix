@@ -15,8 +15,6 @@ Audit log list api
 
 # Flexibility in the Port designing for each service
 Now redesign the ports and host for gRPC server on cp, and gRPC/QUIc on gateway 
-Intégration of websocket as fallback for connection 
-
 
 Update the document of the platform with changes.
 

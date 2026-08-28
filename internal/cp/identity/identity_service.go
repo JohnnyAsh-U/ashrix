@@ -74,7 +74,16 @@ func NewIDPService(
 
 // ResolveAppIDP resolves identity providers for a given tenant/app
 // It first checks for app-specific IDP configs, then falls back to tenant-level configs
-func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UUID) ([]oidc.ProviderAdapter, error) {
+func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UUID) ([]IDPLoginProvider, error) {
+
+	gw, err := r.gatewayRepo.GetGatewayByID(ctx, gatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("gateway not found: %w", err)
+	}
+
+	if gw.Status == "draining" || gw.Status == "revoked" || !gw.IsActive || gw.RevokedAt.Valid {
+		return nil, fmt.Errorf("login rejected: gateway is draining or revoked")
+	}
 
 	// First try to get app-specific IDP configs
 	appConfigs, err := r.repo.ListAppIdPConfigs(ctx, appID)
@@ -131,6 +140,7 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UU
 
 	// Build adapters for each config
 	adapters := make([]oidc.ProviderAdapter, 0, len(configs))
+	providers := make([]IDPLoginProvider, 0)
 	for _, cfg := range configs {
 
 		adapter, err := r.getOrCreateAdapter(ctx, &cfg)
@@ -140,13 +150,62 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UU
 			continue
 		}
 		adapters = append(adapters, adapter)
+
+		//Create the state, and build the OAUTh url
+		state, code_challenge, nonce, err := r.idpSession.CreateState(
+			ctx,
+			cfg.TenantID,
+			cfg.ID,
+			gatewayID.String(),
+		)
+
+		authURL := adapter.AuthCodeURL(state, nonce, code_challenge)
+		providers = append(providers, IDPLoginProvider{
+			ID:   cfg.ID,
+			Name: cfg.DisplayName,
+			URL:  authURL,
+		})
 	}
 
 	if len(adapters) == 0 {
 		return nil, fmt.Errorf("no valid IDP adapters found")
 	}
 
-	return adapters, nil
+	return providers, nil
+}
+
+func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, gatewayID string) (string, error) {
+
+	//Create the state, and build the OAUTh url
+	state, code_challenge, nonce, err := r.idpSession.CreateState(
+		ctx,
+		idp.OrgID.String(),
+		idp.ID.String(),
+		gatewayID,
+	)
+	identityProvider := &oidc.IdentityProvider{
+		ID:          idp.ID.String(),
+		TenantID:    idp.OrgID.String(),
+		Type:        idp.ProviderType,
+		DisplayName: idp.Name,
+		// OIDC specific fields from provider
+		IssuerURL:       idp.IssuerUrl,
+		ClientID:        idp.ClientID,     // Use app-specific client ID
+		ClientSecretEnc: idp.ClientSecret, // Use app-specific client secret
+		Scopes:          idp.Scopes,
+		EmailClaim:      idp.EmailClaim,
+		NameClaim:       idp.NameClaim,
+		GroupsClaim:     idp.GroupClaim,
+		ExtraConfig:     idp.ExtraConfig,
+	}
+
+	adapter, err := r.getOrCreateAdapter(ctx, identityProvider)
+
+	if err != nil {
+		return "", err
+	}
+
+	return adapter.AuthCodeURL(state, nonce, code_challenge), nil
 }
 
 func (r *IDPService) AddAppToIDP(ctx context.Context, AppID, IdpID string, isRequired bool) (store.AppIdpMapping, *dto.AppError) {
@@ -253,19 +312,21 @@ func (r *IDPService) CreateTenantIdentityConfig(ctx context.Context, orgID uuid.
 		return store.IdpConfig{}, fmt.Errorf("encrypt client secret: %w", err)
 	}
 
+	fmt.Println(encryptedSecret, req.ClientSecretEnc)
+
 	var identityProvider *oidc.IdentityProvider
 	switch req.Type {
 	case "google":
 		identityProvider = oidc.GooglePreset(orgID.String(), req.ClientID, encryptedSecret, req.ExtraConfig)
 	case "entra":
-		identityProvider = oidc.EntraPreset(orgID.String(), req.ClientID, req.ClientSecretEnc, req.ExtraConfig)
+		identityProvider = oidc.EntraPreset(orgID.String(), req.ClientID, encryptedSecret, req.ExtraConfig)
 	case "okta":
-		identityProvider = oidc.OktaPreset(orgID.String(), req.ClientID, req.ClientSecretEnc, req.ExtraConfig)
+		identityProvider = oidc.OktaPreset(orgID.String(), req.ClientID, encryptedSecret, req.ExtraConfig)
 	case "keycloak":
-		identityProvider = oidc.KeycloakPreset(orgID.String(), req.ClientID, req.ClientSecretEnc, req.ExtraConfig)
+		identityProvider = oidc.KeycloakPreset(orgID.String(), req.ClientID, encryptedSecret, req.ExtraConfig)
 	case "generic":
 		identityProvider = oidc.GenericOIDCPreset(
-			orgID.String(), req.IssuerURL, req.ClientID, req.ClientSecretEnc, req.EmailClaim, req.NameClaim, req.GroupsClaim, req.ExtraConfig,
+			orgID.String(), req.IssuerURL, req.ClientID, encryptedSecret, req.EmailClaim, req.NameClaim, req.GroupsClaim, req.ExtraConfig,
 		)
 	default:
 		return store.IdpConfig{}, fmt.Errorf("unknown provider type")
@@ -309,51 +370,6 @@ func (r *IDPService) ListIdentityConfigsForTenant(ctx context.Context, orgID uui
 
 func (r *IDPService) DeleteIdentityConfig(ctx context.Context, id, orgID uuid.UUID) (store.IdpConfig, error) {
 	return r.repo.DeleteIdentityConfig(ctx, store.DeleteIDPConfigParams{ID: id, OrgID: orgID})
-}
-
-func (r *IDPService) BuildOAuthUrl(ctx context.Context, idp store.IdpConfig, gatewayID string) (string, error) {
-	gatewayUUID, err := uuid.Parse(gatewayID)
-	if err != nil {
-		return "", fmt.Errorf("invalid gateway id: %w", err)
-	}
-	gw, err := r.gatewayRepo.GetGatewayByID(ctx, gatewayUUID)
-	if err != nil {
-		return "", fmt.Errorf("gateway not found: %w", err)
-	}
-	if gw.Status == "draining" || gw.Status == "revoked" || !gw.IsActive || gw.RevokedAt.Valid {
-		return "", fmt.Errorf("login rejected: gateway is draining or revoked")
-	}
-
-	//Create the state, and build the OAUTh url
-	state, code_challenge, nonce, err := r.idpSession.CreateState(
-		ctx,
-		idp.OrgID.String(),
-		idp.ID.String(),
-		gatewayID,
-	)
-	identityProvider := &oidc.IdentityProvider{
-		ID:          idp.ID.String(),
-		TenantID:    idp.OrgID.String(),
-		Type:        idp.ProviderType,
-		DisplayName: idp.Name,
-		// OIDC specific fields from provider
-		IssuerURL:       idp.IssuerUrl,
-		ClientID:        idp.ClientID,     // Use app-specific client ID
-		ClientSecretEnc: idp.ClientSecret, // Use app-specific client secret
-		Scopes:          idp.Scopes,
-		EmailClaim:      idp.EmailClaim,
-		NameClaim:       idp.NameClaim,
-		GroupsClaim:     idp.GroupClaim,
-		ExtraConfig:     idp.ExtraConfig,
-	}
-
-	adapter, err := r.getOrCreateAdapter(ctx, identityProvider)
-
-	if err != nil {
-		return "", err
-	}
-
-	return adapter.AuthCodeURL(state, nonce, code_challenge), nil
 }
 
 func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (string, string, error) {

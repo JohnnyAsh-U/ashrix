@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="referrer"
+        content="no-referrer"
+    >
+
+    <title>Sign in — Ashrix</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/idp-login.css"
+    >
+</head>
+
+<body>
+
+    <main class="container">
+
+        <section class="card">
+
+            <!-- Ashrix brand -->
+            <div class="brand">
+
+                <div class="brand-logo" aria-hidden="true">
+                    A
+                </div>
+
+                <div class="brand-name">
+                    Ashrix
+                </div>
+
+            </div>
+
+
+            <!-- Heading -->
+            <h1>
+                Sign in
+            </h1>
+
+            <p class="subtitle">
+                Choose your identity provider to continue.
+            </p>
+
+
+            <!-- Identity Providers -->
+            <div class="providers">
+
+                {{ range .Providers }}
+
+                <a
+                    class="provider"
+                    href="{{ .URL }}"
+                    aria-label="Continue with {{ providerDisplayName .Name }}"
+                >
+
+                    <span
+                        class="provider-icon"
+                        aria-hidden="true"
+                    >
+                        {{ providerIcon .Name }}
+                    </span>
+
+                    <span class="provider-name">
+                        Continue with {{ providerDisplayName .Name }}
+                    </span>
+
+                    <span
+                        class="arrow"
+                        aria-hidden="true"
+                    >
+                        →
+                    </span>
+
+                </a>
+
+                {{ end }}
+
+            </div>
+
+
+            <!-- Footer -->
+            <footer class="footer">
+                Secured by Ashrix
+            </footer>
+
+        </section>
+
+    </main>
+
+</body>
+
+</html>
