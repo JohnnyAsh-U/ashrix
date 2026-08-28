@@ -7,18 +7,18 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/quic-go/quic-go"
 	// "github.com/gorilla/websocket"
 	// "github.com/hashicorp/yamux"
-	"go.uber.org/zap"
 )
 
 type quicSession struct {
 	conn *quic.Conn
-	log  *zap.Logger
+	log  *slog.Logger
 	done chan struct{}
 	once sync.Once
 }
@@ -29,9 +29,9 @@ func DialQUIC(
 	ctx context.Context,
 	addr string,
 	tlsConfig *tls.Config,
-	log *zap.Logger,
+	log *slog.Logger,
 ) (Session, error) {
-	log.Info("trying QUIC transport", zap.String("addr", addr))
+	log.Info("trying QUIC transport", "addr", addr)
 
 	conn, err := quic.DialAddr(ctx, addr, tlsConfig, &quic.Config{
 		KeepAlivePeriod: 15 * time.Second,
@@ -45,7 +45,7 @@ func DialQUIC(
 		return nil, fmt.Errorf("QUIC dial: %w", err)
 	}
 
-	log.Info("QUIC connection established", zap.String("addr", addr))
+	log.Info("QUIC connection established", "addr", addr)
 
 	s := &quicSession{
 		conn: conn,

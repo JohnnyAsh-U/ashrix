@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -12,14 +13,14 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/posture"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5/middleware"
-	"go.uber.org/zap"
+	// "go.uber.org/zap"
 )
 
 type decisionContextKey struct{}
 
 
 
-func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *zap.Logger) func(http.Handler) http.Handler {
+func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			appIsPublic := session.AppIsPublicFromCtx(r.Context())
@@ -108,7 +109,7 @@ func DecisionFromContext(ctx context.Context) (*Decision, bool) {
 }
 
 
-func logPolicyDecision(ctx context.Context, decision Decision, authCtx AuthorizationContext, log *zap.Logger) {
+func logPolicyDecision(ctx context.Context, decision Decision, authCtx AuthorizationContext, log *slog.Logger) {
 	// Structured JSON log for observability
 	logData := map[string]interface{}{
 		"event":          "policy.decision",
@@ -128,5 +129,5 @@ func logPolicyDecision(ctx context.Context, decision Decision, authCtx Authoriza
 		"evaluated_at":   decision.EvaluatedAt,
 	}
 	// Use your structured logger (zap, slog, etc.)
-	log.Info("policy decision", zap.Any("data", logData))
+	log.Info("policy decision", slog.Any("data", logData))
 }

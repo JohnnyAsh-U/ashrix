@@ -9,7 +9,6 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 )
 
 func (c *ConnectorTunnel) handleWebSocketStream(ctx context.Context, stream transport.Stream, request *proto.StreamFrame) {
@@ -34,17 +33,17 @@ func (c *ConnectorTunnel) handleWebSocketStream(ctx context.Context, stream tran
 	start := time.Now()
 
 	c.log.Debug("proxying websocket",
-		zap.String("path", request.Path),
-		zap.String("user", request.SourceId),
-		zap.String("appName", requestApp.Name),
+		"path", request.Path,
+		"user", request.SourceId,
+		"appName", requestApp.Name,
 	)
 
 	go io.Copy(appConn, stream)
 
 	c.log.Debug("request complete",
-		zap.String("path", request.Path),
-		zap.Duration("latency", time.Since(start)),
-		zap.Error(err),
+		"path", request.Path,
+		"latency", time.Since(start),
+		"error", err,
 	)
 	io.Copy(stream, appConn)
 }

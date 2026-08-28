@@ -3,25 +3,25 @@ package tunnel
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	// "go.uber.org/zap"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 )
 
 // ConnectorTunnel manages the full lifecycle of the tunnel.
 type ConnectorTunnel struct {
-	log       *zap.Logger
+	log       *slog.Logger
 	startedAt time.Time
 
 	apps []*pb.ConnectorApps
 	managementConn *management.ManagementConn
 }
 
-func NewTunnel(log *zap.Logger, apps []*pb.ConnectorApps, managementConn *management.ManagementConn) *ConnectorTunnel {
+func NewTunnel(log *slog.Logger, apps []*pb.ConnectorApps, managementConn *management.ManagementConn) *ConnectorTunnel {
 	return &ConnectorTunnel{
 		log:       log,
 		startedAt: time.Now(),
@@ -40,7 +40,7 @@ func (c *ConnectorTunnel) AcceptLoop(
 ) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			c.log.Error("panic in AcceptLoop", zap.Any("panic", r))
+			c.log.Error("panic in AcceptLoop", "panic", r)
 			err = fmt.Errorf("AcceptLoop panic: %v", r)
 		}
 	}()

@@ -14,7 +14,7 @@ import (
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
+	"log/slog"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -87,8 +87,6 @@ func runStart() (err error) {
 		os.Exit(1)
 	}
 
-	defer logger.LoggerApp.Sync()
-
 	log := logger.LoggerApp
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -99,7 +97,7 @@ func runStart() (err error) {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		sig := <-quit
-		log.Info("Shut down signal recived", zap.String("signal", sig.String()))
+		log.Info("Shut down signal received", "signal", sig.String())
 		cancel()
 	}()
 
@@ -112,7 +110,7 @@ func runStart() (err error) {
 
 		//-------------------------Startup Workflow---------------------------//
 		//Check Cert -> renew or register
-		log.Info("Running startup workflow and connecting with CP", zap.String("cp_url", CPURL))
+		log.Info("Running startup workflow and connecting with CP", "cp_url", CPURL)
 
 		result, err := startup.Run(ctx, CPURL, log, token, appStorage)
 		if err != nil {
@@ -124,18 +122,17 @@ func runStart() (err error) {
 		defer result.PKI.Stop()
 
 		log.Info("Startup Complete",
-			zap.String("connector_id", result.Status.ConnectorId),
-			zap.String("gateway_id", result.Status.GatewayId),
-			zap.String("gateway_url", result.Status.GatewayUrl),
-			zap.Int("apps", len(result.Status.Apps)),
+			"connector_id", result.Status.ConnectorId,
+			"gateway_id", result.Status.GatewayId,
+			"gateway_url", result.Status.GatewayUrl,
+			"apps", len(result.Status.Apps),
 		)
 
 		//------------------------ Build Transport config from status response-------------------------//
 
 		gatewayAddr := result.Status.GatewayIp
-		fmt.Println(gatewayAddr)
 		if gatewayAddr == "" {
-			fmt.Println("Gateway URL not valid")
+			log.Error("Gateway address is empty / invalid")
 			os.Exit(1)
 		}
 
@@ -157,10 +154,10 @@ func runStart() (err error) {
 			TLSConfig:       tlsConfig,
 		}
 
-		log.Info("Opening management stream with gateway", zap.String("addr", gRPCURL), zap.Int("attempt", attempt))
+		log.Info("Opening management stream with gateway", "addr", gRPCURL, "attempt", attempt)
 		managementConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tenantID, tlsConfig, log, apps, result.PKI, appStorage)
 		if err != nil {
-			log.Error("Failed to open Gateway stream", zap.String("cp_url", gRPCURL), zap.Error(err))
+			log.Error("Failed to open Gateway stream", "cp_url", gRPCURL, "error", err)
 			select {
 			case <-time.After(reconnectDelay(attempt)):
 				continue
@@ -174,7 +171,7 @@ func runStart() (err error) {
 		err = managementConn.Register(helloCtx)
 		helloCancel()
 		if err != nil {
-			log.Error("Failed to register management stream", zap.Error(err))
+			log.Error("Failed to register management stream", "error", err)
 			managementConn.Conn.Close()
 			select {
 			case <-time.After(reconnectDelay(attempt)):
@@ -184,7 +181,7 @@ func runStart() (err error) {
 			}
 		}
 
-		log.Info("✓ connector management stream ready", zap.String("connector_id", connectorID), zap.String("app_addr", gRPCURL))
+		log.Info("connector management stream ready", "connector_id", connectorID, "app_addr", gRPCURL)
 
 		//--------------------Mangement Receiver, HeartBeat, and Tunnel Loop ---------------------------//
 		sessionCtx, sessionCancel := context.WithCancel(ctx)
@@ -193,7 +190,7 @@ func runStart() (err error) {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Error("panic in management receiver", zap.Any("panic", r))
+					log.Error("panic in management receiver", "panic", r)
 					errCh <- fmt.Errorf("management receiver panic: %v", r)
 				}
 			}()
@@ -203,7 +200,7 @@ func runStart() (err error) {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Error("panic in management heartbeat", zap.Any("panic", r))
+					log.Error("panic in management heartbeat", "panic", r)
 					errCh <- fmt.Errorf("management heartbeat panic: %v", r)
 				}
 			}()
@@ -213,7 +210,7 @@ func runStart() (err error) {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Error("panic in tunnel loop", zap.Any("panic", r))
+					log.Error("panic in tunnel loop", "panic", r)
 					errCh <- fmt.Errorf("tunnel loop panic: %v", r)
 				}
 			}()
@@ -223,7 +220,7 @@ func runStart() (err error) {
 		select {
 		case err := <-errCh:
 			if err != nil {
-				log.Error("Session Shut Down", zap.Error(err))
+				log.Error("Session Shut Down", "error", err)
 			}
 		case <-ctx.Done():
 			sessionCancel()
@@ -243,7 +240,7 @@ func runStart() (err error) {
 	}
 }
 
-func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger, apps []*pb.ConnectorApps, managementConn *management.ManagementConn) error {
+func runTunnelLoop(ctx context.Context, config transport.Config, log *slog.Logger, apps []*pb.ConnectorApps, managementConn *management.ManagementConn) error {
 	attempt := 0
 	for {
 		if ctx.Err() != nil {
@@ -255,9 +252,9 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 		if err != nil {
 			delay := reconnectDelay(attempt)
 			log.Warn("tunnel negotiation failed — reconnecting",
-				zap.Error(err),
-				zap.Duration("retry_in", delay),
-				zap.Int("attempt", attempt),
+				"error", err,
+				"retry_in", delay,
+				"attempt", attempt,
 			)
 			select {
 			case <-time.After(delay):
@@ -267,10 +264,10 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 			}
 		}
 
-		log.Info("✓ connector ready",
-			zap.String("connector_id", config.ConnectorID),
-			zap.String("app_addr", config.GatewayGRPCAddr),
-			zap.String("tunnel", transportProto.TransportName()),
+		log.Info("connector ready",
+			"connector_id", config.ConnectorID,
+			"app_addr", config.GatewayGRPCAddr,
+			"tunnel", transportProto.TransportName(),
 		)
 
 		// Record connection time to check for stability
@@ -280,13 +277,12 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 
 		var socksServer *socks.Server
 		if config.OpenSock {
-			log.Info("Starting SOCKS5 proxy server on connector", zap.String("addr", socksAddr))
+			log.Info("Starting SOCKS5 proxy server on connector", "addr", socksAddr)
 			credentialStore, err := socks.NewCredentialStore()
 			if err != nil {
-				log.Error("SOCKS5 server cred error:", zap.Error(err))
+				log.Error("SOCKS5 server cred error", "error", err)
 			}
 			for _, app := range apps {
-				fmt.Println(app)
 				credentialStore.Replace([]socks.Credential{{
 					AppID: app.Id,
 					PasswordHash: app.SockPass,
@@ -295,7 +291,7 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 			socksServer = socks.NewServer(socksAddr,credentialStore, transportProto, log)
 			go func() {
 				if err := socksServer.ListenAndServe(ctx); err != nil {
-					log.Error("SOCKS5 server error", zap.Error(err))
+					log.Error("SOCKS5 server error", "error", err)
 				}
 			}()
 		}
@@ -312,7 +308,7 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 		select {
 		case tunnelErr = <-errCh:
 			if tunnelErr != nil {
-				log.Error("Tunnel error", zap.Error(tunnelErr))
+				log.Error("Tunnel error", "error", tunnelErr)
 			}
 		case <-ctx.Done():
 			transportProto.Close()
@@ -329,9 +325,9 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *zap.Logger
 		// Transient — reconnect with backoff
 		delay := reconnectDelay(attempt + 1)
 		log.Warn("disconnected — reconnecting",
-			zap.Error(tunnelErr),
-			zap.Duration("retry_in", delay),
-			zap.Int("attempt", attempt),
+			"error", tunnelErr,
+			"retry_in", delay,
+			"attempt", attempt,
 		)
 
 		select {

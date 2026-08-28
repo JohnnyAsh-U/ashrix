@@ -1,4 +1,3 @@
-* Remove tray from connector and restructure to cli
 * Redo connector installer
 
 Testing

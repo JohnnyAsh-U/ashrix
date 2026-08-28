@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strconv"
@@ -28,7 +29,6 @@ import (
 
 	// proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 func init() {
@@ -74,15 +74,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
-	defer logging.App.Sync()
-
 	log := logging.App
 
 	//--------------------------REDIS------------------------------------------------//
 	redisStore, err := config.NewRedisStore(context.Background(), cfg)
 
 	if err != nil {
-		log.Error("Failed to connect to Redis", zap.String("err", err.Error()))
+		log.Error("Failed to connect to Redis", slog.String("err", err.Error()))
 	}
 
 	log.Info("Redis connected")
@@ -130,10 +128,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 	)
 
 	if err != nil {
-		log.Fatal("failed to load gateway identity — is the gateway registered?",
-			zap.String("hint",
+		log.Error("failed to load gateway identity — is the gateway registered?",
+			slog.String("hint",
 				fmt.Sprintf("run: ashrix-gateway register --cp-url=%s", cfg.CPURL)),
-			zap.Error(err),
+			slog.Any("err", err),
 		)
 	}
 
@@ -141,13 +139,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 	if err := pki.LoadAndVerify(); err != nil {
 		if errors.Is(err, crypto.ErrCertExpired) {
 			if renewErr := pki.PreflightRenew(context.Background()); renewErr != nil {
-				log.Fatal("Certificate Expired and renewal failed",
-					zap.String("hint", fmt.Sprintf(
+				log.Error("Certificate Expired and renewal failed",
+					slog.String("hint", fmt.Sprintf(
 						"run: ashrix-gateway register --cp-url=%s", cfg.CPURL)),
-					zap.Error(renewErr))
+					slog.Any("err", renewErr))
 			}
 		} else {
-			log.Fatal("Certifcate Invalid")
+			log.Error("Certifcate Invalid")
 		}
 	}
 
@@ -162,21 +160,21 @@ func runStart(cmd *cobra.Command, args []string) error {
 	log.Info("Initialising Policy Store And Engine...")
 	policyStore, err := store.OpenBoltStore(cfg.DataDir)
 	if err != nil {
-		log.Error("failed to open policy store", zap.String("error", err.Error()))
+		log.Error("failed to open policy store", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
 	// Load CP public key (embedded in binary)
 	verifier, err := store.RootPublicKey()
 	if err != nil {
-		log.Error("failed to open policy store", zap.String("error", err.Error()))
+		log.Error("failed to open policy store", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
 	//Policy Engine takes Store as args to load the policies into the engine
 	engine, err := policy.NewEngine(context.Background(), policyStore, verifier, cfg.GatewayID, log)
 	if err != nil {
-		log.Fatal("failed to initialize policy engine", zap.Error(err))
+		log.Error("failed to initialize policy engine", slog.Any("err", err))
 	}
 
 	defer policyStore.Close()
@@ -189,9 +187,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// rejects the cert, we check if connection is successful
 	// if cert expired we renew cert here
 
-	log.Info("connecting to Control Plane", zap.String("cp_url", cfg.CPURL))
+	log.Info("connecting to Control Plane", slog.String("cp_url", cfg.CPURL))
 
-	// FIX: typo was "https//" (missing colon). Also handle scheme stripping properly.
 	cpHost := strings.TrimPrefix(cfg.CPURL, "http://")
 	cpHost = strings.TrimPrefix(cpHost, "https://")
 	cpHost = strings.TrimSuffix(cpHost, "/")
@@ -229,7 +226,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// 4. Establish initial connection
 	if err := cm.RefreshConnection(ctx); err != nil {
-		log.Fatal("initial connection failed", zap.Error(err))
+		log.Error("initial connection failed", slog.Any("err", err))
 	}
 
 	// 5. Background loops
@@ -250,19 +247,19 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Start servers in background
 	go func() {
 		if err := httpServer.Start(); err != nil {
-			log.Error("HTTP server stopped", zap.Error(err))
+			log.Error("HTTP server stopped", slog.Any("err", err))
 		}
 	}()
 
 	go func() {
 		if err := grpcServer.Start(); err != nil {
-			log.Error("gRPC server stopped", zap.Error(err))
+			log.Error("gRPC server stopped", slog.Any("err", err))
 		}
 	}()
 
 	go func() {
 		if err := quicServer.Start(ctx); err != nil {
-			log.Error("QUIC server stopped", zap.Error(err))
+			log.Error("QUIC server stopped", slog.Any("err", err))
 		}
 	}()
 
@@ -271,7 +268,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
 	sig := <-quit
-	log.Info("shutdown signal received", zap.String("signal", sig.String()))
+	log.Info("shutdown signal received", slog.String("signal", sig.String()))
 
 	// Stop listeners gracefully
 	grpcServer.Stop()
@@ -284,9 +281,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// Close the gRPC connection explicitly
 	if err := cm.Close(); err != nil {
-		log.Error("failed to close CP connection", zap.Error(err))
+		log.Error("failed to close CP connection", slog.Any("err", err))
 	}
-	// }()
 
 	return nil
 }

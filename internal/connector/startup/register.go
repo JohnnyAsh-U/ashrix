@@ -11,11 +11,11 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -38,7 +38,7 @@ type APIRegisterResponse struct {
 // Prompt User for token
 // Send CSR + token to CP
 // Return Response
-func Register(ctx context.Context, cpURL string, log *zap.Logger, token string) (*gen.ConnectorEnrollResponse, *ecdsa.PrivateKey, error) {
+func Register(ctx context.Context, cpURL string, log *slog.Logger, token string) (*gen.ConnectorEnrollResponse, *ecdsa.PrivateKey, error) {
 	// Generate ECDSA p256
 	log.Info("Generating ECDSA P-256 keypair")
 
@@ -61,7 +61,7 @@ func Register(ctx context.Context, cpURL string, log *zap.Logger, token string) 
 	}
 
 	//Send to CP
-	log.Info("Registering Connector with Token on CP", zap.String("cp_url", cpURL))
+	log.Info("Registering Connector with Token on CP", "cp_url", cpURL)
 	apiResp, err := sendRegisterRequest(ctx, token, cpURL, csrPem)
 
 	if err != nil {

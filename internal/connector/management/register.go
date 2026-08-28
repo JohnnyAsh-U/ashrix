@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -28,7 +28,7 @@ type ManagementConn struct {
 	ConnectorID string
 	Apps        []*pb.ConnectorApps
 	StartedAt   time.Time
-	log         *zap.Logger
+	log         *slog.Logger
 
 	PKI        *startup.PKIInitialiser
 	AppStorage storage.Storage
@@ -50,12 +50,12 @@ func OpenStream(
 	gatewayUrl string,
 	connectorID, TenantID string,
 	tlsConfig *tls.Config,
-	log *zap.Logger,
+	log *slog.Logger,
 	apps []*pb.ConnectorApps,
 	pki *startup.PKIInitialiser,
 	appStorage storage.Storage,
 ) (*ManagementConn, error) {
-	log.Info("dialing management plane", zap.String("addr", gatewayUrl))
+	log.Info("dialing management plane", "addr", gatewayUrl)
 
 	now := time.Now()
 
@@ -90,7 +90,7 @@ func OpenStream(
 
 // register sends HelloMessage and waits for HelloAck.
 func (c *ManagementConn) Register(ctx context.Context) error {
-	c.log.Info("registering with gateway", zap.String("connector_id", c.ConnectorID))
+	c.log.Info("registering with gateway", "connector_id", c.ConnectorID)
 
 	err := c.Stream.Send(&pb.ConnectorGatewayEnvelope{
 		ConnectorId: c.ConnectorID,
@@ -120,8 +120,8 @@ func (c *ManagementConn) Register(ctx context.Context) error {
 		switch p := msg.Payload.(type) {
 		case *pb.GatewayConnectorEnvelope_HelloAck:
 			c.log.Info("registration accepted",
-				zap.String("session_id", p.HelloAck.SessionId),
-				zap.String("server_version", p.HelloAck.ServerVersion),
+				"session_id", p.HelloAck.SessionId,
+				"server_version", p.HelloAck.ServerVersion,
 			)
 			ackCh <- nil
 		case *pb.GatewayConnectorEnvelope_Reject:

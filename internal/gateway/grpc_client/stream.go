@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"syscall"
@@ -17,7 +18,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/version"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 
 	// "github.com/cenkalti/backoff/v4"
 	"google.golang.org/grpc/codes"
@@ -34,7 +34,7 @@ type StreamManager struct {
 	// onAuthError func(ctx context.Context) error // e.g. pki.PreflightRenew
 
 	pki *crypto.GatewayPKI
-	log *zap.Logger
+	log *slog.Logger
 
 	registry    *registry.Registry
 	redisClient *redis.Client
@@ -50,7 +50,7 @@ func NewStreamManager(
 	cm *ConnectionManager,
 	policyStore *store.BoltStore,
 	cfg *config.Config,
-	log *zap.Logger,
+	log *slog.Logger,
 	sendQueue int,
 	pki *crypto.GatewayPKI,
 	// onAuthError func(ctx context.Context) error,
@@ -96,7 +96,7 @@ func (sm *StreamManager) Run(ctx context.Context) {
 		if time.Now().After(recoveryDeadline) {
 			sm.log.Error(
 				"control plane unavailable for recovery window — shutting down",
-				zap.Duration("recovery_window", recoveryWindow),
+				slog.Duration("recovery_window", recoveryWindow),
 			)
 			return
 		}
@@ -109,7 +109,7 @@ func (sm *StreamManager) Run(ctx context.Context) {
 
 		err := sm.runSession(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			sm.log.Warn("stream session ended", zap.Error(err))
+			sm.log.Warn("stream session ended", slog.Any("error", err))
 		}
 
 		sm.setStream(nil, false)
@@ -124,16 +124,16 @@ func (sm *StreamManager) Run(ctx context.Context) {
 			// renewCancel()
 
 			if renewErr != nil {
-				sm.log.Warn("cert renewal failed — retrying with backoff", zap.Error(renewErr))
+				sm.log.Warn("cert renewal failed — retrying with backoff", slog.Any("err", renewErr))
 			} else {
 				sm.log.Info("cert renewed — forcing connection refresh")
 				// Tear down the old gRPC connection so the next dial
 				// performs a fresh TLS handshake with the new cert.
 				if closeErr := sm.cm.Close(); closeErr != nil {
-					sm.log.Debug("old conn close error", zap.Error(closeErr))
+					sm.log.Debug("old conn close error", slog.Any("err", closeErr))
 				}
 				if refreshErr := sm.cm.RefreshConnection(ctx); refreshErr != nil {
-					sm.log.Error("failed to refresh connection after renewal", zap.Error(refreshErr))
+					sm.log.Error("failed to refresh connection after renewal", slog.Any("err", refreshErr))
 				} else {
 					sm.log.Info("reconnected with renewed cert — retrying stream immediately")
 					// b.Reset()
@@ -159,8 +159,8 @@ func (sm *StreamManager) Run(ctx context.Context) {
 
 		sm.log.Warn(
 			"control plane unavailable — waiting before retry",
-			zap.Duration("retry_after", wait),
-			zap.Duration("recovery_remaining", remaining),
+			slog.Duration("retry_after", wait),
+			slog.Duration("recovery_remaining", remaining),
 		)
 
 		timer := time.NewTimer(wait)
@@ -296,7 +296,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 	switch p := msg.Payload.(type) {
 
 	case *pb.CPEnvelope_HelloAck:
-		h.log.Info("Hello Acknowledged, Gateway Syncing", zap.Time("server_time", p.HelloAck.ServerTime.AsTime()))
+		h.log.Info("Hello Acknowledged, Gateway Syncing", slog.Time("server_time", p.HelloAck.ServerTime.AsTime()))
 		statusMap := make(map[string]string)
 		for _, c := range p.HelloAck.Connectors {
 			statusMap[c.Id] = c.Status
@@ -305,14 +305,14 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 	case *pb.CPEnvelope_PolicyBundle:
 		h.log.Info("policy bundle received",
-			zap.String("version", "3"),
+			slog.String("version", "3"),
 		)
 
 	case *pb.CPEnvelope_Cmd:
-		h.log.Info("command received from CP", zap.String("type", fmt.Sprintf("%T", p.Cmd.Payload)))
+		h.log.Info("command received from CP", slog.String("type", fmt.Sprintf("%T", p.Cmd.Payload)))
 		switch cmd := p.Cmd.Payload.(type) {
 		case *pb.Command_RevokeSession:
-			h.log.Info("revoking session in Redis", zap.String("session_id", cmd.RevokeSession.SessionId))
+			h.log.Info("revoking session in Redis", slog.String("session_id", cmd.RevokeSession.SessionId))
 			if h.redisClient != nil {
 				if err := h.session.RevokeByCPSession(ctx, cmd.RevokeSession.SessionId); err != nil {
 					h.CommandStatusUpdate(p.Cmd.Seq, false, err.Error())
@@ -320,10 +320,10 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 					h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 				}
 			}
-			h.log.Info("sent status update", zap.String("session_id", cmd.RevokeSession.SessionId))
+			h.log.Info("sent status update", slog.String("session_id", cmd.RevokeSession.SessionId))
 
 		case *pb.Command_RevokeConnector:
-			h.log.Info("revoking connector; sending command to connector", zap.String("connector_id", cmd.RevokeConnector.ConnectorId))
+			h.log.Info("revoking connector; sending command to connector", slog.String("connector_id", cmd.RevokeConnector.ConnectorId))
 			if entry, ok := h.registry.GetByConnectorID(cmd.RevokeConnector.ConnectorId); ok && entry.ManagementSession != nil {
 				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
 					Payload: &pb.GatewayConnectorEnvelope_Cmd{
@@ -337,7 +337,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_RevokeConnectorCert:
-			h.log.Info("revoking connector cert; sending command to connector", zap.String("connector_id", cmd.RevokeConnectorCert.ConnectorId))
+			h.log.Info("revoking connector cert; sending command to connector", slog.String("connector_id", cmd.RevokeConnectorCert.ConnectorId))
 			if entry, ok := h.registry.GetByConnectorID(cmd.RevokeConnectorCert.ConnectorId); ok && entry.ManagementSession != nil {
 				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
 					Payload: &pb.GatewayConnectorEnvelope_Cmd{
@@ -351,7 +351,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_RotateConnectorCert:
-			h.log.Info("rotating connector cert; sending command to connector", zap.String("connector_id", cmd.RotateConnectorCert.ConnectorId))
+			h.log.Info("rotating connector cert; sending command to connector", slog.String("connector_id", cmd.RotateConnectorCert.ConnectorId))
 			if entry, ok := h.registry.GetByConnectorID(cmd.RotateConnectorCert.ConnectorId); ok && entry.ManagementSession != nil {
 				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
 					Payload: &pb.GatewayConnectorEnvelope_Cmd{
@@ -365,7 +365,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_ReloadConnector:
-			h.log.Info("reloading connector; sending command to connector", zap.String("connector_id", cmd.ReloadConnector.ConnectorId))
+			h.log.Info("reloading connector; sending command to connector", slog.String("connector_id", cmd.ReloadConnector.ConnectorId))
 			if entry, ok := h.registry.GetByConnectorID(cmd.ReloadConnector.ConnectorId); ok && entry.ManagementSession != nil {
 				_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
 					Payload: &pb.GatewayConnectorEnvelope_Cmd{
@@ -379,12 +379,12 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_CrlSync:
-			h.log.Info("received CRL sync", zap.Int("revoked_certs_count", len(cmd.CrlSync.RevokedSerialNumbers)))
+			h.log.Info("received CRL sync", slog.Int("revoked_certs_count", len(cmd.CrlSync.RevokedSerialNumbers)))
 			h.registry.SetCrlEntries(cmd.CrlSync.RevokedSerialNumbers)
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
 		case *pb.Command_ConnectorSync:
-			h.log.Info("received authorized connectors list sync", zap.Int("connectors_count", len(cmd.ConnectorSync.Connectors)))
+			h.log.Info("received authorized connectors list sync", slog.Int("connectors_count", len(cmd.ConnectorSync.Connectors)))
 			statusMap := make(map[string]string)
 			for _, c := range cmd.ConnectorSync.Connectors {
 				statusMap[c.Id] = c.Status
@@ -397,7 +397,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 			go func() {
 				renewErr := h.pki.RenewNow()
 				if renewErr != nil {
-					h.log.Error("gateway certificate rotation failed", zap.Error(renewErr))
+					h.log.Error("gateway certificate rotation failed", slog.Any("err", renewErr))
 					h.CommandStatusUpdate(p.Cmd.Seq, false, renewErr.Error())
 				} else {
 					h.log.Info("gateway certificate rotation succeeded, refreshing connection")
@@ -433,7 +433,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		}
 
 	default:
-		h.log.Debug("unhandled message type", zap.String("type", fmt.Sprintf("%T", p)))
+		h.log.Debug("unhandled message type", slog.String("type", fmt.Sprintf("%T", p)))
 
 	}
 }
@@ -531,7 +531,7 @@ func (h *StreamManager) CommandStatusUpdate(
 func (sm *StreamManager) makeHello(ctx context.Context) *pb.GatewayEnvelope {
 	policyVersion, err := sm.policyStore.GetCheckpoint(ctx)
 	if err != nil {
-		sm.log.Error("failed to get policy version", zap.Error(err))
+		sm.log.Error("failed to get policy version", slog.Any("error", err))
 	}
 
 	return &pb.GatewayEnvelope{

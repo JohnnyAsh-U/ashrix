@@ -7,13 +7,13 @@ import (
 	// "crypto/x509"
 	// "encoding/pem"
 	"fmt"
+	"log/slog"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 
 	// "os"
 	// pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 )
 
 type Result struct {
@@ -38,7 +38,7 @@ type Result struct {
 //	save cert + key to disk
 //	init PKIInitialiser
 //	return Result
-func Run(ctx context.Context, cpurl string, log *zap.Logger, token string, appStorage storage.Storage) (*Result, error) {
+func Run(ctx context.Context, cpurl string, log *slog.Logger, token string, appStorage storage.Storage) (*Result, error) {
 
 	if appStorage.CredentialExists() {
 		log.Info("credentials found on disk — loading...")
@@ -56,8 +56,8 @@ func Run(ctx context.Context, cpurl string, log *zap.Logger, token string, appSt
 			if err != nil {
 				// Renewal failed — wipe credentials, tell user to restart
 				log.Error("renewal failed — deleting credentials",
-					zap.Error(err),
-					zap.String("action", "restart connector to re-register"),
+					"error", err,
+					"action", "restart connector to re-register",
 				)
 				appStorage.ClearCredential()
 				return nil, fmt.Errorf(
@@ -84,7 +84,7 @@ func Run(ctx context.Context, cpurl string, log *zap.Logger, token string, appSt
 		status, err := FetchStatus(ctx, cpurl, cred.PrivKey, ConnectorId, log)
 		if err != nil {
 			log.Error("status check failed after renewal — deleting credentials",
-				zap.Error(err),
+				"error", err,
 			)
 			appStorage.ClearCredential()
 			return nil, fmt.Errorf(
@@ -123,7 +123,7 @@ func Run(ctx context.Context, cpurl string, log *zap.Logger, token string, appSt
 	status, err := FetchStatus(ctx, cpurl, newKey, regResult.ConnectorId, log)
 	if err != nil {
 		log.Error("status check failed after renewal — deleting credentials",
-			zap.Error(err),
+			"error", err,
 		)
 		appStorage.ClearCredential()
 		return nil, fmt.Errorf(

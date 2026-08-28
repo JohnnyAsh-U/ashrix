@@ -4,6 +4,8 @@ import (
 	// "io"
 	// "log/slog"
 	"context"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -17,7 +19,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	// "go.uber.org/zap/zapcore"
 )
 
@@ -26,7 +27,7 @@ func TestRateLimiterMiddleware_AllowThenDeny(t *testing.T) {
 	defer s.Close()
 
 	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	logger, _ := zap.NewDevelopment()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	now := time.Now()
 	cfg := RateLimiterConfig{
@@ -83,8 +84,7 @@ func TestRateLimiterMiddleware_UserTier(t *testing.T) {
 	defer s.Close()
 
 	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	// logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	logger, _ := zap.NewDevelopment()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	cfg := RateLimiterConfig{
 		Redis:     rdb,
@@ -134,8 +134,7 @@ func TestRateLimiterMiddleware_ExemptPaths(t *testing.T) {
 	defer s.Close()
 
 	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	// logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	logger, _ := zap.NewDevelopment()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	cfg := RateLimiterConfig{
 		Redis:     rdb,
@@ -163,8 +162,7 @@ func TestRateLimiterMiddleware_ExemptPaths(t *testing.T) {
 func TestRateLimiterMiddleware_FailOpen(t *testing.T) {
 	// Point Redis at a dead port to simulate outage
 	rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"})
-	// logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	logger, _ := zap.NewDevelopment()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	cfg := RateLimiterConfig{
 		Redis:     rdb,
@@ -194,8 +192,7 @@ func TestRateLimiterMiddleware_IPFallbackWhenNoSession(t *testing.T) {
 	defer s.Close()
 
 	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	// logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	logger, _ := zap.NewDevelopment()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	cfg := RateLimiterConfig{
 		Redis:     rdb,

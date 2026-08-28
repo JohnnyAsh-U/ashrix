@@ -6,7 +6,6 @@ import (
 	"time"
 
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -14,7 +13,7 @@ import (
 func (c *ManagementConn) RunHeartbeat(ctx context.Context, seconds time.Duration) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			c.log.Error("panic in RunHeartbeat", zap.Any("panic", r))
+			c.log.Error("panic in RunHeartbeat", "panic", r)
 			err = fmt.Errorf("RunHeartbeat panic: %v", r)
 		}
 	}()
@@ -46,7 +45,7 @@ func (c *ManagementConn) RunHeartbeat(ctx context.Context, seconds time.Duration
 			}
 
 			c.log.Debug("heartbeat sent",
-				zap.Int64("seq", seq),
+				"seq", seq,
 			)
 
 		case <-ctx.Done():

@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
@@ -39,12 +39,12 @@ type Server struct {
 	gen.UnimplementedConnectorServiceServer
 
 	registry *registry.Registry
-	log      *zap.Logger
+	log      *slog.Logger
 }
 
 func New(
 	reg *registry.Registry,
-	log *zap.Logger,
+	log *slog.Logger,
 ) *Server {
 	return &Server{
 		registry: reg,
@@ -94,7 +94,7 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	// 3. HARD SECURITY CHECK: Bind cert identity (SAN or CN) to requested connector_id
 	certConnectorID, err := extractConnectorIDFromCert(cert)
 	if err != nil {
-		s.log.Warn("invalid certificate identity structure", zap.Error(err))
+		s.log.Warn("invalid certificate identity structure", slog.Any("error", err))
 		return status.Error(codes.Unauthenticated, "failed to parse certificate identity")
 	}
 
@@ -102,8 +102,8 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 
 	if certConnectorID != connectorID {
 		s.log.Error("mTLS identity spoofing attempt blocked",
-			zap.String("hello_connector_id", connectorID),
-			zap.String("cert_connector_id", certConnectorID),
+			slog.String("hello_connector_id", connectorID),
+			slog.String("cert_connector_id", certConnectorID),
 		)
 		return status.Error(codes.PermissionDenied, "mTLS identity mismatch")
 	}
@@ -119,7 +119,7 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	}
 
 	s.log.Info("connector connecting",
-		zap.String("connector_id", connectorID),
+		slog.String("connector_id", connectorID),
 	)
 
 
@@ -152,7 +152,7 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 		return fmt.Errorf("send hello ack: %w", err)
 	}
 
-	s.log.Info("Management plane attached", zap.String("Connector_id", connectorID), zap.Bool("Tunnel already attached", entry.TunnelSession != nil))
+	s.log.Info("Management plane attached", slog.String("Connector_id", connectorID), slog.Bool("Tunnel already attached", entry.TunnelSession != nil))
 
 	// 6. Spawn dedicated receive worker to keep stream.Recv() from blocking context cancellation
 	msgChan := make(chan recvResult, 1)
@@ -174,14 +174,14 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 	for {
 		select {
 		case <-ctx.Done():
-			s.log.Info("Management stream context terminated", zap.String("connector_id", connectorID))
+			s.log.Info("Management stream context terminated", slog.String("connector_id", connectorID))
 			return status.Error(codes.Canceled, "connection terminated by gateway")
 
 		case res := <-msgChan:
 			if res.err != nil {
 				s.log.Info("Connector network stream closed",
-					zap.String("connector_id", connectorID),
-					zap.Error(res.err),
+					slog.String("connector_id", connectorID),
+					slog.Any("err",res.err),
 				)
 				return nil
 			}
@@ -197,9 +197,9 @@ func (s *Server) handleConnectorMessage(connectorID string, env *gen.ConnectorGa
 		// all := s.registry.All()
 		// fmt.Println(s.registry.GetByConnectorID(connectorID))
 		s.log.Debug("heartbeat received",
-			zap.String("connector_id", connectorID),
-			zap.Int64("seq", p.Heartbeat.Seq),
-			zap.Int64("activeStreams", p.Heartbeat.ActiveStreams),
+			slog.String("connector_id", connectorID),
+			slog.Int64("seq", p.Heartbeat.Seq),
+			slog.Int64("activeStreams", p.Heartbeat.ActiveStreams),
 		)
 	default:
 		s.log.Debug("unhandled connector message")

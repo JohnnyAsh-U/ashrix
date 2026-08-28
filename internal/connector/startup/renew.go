@@ -14,12 +14,12 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
 
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -32,12 +32,12 @@ import (
 func Renew(
 	ctx context.Context,
 	cpURL, connectorID string,
-	log *zap.Logger,
+	log *slog.Logger,
 	currentKey *ecdsa.PrivateKey,
 ) (*gen.ConnectorEnrollResponse, *ecdsa.PrivateKey, error) {
 
 	log.Info("renewing connector certificate",
-		zap.String("connector_id", connectorID),
+		"connector_id", connectorID,
 	)
 	// ── 1. Generate new keypair ───────────────────────────────────
 

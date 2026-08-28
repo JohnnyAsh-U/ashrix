@@ -2,6 +2,7 @@ package http_proxy
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -16,13 +17,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 )
 
 // ProxyServer handles incoming user traffic and routes it to connectors.
 type ProxyServer struct {
 	http *http.Server
-	log  *zap.Logger
+	log  *slog.Logger
 }
 
 func NewProxyServer(
@@ -31,7 +31,7 @@ func NewProxyServer(
 	connectorRegistry *registry.Registry,
 	redisClient *redis.Client,
 	sessions *session.SessionManager,
-	log *zap.Logger,
+	log *slog.Logger,
 	activeStreams *registry.ActiveStreamRegistry,
 	engine *policy.PolicyEngine,
 	rtr *router.Router,
@@ -45,7 +45,7 @@ func NewProxyServer(
 	// 1. Initialize posture dependencies
 	geoReader, err := posture.NewMaxMindReader("/var/lib/ashrix/GeoLite2-City.mmdb")
 	if err != nil {
-		log.Error("Georeader DB ERROR:", zap.Error(err))
+		log.Error("Georeader DB ERROR:", slog.Any("error", err))
 	}
 
 	torChecker := posture.NewCachedTorChecker(
@@ -95,7 +95,7 @@ func NewProxyServer(
 }
 
 func (s *ProxyServer) Start() error {
-	s.log.Info("Gateway Http Proxy Server starting", zap.String("addr", s.http.Addr))
+	s.log.Info("Gateway Http Proxy Server starting", slog.String("addr", s.http.Addr))
 	// In production, this uses s.http.ListenAndServeTLS("", "")
 	// with the Gateway's certificate identity.
 	return s.http.ListenAndServe()

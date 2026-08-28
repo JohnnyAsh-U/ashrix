@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -24,7 +25,6 @@ import (
 	"sync"
 
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
-	"go.uber.org/zap"
 )
 
 type GatewayPKI struct {
@@ -40,7 +40,7 @@ type GatewayPKI struct {
 
 	gatewayID string
 	cp        *bootstrap.Client
-	log       *zap.Logger
+	log       *slog.Logger
 
 	cfg *config.Config
 
@@ -48,7 +48,7 @@ type GatewayPKI struct {
 	once   sync.Once
 }
 
-func NewGatewayPKI(gatewayID, dataDir, secret, context string, log *zap.Logger, cpClient *bootstrap.Client, cfg *config.Config) (*GatewayPKI, error) {
+func NewGatewayPKI(gatewayID, dataDir, secret, context string, log *slog.Logger, cpClient *bootstrap.Client, cfg *config.Config) (*GatewayPKI, error) {
 	keyPath := filepath.Join(dataDir, "gateway.key.enc")
 	certPath := filepath.Join(dataDir, "gateway.crt")
 	trustPath := filepath.Join(dataDir, "bundle.crt")
@@ -156,10 +156,10 @@ func (g *GatewayPKI) rotator() {
 			remaining := time.Until(g.leaf.NotAfter)
 			g.mu.RUnlock()
 			if remaining < 30*24*time.Hour {
-				g.log.Info("certificate expiring soon", zap.Duration("remaining", remaining))
+				g.log.Info("certificate expiring soon", slog.Duration("remaining", remaining))
 
 				if err := g.renew(false); err != nil {
-					g.log.Error("cert renewal failed", zap.Error(err))
+					g.log.Error("cert renewal failed", slog.Any("err", err))
 				}
 			}
 
@@ -183,7 +183,7 @@ func (g *GatewayPKI) renew(force bool) error {
 
 	//Another goroutines may have already renewed (e.g. RenewNow() race)
 	if !force && remaining > 90*24*time.Hour {
-		g.log.Debug("Renewal Skipped - Cert still fresh", zap.Duration("remaining", remaining))
+		g.log.Debug("Renewal Skipped - Cert still fresh", slog.Duration("remaining", remaining))
 		return nil
 	}
 
@@ -257,7 +257,7 @@ func (g *GatewayPKI) renew(force bool) error {
 		return fmt.Errorf("certificate validity is not extended, refusing")
 	}
 
-	g.log.Info("Renew Successful", zap.String("gateway_id", g.gatewayID), zap.Any("apiResponse", apiResponse))
+	g.log.Info("Renew Successful", slog.String("gateway_id", g.gatewayID), slog.Any("apiResponse", apiResponse))
 
 	g.log.Info("Writing new cert, bundle and key to directory")
 
@@ -284,7 +284,7 @@ func (g *GatewayPKI) renew(force bool) error {
 		Decision:  "ALLOW",
 	})
 
-	g.log.Info("Gateway Cert Renewed, Swapping", zap.String("gateway_id", apiResponse.Data.GatewayId))
+	g.log.Info("Gateway Cert Renewed, Swapping", slog.String("gateway_id", apiResponse.Data.GatewayId))
 
 	//Swapping
 	g.mu.Lock()
@@ -300,7 +300,7 @@ func (g *GatewayPKI) renew(force bool) error {
 
 	g.certPool = newPool
 
-	g.log.Info("Gateway cert swapped", zap.String("gateway_id", g.gatewayID))
+	g.log.Info("Gateway cert swapped", slog.String("gateway_id", g.gatewayID))
 
 	return nil
 }

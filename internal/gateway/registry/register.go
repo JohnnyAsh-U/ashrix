@@ -3,11 +3,11 @@ package registry
 import (
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 )
 
 // ConnectorEntry holds everything the gateway knows about
@@ -46,10 +46,10 @@ type Registry struct {
 	routing        map[string]string          // subdomain → connector_id
 	crlSerials     map[string]struct{}
 	authConnectors map[string]string // connector_id -> status
-	log            *zap.Logger
+	log            *slog.Logger
 }
 
-func New(log *zap.Logger) *Registry {
+func New(log *slog.Logger) *Registry {
 	return &Registry{
 		connectors:     make(map[string]*ConnectorEntry),
 		routing:        make(map[string]string), //Subdomain to connectors
@@ -132,8 +132,8 @@ func (r *Registry) AttachManagement(
 	// Displace old management stream outside lock
 	if oldSession != nil && oldSession != session {
 		r.log.Info("Displacing old management session",
-			zap.String("connector_id", connectorID),
-			zap.String("reason", string(DisconnectReplaced)),
+			"connector_id", connectorID,
+			"reason", string(DisconnectReplaced),
 		)
 		oldSession.Close()
 	}
@@ -168,8 +168,8 @@ func (r *Registry) AttachTunnel(
 	// Displace old tunnel session outside lock
 	if oldTunnel != nil && oldTunnel != session {
 		r.log.Info("Displacing old tunnel session",
-			zap.String("connector_id", connectorID),
-			zap.String("reason", string(DisconnectReplaced)),
+			"connector_id", connectorID,
+			"reason", string(DisconnectReplaced),
 		)
 		_ = oldTunnel.Close()
 	}
@@ -377,7 +377,7 @@ func (r *Registry) ForceCloseConnector(connectorID string) {
 	r.mu.RUnlock()
 
 	r.log.Warn("Force disconnecting connector",
-		zap.String("connector_id", connectorID),
+		"connector_id", connectorID,
 	)
 
 	// Close network transports outside lock

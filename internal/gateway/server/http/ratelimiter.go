@@ -2,6 +2,7 @@ package http_proxy
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -11,7 +12,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 )
 
 // ============================================================
@@ -47,7 +47,7 @@ func DefaultRateLimiterConfig(rdb *redis.Client) RateLimiterConfig {
 }
 
 // RateLimiterMiddleware returns the rate-limiting handler.
-func RateLimiterMiddleware(cfg RateLimiterConfig, logger *zap.Logger) func(http.Handler) http.Handler {
+func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger) func(http.Handler) http.Handler {
 	// Atomic token-bucket via Lua. Returns {allowed, tokens_remaining}.
 	const luaTokenBucket = `
 		local key = KEYS[1]
@@ -130,8 +130,8 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *zap.Logger) func(http.
 			if err != nil {
 				// Fail open: log error but do not drop traffic
 				logger.Warn("rate limiter redis error",
-					zap.String("error", err.Error()),
-					zap.String("key", key),
+					slog.String("error", err.Error()),
+					slog.String("key", key),
 				)
 				next.ServeHTTP(w, r)
 				return

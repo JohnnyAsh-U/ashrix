@@ -1,11 +1,10 @@
 package posture
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // ============================================================
@@ -14,7 +13,7 @@ import (
 // Chi middleware that collects posture and stores it in context.
 // ============================================================
 
-func PostureMiddleware(collector *Collector, log *zap.Logger) func(http.Handler) http.Handler {
+func PostureMiddleware(collector *Collector, log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Skip posture collection for health checks and auth callbacks
@@ -28,7 +27,7 @@ func PostureMiddleware(collector *Collector, log *zap.Logger) func(http.Handler)
 			if err != nil {
 				// Log error but don't block the request
 				// Posture collection failure should not be a hard failure
-				log.Info("posture collection failed: %v", zap.Error(err))
+				log.Info("posture collection failed: %v", slog.Any("error", err))
 				dp = &DevicePosture{
 					Status:      "unknown",
 					CollectedAt: time.Now(),

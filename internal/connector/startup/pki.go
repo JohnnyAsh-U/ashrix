@@ -6,13 +6,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 	// pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
-	"go.uber.org/zap"
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 )
 
@@ -33,7 +33,7 @@ type PKIInitialiser struct {
 
 	connectorID string
 	cpURL       string
-	log         *zap.Logger
+	log         *slog.Logger
 	appStorage  storage.Storage
 
 	certPath  string
@@ -55,7 +55,7 @@ func NewPKIInitialiser(
 	pool string,
 	connectorID string,
 	cpURL string,
-	log *zap.Logger,
+	log *slog.Logger,
 	appStorage storage.Storage,
 ) (*PKIInitialiser, error) {
 
@@ -123,13 +123,13 @@ func (p *PKIInitialiser) Renew(ctx context.Context, force bool) error {
 	// Another goroutine may have already renewed
 	if !force && remaining > 30*24*time.Hour {
 		p.log.Debug("renewal skipped — cert still fresh",
-			zap.Duration("remaining", remaining),
+			"remaining", remaining,
 		)
 		return nil
 	}
 
 	p.log.Info("renewing certificate",
-		zap.Duration("remaining", remaining),
+		"remaining", remaining,
 	)
 
 	// ── Call CP for new cert (no lock held — network I/O) ─────────
@@ -144,8 +144,8 @@ func (p *PKIInitialiser) Renew(ctx context.Context, force bool) error {
 	}
 
 	p.log.Info("credentials saved to disk",
-		zap.String("cert", p.certPath),
-		zap.String("key", p.keyPath),
+		"cert", p.certPath,
+		"key", p.keyPath,
 	)
 
 	cred, err := p.appStorage.LoadCredential()
@@ -180,8 +180,8 @@ func (p *PKIInitialiser) Renew(ctx context.Context, force bool) error {
 	p.mu.Unlock()
 
 	p.log.Info("certificate renewed and hot-swapped",
-		zap.Time("new_expiry", cred.Cert.NotAfter),
-		zap.Duration("valid_for", time.Until(cred.Cert.NotAfter)),
+		"new_expiry", cred.Cert.NotAfter,
+		"valid_for", time.Until(cred.Cert.NotAfter),
 	)
 	return nil
 }
@@ -215,17 +215,17 @@ func (p *PKIInitialiser) rotator() {
 			p.mu.RUnlock()
 
 			p.log.Debug("cert expiry check",
-				zap.Duration("remaining", remaining),
-				zap.Time("expires_at", p.leaf.NotAfter),
+				"remaining", remaining,
+				"expires_at", p.leaf.NotAfter,
 			)
 
 			if remaining < 30*24*time.Hour {
 				p.log.Info("cert approaching expiry — renewing",
-					zap.Duration("remaining", remaining),
+					"remaining", remaining,
 				)
 				if err := p.Renew(context.Background(), true); err != nil {
 					p.log.Error("background renewal failed",
-						zap.Error(err),
+						"error", err,
 					)
 					// Rotator will retry on next tick (5 min)
 				}

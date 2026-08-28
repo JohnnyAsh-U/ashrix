@@ -8,8 +8,6 @@ import (
 	// "net/http"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	// "github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -36,17 +34,17 @@ func (c *ConnectorTunnel) handleHTTPRequest(ctx context.Context, stream transpor
 	}
 
 	c.log.Debug("proxying request",
-		zap.String("method", request.Method),
-		zap.String("path", request.Path),
-		zap.String("user", request.SourceEmail),
-		zap.String("appName", requestApp.Name),
+		"method", request.Method,
+		"path", request.Path,
+		"user", request.SourceEmail,
+		"appName", requestApp.Name,
 	)
 
 	upstream := fmt.Sprintf("%s", requestApp.Upstream)
 
 	appConn, err := net.Dial("tcp", upstream)
 	if err != nil {
-		c.log.Error("failed to send request", zap.Error(err))
+		c.log.Error("failed to send request", "error", err)
 		return
 	}
 
@@ -56,10 +54,10 @@ func (c *ConnectorTunnel) handleHTTPRequest(ctx context.Context, stream transpor
 	go io.Copy(appConn, stream)
 
 	c.log.Debug("request complete",
-		zap.String("method", request.Method),
-		zap.String("path", request.Path),
-		zap.Duration("latency", time.Since(start)),
-		zap.Error(err),
+		"method", request.Method,
+		"path", request.Path,
+		"latency", time.Since(start),
+		"error", err,
 	)
 
 	defer appConn.Close()

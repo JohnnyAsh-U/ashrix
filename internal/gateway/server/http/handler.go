@@ -3,6 +3,7 @@ package http_proxy
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -16,11 +17,10 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
-	"go.uber.org/zap"
 )
 
 type Handler struct {
-	log            *zap.Logger
+	log            *slog.Logger
 	registry       *registry.Registry
 	session        *session.SessionManager
 	rateLimiter    *session.RedisLimiter
@@ -33,7 +33,7 @@ type Handler struct {
 }
 
 func NewHandler(
-	log *zap.Logger,
+	log *slog.Logger,
 	registry *registry.Registry,
 	session *session.SessionManager,
 	limiter *session.RedisLimiter,
@@ -111,7 +111,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.session.Create(w, r, protoIdentity); err != nil {
-		h.log.Error("Session Creation Failed", zap.String("err", err.Error()))
+		h.log.Error("Session Creation Failed", slog.Any("err", err))
 		http.Error(w, "Internal Error", http.StatusNotFound)
 		return
 	}

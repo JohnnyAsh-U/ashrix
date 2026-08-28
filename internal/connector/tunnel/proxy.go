@@ -2,9 +2,6 @@ package tunnel
 
 import (
 	"context"
-
-	"go.uber.org/zap"
-
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -19,20 +16,20 @@ func (c *ConnectorTunnel) handleRequestStream(ctx context.Context, stream transp
 	defer func() {
 		c.managementConn.ActiveStreams.Add(-1)
 		if r := recover(); r != nil {
-			c.log.Error("panic in handleRequestStream", zap.Any("panic", r))
+			c.log.Error("panic in handleRequestStream", "panic", r)
 		}
 	}()
 
 	payload, err := frame.ReadFrame(stream)
 
 	if err != nil {
-		c.log.Error("failed to read connector response", zap.Error(err))
+		c.log.Error("failed to read connector response", "error", err)
 		return
 	}
 
 	var streamFrame proto.StreamFrame
 	if err := frame.DecodeFrame(payload, &streamFrame); err != nil {
-		c.log.Error("failed to decode connector response", zap.Error(err))
+		c.log.Error("failed to decode connector response", "error", err)
 		return
 	}
 

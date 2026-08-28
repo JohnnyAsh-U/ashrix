@@ -5,9 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/tray"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -36,13 +34,6 @@ Run 'ashrix-connector start' to connect your internal application`,
 			log.Fatalf("Failed to initialize storage: %v", err)
 		}
 	},
-	// Run: func(cmd *cobra.Command, args []string) {
-	// 	if runtime.GOOS == "windows" {
-	// 		tray.Run(Storage)
-	// 	} else {
-	// 		cmd.Help()
-	// 	}
-	// },
 }
 
 func Execute() {

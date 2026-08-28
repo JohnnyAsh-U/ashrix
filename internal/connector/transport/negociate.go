@@ -4,9 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -36,7 +35,7 @@ type Config struct {
 func Negotiate(
 	ctx context.Context,
 	cfg Config,
-	log *zap.Logger,
+	log *slog.Logger,
 ) (Session, error) {
 
 	// ── 1. QUIC — Ferrari ─────────────────────────────────────────
@@ -57,12 +56,12 @@ func Negotiate(
 		session, err := DialQUIC(quicCtx, cfg.GatewayQUICAddr, tlsCfg, log)
 		if err == nil {
 			log.Info("transport negotiated: QUIC",
-				zap.String("addr", cfg.GatewayQUICAddr),
+				"addr", cfg.GatewayQUICAddr,
 			)
 			return session, nil
 		}
 		log.Warn("QUIC unavailable — trying gRPC",
-			zap.Error(err),
+			"error", err,
 		)
 	}
 

@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 )
 
 func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -29,14 +29,14 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	streamCtx, cancel := context.WithCancel(ctx)
 	streamID := uuid.NewString()
-	h.log.Debug("Opening tunnel stream", zap.String("stream_id", streamID), zap.String("app_id", appID))
+	h.log.Debug("Opening tunnel stream", slog.String("stream_id", streamID), slog.String("app_id", appID))
 
 	h.streamRegistry.Register(sessionID, streamID, cancel)
 
 	defer func() {
 		cancel()
 		h.streamRegistry.Unregister(sessionID, streamID)
-		h.log.Debug("Tunnel stream closed", zap.String("stream_id", streamID), zap.String("app_id", appID))
+		h.log.Debug("Tunnel stream closed", slog.String("stream_id", streamID), slog.String("app_id", appID))
 	}()
 
 	req := &proto.StreamFrame{
@@ -59,7 +59,7 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	stream, err := h.router.Route(streamCtx, req, false)
 	if err != nil {
-		h.log.Warn("Routing failed", zap.String("app_id", appID), zap.Error(err))
+		h.log.Warn("Routing failed", slog.String("app_id", appID), slog.Any("error", err))
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}

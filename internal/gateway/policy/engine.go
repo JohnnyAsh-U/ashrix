@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"sort"
 	"sync"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 )
 
 // =============================================================================
@@ -22,7 +22,7 @@ type PolicyEngine struct {
 	mu            sync.RWMutex
 	store         *store.BoltStore
 	verifier      *store.RootKey
-	logger        *zap.Logger
+	logger        *slog.Logger
 	scheduleCache map[string]*proto.Schedule
 	gatewayID      string
 
@@ -37,7 +37,7 @@ func NewEngine(
 	bboltStore *store.BoltStore,
 	sigVerifier *store.RootKey,
 	gatewayID string,
-	logger *zap.Logger,
+	logger *slog.Logger,
 ) (*PolicyEngine, error) {
 	logger.Info("policy bootstrap: loading from local store")
 
@@ -73,7 +73,7 @@ func NewEngine(
 				return nil, fmt.Errorf("bootstrap verify policy %d: %w", rec.Sequence, err)
 			}
 		}
-		logger.Info("all policy signatures verified", zap.Int("count", len(records)))
+		logger.Info("all policy signatures verified", slog.Int("count", len(records)))
 	}
 
 	// Build index
@@ -92,8 +92,8 @@ func NewEngine(
 	engine.version = cp.LastBundleVersion
 
 	logger.Info("policy bootstrap complete",
-		zap.Int("policies", len(rules)),
-		zap.Int64("bundle_version", cp.LastBundleVersion),
+		slog.Int("policies", len(rules)),
+		slog.Int64("bundle_version", cp.LastBundleVersion),
 	)
 
 	return engine, nil
@@ -183,8 +183,8 @@ func (e *PolicyEngine) buildIndex(rules []*proto.PolicyRule) (map[string]map[str
 		cp, err := e.Compile(rule)
 		if err != nil {
 			e.logger.Warn("skipping uncompileable policy",
-				zap.String("policy_id", rule.PolicyId),
-				zap.Error(err))
+				slog.String("policy_id", rule.PolicyId),
+				slog.Any("error", err))
 			continue
 		}
 
@@ -246,7 +246,7 @@ func (e *PolicyEngine) ApplyVerifiedDelta(
 			return fmt.Errorf("bundle signature verification failed: %w", err)
 		}
 		e.logger.Info("bundle signature verified",
-			zap.Int64("version", policyBundle.Version))
+			slog.Int64("version", policyBundle.Version))
 	}
 	return e.UpdatePolicies(ctx, policyBundle.Records, checkpoint)
 }
@@ -302,8 +302,8 @@ func (e *PolicyEngine) UpdatePolicies(
 	e.mu.Unlock()
 
 	e.logger.Info("policy update applied and engine reloaded",
-		zap.Int("policies", len(rules)),
-		zap.Int64("bundle_version", checkpoint.LastBundleVersion),
+		slog.Int("policies", len(rules)),
+		slog.Int64("bundle_version", checkpoint.LastBundleVersion),
 	)
 	return nil
 }

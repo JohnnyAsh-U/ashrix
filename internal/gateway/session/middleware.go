@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"log/slog"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
@@ -15,11 +16,10 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 )
 
 // Middleware for the Auth
-func SessionMiddleware(registry *registry.Registry, session *SessionManager, redisClient *redis.Client, cfg *config.Config, logger *zap.Logger) func(http.Handler) http.Handler {
+func SessionMiddleware(registry *registry.Registry, session *SessionManager, redisClient *redis.Client, cfg *config.Config, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -92,7 +92,7 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			//No Session: Initialte auth flow
 			state, err := crypto.GenerateOnlyToken(32)
 			if err != nil {
-				logger.Error("Generate State Failed", zap.String("error", err.Error()))
+				logger.Error("Generate State Failed", slog.String("error", err.Error()))
 				http.Error(w, "Internal Error", http.StatusInternalServerError)
 				return
 			}
@@ -106,7 +106,7 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			defer cancel()
 
 			if err := redisClient.Set(ctx, fmt.Sprintf("oauth_state:%s", state), redirectData, 10*time.Minute).Err(); err != nil {
-				logger.Error("Store State Failed", zap.String("error", err.Error()))
+				logger.Error("Store State Failed", slog.String("error", err.Error()))
 				http.Error(w, "Internal Error", http.StatusInternalServerError)
 				return
 			}

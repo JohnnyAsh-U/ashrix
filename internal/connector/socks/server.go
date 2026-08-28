@@ -14,7 +14,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
+	"log/slog"
 )
 
 type Identity struct {
@@ -48,7 +48,7 @@ type Server struct {
 	Credentials *CredentialStore
 	Tunnel      transport.Session
 
-	Logger *zap.Logger
+	Logger *slog.Logger
 
 	AuthTimeout time.Duration
 	IdleTimeout time.Duration
@@ -56,7 +56,7 @@ type Server struct {
 	wg sync.WaitGroup
 }
 
-func NewServer(addr string, credentials *CredentialStore, tunnel transport.Session, logger *zap.Logger) *Server {
+func NewServer(addr string, credentials *CredentialStore, tunnel transport.Session, logger *slog.Logger) *Server {
 	return &Server{
 		Addr:        addr,
 		Credentials: credentials,
@@ -79,7 +79,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 	defer ln.Close()
 
-	s.Logger.Info("SOCKS5 server listening on %s", zap.String("addr", s.Addr))
+	s.Logger.Info("SOCKS5 server listening", "addr", s.Addr)
 
 	go func() {
 		<-ctx.Done()
@@ -96,7 +96,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 				return nil
 			default:
 			}
-			s.Logger.Debug("SOCKS accept error: %v", zap.Error(err))
+			s.Logger.Debug("SOCKS accept error", "error", err)
 			continue
 		}
 
@@ -125,7 +125,7 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 	}
 
 	if err := conn.SetDeadline(time.Now().Add(authTimeout)); err != nil {
-		s.Logger.Debug("%s: set auth deadline: %v", zap.String("remote", remote), zap.Error(err))
+		s.Logger.Debug("set auth deadline", "remote", remote, "error", err)
 		return fmt.Errorf("%s: set auth deadline: %v", remote, err)
 	}
 
@@ -134,7 +134,7 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 	// --------------------------------------------------
 
 	if err := negotiate(conn, conn); err != nil {
-		s.Logger.Info("%s: SOCKS negotiation failed: %v", zap.String("remote", remote), zap.Error(err))
+		s.Logger.Info("SOCKS negotiation failed", "remote", remote, "error", err)
 		return fmt.Errorf("%s: SOCKS negotiation failed: %v", remote, err)
 	}
 
@@ -146,7 +146,7 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 
 	if err != nil {
 		_ = writeAuthReply(conn, false)
-		s.Logger.Info("%s: invalid authentication frame: %v", zap.String("remote", remote), zap.Error(err))
+		s.Logger.Info("invalid authentication frame", "remote", remote, "error", err)
 		return fmt.Errorf("%s: invalid authentication frame: %v", remote, err)
 	}
 
@@ -155,7 +155,7 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 
 	if err := s.Credentials.Authenticate(authCtx, appID, password); err != nil {
 		_ = writeAuthReply(conn, false)
-		s.Logger.Info("%s: authentication failed for app=%q", zap.String("remote", remote), zap.String("app_id", appID))
+		s.Logger.Info("authentication failed for app", "remote", remote, "app_id", appID)
 		return fmt.Errorf("%s: authentication failed for app=%q", remote, appID)
 	}
 
@@ -173,10 +173,10 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 	req, err := readConnectRequest(conn)
 	if err != nil {
 		_ = writeConnectReply(conn, ReplyGeneralFailure)
-		s.Logger.Info("%s: invalid CONNECT: %v", zap.String("remote", remote), zap.Error(err))
+		s.Logger.Info("invalid CONNECT", "remote", remote, "error", err)
 		return fmt.Errorf("%s: invalid CONNECT: %v", remote, err)
 	}
-	s.Logger.Info("%s: app=%q destination=%s", zap.String("remote", remote), zap.String("app_id", appID), zap.String("addr", req.Address()))
+	s.Logger.Info("CONNECT request received", "remote", remote, "app_id", appID, "addr", req.Address())
 
 	// --------------------------------------------------
 	// Authentication is complete.
@@ -184,7 +184,7 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 	// --------------------------------------------------
 
 	if err := conn.SetDeadline(time.Time{}); err != nil {
-		s.Logger.Debug("%s: clear deadline: %v", zap.String("remote", remote), zap.Error(err))
+		s.Logger.Debug("clear deadline", "remote", remote, "error", err)
 		return fmt.Errorf("%s: clear deadline: %v",remote, err)
 	}
 
@@ -201,7 +201,7 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 
 	qStream, err := s.Tunnel.OpenStream(openCtx)
 	if err != nil {
-		s.Logger.Error("failed to open stream to gateway: %w", zap.Error(err))
+		s.Logger.Error("failed to open stream to gateway", "error", err)
 		return fmt.Errorf("failed to open stream to gateway: %w", err)
 	}
 	defer qStream.Close()
@@ -258,7 +258,7 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 	srcFlowStream := &tcpStreamAdapter{Conn: conn, ctx: parent}
 	destFlowStream := &qStreamAdapter{Stream: qStream, ctx: parent}
 
-	s.Logger.Info("Relaying SOCKS flow", zap.String("flow_id", flowID))
+	s.Logger.Info("Relaying SOCKS flow", "flow_id", flowID)
 	relayRes := flow.Relay(parent, srcFlowStream, destFlowStream)
 	return relayRes.Err
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 )
 
 func init() {
@@ -102,8 +102,6 @@ func runRegister(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "FATAL: cannot init logging %v\n", err)
 		os.Exit(1)
 	}
-
-	defer logging.App.Sync()
 
 	log := logging.App
 
@@ -197,7 +195,7 @@ func runRegister(cmd *cobra.Command, args []string) error {
 		Decision:  "ALLOW",
 	})
 
-	log.Info("Gateway Registered", zap.String("gateway_id", apiResp.Data.GatewayId), zap.String("cp_url", cfg.CPURL))
+	log.Info("Gateway Registered", slog.String("gateway_id", apiResp.Data.GatewayId), slog.String("cp_url", cfg.CPURL))
 
 	fmt.Println("Now run 'ashrix-gateway start' to run the gateway")
 

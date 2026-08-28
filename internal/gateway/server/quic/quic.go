@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
@@ -13,19 +14,18 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/quic-go/quic-go"
-	"go.uber.org/zap"
 )
 
 type QUICServer struct {
 	listener *quic.Listener
 	addr     string
 	tlsConf  *tls.Config
-	log      *zap.Logger
+	log      *slog.Logger
 	registry *registry.Registry
 	router   *router.Router
 }
 
-func NewQUICServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger, registry *registry.Registry, rtr *router.Router) *QUICServer {
+func NewQUICServer(cfg *config.Config, tlsConfig *tls.Config, log *slog.Logger, registry *registry.Registry, rtr *router.Router) *QUICServer {
 	// Enforce mTLS by requiring client certificates
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
@@ -50,7 +50,7 @@ func (s *QUICServer) Start(ctx context.Context) error {
 	}
 	s.listener = listener
 
-	s.log.Info("Gateway QUIC Server starting", zap.String("addr", s.addr))
+	s.log.Info("Gateway QUIC Server starting", slog.String("addr", s.addr))
 
 	for {
 		conn, err := s.listener.Accept(ctx)
@@ -58,11 +58,11 @@ func (s *QUICServer) Start(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return nil // Clean shutdown via context
 			}
-			s.log.Error("QUIC accept error", zap.Error(err))
+			s.log.Error("QUIC accept error", slog.Any("error", err))
 			continue
 		}
 
-		s.log.Debug("QUIC connection accepted", zap.String("remote_addr", conn.RemoteAddr().String()))
+		s.log.Debug("QUIC connection accepted", slog.String("remote_addr", conn.RemoteAddr().String()))
 
 		go s.handleQUICConnection(ctx, conn)
 	}
@@ -78,14 +78,14 @@ func (s *QUICServer) Stop() {
 func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
-			s.log.Error("panic in handleQUICConnection", zap.Any("panic", r))
+			s.log.Error("panic in handleQUICConnection", slog.Any("panic", r))
 			conn.CloseWithError(500, "internal server error due to panic")
 		}
 	}()
 
 	connectorID, err := extractConnectorIDFromCert(conn)
 	if err != nil {
-		s.log.Warn("Quic Connection with unparsable identity - closing", zap.Error(err))
+		s.log.Warn("Quic Connection with unparsable identity - closing", slog.Any("error", err))
 		conn.CloseWithError(1, "Invalid identity")
 		return
 	}
@@ -98,13 +98,13 @@ func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) 
 	cert := tlsState.PeerCertificates[0]
 
 	if s.registry.IsCrlRevoked(cert.Subject.SerialNumber) {
-		s.log.Warn("Quic tunnel attempted with revoked cert", zap.String("connector_id", connectorID))
+		s.log.Warn("Quic tunnel attempted with revoked cert", slog.String("connector_id", connectorID))
 		conn.CloseWithError(3, "Certificate is revoked")
 		return
 	}
 
 	if _, exists := s.registry.GetByConnectorID(connectorID); !exists {
-		s.log.Warn("QUIC tunnel attempted before a management registration", zap.String("connector_id", connectorID))
+		s.log.Warn("QUIC tunnel attempted before a management registration", slog.String("connector_id", connectorID))
 		conn.CloseWithError(2, "register management plane first")
 		return
 	}
@@ -113,7 +113,7 @@ func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) 
 	s.registry.AttachTunnel(connectorID, tunnelSession, cert, "quic")
 	defer s.registry.DetachTunnel(connectorID, tunnelSession)
 
-	s.log.Info("Tunnel plane attached via quic", zap.String("Connector_id", connectorID))
+	s.log.Info("Tunnel plane attached via quic", slog.String("Connector_id", connectorID))
 
 	// Run accept loop for incoming streams from this connector (App -> App flows)
 	for {
@@ -122,7 +122,7 @@ func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) 
 			if conn.Context().Err() != nil {
 				break
 			}
-			s.log.Debug("Stop accepting streams from connector (session closed)", zap.String("connector_id", connectorID))
+			s.log.Debug("Stop accepting streams from connector (session closed)", slog.String("connector_id", connectorID))
 			break
 		}
 
@@ -137,13 +137,13 @@ func (s *QUICServer) handleIncomingConnectorStream(ctx context.Context, srcConne
 
 	payload, err := frame.ReadFrame(srcStream)
 	if err != nil {
-		s.log.Error("failed to read opening frame from connector", zap.String("connector_id", srcConnectorID), zap.Error(err))
+		s.log.Error("failed to read opening frame from connector", slog.String("connector_id", srcConnectorID), slog.Any("error", err))
 		return
 	}
 
 	var streamFrame proto.StreamFrame
 	if err := frame.DecodeFrame(payload, &streamFrame); err != nil {
-		s.log.Error("failed to decode opening frame from connector", zap.String("connector_id", srcConnectorID), zap.Error(err))
+		s.log.Error("failed to decode opening frame from connector", slog.String("connector_id", srcConnectorID), slog.Any("error", err))
 		return
 	}
 
@@ -152,10 +152,10 @@ func (s *QUICServer) handleIncomingConnectorStream(ctx context.Context, srcConne
 	destStream, err := s.router.Route(ctx, &streamFrame, false)
 	if err != nil {
 		s.log.Warn("routing/policy rejected for incoming connector stream",
-			zap.String("flow_id", streamFrame.RequestId),
-			zap.String("src_connector", srcConnectorID),
-			zap.String("dest_app", streamFrame.DestAppName),
-			zap.Error(err),
+			slog.String("flow_id", streamFrame.RequestId),
+			slog.String("src_connector", srcConnectorID),
+			slog.String("dest_app", streamFrame.DestAppName),
+			slog.Any("error", err),
 		)
 		rejectFrame := proto.StreamFrame{
 			RequestId: streamFrame.RequestId,
@@ -171,14 +171,14 @@ func (s *QUICServer) handleIncomingConnectorStream(ctx context.Context, srcConne
 		Method:    "OPEN_OK",
 	}
 	if err := frame.WriteFrame(srcStream, &ackFrame); err != nil {
-		s.log.Error("failed to write ACK frame to source connector", zap.String("flow_id", streamFrame.RequestId), zap.Error(err))
+		s.log.Error("failed to write ACK frame to source connector", slog.String("flow_id", streamFrame.RequestId), slog.Any("error", err))
 		return
 	}
 
 	s.log.Info("Logical flow routed successfully, starting Relay",
-		zap.String("flow_id", streamFrame.RequestId),
-		zap.String("src_connector", srcConnectorID),
-		zap.String("dest_app", streamFrame.DestAppId),
+		slog.String("flow_id", streamFrame.RequestId),
+		slog.String("src_connector", srcConnectorID),
+		slog.String("dest_app", streamFrame.DestAppId),
 	)
 
 	result := flow.Relay(ctx, srcStream, destStream)
@@ -189,14 +189,14 @@ func (s *QUICServer) handleIncomingConnectorStream(ctx context.Context, srcConne
 	}
 
 	s.log.Info("flow termination audit",
-		zap.String("flow_id", streamFrame.RequestId),
-		zap.String("flow_type", string(streamFrame.FlowType)),
-		zap.String("source_connector", srcConnectorID),
-		zap.String("destination_app", streamFrame.DestAppId),
-		zap.Duration("duration", time.Since(startTime)),
-		zap.Int64("bytes_a_to_b", result.BytesAToB),
-		zap.Int64("bytes_b_to_a", result.BytesBToA),
-		zap.String("termination_reason", terminationReason),
+		slog.String("flow_id", streamFrame.RequestId),
+		slog.String("flow_type", string(streamFrame.FlowType)),
+		slog.String("source_connector", srcConnectorID),
+		slog.String("destination_app", streamFrame.DestAppId),
+		slog.Duration("duration", time.Since(startTime)),
+		slog.Int64("bytes_a_to_b", result.BytesAToB),
+		slog.Int64("bytes_b_to_a", result.BytesBToA),
+		slog.String("termination_reason", terminationReason),
 	)
 }
 

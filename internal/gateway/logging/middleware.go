@@ -3,6 +3,7 @@ package logging
 import (
 	"bufio"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -10,8 +11,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5/middleware"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // ============================================================
@@ -67,7 +66,7 @@ func (lrw *logResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 // AccessLogMiddleware logs every request. Place it early in the
 // middleware stack (after RequestID/RealIP but before the core chain).
-func AccessLogMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
+func AccessLogMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -91,32 +90,31 @@ func AccessLogMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 			}
 
 			// Build structured log
-			attrs := []zap.Field{
-				zap.String("event", "http.access"),
-				zap.String("request_id", middleware.GetReqID(r.Context())),
-				zap.String("method", r.Method),
-				zap.String("path", r.URL.Path),
-				zap.String("host", r.Host),
-				zap.String("remote_addr", r.RemoteAddr),
-				// zap.String("client_ip", extractClientIP(r).String()),
-				zap.Int("status", lrw.statusCode),
-				zap.Int64("bytes", lrw.bytes),
-				zap.Duration("latency", time.Since(start)),
-				zap.String("user_agent", r.UserAgent()),
-				zap.String("user_id", userID),
-				zap.String("tenant_id", tenantID),
-				zap.String("decision_effect", decisionEffect),
-				zap.String("policy_id", policyID),
+			attrs := []any{
+				"event", "http.access",
+				"request_id", middleware.GetReqID(r.Context()),
+				"method", r.Method,
+				"path", r.URL.Path,
+				"host", r.Host,
+				"remote_addr", r.RemoteAddr,
+				"status", lrw.statusCode,
+				"bytes", lrw.bytes,
+				"latency", time.Since(start),
+				"user_agent", r.UserAgent(),
+				"user_id", userID,
+				"tenant_id", tenantID,
+				"decision_effect", decisionEffect,
+				"policy_id", policyID,
 			}
 
 			// Log at appropriate level
 			switch {
 			case lrw.statusCode >= 500:
-				logger.Log(zapcore.ErrorLevel, "http access", attrs...)
+				logger.Error("http access", attrs...)
 			case lrw.statusCode >= 400:
-				logger.Log(zapcore.WarnLevel, "http access", attrs...)
+				logger.Warn("http access", attrs...)
 			default:
-				logger.Log(zapcore.InfoLevel, "http access", attrs...)
+				logger.Info("http access", attrs...)
 			}
 		})
 	}

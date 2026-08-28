@@ -9,7 +9,6 @@ import (
 
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 )
 
 var ErrCertRotated = errors.New("certificate rotated, triggering session reconnect")
@@ -18,7 +17,7 @@ var ErrCertRotated = errors.New("certificate rotated, triggering session reconne
 func (c *ManagementConn) RunReceiver(ctx context.Context) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			c.log.Error("panic in RunReceiver", zap.Any("panic", r))
+			c.log.Error("panic in RunReceiver", "panic", r)
 			err = fmt.Errorf("RunReceiver panic: %v", r)
 		}
 	}()
@@ -47,8 +46,8 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 		switch p := msg.Payload.(type) {
 		case *proto.GatewayConnectorEnvelope_Cmd:
 			c.log.Info("received command",
-				zap.String("cmd", p.Cmd.Cmd.String()),
-				zap.String("payload", p.Cmd.Payload),
+				"cmd", p.Cmd.Cmd.String(),
+				"payload", p.Cmd.Payload,
 			)
 			switch p.Cmd.Cmd {
 			case pb.CommandType_CMD_ROTATE_CONNECTOR_CERT:
@@ -65,7 +64,7 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 			}
 		default:
 			c.log.Warn("received unknown message type",
-				zap.String("type", fmt.Sprintf("%T", p)),
+				"type", fmt.Sprintf("%T", p),
 			)
 
 		}
@@ -93,7 +92,7 @@ func (c *ManagementConn) handleCertRotation(ctx context.Context, rotateCh chan<-
 
 	// Perform renewal & hot-swap in memory
 	if err := c.PKI.Renew(ctx, true); err != nil {
-		c.log.Error("connector cert rotation failed", zap.Error(err))
+		c.log.Error("connector cert rotation failed", "error", err)
 		return
 	}
 

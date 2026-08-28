@@ -10,12 +10,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 )
 
 type APIStatusResponse struct {
@@ -31,11 +31,11 @@ func FetchStatus(
 	cpURL string,
 	key *ecdsa.PrivateKey,
 	connectorID string,
-	log *zap.Logger,
+	log *slog.Logger,
 ) (*gen.ConnectorStatusResponse, error) {
 
 	log.Info("checking connector status with CP",
-		zap.String("cp_url", cpURL),
+		"cp_url", cpURL,
 	)
 
 	//---Build Payload and signature --------------------
@@ -109,19 +109,19 @@ func FetchStatus(
 	}
 
 	log.Info("connector status OK",
-		zap.String("connector_id", apiResponse.Data.ConnectorId),
-		zap.String("gateway_id", apiResponse.Data.GatewayId),
-		zap.String("gateway_url", apiResponse.Data.GatewayUrl),
-		zap.Int("apps", len(apiResponse.Data.Apps)),
+		"connector_id", apiResponse.Data.ConnectorId,
+		"gateway_id", apiResponse.Data.GatewayId,
+		"gateway_url", apiResponse.Data.GatewayUrl,
+		"apps", len(apiResponse.Data.Apps),
 	)
 
 	for _, app := range apiResponse.Data.Apps {
 		log.Info("registered app",
-			zap.String("name", app.Name),
-			zap.String("subdomain", app.Subdomain),
-			zap.String("upstream", app.Upstream),
-			zap.String("protocol", app.Protocol),
-			zap.Bool("is_public", app.IsPublic),
+			"name", app.Name,
+			"subdomain", app.Subdomain,
+			"upstream", app.Upstream,
+			"protocol", app.Protocol,
+			"is_public", app.IsPublic,
 		)
 	}
 

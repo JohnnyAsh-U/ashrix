@@ -3,12 +3,12 @@ package grpc
 import (
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -16,11 +16,11 @@ import (
 type GRPCServer struct {
 	server *grpc.Server
 	addr   string
-	log    *zap.Logger
+	log    *slog.Logger
 }
 
 
-func NewGRPCServer(cfg *config.Config, tlsConfig *tls.Config, log *zap.Logger, registry *registry.Registry) *GRPCServer {
+func NewGRPCServer(cfg *config.Config, tlsConfig *tls.Config, log *slog.Logger, registry *registry.Registry) *GRPCServer {
 	// Enforce mTLS by requiring client certificates
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
@@ -43,7 +43,7 @@ func (s *GRPCServer) Start() error {
 		return fmt.Errorf("failed to listen on gRPC port %s: %w", s.addr, err)
 	}
 
-	s.log.Info("Gateway gRPC Server starting", zap.String("addr", s.addr))
+	s.log.Info("Gateway gRPC Server starting", slog.String("addr", s.addr))
 	return s.server.Serve(lis)
 }
 

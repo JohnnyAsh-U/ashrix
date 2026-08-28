@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -15,12 +16,11 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/yamux"
-	"go.uber.org/zap"
 )
 
 type wsSession struct {
 	session *yamux.Session
-	log     *zap.Logger
+	log     *slog.Logger
 	done    chan struct{}
 	once    sync.Once
 }
@@ -33,9 +33,9 @@ func DialWebSocket(
 	connectorID string,
 	token string,
 	tlsConfig *tls.Config,
-	log *zap.Logger,
+	log *slog.Logger,
 ) (Session, error) {
-	log.Info("trying WebSocket transport", zap.String("url", url))
+	log.Info("trying WebSocket transport", "url", url)
 
 	dialer := websocket.Dialer{
 		TLSClientConfig:  tlsConfig,
@@ -67,7 +67,7 @@ func DialWebSocket(
 		return nil, fmt.Errorf("yamux session: %w", err)
 	}
 
-	log.Info("WebSocket+yamux session established", zap.String("url", url))
+	log.Info("WebSocket+yamux session established", "url", url)
 
 	s := &wsSession{
 		session: session,

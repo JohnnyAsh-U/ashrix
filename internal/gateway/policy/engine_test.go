@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"log/slog"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -12,11 +14,10 @@ import (
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestPolicyEngine(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	ctx := context.Background()
 
 	// 1. Create a temp directory for the bbolt database
@@ -149,7 +150,7 @@ func TestPolicyEngine(t *testing.T) {
 }
 
 func TestPolicyEngineConditions(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	boltStore, err := store.OpenBoltStore(tempDir)
@@ -232,7 +233,7 @@ func TestPolicyEngineConditions(t *testing.T) {
 }
 
 func TestPolicyRollbackTombstone(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	boltStore, err := store.OpenBoltStore(tempDir)
@@ -277,7 +278,7 @@ func TestPolicyRollbackTombstone(t *testing.T) {
 }
 
 func TestPolicyEngineAuthenticity(t *testing.T) {
-	logger := zap.NewNop()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	ctx := context.Background()
 
 	// Generate key pair
