@@ -50,8 +50,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	//Initializing Directory for Ashrix
+	home, err := os.UserHomeDir()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	LogDir := filepath.Join(home, ".ashrix/logs")
+	if err := os.MkdirAll(LogDir, 0700); err != nil {
+		os.Exit(1)
+	}
+
+	if err := logger.LoggerInit(logger.LoggerConfig{
+		Env: "prod",
+		LogDir: LogDir,
+		Level: "info",
+		MaxSizeMB: 100,
+		MaxAgeDays: 30,
+		MaxBackups: 10,
+		Compress: true,
+	}); err != nil {
+		fmt.Println("Error initializing logger:", err)
+		os.Exit(1)
+	}	
+	
+
 	// Structured logger — JSON in production, text in dev
-	log := logger.New(cfg.ENV)
+	log := logger.LoggerApp
 
 	// Connect to Postgres
 	db, err := database.Connect(context.Background(), cfg, log)
@@ -88,11 +113,7 @@ func main() {
 	}
 	defer redisStore.Close()
 
-	//Initializing Directory for Ashrix
-	home, err := os.UserHomeDir()
-	if err != nil {
-		log.Error("Failed to Get Home Directory: %w", slog.String("err", err.Error()))
-	}
+	
 	BaseDir := filepath.Join(home, ".ashrix")
 	log.Info("Ashrix base directory Initialized")
 	if err := os.MkdirAll(BaseDir, 0700); err != nil {
