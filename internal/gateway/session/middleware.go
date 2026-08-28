@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-	"log/slog"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
+
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -19,7 +21,7 @@ import (
 )
 
 // Middleware for the Auth
-func SessionMiddleware(registry *registry.Registry, session *SessionManager, redisClient *redis.Client, cfg *config.Config, logger *slog.Logger) func(http.Handler) http.Handler {
+func SessionMiddleware(registry *registry.Registry, session *SessionManager, redisClient *redis.Client, cfg *config.Config, errHandler *web.ErrorHandler, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -40,8 +42,8 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			connector, exists := registry.GetBySubdomain(subdomain)
 			if !exists {
 				logger.Error("Connection NOT FOUND")
-				http.Error(w, "NOT FOUND", http.StatusNotFound)
-				return
+				errHandler.ErrorPage(w, http.StatusNotFound, "NOT FOUND", "The application you requested could not be found.", "")
+				return 
 			}
 
 			// if !connector.IsRoutable() {
@@ -62,7 +64,7 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 
 			if foundApp == nil {
 				logger.Error("No App")
-				http.Error(w, "App Not Found", http.StatusNotFound)
+				errHandler.ErrorPage(w, http.StatusNotFound, "App Not Found", "The application you requested could not be found.", "")
 				return
 			}
 
@@ -93,7 +95,7 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			state, err := crypto.GenerateOnlyToken(32)
 			if err != nil {
 				logger.Error("Generate State Failed", slog.String("error", err.Error()))
-				http.Error(w, "Internal Error", http.StatusInternalServerError)
+				errHandler.ErrorPage(w, http.StatusInternalServerError, "Internal Error", "The gateway encountered an unexpected error.", "")
 				return
 			}
 
@@ -107,7 +109,7 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 
 			if err := redisClient.Set(ctx, fmt.Sprintf("oauth_state:%s", state), redirectData, 10*time.Minute).Err(); err != nil {
 				logger.Error("Store State Failed", slog.String("error", err.Error()))
-				http.Error(w, "Internal Error", http.StatusInternalServerError)
+				errHandler.ErrorPage(w, http.StatusInternalServerError, "Internal Error", "The gateway encountered an unexpected error.", "")
 				return
 			}
 
@@ -139,8 +141,8 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 }
 
 func isInternalPath(path string) bool {
-	return path == "/health" || path == "/logout" ||
-		strings.HasPrefix(path, "/_auth/")
+	return path == "/_ashrix/health" || path == "/_ashrix/logout" ||
+		strings.HasPrefix(path, "/_ashrix/auth/") || strings.HasPrefix(path, "/_ashrix/static/")
 }
 
 

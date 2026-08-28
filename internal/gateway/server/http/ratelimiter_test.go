@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/alicebob/miniredis/v2"
@@ -37,8 +38,9 @@ func TestRateLimiterMiddleware_AllowThenDeny(t *testing.T) {
 		KeyPrefix: "test",
 		NowFunc:   func() time.Time { return now },
 	}
+	errHandler := web.NewErrorHandler()
 
-	mw := RateLimiterMiddleware(cfg, logger)
+	mw := RateLimiterMiddleware(cfg, logger, errHandler)
 
 	handler := withClientIP(
 		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -92,8 +94,9 @@ func TestRateLimiterMiddleware_UserTier(t *testing.T) {
 		User:      RateLimit{Rate: 5, Burst: 5}, // generous user limit
 		KeyPrefix: "test",
 	}
+	errHandler := web.NewErrorHandler()
 
-	mw := RateLimiterMiddleware(cfg, logger)
+	mw := RateLimiterMiddleware(cfg, logger, errHandler)
 
 	handler := withClientIP(
 		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -141,8 +144,9 @@ func TestRateLimiterMiddleware_ExemptPaths(t *testing.T) {
 		IP:        RateLimit{Rate: 0, Burst: 0}, // zero = disabled, but exempt should skip anyway
 		KeyPrefix: "test",
 	}
+	errHandler := web.NewErrorHandler()
 
-	mw := RateLimiterMiddleware(cfg, logger)
+	mw := RateLimiterMiddleware(cfg, logger, errHandler)
 	handler := withClientIP(
 		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -169,8 +173,9 @@ func TestRateLimiterMiddleware_FailOpen(t *testing.T) {
 		IP:        RateLimit{Rate: 1, Burst: 1},
 		KeyPrefix: "test",
 	}
+	errHandler := web.NewErrorHandler()
 
-	mw := RateLimiterMiddleware(cfg, logger)
+	mw := RateLimiterMiddleware(cfg, logger, errHandler)
 	handler := withClientIP(
 		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -193,6 +198,7 @@ func TestRateLimiterMiddleware_IPFallbackWhenNoSession(t *testing.T) {
 
 	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	errorHandler := web.NewErrorHandler()
 
 	cfg := RateLimiterConfig{
 		Redis:     rdb,
@@ -201,7 +207,7 @@ func TestRateLimiterMiddleware_IPFallbackWhenNoSession(t *testing.T) {
 		KeyPrefix: "test",
 	}
 
-	mw := RateLimiterMiddleware(cfg, logger)
+	mw := RateLimiterMiddleware(cfg, logger, errorHandler)
 	handler := withClientIP(
 		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)

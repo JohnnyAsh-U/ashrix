@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="referrer"
+        content="no-referrer"
+    >
+
+    <title>{{ .StatusCode }} — {{ .Title }} — Ashrix</title>
+
+    <link
+        rel="stylesheet"
+        href="/_ashrix/static/style.css"
+    >
+</head>
+
+<body>
+
+    <main class="container">
+
+        <section class="card">
+
+            <div class="brand">
+
+                <div
+                    class="brand-logo"
+                    aria-hidden="true"
+                >
+                    A
+                </div>
+
+                <div class="brand-name">
+                    Ashrix
+                </div>
+
+            </div>
+
+
+            <div
+                class="status-code"
+                aria-hidden="true"
+            >
+                {{ .StatusCode }}
+            </div>
+
+
+            <h1>
+                {{ .Title }}
+            </h1>
+
+
+            <p class="message">
+                {{ .Message }}
+            </p>
+
+
+            {{ if .RequestID }}
+
+            <div class="request-id">
+                <span>Request ID</span>
+                <code>{{ .RequestID }}</code>
+            </div>
+
+            {{ end }}
+
+
+            <a
+                class="back-button"
+                href="/"
+            >
+                Return
+            </a>
+
+
+            <footer class="footer">
+                Secured by Ashrix
+            </footer>
+
+        </section>
+
+    </main>
+
+</body>
+
+</html>

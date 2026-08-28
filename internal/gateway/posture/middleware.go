@@ -42,6 +42,6 @@ func PostureMiddleware(collector *Collector, log *slog.Logger) func(http.Handler
 }
 
 func isInternalPath(path string) bool {
-	return path == "/health" || path == "/logout" ||
-		strings.HasPrefix(path, "/_auth/")
+	return path == "/_ashrix/health" || path == "/_ashrix/logout" ||
+		strings.HasPrefix(path, "/_ashrix/auth/") || strings.HasPrefix(path, "/_ashrix/static/")
 }

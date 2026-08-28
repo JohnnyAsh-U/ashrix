@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
@@ -47,7 +48,7 @@ func DefaultRateLimiterConfig(rdb *redis.Client) RateLimiterConfig {
 }
 
 // RateLimiterMiddleware returns the rate-limiting handler.
-func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger) func(http.Handler) http.Handler {
+func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger, errorHandler *web.ErrorHandler) func(http.Handler) http.Handler {
 	// Atomic token-bucket via Lua. Returns {allowed, tokens_remaining}.
 	const luaTokenBucket = `
 		local key = KEYS[1]
@@ -105,7 +106,7 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger) func(http
 			} else {
 				clientIP := middleware.GetClientIP(r.Context())
 				if clientIP == "" {
-					http.Error(w, "unable to determine client", http.StatusBadRequest)
+					errorHandler.ErrorPage(w, http.StatusBadRequest, "Bad Request", "Unable to determine client IP address.", "")
 					return
 				}
 				limit = cfg.IP
@@ -159,7 +160,8 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger) func(http
 					retryAfter = 1
 				}
 				w.Header().Set("Retry-After", strconv.FormatInt(retryAfter, 10))
-				http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+				
+				errorHandler.ErrorPage(w, http.StatusTooManyRequests, "Rate Limit Exceeded", "You have exceeded the rate limit for this application. Please try again later.", "")
 				return
 			}
 
@@ -170,6 +172,6 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger) func(http
 
 
 func isInternalPath(path string) bool {
-	return path == "/health" || path == "/logout" ||
-		strings.HasPrefix(path, "/_auth/")
+	return path == "/_ashrix/health" || path == "/_ashrix/logout" ||
+		strings.HasPrefix(path, "/_ashrix/auth/") || strings.HasPrefix(path, "/_ashrix/static/")
 }

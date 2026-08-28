@@ -60,20 +60,20 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 	stream, err := h.router.Route(streamCtx, req, false)
 	if err != nil {
 		h.log.Warn("Routing failed", slog.String("app_id", appID), slog.Any("error", err))
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		h.errorHandler.ErrorPage(w, http.StatusBadGateway, "Bad Gateway", "The gateway encountered an unexpected error.", "")
 		return
 	}
 	defer stream.Close()
 
 	hj, ok := w.(http.Hijacker)
 	if !ok {
-		http.Error(w, "hijack failed", 500)
+		h.errorHandler.ErrorPage(w, http.StatusInternalServerError, "Internal Server Error", "The gateway encountered an unexpected error.", "")
 		return
 	}
 
 	clientConn, bufrw, err := hj.Hijack()
 	if err != nil {
-		http.Error(w, "hijack failed", 500)
+		h.errorHandler.ErrorPage(w, http.StatusInternalServerError, "Internal Server Error", "The gateway encountered an unexpected error.", "")
 		return
 	}
 	defer clientConn.Close()

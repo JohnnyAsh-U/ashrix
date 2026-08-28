@@ -16,6 +16,7 @@ import (
 	gateway_grpc "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/grpc_client"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 )
 
@@ -30,6 +31,7 @@ type Handler struct {
 	streamRegistry *registry.ActiveStreamRegistry
 	router         *router.Router
 	maxRequestBody int64
+	errorHandler *web.ErrorHandler
 }
 
 func NewHandler(
@@ -42,6 +44,7 @@ func NewHandler(
 	streamRegistry *registry.ActiveStreamRegistry,
 	cfg *config.Config,
 	rtr *router.Router,
+	errHandler *web.ErrorHandler,
 ) *Handler {
 
 	return &Handler{
@@ -55,6 +58,7 @@ func NewHandler(
 		streamRegistry: streamRegistry,
 		router:         rtr,
 		maxRequestBody: 500,
+		errorHandler: errHandler,
 	}
 }
 
@@ -71,14 +75,14 @@ func (h *Handler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	clientIP := r.RemoteAddr
 	if !h.rateLimiter.Allow(r.Context(), clientIP) {
-		http.Error(w, "Too Many Request", http.StatusTooManyRequests)
+		h.errorHandler.ErrorPage(w, http.StatusTooManyRequests, "Too Many Requests", "The server is currently experiencing a high volume of traffic. Please try again later.", "")
 		return
 	}
 
 	//Read the user cookie
 	stateCookie, err := r.Cookie("state")
 	if err != nil || stateCookie.Value == "" {
-		http.Error(w, "Missing Parameter Cookie", http.StatusBadRequest)
+		h.errorHandler.ErrorPage(w, http.StatusBadRequest, "Missing Parameter Cookie", "Please provide a valid state cookie.", "")
 		return
 	}
 
@@ -86,7 +90,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	stateKey := fmt.Sprintf("oauth_state:%s", stateCookie.Value)
 	stateData, err := h.redisClient.GetDel(r.Context(), stateKey).Result()
 	if err != nil {
-		http.Error(w, "Missing Parameter Redis", http.StatusBadRequest)
+		h.errorHandler.ErrorPage(w, http.StatusBadRequest, "Missing Parameter Redis", "The provided state parameter is invalid or has expired.", "")
 		return
 	}
 
@@ -106,13 +110,13 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "Invalid Token", http.StatusBadRequest)
+		h.errorHandler.ErrorPage(w, http.StatusBadRequest, "Invalid Token", "The provided token is invalid or has expired.", "")
 		return
 	}
 
 	if err := h.session.Create(w, r, protoIdentity); err != nil {
 		h.log.Error("Session Creation Failed", slog.Any("err", err))
-		http.Error(w, "Internal Error", http.StatusNotFound)
+		h.errorHandler.ErrorPage(w, http.StatusInternalServerError, "Internal Error", "An internal error occurred while creating the session.", "")
 		return
 	}
 

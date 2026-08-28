@@ -13,6 +13,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/posture"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -38,8 +39,20 @@ func NewProxyServer(
 ) *ProxyServer {
 
 	rateLimiter := session.NewRedisLimiter(redisClient, 10, time.Minute)
+	errHandler := web.NewErrorHandler()
+	staticFileHandler := web.NewStaticFileHandler()
+
 	handler := NewHandler(
-		log, connectorRegistry, sessions, rateLimiter, redisClient, grpcClient, activeStreams, cfg, rtr,
+		log, 
+		connectorRegistry, 
+		sessions, 
+		rateLimiter, 
+		redisClient, 
+		grpcClient, 
+		activeStreams, 
+		cfg, 
+		rtr, 
+		errHandler,
 	)
 
 	// 1. Initialize posture dependencies
@@ -60,6 +73,8 @@ func NewProxyServer(
 
 	collector := posture.NewCollector(geoReader, torChecker, repDB)
 
+	
+
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.ClientIPFromHeader("X-Real-IP"))
@@ -69,14 +84,19 @@ func NewProxyServer(
 	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig())) // <-- updated
 	r.Use(chimiddleware.Timeout(30 * time.Second))
 
-	r.Use(session.SessionMiddleware(connectorRegistry, sessions, redisClient, cfg, log))
-	r.Use(posture.PostureMiddleware(collector, log))
-	r.Use(RateLimiterMiddleware(DefaultRateLimiterConfig(redisClient), log)) // ← after session
-	r.Use(policy.PolicyMiddleware(engine, cfg, log))
 
-	r.Get("/health", handler.Health)
-	r.Get("/logout", handler.Logout)
-	r.Get("/_auth/callback", handler.Callback)
+
+	r.Use(session.SessionMiddleware(connectorRegistry, sessions, redisClient, cfg, errHandler, log))
+	r.Use(posture.PostureMiddleware(collector, log))
+	r.Use(RateLimiterMiddleware(DefaultRateLimiterConfig(redisClient), log, errHandler)) // ← after session
+	r.Use(policy.PolicyMiddleware(engine, cfg, log, errHandler))
+
+	r.Handle("/_ashrix/static/*", staticFileHandler)
+
+
+	r.Get("/_ashrix/health", handler.Health)
+	r.Get("/_ashrix/logout", handler.Logout)
+	r.Get("/_ashrix/auth/callback", handler.Callback)
 	r.HandleFunc("/*", handler.ProxyHandler)
 
 	srv := &http.Server{

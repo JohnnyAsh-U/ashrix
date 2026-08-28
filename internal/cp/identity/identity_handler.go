@@ -357,7 +357,7 @@ func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Redirect to Gateway with token
-	redirectUrl := fmt.Sprintf("%s/_auth/callback?state=%s", "http://gateway.ashrix.io:8000", url.QueryEscape(token))
+	redirectUrl := fmt.Sprintf("%s/_ashrix/auth/callback?state=%s", "http://gateway.ashrix.io:8000", url.QueryEscape(token))
 	// dto.SendSuccess(w, http.StatusCreated, redirectUrl)
 	http.Redirect(w, r, redirectUrl, http.StatusTemporaryRedirect)
 }

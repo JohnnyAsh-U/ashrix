@@ -61,14 +61,14 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	stream, err := h.router.Route(streamCtx, req, false)
 	if err != nil {
 		h.log.Warn("Routing failed", slog.String("app_id", AppID), slog.Any("error", err))
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		h.errorHandler.ErrorPage(w, http.StatusBadGateway, "Bad Gateway", "The gateway encountered an unexpected error.", "")
 		return
 	}
 	defer stream.Close()
 
 	if err := r.Write(stream); err != nil {
 		h.log.Error("failed to write request to stream", slog.Any("error", err))
-		http.Error(w, "failed to send request to connector", http.StatusBadGateway)
+		h.errorHandler.ErrorPage(w, http.StatusBadGateway, "Bad Gateway", "The gateway encountered an unexpected error.", "")
 		return
 	}
 
@@ -76,7 +76,7 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := http.ReadResponse(br, r)
 	if err != nil {
-		http.Error(w, err.Error(), 502)
+		h.errorHandler.ErrorPage(w, http.StatusBadGateway, "Bad Gateway", "The gateway encountered an unexpected error.", "")
 		return
 	}
 

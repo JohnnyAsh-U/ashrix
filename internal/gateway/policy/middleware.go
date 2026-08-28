@@ -11,6 +11,7 @@ import (
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/posture"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5/middleware"
 	// "go.uber.org/zap"
@@ -20,7 +21,7 @@ type decisionContextKey struct{}
 
 
 
-func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logger) func(http.Handler) http.Handler {
+func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logger, errorHandler *web.ErrorHandler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			appIsPublic := session.AppIsPublicFromCtx(r.Context())
@@ -73,7 +74,7 @@ func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logge
 			decision := engine.Evaluate(authCtx)
 
 			// 6. Log every decision (success or failure)
-			logPolicyDecision(r.Context(), decision, authCtx, log)
+			logPolicyDecision(decision, authCtx, log)
 
 			// 7. Enforce
 			if decision.Denied() {
@@ -85,7 +86,7 @@ func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logge
 				}
 				w.Header().Set("X-Ashrix-Policy-Version", fmt.Sprintf("%d", decision.PolicyVersion))
 
-				http.Error(w, "access denied", http.StatusForbidden)
+				errorHandler.ErrorPage(w, http.StatusForbidden, "Access Denied", "You do not have permission to access this resource.", "")
 				return
 			}
 
@@ -98,8 +99,8 @@ func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logge
 
 
 func isInternalPath(path string) bool {
-	return path == "/health" || path == "/logout" ||
-		strings.HasPrefix(path, "/_auth/")
+	return path == "/_ashrix/health" || path == "/_ashrix/logout" ||
+		strings.HasPrefix(path, "/_ashrix/auth/") || strings.HasPrefix(path, "/_ashrix/static/")
 }
 
 
@@ -109,7 +110,7 @@ func DecisionFromContext(ctx context.Context) (*Decision, bool) {
 }
 
 
-func logPolicyDecision(ctx context.Context, decision Decision, authCtx AuthorizationContext, log *slog.Logger) {
+func logPolicyDecision(decision Decision, authCtx AuthorizationContext, log *slog.Logger) {
 	// Structured JSON log for observability
 	logData := map[string]interface{}{
 		"event":          "policy.decision",
