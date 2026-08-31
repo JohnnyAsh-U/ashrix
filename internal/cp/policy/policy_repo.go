@@ -186,7 +186,7 @@ func (r *postgresRepository) Create(ctx context.Context, orgID uuid.UUID, req Cr
 		RuleSnapshot:    snapshotBytes,
 		MutatedBy:       pgtype.UUID{Bytes: actorID, Valid: true},
 		Sequence:        seq,
-		Signature:       nil, // signed later by the bundler / CP
+		Signature:       []byte{}, // signed later by the bundler / CP
 		RecordTimestamp: ts,
 	})
 	if err != nil {

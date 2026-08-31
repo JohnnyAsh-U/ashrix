@@ -6,7 +6,6 @@ import (
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
-
 // GatewayRegistry tracks all active gateway connections.
 type GatewayRegistry struct {
 	// All connections by gateway_id

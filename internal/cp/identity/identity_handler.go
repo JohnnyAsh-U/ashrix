@@ -83,21 +83,15 @@ func (i *IDPHandler) IDPResolverHandler(w http.ResponseWriter, r *http.Request) 
 	//Resolve the AppIDPProviders
 	providers, err := i.idpService.ResolveAppIDP(ctx, appUUID, gatewayUUID)
 	if err != nil {
-		dto.SendError(w, dto.NewNotFoundError(err.Error()))
+		w.Header().Set("Content-Type","text/html; charset=utf-8")
+		i.templates.ExecuteTemplate(w, "error.html", nil)
+		// dto.SendError(w, dto.NewNotFoundError(err.Error()))
 		return
 	}
 
 	page := IDPLoginPageData{
 		Providers: providers,
 	}
-
-	// ------------------------------------------------------------
-	// Render HTML
-	// ------------------------------------------------------------
-
-	// page := IDPLoginPageData{
-	// 	Providers: providers,
-	// }
 
 	w.Header().Set(
 		"Content-Type",

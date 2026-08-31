@@ -182,10 +182,10 @@ func (h *PolicyHandler) GetPolicy(w http.ResponseWriter, r *http.Request) {
 // @Router /policies [get]
 func (h *PolicyHandler) ListPolicies(w http.ResponseWriter, r *http.Request) {
 	var query ListPoliciesQuery
-	if err := dto.DecodeJSON(w, r, &query); err != nil {
-		dto.SendError(w, dto.NewBadRequestError("invalid_query"))
-		return
-	}
+	// if err := dto.DecodeJSON(w, r, &query); err != nil {
+	// 	dto.SendError(w, dto.NewBadRequestError("invalid_query"))
+	// 	return
+	// }
 	if query.Page == 0 {
 		query.Page = 1
 	}

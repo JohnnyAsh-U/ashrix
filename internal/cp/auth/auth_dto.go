@@ -56,6 +56,12 @@ type SetupOTPResponse struct {
 	QRCodeURL string `json:"qr_code_url"` // otpauth:// URI for QR rendering
 }
 
+type LoginAdminResponse struct {
+	Tokens TokenPair `json:"tokens"`
+	Admin MeResponse `json:"admin"`
+
+}
+
 type TokenPair struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string     `json:"refresh_token"`
@@ -75,4 +81,12 @@ type AdminResponse struct {
 	OrgID     string    `json:"org_id"`
 	OTPEnabled bool     `json:"otp_enabled"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+
+type MeResponse struct {
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	OrgID     string    `json:"org_id"`
+	OrgName string     `json:"org_name"`
 }

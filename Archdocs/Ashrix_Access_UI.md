@@ -775,7 +775,7 @@ Purpose: Admin actions. Append-only. Exportable.
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Settings                                                            │
-│  [Organisation]  [Identity (IdP)]  [Admin Users]                    │
+│                     │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ORGANISATION                                                        │
@@ -805,7 +805,7 @@ Purpose: Admin actions. Append-only. Exportable.
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Settings                                                            │
-│  [Organisation]  [Identity (IdP)]  [Admin Users]                    │
+│                     │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  IDENTITY PROVIDER                                                   │

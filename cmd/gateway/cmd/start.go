@@ -213,6 +213,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		cm,
 		policyStore,
 		cfg,
+		engine,
 		log,
 		128,
 		pki,

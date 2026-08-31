@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -45,8 +46,8 @@ type ControlPlanePKI struct {
 	CARepo pkica.Repository
 }
 
-func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigner, pki_ca pkica.Repository) (ControlPlaneCrypto, error) {
-	fmt.Println("Initializing Control Plane PKI...")
+func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigner, pki_ca pkica.Repository, log *slog.Logger) (ControlPlaneCrypto, error) {
+	log.Info("Initializing Control Plane PKI...")
 	CPPKIDir := filepath.Join(baseDir, "pki", "cp")
 
 	if err := os.MkdirAll(CPPKIDir, 0700); err != nil {
@@ -73,9 +74,9 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 		if certexists {
 			os.Remove(cpCertPath)
 		}
-		fmt.Println("→ Control Plane Key and Cert not found")
-		fmt.Println("Requesting one...")
-		cert, err := generateControlPlaneCERT(cpKeyPath, cpCertPath, secret, signer)
+		log.Info("→ Control Plane Key and Cert not found")
+		log.Info("Requesting one...")
+		cert, err := generateControlPlaneCERT(cpKeyPath, cpCertPath, secret, signer, log)
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +128,7 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 		if err != nil {
 			return nil, fmt.Errorf("failed to create component certificate: %w", err)
 		}
-		fmt.Println("CPLANE certificate registered successfully")
+		log.Info("CPLANE certificate registered successfully")
 	}
 
 	cpKey, cpCert, err := pki_utils.LoadKeyAndCert(cpKeyPath, cpCertPath, secret, "cp")
@@ -145,7 +146,7 @@ func ControlPlanePKIIntializer(baseDir string, secret string, signer pki.CASigne
 	pool.AddCert(signer.RootCert())
 	pool.AddCert(signer.IntermediateCert())
 
-	fmt.Println("Control Plane PKI Intializing Done...")
+	log.Info("Control Plane PKI Intializing Done...")
 
 	return &ControlPlanePKI{
 		ControlPlaneKeyPath:  cpKeyPath,
@@ -174,7 +175,7 @@ func (b *ControlPlanePKI) CACertPool() *x509.CertPool {
 	return b.CAPool
 }
 
-func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASigner) (*x509.Certificate, error) {
+func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASigner, log *slog.Logger) (*x509.Certificate, error) {
 
 	key, _, err := pki_utils.GenerateCertificateSigningKey(keyPath, certPath, secret, "cp")
 
@@ -208,8 +209,8 @@ func generateControlPlaneCERT(keyPath, certPath, secret string, signer pki.CASig
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("Control Plane CSR Request Done ...")
-	fmt.Println("CA Sigining Control Plane CSR...")
+	log.Info("Control Plane CSR Request Done ...")
+	log.Info("CA Sigining Control Plane CSR...")
 
 	Cert, err := signer.IssueCert(certReq, 356*24*time.Hour, certReq.Subject.CommonName, "*.ashrix.io")
 

@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,7 @@ type KMSCASigner struct {
 	rootCACert       *x509.Certificate
 }
 
-func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, pkica pkica.Repository) (*KMSCASigner, error) {
+func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, pkica pkica.Repository, log *slog.Logger) (*KMSCASigner, error) {
 	println("Initializing PKI...")
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -89,7 +90,7 @@ func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, pkic
 			fmt.Println("Root Key and Cert Not Found...")
 			fmt.Println("Generating RootCA")
 
-			rootKey, rootCert, err := generateRootCA(rootKeyPath, rootCertPath, rootUnlockSecret, "root")
+			rootKey, rootCert, err := generateRootCA(rootKeyPath, rootCertPath, rootUnlockSecret, "root", log)
 			if err != nil {
 				return nil, err
 			}

@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -54,8 +55,8 @@ type IDPSession struct {
 	stateTTL  time.Duration
 }
 
-func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client) (*IDPSession, error) {
-	fmt.Println("Initializing JWT PKI...")
+func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client, log *slog.Logger) (*IDPSession, error) {
+	log.Info("Initializing JWT PKI...")
 
 	jwtDir := filepath.Join(baseDir, "jwt")
 
@@ -77,15 +78,15 @@ func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client) 
 
 	if keyExists {
 		// Load existing key
-		fmt.Println("→ Loading existing JWT signing key...")
+		log.Info("→ Loading existing JWT signing key...")
 		signingKey, err = decryptAndLoadKey(jwtPrivateKeyPath, encryptionSecret, context)
 		if err != nil {
 			return nil, fmt.Errorf("loading JWT signing key: %w", err)
 		}
-		fmt.Println("✓ JWT signing key loaded successfully")
+		log.Info("✓ JWT signing key loaded successfully")
 	} else {
 		// Generate new key pair
-		fmt.Println("→ Generating new JWT signing key...")
+		log.Info("→ Generating new JWT signing key...")
 		signingKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			return nil, fmt.Errorf("generating JWT signing key: %w", err)
@@ -95,7 +96,7 @@ func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client) 
 		if err := encryptAndWriteKey(jwtPrivateKeyPath, signingKey, encryptionSecret, context); err != nil {
 			return nil, fmt.Errorf("writing JWT signing key: %w", err)
 		}
-		fmt.Println("✓ JWT signing key generated and saved successfully")
+		log.Info("✓ JWT signing key generated and saved successfully")
 	}
 
 	return &IDPSession{

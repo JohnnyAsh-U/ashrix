@@ -12,6 +12,7 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
@@ -31,6 +32,7 @@ type StreamManager struct {
 	cm          *ConnectionManager
 	policyStore *store.BoltStore
 	cfg         *config.Config
+	engine      *policy.PolicyEngine
 	// onAuthError func(ctx context.Context) error // e.g. pki.PreflightRenew
 
 	pki *crypto.GatewayPKI
@@ -50,6 +52,7 @@ func NewStreamManager(
 	cm *ConnectionManager,
 	policyStore *store.BoltStore,
 	cfg *config.Config,
+	engine *policy.PolicyEngine,
 	log *slog.Logger,
 	sendQueue int,
 	pki *crypto.GatewayPKI,
@@ -67,6 +70,7 @@ func NewStreamManager(
 		policyStore: policyStore,
 		cfg:         cfg,
 		pki:         pki,
+		engine:      engine,
 		log:         log,
 		sendCh:      make(chan *pb.GatewayEnvelope, sendQueue),
 		registry:    reg,
@@ -304,9 +308,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		h.registry.SetAuthorizedConnectors(statusMap)
 
 	case *pb.CPEnvelope_PolicyBundle:
-		h.log.Info("policy bundle received",
-			slog.String("version", "3"),
-		)
+		h.handlePolicyUpdate(ctx, msg)
 
 	case *pb.CPEnvelope_Cmd:
 		h.log.Info("command received from CP", slog.String("type", fmt.Sprintf("%T", p.Cmd.Payload)))
@@ -333,6 +335,9 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 						},
 					},
 				})
+				h.registry.ForceCloseConnector(cmd.RevokeConnector.ConnectorId)
+				h.registry.DetachTunnel(cmd.RevokeConnector.ConnectorId, entry.TunnelSession)
+				h.registry.DetachManagement(cmd.RevokeConnector.ConnectorId, entry.ManagementSession)
 			}
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
@@ -347,6 +352,9 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 						},
 					},
 				})
+				h.registry.ForceCloseConnector(cmd.RevokeConnectorCert.ConnectorId)
+				h.registry.DetachTunnel(cmd.RevokeConnectorCert.ConnectorId, entry.TunnelSession)
+				h.registry.DetachManagement(cmd.RevokeConnectorCert.ConnectorId, entry.ManagementSession)
 			}
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
@@ -361,6 +369,9 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 						},
 					},
 				})
+				h.registry.ForceCloseConnector(cmd.RotateConnectorCert.ConnectorId)
+				h.registry.DetachTunnel(cmd.RotateConnectorCert.ConnectorId, entry.TunnelSession)
+				h.registry.DetachManagement(cmd.RotateConnectorCert.ConnectorId, entry.ManagementSession)
 			}
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 
@@ -438,24 +449,16 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 	}
 }
 
-func (h *StreamManager) cutConnectorConnection(connectorID string) {
-	if entry, ok := h.registry.GetByConnectorID(connectorID); ok {
-		if entry.ManagementSession != nil {
-			_ = entry.ManagementSession.Stream.Send(&pb.GatewayConnectorEnvelope{
-				Payload: &pb.GatewayConnectorEnvelope_Reject{
-					Reject: &pb.ConnectorReject{
-						Reason:    "connector revoked or rotated by CP",
-						Permanent: true,
-					},
-				},
-			})
-			//Close management stream
-			h.registry.ForceCloseConnector(connectorID)
-		}
-		h.registry.DetachTunnel(connectorID, entry.TunnelSession)
-		h.registry.DetachManagement(connectorID, entry.ManagementSession)
+func (h *StreamManager) handlePolicyUpdate(ctx context.Context, msg *pb.CPEnvelope) {
+	h.log.Info("Updating Policy")
+	checkpoint, err := h.policyStore.GetCheckpoint(ctx)
+	if err != nil {
+		h.log.Warn("ERROR: GETTING CHECKPOINT")
 	}
+	fmt.Println(checkpoint)
+	h.engine.ApplyVerifiedDelta(ctx, msg.GetPolicyBundle(), checkpoint)
 }
+
 
 func (sm *StreamManager) isAuthError(err error) bool {
 	if err == nil {

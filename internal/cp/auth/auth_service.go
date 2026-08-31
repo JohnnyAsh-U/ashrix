@@ -204,8 +204,8 @@ func (s *Service) VerifyOTPSetup(ctx context.Context, req VerifyOTPSetupRequest)
 	}
 
 	return TokenPair{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
+		AccessToken:           tokens.AccessToken,
+		RefreshToken:          tokens.RefreshToken,
 		RefreshTokenExpiresAt: tokens.RefreshExpiresAt,
 	}, nil
 }
@@ -232,7 +232,6 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (OTPRequiredRespo
 		return OTPRequiredResponse{}, dto.NewBadRequestError("Account Not Valid")
 	}
 
-
 	// Issue a short-lived OTP token. Full access is not granted yet.
 	expiresAt := time.Now().Add(s.cfg.OtpTokenDuration)
 	claims := OTPClaims{
@@ -258,39 +257,39 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (OTPRequiredRespo
 
 // VerifyOTPLogin validates the TOTP code against the otp_token from Login.
 // On success, issues the full access + refresh token pair.
-func (s *Service) VerifyOTPLogin(ctx context.Context, req VerifyOTPLoginRequest) (TokenPair, *dto.AppError) {
+func (s *Service) VerifyOTPLogin(ctx context.Context, req VerifyOTPLoginRequest) (LoginAdminResponse, *dto.AppError) {
 	claims, err := s.jwtUtils.ParseOTPToken(req.OTPToken)
 	if err != nil {
-		return TokenPair{}, dto.NewBadRequestError("OTP invalid")
+		return LoginAdminResponse{}, dto.NewBadRequestError("OTP invalid")
 	}
 
 	adminID, err := uuid.Parse(claims.AdminID)
 	if err != nil {
-		return TokenPair{}, dto.NewErrInternal(fmt.Errorf("invalid org id: %w", err))
+		return LoginAdminResponse{}, dto.NewErrInternal(fmt.Errorf("invalid org id: %w", err))
 	}
 
 	admin, err := s.repo.GetAdminByID(ctx, adminID)
 	if err != nil {
-		return TokenPair{}, dto.NewBadRequestError("Admin Not Found")
+		return LoginAdminResponse{}, dto.NewBadRequestError("Admin Not Found")
 	}
 
 	OrgID, err := uuid.Parse(admin.OrgID.String())
 	if err != nil {
-		return TokenPair{}, dto.NewErrInternal(fmt.Errorf("invalid org id: %w", err))
+		return LoginAdminResponse{}, dto.NewErrInternal(fmt.Errorf("invalid org id: %w", err))
 	}
 
 	if !admin.OtpEnabled || !admin.OtpSecret.Valid {
-		return TokenPair{}, dto.NewBadRequestError("OTP not configured")
+		return LoginAdminResponse{}, dto.NewBadRequestError("OTP not configured")
 	}
 
 	if !totp.Validate(req.OTPCode, admin.OtpSecret.String) {
-		return TokenPair{}, dto.NewBadRequestError("Invalide OTP code")
+		return LoginAdminResponse{}, dto.NewBadRequestError("Invalide OTP code")
 	}
 
 	tokens, err := s.jwtUtils.IssueTokenPair(ctx, adminID, OrgID, admin.Role, admin.Email)
 
 	if err != nil {
-		return TokenPair{}, dto.NewErrInternal("Internal Server")
+		return LoginAdminResponse{}, dto.NewErrInternal("Internal Server")
 	}
 
 	_, err = s.repo.CreateSession(ctx, store.CreateSessionParams{
@@ -301,13 +300,26 @@ func (s *Service) VerifyOTPLogin(ctx context.Context, req VerifyOTPLoginRequest)
 	})
 
 	if err != nil {
-		return TokenPair{}, dto.NewErrInternal(err)
+		return LoginAdminResponse{}, dto.NewErrInternal(err)
 	}
 
-	return TokenPair{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
-		RefreshTokenExpiresAt: tokens.RefreshExpiresAt,
+	admin, errad := s.repo.GetAdminByID(ctx, adminID)
+	if errad != nil {
+		return LoginAdminResponse{}, dto.NewErrInternal(err)
+	}
+
+	return LoginAdminResponse{
+		Tokens: TokenPair{
+			AccessToken:           tokens.AccessToken,
+			RefreshToken:          tokens.RefreshToken,
+			RefreshTokenExpiresAt: tokens.RefreshExpiresAt,
+		},
+		Admin: MeResponse{
+			ID:      admin.ID.String(),
+			OrgID:   admin.OrgID.String(),
+			OrgName: "Ashrix",
+			Email:   admin.Email,
+		},
 	}, nil
 
 }
@@ -324,7 +336,7 @@ func (s *Service) ChangePassword(ctx context.Context, adminID uuid.UUID, req Cha
 
 	if err := bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash.String), []byte(req.CurrentPassword)); err != nil {
 
-	fmt.Println(err)
+		fmt.Println(err)
 		return dto.NewBadRequestError("Password Not Correct")
 	}
 
@@ -340,8 +352,6 @@ func (s *Service) ChangePassword(ctx context.Context, adminID uuid.UUID, req Cha
 
 		return dto.NewBadRequestError(err.Error())
 	}
-
-
 
 	// Revoke all sessions — forces re-login on all devices.
 	// SECURITY: This is non-negotiable on password change.
@@ -455,13 +465,13 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (TokenPair, 
 
 	_, err = s.repo.CreateSession(ctx, store.CreateSessionParams{
 		AdminID:      admin.ID,
-		OrgID: admin.OrgID.Bytes,
+		OrgID:        admin.OrgID.Bytes,
 		RefreshToken: utils.HashToken(tokens.RefreshToken),
 		ExpiresAt:    tokens.RefreshExpiresAt,
 	})
 	return TokenPair{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
+		AccessToken:           tokens.AccessToken,
+		RefreshToken:          tokens.RefreshToken,
 		RefreshTokenExpiresAt: tokens.RefreshExpiresAt,
 	}, nil
 }
@@ -478,4 +488,17 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) {
 		// Best effort — if revoke fails, the cookie is still cleared.
 		_ = s.repo.RevokeSession(ctx, session.ID)
 	}
+}
+
+func (s *Service) GetMe(ctx context.Context, adminUUID uuid.UUID) (MeResponse, *dto.AppError) {
+	admin, err := s.repo.GetAdminByID(ctx, adminUUID)
+	if err != nil {
+		return MeResponse{}, dto.NewErrInternal(err)
+	}
+	return MeResponse{
+		ID:      admin.ID.String(),
+		OrgName: "Ashrix",
+		OrgID:   admin.OrgID.String(),
+		Email:   admin.Email,
+	}, nil
 }

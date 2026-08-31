@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
@@ -136,6 +137,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.svc.Login(r.Context(), req)
 	if err != nil {
+		fmt.Println(err)
 		dto.SendError(w, err)
 		return
 	}
@@ -149,7 +151,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param org body VerifyOTPLoginRequest true "Register details"
-// @Success 200 {object} TokenPair
+// @Success 200 {object} LoginAdminResponse
 // @Failure 400 {object} dto.AppError
 // @Router /auth/verify-otp/login [post]
 func (h *AuthHandler) VerifyOTPLogin(w http.ResponseWriter, r *http.Request) {
@@ -171,12 +173,12 @@ func (h *AuthHandler) VerifyOTPLogin(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
-		Value:    resp.RefreshToken,
+		Value:    resp.Tokens.RefreshToken,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
-		Expires:  resp.RefreshTokenExpiresAt,
+		Expires:  resp.Tokens.RefreshTokenExpiresAt,
 	})
 
 	dto.SendSuccess(w, http.StatusOK, resp)
@@ -359,6 +361,38 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, 204, nil)
 }
 
+// @Summary Get ME
+// @Description Get ME
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} MeResponse
+// @Failure 400 {object} dto.AppError
+// @Router /auth/me [get]
+func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request){
+	adminID := middleware.AdminIDFromCtx(r.Context())
+	if adminID == "" {
+		dto.SendError(w, dto.NewUnauthorizedError("Not Authorized"))
+		return
+	}
+
+	adminUUID, err := uuid.Parse(adminID)
+
+	if err != nil {
+		dto.SendError(w, dto.NewBadRequestError(err))
+		return
+	}
+
+	admin, appErr := h.svc.GetMe(r.Context(), adminUUID)
+	if appErr != nil {
+		dto.SendError(w, appErr)
+		return
+	}
+
+	dto.SendSuccess(w, 201, admin)
+}
+
 func (h *AuthHandler) Routes(r chi.Router) {
 	// Public — no auth middleware
 	r.Post("/register", h.Register)
@@ -375,5 +409,6 @@ func (h *AuthHandler) Routes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware([]byte(h.accessKey)))
 		r.Post("/change-password", h.ChangePassword)
+		r.Get("/me", h.GetMe)
 	})
 }

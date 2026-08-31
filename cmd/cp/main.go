@@ -123,7 +123,7 @@ func main() {
 
 	// Initializing PKI Root CA and Intermediate CA
 	// Pass db.Queries to the PKI signer for database-backed CA certificate management
-	CASigner, err := pki.NewSigner(BaseDir, cfg.PKIConfig, repositories.PKICA)
+	CASigner, err := pki.NewSigner(BaseDir, cfg.PKIConfig, repositories.PKICA, log)
 	if err != nil {
 		log.Error("Failed to Initialized PKI", slog.String("err", err.Error()))
 		os.Exit(1) // Fail hard if PKI initialization fails
@@ -135,6 +135,7 @@ func main() {
 		cfg.PKIConfig.PKIUnlockSecret,
 		CASigner,
 		repositories.PKICA,
+		log,
 	)
 
 	if cperr != nil {
@@ -142,7 +143,7 @@ func main() {
 	}
 
 	//Initialize Bundle Signing Keys
-	bundleSigner, err := crypto.BundleSigningKeys(BaseDir)
+	bundleSigner, err := crypto.BundleSigningKeys(BaseDir, log)
 	if err != nil {
 		log.Error("Failed to Initialize Bundle Signing Keys", slog.String("err", err.Error()))
 		os.Exit(1)

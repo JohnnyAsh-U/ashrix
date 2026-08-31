@@ -133,7 +133,7 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			})
 
 			//Build the cp auth url
-			authUrl := fmt.Sprintf("%s/api/v1/authorize/providers?%s", cfg.CPURL, params.Encode())
+			authUrl := fmt.Sprintf("%s/authorize/providers?%s", cfg.CPURL, params.Encode())
 
 			http.Redirect(w, r, authUrl, http.StatusTemporaryRedirect)
 		})

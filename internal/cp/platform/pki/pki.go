@@ -14,7 +14,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
+
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
@@ -42,12 +44,12 @@ type CASigner interface {
 
 // New constructs the CASigner for the configured backend.
 // This is the only line that changes when you switch backends.
-func NewSigner(BasePath string, cfg *config.PKIConfig, pkicaRepo pkica.Repository) (CASigner, error) {
+func NewSigner(BasePath string, cfg *config.PKIConfig, pkicaRepo pkica.Repository, log *slog.Logger) (CASigner, error) {
 	switch cfg.Backend {
 	case config.BackendDisk:
-		return NewDiskCASigner(BasePath, cfg.PKIUnlockSecret, pkicaRepo)
+		return NewDiskCASigner(BasePath, cfg.PKIUnlockSecret, pkicaRepo, log)
 	case config.BackendKMS:
-		return NewKMSCASigner(cfg.KMSToken, cfg.KMSUrl, BasePath, cfg.PKIUnlockSecret, pkicaRepo) // KMSCASigner also needs dbQueries
+		return NewKMSCASigner(cfg.KMSToken, cfg.KMSUrl, BasePath, cfg.PKIUnlockSecret, pkicaRepo, log) // KMSCASigner also needs dbQueries
 	default:
 		return nil, fmt.Errorf("unknown backend: %q", cfg.Backend)
 	}

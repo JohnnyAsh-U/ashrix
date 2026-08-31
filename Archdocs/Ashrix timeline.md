@@ -1,16 +1,22 @@
 * Redo connector installer
 
 Testing
-* Update Policy Bundle Action and Testing Authentication Authorisation
+* Update Policy Bundle Action Authorisation
+
+Frontend Building and integration 
+
+
+# AccessLogs and Audit Logging
+Accesslog Api to get list with filters Access logging and audit logging 
+Audit log list api
+
+
+
 
 *App To App Communication using Sock5 proxy
 
 
-# AccessLogs and Audit Logging
-Accesslog Api to get list with filters
-Restructuring of Logging UI
-Access logging and audit logging 
-Audit log list api
+
 
 
 # Flexibility in the Port designing for each service
@@ -20,7 +26,6 @@ Update the document of the platform with changes.
 
 
 Intégration testing in general
-Frontend Building and integration 
 
 
 Now learning and verifying the possibility of ML integration in the path of the gateway request 

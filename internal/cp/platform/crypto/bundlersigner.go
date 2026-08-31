@@ -5,8 +5,10 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 )
@@ -32,8 +34,8 @@ var (
 )
 
 
-func BundleSigningKeys(baseDir string) (BundleSigning, error) {
-	fmt.Println("Initializing Bundle Signing Keys...")
+func BundleSigningKeys(baseDir string, log *slog.Logger) (BundleSigning, error) {
+	log.Info("Initializing Bundle Signing Keys...")
 	CPPKIDir := filepath.Join(baseDir, "pki", "cp")
 
 	if err := os.MkdirAll(CPPKIDir, 0700); err != nil {
@@ -52,8 +54,8 @@ func BundleSigningKeys(baseDir string) (BundleSigning, error) {
 		if keyexists {
 			os.Remove(keyPath)
 		}
-		fmt.Println("→ Bundle Signing Key not found")
-		fmt.Println("Requesting one...")
+		log.Info("→ Bundle Signing Key not found")
+		log.Info("Requesting one...")
 		//Generate Bundle Signing Key
 		_, err := pki.GenerateEd25519Key(keyPath, signingKeySecret, signingKeyContext)
 		if err != nil {
@@ -67,7 +69,7 @@ func BundleSigningKeys(baseDir string) (BundleSigning, error) {
 		return nil, err
 	}
 
-	fmt.Println("Control Plane PKI Intializing Done...")
+	log.Info("Control Plane PKI Intializing Done...")
 
 	return &BundleSigner{
 		BundleSigningKey: &SigningKey,

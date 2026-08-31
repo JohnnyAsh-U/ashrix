@@ -27,6 +27,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
@@ -62,6 +63,13 @@ func InitializeHttpServer(
 	r := chi.NewRouter()
 
 	// ── Global middleware ──────────────────────────────────────
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins: []string{"http://localhost:5173"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		AllowCredentials: true,
+		MaxAge: 300,
+	}))
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.ClientIPFromHeader("X-Real-IP"))
 	r.Use(middleware.LoggingMiddleware(log))
@@ -83,7 +91,7 @@ func InitializeHttpServer(
 
 	
 	//IDP Routes
-	idpSession, err := identity.NewIDPSession(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix", redisStore.Client())
+	idpSession, err := identity.NewIDPSession(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix", redisStore.Client(), log)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -143,10 +151,6 @@ func InitializeHttpServer(
 
 
 	r.Route("/api/v1", func(r chi.Router) {
-
-		r.Group(func(r chi.Router) {
-			r.Route("/authorize", idpHandler.IdentityAuthRoutes)
-		})
 
 		r.Group(func(r chi.Router) {
 			r.Route("/auth", authHandler.Routes)
