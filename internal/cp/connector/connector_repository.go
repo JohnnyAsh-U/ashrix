@@ -23,6 +23,7 @@ type Repository interface {
 	UpdateConnectorStatus(ctx context.Context, params store.UpdateConnectorStatusParams) (store.Connector, error)
 
 	RevokeConnector(ctx context.Context, params store.RevokeConnectorParams) (store.Connector, error)
+	ListConnectorsWithGatewayNameByOrg(ctx context.Context, orgID uuid.UUID) ([]store.ListConnectorsWithGatewayNameByOrgRow, error)
 }
 
 type postgresRepository struct {
@@ -76,5 +77,9 @@ func (r *postgresRepository) UpdateConnectorStatus(ctx context.Context, params s
 
 func (r *postgresRepository) RevokeConnector(ctx context.Context, params store.RevokeConnectorParams) (store.Connector, error) {
 	return r.q.RevokeConnector(ctx, params)
+}
+
+func (r *postgresRepository) ListConnectorsWithGatewayNameByOrg(ctx context.Context, orgID uuid.UUID) ([]store.ListConnectorsWithGatewayNameByOrgRow, error) {
+	return r.q.ListConnectorsWithGatewayNameByOrg(ctx, orgID)
 }
 

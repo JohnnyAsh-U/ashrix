@@ -27,6 +27,10 @@ func (c *ManagementConn) RunHeartbeat(ctx context.Context, seconds time.Duration
 		select {
 		case <-ticker.C:
 			seq++
+			var appHealth []*proto.AppHealthStatus
+			if c.Checker != nil {
+				appHealth = c.Checker.GetAppHealthStatuses()
+			}
 			err := c.Stream.Send(&proto.ConnectorGatewayEnvelope{
 				ConnectorId: c.ConnectorID,
 				SentAt:      timestamppb.Now(),
@@ -36,7 +40,8 @@ func (c *ManagementConn) RunHeartbeat(ctx context.Context, seconds time.Duration
 						TunnelState:     "connected",
 						TunnelTransport: "grpc",
 						UptimeSeconds:   c.uptimeSeconds(),
-						ActiveStreams: c.ActiveStreams.Load(),
+						ActiveStreams:   c.ActiveStreams.Load(),
+						AppHealth:       appHealth,
 					},
 				},
 			})

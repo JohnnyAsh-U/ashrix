@@ -193,9 +193,11 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 func (s *Server) handleConnectorMessage(connectorID string, env *gen.ConnectorGatewayEnvelope) {
 	switch p := env.Payload.(type) {
 	case *gen.ConnectorGatewayEnvelope_Heartbeat:
-		s.registry.UpdateHeartbeat(connectorID)
-		// all := s.registry.All()
-		// fmt.Println(s.registry.GetByConnectorID(connectorID))
+		if p.Heartbeat != nil && len(p.Heartbeat.AppHealth) > 0 {
+			s.registry.UpdateAppHealth(connectorID, p.Heartbeat.AppHealth)
+		} else {
+			s.registry.UpdateHeartbeat(connectorID)
+		}
 		s.log.Debug("heartbeat received",
 			slog.String("connector_id", connectorID),
 			slog.Int64("seq", p.Heartbeat.Seq),

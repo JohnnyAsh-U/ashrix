@@ -29,14 +29,27 @@ func NewService(repo Repository, eventRepo events.Repository, connectorRepo conn
 func (s *Service) CreateApp(ctx context.Context, orgID uuid.UUID, req CreateAppRequest) (AppResponse, *dto.AppError) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.SockPass), 12)
 
+	checkHealth := true
+	if req.CheckHealth != nil {
+		checkHealth = *req.CheckHealth
+	}
+	checkInterval := int32(60)
+	if req.CheckInterval != nil && *req.CheckInterval > 0 {
+		checkInterval = *req.CheckInterval
+	}
+	healthEndpoint := pgtype.Text{String: req.HealthEndpoint, Valid: req.HealthEndpoint != ""}
+
 	params := store.CreateAppParams{
-		OrgID:     orgID,
-		Name:      req.Name,
-		Subdomain: req.Subdomain,
-		Upstream:  req.Upstream,
-		Protocol:  req.Protocol,
-		IsPublic:  *req.IsPublic,
-		SockPass:  string(hash),
+		OrgID:          orgID,
+		Name:           req.Name,
+		Subdomain:      req.Subdomain,
+		Upstream:       req.Upstream,
+		Protocol:       req.Protocol,
+		IsPublic:       *req.IsPublic,
+		SockPass:       string(hash),
+		CheckHealth:    checkHealth,
+		CheckInterval:  checkInterval,
+		HealthEndpoint: healthEndpoint,
 	}
 
 	if req.ConnectorID != nil {
@@ -79,15 +92,31 @@ func (s *Service) UpdateApp(ctx context.Context, id, orgID uuid.UUID, req Update
 		sockPass, _ = bcrypt.GenerateFromPassword([]byte(req.SockPass), 12)
 	}
 
+	checkHealth := app.CheckHealth
+	if req.CheckHealth != nil {
+		checkHealth = *req.CheckHealth
+	}
+	checkInterval := app.CheckInterval
+	if req.CheckInterval != nil && *req.CheckInterval > 0 {
+		checkInterval = *req.CheckInterval
+	}
+	healthEndpoint := app.HealthEndpoint
+	if req.HealthEndpoint != "" {
+		healthEndpoint = pgtype.Text{String: req.HealthEndpoint, Valid: true}
+	}
+
 	params := store.UpdateAppParams{
-		ID:        id,
-		OrgID:     orgID,
-		Name:      req.Name,
-		Subdomain: req.Subdomain,
-		Upstream:  req.Upstream,
-		Protocol:  req.Protocol,
-		IsPublic:  *req.IsPublic,
-		SockPass:  string(sockPass),
+		ID:             id,
+		OrgID:          orgID,
+		Name:           req.Name,
+		Subdomain:      req.Subdomain,
+		Upstream:       req.Upstream,
+		Protocol:       req.Protocol,
+		IsPublic:       *req.IsPublic,
+		SockPass:       string(sockPass),
+		CheckHealth:    checkHealth,
+		CheckInterval:  checkInterval,
+		HealthEndpoint: healthEndpoint,
 	}
 
 	if req.ConnectorID != nil {
@@ -106,19 +135,84 @@ func (s *Service) UpdateApp(ctx context.Context, id, orgID uuid.UUID, req Update
 }
 
 func (s *Service) ListAppsByOrg(ctx context.Context, orgID uuid.UUID) ([]AppResponse, *dto.AppError) {
-	apps, err := s.repo.ListByOrg(ctx, orgID)
+	apps, err := s.repo.ListAppsWithDetailsByOrg(ctx, orgID)
 	if err != nil {
 		return nil, dto.NewAppError(500, dto.CodeInternal, "Failed to list apps", err.Error())
 	}
 
 	var res []AppResponse
 	for _, app := range apps {
-		res = append(res, mapToAppResponse(app))
+		res = append(res, s.mapToAppDetailResponse(ctx, app))
 	}
 	if res == nil {
 		res = []AppResponse{}
 	}
 	return res, nil
+}
+
+func (s *Service) mapToAppDetailResponse(ctx context.Context, app store.ListAppsWithDetailsByOrgRow) AppResponse {
+	resp := AppResponse{
+		ID:             app.ID.String(),
+		OrgID:          app.OrgID.String(),
+		Name:           app.Name,
+		Subdomain:      app.Subdomain,
+		Upstream:       app.Upstream,
+		Protocol:       app.Protocol,
+		IsPublic:       app.IsPublic,
+		SockPass:       app.SockPass,
+		CheckHealth:    app.CheckHealth,
+		CheckInterval:  app.CheckInterval,
+		HealthEndpoint: app.HealthEndpoint.String,
+		HealthStatus:   app.HealthStatus,
+		CreatedAt:      app.CreatedAt,
+	}
+	if app.ConnectorID.Valid {
+		connIDStr := uuid.UUID(app.ConnectorID.Bytes).String()
+		resp.ConnectorID = &connIDStr
+	}
+	if app.ConnectorName.Valid {
+		resp.ConnectorName = app.ConnectorName.String
+	}
+	if app.GatewayName.Valid {
+		resp.GatewayName = app.GatewayName.String
+	}
+	if app.LastSeen.Valid {
+		resp.LastSeen = &app.LastSeen.Time
+	}
+
+	trafficCount, _ := s.repo.CountAppTrafficToday(ctx, pgtype.UUID{Bytes: app.ID, Valid: true})
+	resp.NumberOfTrafficToday = trafficCount
+
+	policies, _ := s.repo.ListPoliciesByAppResource(ctx, store.ListPoliciesByAppResourceParams{
+		OrgID:           app.OrgID,
+		ResourceValue:   app.ID.String(),
+		ResourceValue_2: app.Subdomain,
+	})
+	policySummaries := make([]AppPolicySummary, 0, len(policies))
+	for _, p := range policies {
+		policySummaries = append(policySummaries, AppPolicySummary{
+			ID:       p.ID.String(),
+			Name:     p.Name,
+			Effect:   p.Effect,
+			Priority: p.Priority.Int32,
+		})
+	}
+	resp.Policies = policySummaries
+
+	usersCount, _ := s.repo.CountPolicyUserSubjectsByApp(ctx, store.CountPolicyUserSubjectsByAppParams{
+		OrgID:           app.OrgID,
+		ResourceValue:   app.ID.String(),
+		ResourceValue_2: app.Subdomain,
+	})
+	groupsCount, _ := s.repo.CountPolicyGroupSubjectsByApp(ctx, store.CountPolicyGroupSubjectsByAppParams{
+		OrgID:           app.OrgID,
+		ResourceValue:   app.ID.String(),
+		ResourceValue_2: app.Subdomain,
+	})
+	resp.NumberOfUsers = usersCount
+	resp.NumberOfGroups = groupsCount
+
+	return resp
 }
 
 func (s *Service) DeleteApp(ctx context.Context, id, orgID uuid.UUID) (AppResponse, *dto.AppError) {
@@ -146,7 +240,7 @@ func (s *Service) DispatchReloadConnectorCmd(ctx context.Context, connectorID st
 	}
 	payload := events.CommandJob{
 		Type:        events.CmdReloadConnector,
-		GatewayID: connector.GatewayID.String(),
+		GatewayID:   connector.GatewayID.String(),
 		ConnectorID: connectorID,
 	}
 	_, err = s.eventRepo.CreateEvent(ctx, payload)
@@ -158,19 +252,27 @@ func (s *Service) DispatchReloadConnectorCmd(ctx context.Context, connectorID st
 
 func mapToAppResponse(app store.App) AppResponse {
 	resp := AppResponse{
-		ID:        app.ID.String(),
-		OrgID:     app.OrgID.String(),
-		Name:      app.Name,
-		Subdomain: app.Subdomain,
-		Upstream:  app.Upstream,
-		Protocol:  app.Protocol,
-		IsPublic:  app.IsPublic,
-		SockPass:  app.SockPass,
-		CreatedAt: app.CreatedAt,
+		ID:             app.ID.String(),
+		OrgID:          app.OrgID.String(),
+		Name:           app.Name,
+		Subdomain:      app.Subdomain,
+		Upstream:       app.Upstream,
+		Protocol:       app.Protocol,
+		IsPublic:       app.IsPublic,
+		SockPass:       app.SockPass,
+		CheckHealth:    app.CheckHealth,
+		CheckInterval:  app.CheckInterval,
+		HealthEndpoint: app.HealthEndpoint.String,
+		HealthStatus:   app.HealthStatus,
+		Policies:       []AppPolicySummary{},
+		CreatedAt:      app.CreatedAt,
 	}
 	if app.ConnectorID.Valid {
 		connIDStr := uuid.UUID(app.ConnectorID.Bytes).String()
 		resp.ConnectorID = &connIDStr
+	}
+	if app.LastSeen.Valid {
+		resp.LastSeen = &app.LastSeen.Time
 	}
 	return resp
 }

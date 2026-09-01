@@ -58,15 +58,16 @@ func InitializeGRPCServer(
 	)
 
 	proto.RegisterControlPlaneServiceServer(s, &cpServer{
-		policyStore: repositories.Policy,
-		gatewayRepo: repositories.Gateway,
-		PkiCARepo : repositories.PKICA,
-		connectorRepo : repositories.Connector,
-		eventRepo: repositories.Event,
-		registry:    registry,
-		distributor:      distributor,
-		log:         log,
-		redisClient: redisClient,
+		policyStore:   repositories.Policy,
+		gatewayRepo:   repositories.Gateway,
+		PkiCARepo:     repositories.PKICA,
+		connectorRepo: repositories.Connector,
+		appRepo:       repositories.App,
+		eventRepo:     repositories.Event,
+		registry:      registry,
+		distributor:   distributor,
+		log:           log,
+		redisClient:   redisClient,
 	})
 
 	return &GRPCServer{

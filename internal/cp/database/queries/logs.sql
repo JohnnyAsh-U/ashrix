@@ -99,3 +99,8 @@ WHERE org_id     = $1
 -- Retention policy. Default 90 days. Run via background job.
 DELETE FROM access_logs
 WHERE created_at < now() - ($1 || ' days')::interval;
+
+-- name: CountAppTrafficToday :one
+SELECT COUNT(*)::bigint AS traffic_count FROM access_logs
+WHERE app_id = $1
+  AND created_at >= CURRENT_DATE;

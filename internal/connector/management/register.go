@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/health"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 )
@@ -32,6 +33,7 @@ type ManagementConn struct {
 
 	PKI        *startup.PKIInitialiser
 	AppStorage storage.Storage
+	Checker    *health.Checker
 
 	// ... your existing struct fields ...
 	

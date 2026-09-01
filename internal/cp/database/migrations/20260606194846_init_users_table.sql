@@ -193,6 +193,12 @@ CREATE TABLE apps (
     upstream      TEXT        NOT NULL,           -- host:port
     protocol      TEXT        NOT NULL DEFAULT 'http' CHECK (protocol IN ('http', 'tcp', 'ssh')),
     is_public     BOOLEAN     NOT NULL DEFAULT false,
+    check_health  BOOLEAN     NOT NULL DEFAULT true,
+    check_interval INT     NOT NULL DEFAULT 60,
+    health_endpoint TEXT,           -- health check endpoint (relative path)
+    health_status TEXT        NOT NULL DEFAULT 'unknown' CHECK (health_status IN ('unknown', 'healthy', 'unhealthy')),
+    last_seen     TIMESTAMPTZ,
+
     sock_pass     TEXT        NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at    TIMESTAMPTZ,

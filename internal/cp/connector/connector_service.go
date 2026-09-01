@@ -38,27 +38,63 @@ func NewService(repo Repository, pkiRepo pkica.Repository, eventRepo events.Repo
 	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo, eventRepo: eventRepo, dispatcher: dispatcher}
 }
 
-// mapToConnectorResponse converts a store.Connector to a GatewayResponse DTO.
+// mapToConnectorResponse converts a store.Connector to a ConnectorResponse DTO.
 func mapToConnectorResponse(g store.Connector) ConnectorResponse {
 	resp := ConnectorResponse{
 		ID:           g.ID.String(),
 		Name:         g.Name,
 		OrgID:        g.OrgID.String(),
+		GatewayID:    g.GatewayID.String(),
 		ActiveStream: g.ActiveStreams,
 		OpenSock:     g.OpenSock,
-		// Version:   g.Version.String,
-		Status:    g.Status,
-		CreatedAt: g.CreatedAt,
+		Status:       g.Status,
+		Apps:         []ConnectorAppSummaryResponse{},
+		CreatedAt:    g.CreatedAt,
 	}
 	if g.LastSeen.Valid {
-		resp.LastHeartBeat = g.LastSeen.Time
+		resp.LastHeartBeat = &g.LastSeen.Time
 	}
 	if g.EnrolledAt.Valid {
-		resp.EnrolledAt = g.EnrolledAt.Time
+		resp.EnrolledAt = &g.EnrolledAt.Time
 	}
 	if g.RevokedAt.Valid {
-		resp.RevokedAt = g.RevokedAt.Time
+		resp.RevokedAt = &g.RevokedAt.Time
 	}
+	return resp
+}
+
+func mapToConnectorResponseRow(g store.ListConnectorsWithGatewayNameByOrgRow, apps []store.App) ConnectorResponse {
+	resp := ConnectorResponse{
+		ID:           g.ID.String(),
+		Name:         g.Name,
+		OrgID:        g.OrgID.String(),
+		GatewayID:    g.GatewayID.String(),
+		GatewayName:  g.GatewayName,
+		ActiveStream: g.ActiveStreams,
+		OpenSock:     g.OpenSock,
+		Status:       g.Status,
+		CreatedAt:    g.CreatedAt,
+	}
+	if g.LastSeen.Valid {
+		resp.LastHeartBeat = &g.LastSeen.Time
+	}
+	if g.EnrolledAt.Valid {
+		resp.EnrolledAt = &g.EnrolledAt.Time
+	}
+	if g.RevokedAt.Valid {
+		resp.RevokedAt = &g.RevokedAt.Time
+	}
+
+	appSummaries := make([]ConnectorAppSummaryResponse, 0, len(apps))
+	for _, app := range apps {
+		appSummaries = append(appSummaries, ConnectorAppSummaryResponse{
+			ID:           app.ID.String(),
+			Name:         app.Name,
+			Subdomain:    app.Subdomain,
+			HealthStatus: app.HealthStatus,
+		})
+	}
+	resp.Apps = appSummaries
 	return resp
 }
 
@@ -118,16 +154,20 @@ func (s *Service) SyncConnectorToGateway(ctx context.Context, gatewayID uuid.UUI
 	s.dispatcher.Wakeup(gatewayID.String())
 }
 
-// ListGatewaysByOrg lists all connectors for a given organization.
+// ListConnectorsByOrg lists all connectors for a given organization.
 func (s *Service) ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]ConnectorResponse, *dto.AppError) {
-	connectors, err := s.repo.ListConnectorByOrg(ctx, orgID)
+	connectors, err := s.repo.ListConnectorsWithGatewayNameByOrg(ctx, orgID)
 	if err != nil {
-		return nil, dto.NewAppError(500, dto.CodeInternal, "Failed to list gateways", err.Error())
+		return nil, dto.NewAppError(500, dto.CodeInternal, "Failed to list connectors", err.Error())
 	}
 
 	var responses []ConnectorResponse
 	for _, g := range connectors {
-		responses = append(responses, mapToConnectorResponse(g))
+		apps, _ := s.repo.GetConnectorApps(ctx, pgtype.UUID{Bytes: g.ID, Valid: true})
+		responses = append(responses, mapToConnectorResponseRow(g, apps))
+	}
+	if responses == nil {
+		responses = []ConnectorResponse{}
 	}
 	return responses, nil
 }
@@ -652,13 +692,17 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 	if len(apps) > 0 {
 		for _, g := range apps {
 			app := &gen.ConnectorApps{
-				Id:        g.ID.String(),
-				Name:      g.Name,
-				Subdomain: g.Subdomain,
-				Upstream:  g.Upstream,
-				Protocol:  g.Protocol,
-				IsPublic:  g.IsPublic,
-				SockPass:  g.SockPass,
+				Id:             g.ID.String(),
+				Name:           g.Name,
+				Subdomain:      g.Subdomain,
+				Upstream:       g.Upstream,
+				Protocol:       g.Protocol,
+				IsPublic:       g.IsPublic,
+				SockPass:       g.SockPass,
+				CheckHealth:    g.CheckHealth,
+				CheckInterval:  g.CheckInterval,
+				HealthEndpoint: g.HealthEndpoint.String,
+				HealthStatus:   g.HealthStatus,
 			}
 			appsResp = append(appsResp, app)
 		}

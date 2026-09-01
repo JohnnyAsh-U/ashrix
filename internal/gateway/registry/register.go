@@ -22,6 +22,7 @@ type ConnectorEntry struct {
 	ManagementConnAt   time.Time
 	LastHeartbeat      time.Time
 	managementAttached bool
+	AppHealth          []*pb.AppHealthStatus
 
 	//Data plane - Quic primary
 	TunnelSession   TunnelSession // live QUIC/gRPC session — nil until tunnel connects
@@ -290,6 +291,27 @@ func (r *Registry) UpdateHeartbeat(connectorID string) {
 	if entry, ok := r.connectors[connectorID]; ok {
 		entry.LastHeartbeat = time.Now()
 	}
+}
+
+func (r *Registry) UpdateAppHealth(connectorID string, appHealth []*pb.AppHealthStatus) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if entry, ok := r.connectors[connectorID]; ok {
+		entry.AppHealth = appHealth
+		entry.LastHeartbeat = time.Now()
+	}
+}
+
+func (r *Registry) GetAllAppHealth() []*pb.AppHealthStatus {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var all []*pb.AppHealthStatus
+	for _, entry := range r.connectors {
+		if len(entry.AppHealth) > 0 {
+			all = append(all, entry.AppHealth...)
+		}
+	}
+	return all
 }
 
 func (r *Registry) SetState(connectorID, state string) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/health"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/logger"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/socks"
@@ -186,6 +187,10 @@ func runStart() (err error) {
 		//--------------------Mangement Receiver, HeartBeat, and Tunnel Loop ---------------------------//
 		sessionCtx, sessionCancel := context.WithCancel(ctx)
 		errCh := make(chan error, 3)
+
+		healthChecker := health.NewChecker(log, apps)
+		go healthChecker.Start(sessionCtx)
+		managementConn.Checker = healthChecker
 
 		go func() {
 			defer func() {

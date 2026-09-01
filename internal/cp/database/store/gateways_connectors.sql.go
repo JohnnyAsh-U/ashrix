@@ -635,6 +635,66 @@ func (q *Queries) ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]C
 	return items, nil
 }
 
+const listConnectorsWithGatewayNameByOrg = `-- name: ListConnectorsWithGatewayNameByOrg :many
+SELECT c.id, c.org_id, c.gateway_id, c.name, c.token_hash, c.last_seen, c.status, c.created_at, c.is_active, c.open_sock, c.active_streams, c.enrolled_at, c.revoked_at, g.name AS gateway_name
+FROM connectors c
+JOIN gateways g ON c.gateway_id = g.id
+WHERE c.org_id = $1
+ORDER BY c.created_at ASC
+`
+
+type ListConnectorsWithGatewayNameByOrgRow struct {
+	ID            uuid.UUID          `json:"id"`
+	OrgID         uuid.UUID          `json:"org_id"`
+	GatewayID     uuid.UUID          `json:"gateway_id"`
+	Name          string             `json:"name"`
+	TokenHash     string             `json:"token_hash"`
+	LastSeen      pgtype.Timestamptz `json:"last_seen"`
+	Status        string             `json:"status"`
+	CreatedAt     time.Time          `json:"created_at"`
+	IsActive      bool               `json:"is_active"`
+	OpenSock      bool               `json:"open_sock"`
+	ActiveStreams int32              `json:"active_streams"`
+	EnrolledAt    pgtype.Timestamptz `json:"enrolled_at"`
+	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
+	GatewayName   string             `json:"gateway_name"`
+}
+
+func (q *Queries) ListConnectorsWithGatewayNameByOrg(ctx context.Context, orgID uuid.UUID) ([]ListConnectorsWithGatewayNameByOrgRow, error) {
+	rows, err := q.db.Query(ctx, listConnectorsWithGatewayNameByOrg, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListConnectorsWithGatewayNameByOrgRow{}
+	for rows.Next() {
+		var i ListConnectorsWithGatewayNameByOrgRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.GatewayID,
+			&i.Name,
+			&i.TokenHash,
+			&i.LastSeen,
+			&i.Status,
+			&i.CreatedAt,
+			&i.IsActive,
+			&i.OpenSock,
+			&i.ActiveStreams,
+			&i.EnrolledAt,
+			&i.RevokedAt,
+			&i.GatewayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGatewaysByOrg = `-- name: ListGatewaysByOrg :many
 SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
 WHERE org_id     = $1

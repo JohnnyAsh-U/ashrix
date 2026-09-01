@@ -33,49 +33,71 @@ func NewService(repo Repository, pkiRepo pkica.Repository, eventRepo events.Repo
 	return &Service{repo: repo, pkiRepo: pkiRepo, eventRepo: eventRepo, dispatcher: dispatcher}
 }
 
-// mapToGatewayResponse converts a store.Gateway to a GatewayResponse DTO.
+// mapToGatewayResponse converts a store.CreateGatewayRow to a GatewayResponse DTO.
 func mapToGatewayResponse(g store.CreateGatewayRow) GatewayResponse {
 	resp := GatewayResponse{
-		ID:        g.ID.String(),
-		Name:      g.Name,
-		OrgID:     g.OrgID.String(),
-		Version:   g.Version.String,
-		Status:    g.Status,
-		LogToCP:   g.LogToCp,
-		CreatedAt: g.CreatedAt,
+		ID:             g.ID.String(),
+		Name:           g.Name,
+		OrgID:          g.OrgID.String(),
+		Version:        g.Version.String,
+		DeploymentType: g.DeploymentType,
+		PublicURL:      g.PublicUrl,
+		IPAddress:      g.IpAddress,
+		Status:         g.Status,
+		LogToCP:        g.LogToCp,
+		Apps:           []GatewayAppSummary{},
+		CreatedAt:      g.CreatedAt,
 	}
 	if g.LastHeartbeat.Valid {
-		resp.LastHeartBeat = g.LastHeartbeat.Time
+		resp.LastHeartBeat = &g.LastHeartbeat.Time
 	}
 	if g.EnrolledAt.Valid {
-		resp.EnrolledAt = g.EnrolledAt.Time
+		resp.EnrolledAt = &g.EnrolledAt.Time
 	}
 	if g.RevokedAt.Valid {
-		resp.RevokedAt = g.RevokedAt.Time
+		resp.RevokedAt = &g.RevokedAt.Time
 	}
 	return resp
 }
 
-// mapToGatewayResponse converts a store.Gateway to a GatewayResponse DTO.
-func mapToGatewayResponse2(g store.Gateway) GatewayResponse {
+// mapToGatewayResponse2 converts a store.Gateway to a GatewayResponse DTO.
+func mapToGatewayResponse2(g store.Gateway, activeSessions int64, currentPolicyVersion int64, apps []store.App) GatewayResponse {
 	resp := GatewayResponse{
-		ID:        g.ID.String(),
-		Name:      g.Name,
-		OrgID:     g.OrgID.String(),
-		Version:   g.Version.String,
-		LogToCP:   g.LogToCp,
-		Status:    g.Status,
-		CreatedAt: g.CreatedAt,
+		ID:                    g.ID.String(),
+		Name:                  g.Name,
+		OrgID:                 g.OrgID.String(),
+		Version:               g.Version.String,
+		DeploymentType:        g.DeploymentType,
+		PublicURL:             g.PublicUrl,
+		IPAddress:             g.IpAddress,
+		LogToCP:               g.LogToCp,
+		Status:                g.Status,
+		NumberOfSessionActive: activeSessions,
+		CurrentPolicyVersion:  currentPolicyVersion,
+		CreatedAt:             g.CreatedAt,
 	}
 	if g.LastHeartbeat.Valid {
-		resp.LastHeartBeat = g.LastHeartbeat.Time
+		resp.LastHeartBeat = &g.LastHeartbeat.Time
 	}
 	if g.EnrolledAt.Valid {
-		resp.EnrolledAt = g.EnrolledAt.Time
+		resp.EnrolledAt = &g.EnrolledAt.Time
 	}
 	if g.RevokedAt.Valid {
-		resp.RevokedAt = g.RevokedAt.Time
+		resp.RevokedAt = &g.RevokedAt.Time
 	}
+
+	appSummaries := make([]GatewayAppSummary, 0, len(apps))
+	for _, app := range apps {
+		appSummaries = append(appSummaries, GatewayAppSummary{
+			ID:           app.ID.String(),
+			Name:         app.Name,
+			Subdomain:    app.Subdomain,
+			HealthStatus: app.HealthStatus,
+		})
+	}
+	resp.Apps = appSummaries
+	resp.NumberOfApps = len(appSummaries)
+
 	return resp
 }
 
@@ -116,9 +138,16 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 		return nil, dto.NewAppError(500, dto.CodeInternal, "Failed to list gateways", err.Error())
 	}
 
+	latestPolicyVer, _ := s.repo.GetLatestPolicyVersion(ctx, orgID)
+
 	var responses []GatewayResponse
 	for _, g := range gateways {
-		responses = append(responses, mapToGatewayResponse2(g))
+		activeSessions, _ := s.repo.CountActiveUserSessionsByGateway(ctx, g.ID)
+		apps, _ := s.repo.ListAppsByGateway(ctx, g.ID)
+		responses = append(responses, mapToGatewayResponse2(g, activeSessions, latestPolicyVer, apps))
+	}
+	if responses == nil {
+		responses = []GatewayResponse{}
 	}
 	return responses, nil
 }
@@ -155,7 +184,7 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdr
 	if err != nil {
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to re-enroll gateway", err.Error())
 	}
-	return mapToGatewayResponse2(gateway), nil
+	return mapToGatewayResponse2(gateway, 0, 0, nil), nil
 }
 
 // EnrollGateway enrolls a gateway using a token hash and CSR.
@@ -388,7 +417,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No active cert to revoke, but we can return the gateway response as success
-			return mapToGatewayResponse2(gateway), nil
+			return mapToGatewayResponse2(gateway, 0, 0, nil), nil
 		}
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
 	}
@@ -455,7 +484,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse2(updatedGateway), nil
+	return mapToGatewayResponse2(updatedGateway, 0, 0, nil), nil
 }
 
 // RevokeGateway revokes an entire gateway.
@@ -552,7 +581,7 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse2(updatedGateway), nil
+	return mapToGatewayResponse2(updatedGateway, 0, 0, nil), nil
 }
 
 // Send Rotate Gateway Cert Cmd
@@ -597,7 +626,7 @@ func (s *Service) RotateGatewayCert(ctx context.Context, id uuid.UUID) (GatewayR
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse2(updatedGateway), nil
+	return mapToGatewayResponse2(updatedGateway, 0, 0, nil), nil
 }
 
 // DrainGateway sets status to 'draining' and pushes DrainGatewayCmd.
@@ -652,5 +681,5 @@ func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayRespon
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse2(updatedGateway), nil
+	return mapToGatewayResponse2(updatedGateway, 0, 0, nil), nil
 }

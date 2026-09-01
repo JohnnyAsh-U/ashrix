@@ -30,8 +30,12 @@ type Querier interface {
 	BulkCreateAccessLogs(ctx context.Context, arg []BulkCreateAccessLogsParams) (int64, error)
 	// Dashboard summary counts.
 	CountAccessLogsByResult(ctx context.Context, arg CountAccessLogsByResultParams) (CountAccessLogsByResultRow, error)
+	CountActiveUserSessionsByGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
+	CountAppTrafficToday(ctx context.Context, appID pgtype.UUID) (int64, error)
 	// Used before revoking an owner — must always have at least one.
 	CountOwnersByOrg(ctx context.Context, orgID pgtype.UUID) (int64, error)
+	CountPolicyGroupSubjectsByApp(ctx context.Context, arg CountPolicyGroupSubjectsByAppParams) (int64, error)
+	CountPolicyUserSubjectsByApp(ctx context.Context, arg CountPolicyUserSubjectsByAppParams) (int64, error)
 	// =================================================================
 	// ACCESS LOGS
 	// Written async by Gateway in batches. CP never in traffic path.
@@ -183,7 +187,9 @@ type Querier interface {
 	ListAdminsByOrg(ctx context.Context, orgID pgtype.UUID) ([]Admin, error)
 	ListAppIdPs(ctx context.Context, appID uuid.UUID) ([]IdpConfig, error)
 	ListAppsByConnector(ctx context.Context, connectorID pgtype.UUID) ([]App, error)
+	ListAppsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]App, error)
 	ListAppsByOrg(ctx context.Context, orgID uuid.UUID) ([]App, error)
+	ListAppsWithDetailsByOrg(ctx context.Context, orgID uuid.UUID) ([]ListAppsWithDetailsByOrgRow, error)
 	ListAuditLogsByActor(ctx context.Context, arg ListAuditLogsByActorParams) ([]AuditLog, error)
 	ListAuditLogsByOrg(ctx context.Context, arg ListAuditLogsByOrgParams) ([]AuditLog, error)
 	ListAuditLogsByTarget(ctx context.Context, arg ListAuditLogsByTargetParams) ([]AuditLog, error)
@@ -191,11 +197,13 @@ type Querier interface {
 	ListCRLEntries(ctx context.Context) ([]CrlEntry, error)
 	ListConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)
 	ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]Connector, error)
+	ListConnectorsWithGatewayNameByOrg(ctx context.Context, orgID uuid.UUID) ([]ListConnectorsWithGatewayNameByOrgRow, error)
 	// Dashboard denied requests view.
 	ListDeniedAccessLogs(ctx context.Context, arg ListDeniedAccessLogsParams) ([]AccessLog, error)
 	ListGatewayEventsAfter(ctx context.Context, arg ListGatewayEventsAfterParams) ([]GatewayEvent, error)
 	ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
 	ListIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error)
+	ListPoliciesByAppResource(ctx context.Context, arg ListPoliciesByAppResourceParams) ([]Policy, error)
 	ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)
 	// Called after owner completes SSO binding confirmation flow.
 	MarkIDPConfigVerified(ctx context.Context, arg MarkIDPConfigVerifiedParams) (IdpConfig, error)
@@ -232,6 +240,7 @@ type Querier interface {
 	// Owner only action.
 	UpdateAdminRole(ctx context.Context, arg UpdateAdminRoleParams) (Admin, error)
 	UpdateApp(ctx context.Context, arg UpdateAppParams) (App, error)
+	UpdateAppHealthStatus(ctx context.Context, arg UpdateAppHealthStatusParams) (App, error)
 	UpdateConnectorStatus(ctx context.Context, arg UpdateConnectorStatusParams) (Connector, error)
 	UpdateGatewayBinaryVersion(ctx context.Context, arg UpdateGatewayBinaryVersionParams) (Gateway, error)
 	// Called every 30s by Gateway. Updates last_heartbeat and version.

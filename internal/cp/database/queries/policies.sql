@@ -211,3 +211,34 @@ GROUP BY p.id, pc.condition_tree;
 INSERT INTO policy_audit_log (
     org_id, policy_id, action, actor_id, actor_email, old_state, new_state, ip_address, user_agent
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+
+-- name: ListPoliciesByAppResource :many
+SELECT p.id, p.org_id, p.name, p.description, p.effect, p.priority, p.enabled, p.version, p.sequence, p.created_by, p.created_at, p.updated_at
+FROM policies p
+JOIN policy_resources pr ON pr.policy_id = p.id
+WHERE p.org_id = $1
+  AND pr.resource_type = 'app'
+  AND (pr.resource_value = $2 OR pr.resource_value = $3)
+ORDER BY p.priority DESC;
+
+-- name: CountPolicyUserSubjectsByApp :one
+SELECT COUNT(DISTINCT ps.subject_value)::bigint AS user_count
+FROM policy_subjects ps
+JOIN policy_resources pr ON pr.policy_id = ps.policy_id
+JOIN policies p ON p.id = ps.policy_id
+WHERE p.org_id = $1
+  AND p.enabled = true
+  AND pr.resource_type = 'app'
+  AND (pr.resource_value = $2 OR pr.resource_value = $3)
+  AND ps.subject_type = 'user';
+
+-- name: CountPolicyGroupSubjectsByApp :one
+SELECT COUNT(DISTINCT ps.subject_value)::bigint AS group_count
+FROM policy_subjects ps
+JOIN policy_resources pr ON pr.policy_id = ps.policy_id
+JOIN policies p ON p.id = ps.policy_id
+WHERE p.org_id = $1
+  AND p.enabled = true
+  AND pr.resource_type = 'app'
+  AND (pr.resource_value = $2 OR pr.resource_value = $3)
+  AND ps.subject_type = 'group';

@@ -12,6 +12,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countActiveUserSessionsByGateway = `-- name: CountActiveUserSessionsByGateway :one
+SELECT COUNT(*)::bigint AS active_count FROM user_sessions
+WHERE gateway_id = $1
+  AND (expires_at IS NULL OR expires_at > NOW())
+  AND revoked_at IS NULL
+`
+
+func (q *Queries) CountActiveUserSessionsByGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveUserSessionsByGateway, gatewayID)
+	var active_count int64
+	err := row.Scan(&active_count)
+	return active_count, err
+}
+
 const createUserSessionForGateway = `-- name: CreateUserSessionForGateway :one
 INSERT INTO user_sessions (org_id, user_id, gateway_id, expires_at, issued_at)
 VALUES ($1, $2, $3, $4, NOW())

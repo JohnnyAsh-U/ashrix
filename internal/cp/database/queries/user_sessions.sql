@@ -32,3 +32,9 @@ RETURNING *;
 -- name: GetUserSessionByID :one
 SELECT * FROM user_sessions
 WHERE id = $1;
+
+-- name: CountActiveUserSessionsByGateway :one
+SELECT COUNT(*)::bigint AS active_count FROM user_sessions
+WHERE gateway_id = $1
+  AND (expires_at IS NULL OR expires_at > NOW())
+  AND revoked_at IS NULL;

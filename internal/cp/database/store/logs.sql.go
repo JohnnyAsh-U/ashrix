@@ -56,6 +56,19 @@ func (q *Queries) CountAccessLogsByResult(ctx context.Context, arg CountAccessLo
 	return i, err
 }
 
+const countAppTrafficToday = `-- name: CountAppTrafficToday :one
+SELECT COUNT(*)::bigint AS traffic_count FROM access_logs
+WHERE app_id = $1
+  AND created_at >= CURRENT_DATE
+`
+
+func (q *Queries) CountAppTrafficToday(ctx context.Context, appID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countAppTrafficToday, appID)
+	var traffic_count int64
+	err := row.Scan(&traffic_count)
+	return traffic_count, err
+}
+
 const createAccessLog = `-- name: CreateAccessLog :one
 
 INSERT INTO access_logs (

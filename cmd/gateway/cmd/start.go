@@ -133,6 +133,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 				fmt.Sprintf("run: ashrix-gateway register --cp-url=%s", cfg.CPURL)),
 			slog.Any("err", err),
 		)
+		os.Exit(1)
 	}
 
 	// -----------------Preflight cert check -------------------------
@@ -143,9 +144,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 					slog.String("hint", fmt.Sprintf(
 						"run: ashrix-gateway register --cp-url=%s", cfg.CPURL)),
 					slog.Any("err", renewErr))
+				os.Exit(1)
 			}
 		} else {
 			log.Error("Certifcate Invalid")
+			os.Exit(1)
 		}
 	}
 

@@ -26,6 +26,10 @@ type Repository interface {
 	RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error)
 
 	UpdateGatewayStatus(ctx context.Context, params store.UpdateGatewayStatusParams) (store.Gateway, error)
+
+	CountActiveUserSessionsByGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
+	GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error)
+	ListAppsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]store.App, error)
 }
 
 type postgresRepository struct {
@@ -52,10 +56,6 @@ func (r *postgresRepository) ReCreateGateway(ctx context.Context, params store.R
 	return r.q.ReCreateGateway(ctx, params)
 }
 
-
-
-
-
 func (r *postgresRepository) GetActiveGatewayByID(ctx context.Context, id uuid.UUID) (store.Gateway, error) {
 	return r.q.GetActiveGatewayByID(ctx, id)
 }
@@ -67,7 +67,6 @@ func (r *postgresRepository) GetGatewayByID(ctx context.Context, id uuid.UUID) (
 func (r *postgresRepository) EnrollGatewayUsingTokenHash(ctx context.Context, tokenHash string) (store.Gateway, error) {
 	return r.q.EnrollGateway(ctx, tokenHash)
 }
-
 
 func (r *postgresRepository) GetGatewayByTokenHash(ctx context.Context, token string) (store.Gateway, error) {
 	return r.q.GetGatewayByTokenHash(ctx, token)
@@ -87,6 +86,18 @@ func (r *postgresRepository) RevokeGateway(ctx context.Context, params store.Rev
 
 func (r *postgresRepository) UpdateGatewayStatus(ctx context.Context, params store.UpdateGatewayStatusParams) (store.Gateway, error) {
 	return r.q.UpdateGatewayStatus(ctx, params)
+}
+
+func (r *postgresRepository) CountActiveUserSessionsByGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error) {
+	return r.q.CountActiveUserSessionsByGateway(ctx, gatewayID)
+}
+
+func (r *postgresRepository) GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error) {
+	return r.q.GetLatestPolicyVersion(ctx, orgID)
+}
+
+func (r *postgresRepository) ListAppsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]store.App, error) {
+	return r.q.ListAppsByGateway(ctx, gatewayID)
 }
 
 

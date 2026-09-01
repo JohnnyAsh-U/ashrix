@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	gatewayevents "github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
@@ -39,6 +40,7 @@ type cpServer struct {
 	eventRepo     gatewayevents.Repository
 	PkiCARepo     pkica.Repository
 	connectorRepo connector.Repository
+	appRepo       app.Repository
 	// dbQueries   *store.Queries
 	log *slog.Logger
 }
@@ -359,6 +361,28 @@ func (s *cpServer) handleHeartbeat(
 		})
 		if err != nil {
 			s.log.Warn("failed to update connector status in DB", "connector_id", connStat.ConnectorId, "error", err)
+		}
+	}
+
+	for _, appHealth := range heartbeat.AppHealth {
+		appUUID, err := uuid.Parse(appHealth.AppId)
+		if err != nil {
+			s.log.Warn("invalid app ID in heartbeat telemetry", "app_id", appHealth.AppId, "error", err)
+			continue
+		}
+		var lastSeen pgtype.Timestamptz
+		if appHealth.LastSeen != nil {
+			lastSeen = pgtype.Timestamptz{Time: appHealth.LastSeen.AsTime(), Valid: true}
+		} else {
+			lastSeen = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+		}
+		_, err = s.appRepo.UpdateAppHealthStatus(ctx, store.UpdateAppHealthStatusParams{
+			ID:           appUUID,
+			HealthStatus: appHealth.HealthStatus,
+			LastSeen:     lastSeen,
+		})
+		if err != nil {
+			s.log.Warn("failed to update app health status in DB", "app_id", appHealth.AppId, "error", err)
 		}
 	}
 

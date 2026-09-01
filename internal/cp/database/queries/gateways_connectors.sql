@@ -236,6 +236,13 @@ SELECT * FROM connectors
 WHERE org_id     = $1
 ORDER BY created_at ASC;
 
+-- name: ListConnectorsWithGatewayNameByOrg :many
+SELECT c.*, g.name AS gateway_name
+FROM connectors c
+JOIN gateways g ON c.gateway_id = g.id
+WHERE c.org_id = $1
+ORDER BY c.created_at ASC;
+
 -- name: ListConnectorsByGateway :many
 SELECT * FROM connectors
 WHERE gateway_id = $1

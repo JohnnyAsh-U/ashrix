@@ -63,6 +63,56 @@ func (q *Queries) BuildPolicyRuleSnapshot(ctx context.Context, arg BuildPolicyRu
 	return rule_snapshot, err
 }
 
+const countPolicyGroupSubjectsByApp = `-- name: CountPolicyGroupSubjectsByApp :one
+SELECT COUNT(DISTINCT ps.subject_value)::bigint AS group_count
+FROM policy_subjects ps
+JOIN policy_resources pr ON pr.policy_id = ps.policy_id
+JOIN policies p ON p.id = ps.policy_id
+WHERE p.org_id = $1
+  AND p.enabled = true
+  AND pr.resource_type = 'app'
+  AND (pr.resource_value = $2 OR pr.resource_value = $3)
+  AND ps.subject_type = 'group'
+`
+
+type CountPolicyGroupSubjectsByAppParams struct {
+	OrgID           uuid.UUID `json:"org_id"`
+	ResourceValue   string    `json:"resource_value"`
+	ResourceValue_2 string    `json:"resource_value_2"`
+}
+
+func (q *Queries) CountPolicyGroupSubjectsByApp(ctx context.Context, arg CountPolicyGroupSubjectsByAppParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPolicyGroupSubjectsByApp, arg.OrgID, arg.ResourceValue, arg.ResourceValue_2)
+	var group_count int64
+	err := row.Scan(&group_count)
+	return group_count, err
+}
+
+const countPolicyUserSubjectsByApp = `-- name: CountPolicyUserSubjectsByApp :one
+SELECT COUNT(DISTINCT ps.subject_value)::bigint AS user_count
+FROM policy_subjects ps
+JOIN policy_resources pr ON pr.policy_id = ps.policy_id
+JOIN policies p ON p.id = ps.policy_id
+WHERE p.org_id = $1
+  AND p.enabled = true
+  AND pr.resource_type = 'app'
+  AND (pr.resource_value = $2 OR pr.resource_value = $3)
+  AND ps.subject_type = 'user'
+`
+
+type CountPolicyUserSubjectsByAppParams struct {
+	OrgID           uuid.UUID `json:"org_id"`
+	ResourceValue   string    `json:"resource_value"`
+	ResourceValue_2 string    `json:"resource_value_2"`
+}
+
+func (q *Queries) CountPolicyUserSubjectsByApp(ctx context.Context, arg CountPolicyUserSubjectsByAppParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPolicyUserSubjectsByApp, arg.OrgID, arg.ResourceValue, arg.ResourceValue_2)
+	var user_count int64
+	err := row.Scan(&user_count)
+	return user_count, err
+}
+
 const deletePolicy = `-- name: DeletePolicy :exec
 DELETE FROM policies WHERE id = $1 AND org_id = $2
 `
@@ -597,6 +647,55 @@ type InsertPolicySubjectParams struct {
 func (q *Queries) InsertPolicySubject(ctx context.Context, arg InsertPolicySubjectParams) error {
 	_, err := q.db.Exec(ctx, insertPolicySubject, arg.PolicyID, arg.SubjectType, arg.SubjectValue)
 	return err
+}
+
+const listPoliciesByAppResource = `-- name: ListPoliciesByAppResource :many
+SELECT p.id, p.org_id, p.name, p.description, p.effect, p.priority, p.enabled, p.version, p.sequence, p.created_by, p.created_at, p.updated_at
+FROM policies p
+JOIN policy_resources pr ON pr.policy_id = p.id
+WHERE p.org_id = $1
+  AND pr.resource_type = 'app'
+  AND (pr.resource_value = $2 OR pr.resource_value = $3)
+ORDER BY p.priority DESC
+`
+
+type ListPoliciesByAppResourceParams struct {
+	OrgID           uuid.UUID `json:"org_id"`
+	ResourceValue   string    `json:"resource_value"`
+	ResourceValue_2 string    `json:"resource_value_2"`
+}
+
+func (q *Queries) ListPoliciesByAppResource(ctx context.Context, arg ListPoliciesByAppResourceParams) ([]Policy, error) {
+	rows, err := q.db.Query(ctx, listPoliciesByAppResource, arg.OrgID, arg.ResourceValue, arg.ResourceValue_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Policy{}
+	for rows.Next() {
+		var i Policy
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.Name,
+			&i.Description,
+			&i.Effect,
+			&i.Priority,
+			&i.Enabled,
+			&i.Version,
+			&i.Sequence,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPoliciesByOrg = `-- name: ListPoliciesByOrg :many
