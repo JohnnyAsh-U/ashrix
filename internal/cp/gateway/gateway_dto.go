@@ -55,5 +55,9 @@ type GatewayResponse struct {
 	CurrentPolicyVersion  int64               `json:"current_policy_version"`
 	NumberOfApps          int                 `json:"number_of_apps"`
 	Apps                  []GatewayAppSummary `json:"apps"`
+	Token                 string              `json:"token"`
+	
+	CertificateIssuedAt   *time.Time          `json:"certificate_issued_at,omitempty"`
+	CertificateExpiresAt  *time.Time          `json:"certificate_expires_at,omitempty"`
 	CreatedAt             time.Time           `json:"created_at"`
 }

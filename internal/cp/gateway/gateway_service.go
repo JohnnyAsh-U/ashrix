@@ -34,7 +34,7 @@ func NewService(repo Repository, pkiRepo pkica.Repository, eventRepo events.Repo
 }
 
 // mapToGatewayResponse converts a store.CreateGatewayRow to a GatewayResponse DTO.
-func mapToGatewayResponse(g store.CreateGatewayRow) GatewayResponse {
+func mapToGatewayResponse(g store.CreateGatewayRow, token string) GatewayResponse {
 	resp := GatewayResponse{
 		ID:             g.ID.String(),
 		Name:           g.Name,
@@ -47,6 +47,7 @@ func mapToGatewayResponse(g store.CreateGatewayRow) GatewayResponse {
 		LogToCP:        g.LogToCp,
 		Apps:           []GatewayAppSummary{},
 		CreatedAt:      g.CreatedAt,
+		Token: token,
 	}
 	if g.LastHeartbeat.Valid {
 		resp.LastHeartBeat = &g.LastHeartbeat.Time
@@ -61,7 +62,7 @@ func mapToGatewayResponse(g store.CreateGatewayRow) GatewayResponse {
 }
 
 // mapToGatewayResponse2 converts a store.Gateway to a GatewayResponse DTO.
-func mapToGatewayResponse2(g store.Gateway, activeSessions int64, currentPolicyVersion int64, apps []store.App) GatewayResponse {
+func mapToGatewayResponse2(g store.Gateway, activeSessions int64, certificate store.ComponentCertificate, token string, currentPolicyVersion int64, apps []store.App) GatewayResponse {
 	resp := GatewayResponse{
 		ID:                    g.ID.String(),
 		Name:                  g.Name,
@@ -75,6 +76,9 @@ func mapToGatewayResponse2(g store.Gateway, activeSessions int64, currentPolicyV
 		NumberOfSessionActive: activeSessions,
 		CurrentPolicyVersion:  currentPolicyVersion,
 		CreatedAt:             g.CreatedAt,
+		Token: token,
+		CertificateIssuedAt:            &certificate.CreatedAt,
+		CertificateExpiresAt:     &certificate.ExpiresAt,
 	}
 	if g.LastHeartbeat.Valid {
 		resp.LastHeartBeat = &g.LastHeartbeat.Time
@@ -128,7 +132,7 @@ func (s *Service) CreateGateway(ctx context.Context, name, IPAdress, PublicURL s
 	if err != nil {
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create gateway", err.Error())
 	}
-	return mapToGatewayResponse(gateway), nil
+	return mapToGatewayResponse(gateway,token), nil
 }
 
 // ListGatewaysByOrg lists all gateways for a given organization.
@@ -140,11 +144,17 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 
 	latestPolicyVer, _ := s.repo.GetLatestPolicyVersion(ctx, orgID)
 
+	
+
 	var responses []GatewayResponse
 	for _, g := range gateways {
 		activeSessions, _ := s.repo.CountActiveUserSessionsByGateway(ctx, g.ID)
 		apps, _ := s.repo.ListAppsByGateway(ctx, g.ID)
-		responses = append(responses, mapToGatewayResponse2(g, activeSessions, latestPolicyVer, apps))
+		cert, _ := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+			ComponentID: pgtype.UUID{Bytes: g.ID, Valid: true},
+			ComponentType:  "gateway",
+		})
+		responses = append(responses, mapToGatewayResponse2(g, activeSessions,cert, "", latestPolicyVer, apps))
 	}
 	if responses == nil {
 		responses = []GatewayResponse{}
@@ -169,7 +179,6 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdr
 
 	//Generate a 6 chars token and hash
 	token := utils.GenerateRandomString(6)
-	fmt.Println(token)
 
 	params := store.ReCreateGatewayParams{
 		ID:        id,
@@ -181,10 +190,79 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdr
 	}
 
 	gateway, err := s.repo.ReCreateGateway(ctx, params)
+
+	//Revoke any Existing cert and disconnect the gateway
+	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+		ComponentType: "gateway",
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
+	})
 	if err != nil {
-		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to re-enroll gateway", err.Error())
+		if errors.Is(err, sql.ErrNoRows) {
+			// No active cert to revoke, but we can return the gateway response as success
+			return mapToGatewayResponse2(gateway, 0, store.ComponentCertificate{}, token, 0, nil), nil
+		}
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
 	}
-	return mapToGatewayResponse2(gateway, 0, 0, nil), nil
+
+	// Revoke component cert
+	paramsRevokeCert := store.RevokeCompCertParams{
+		ComponentID:   pgtype.UUID{Valid: true, Bytes: id},
+		ComponentType: "gateway",
+		RevokeReason:  pgtype.Text{String: "cessationOfOperation", Valid: true},
+	}
+	_, err = s.pkiRepo.RevokeComponentCert(ctx, paramsRevokeCert)
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke component certificate", err.Error())
+	}
+
+	// Create CRL Entry
+	_, err = s.pkiRepo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
+		CertID:       activeCert.ID,
+		SerialNumber: activeCert.SerialNumber,
+		Reason:       "cessationOfOperation",
+	})
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
+	}
+
+
+
+	// Dispatch RevokeGatewayCertCmd to the gateway if connected
+
+	payload := events.CommandJob{
+		Type:      events.CmdRevokeGateway,
+		GatewayID: id.String(),
+	}
+
+	_, err = s.eventRepo.CreateEvent(ctx, payload)
+
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
+	}
+
+	//Get all the active CRLs
+	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
+
+	var revokedSerials []string
+	for _, crl := range activeCRLs {
+		revokedSerials = append(revokedSerials, crl.SerialNumber)
+	}
+
+	payloadRevokedSerials := events.CommandJob{
+		Type:                 events.CmdCrlSync,
+		GatewayID:            id.String(),
+		RevokedSerialNumbers: revokedSerials,
+	}
+
+	_, err = s.eventRepo.CreateEvent(ctx, payloadRevokedSerials)
+
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
+	}
+
+	s.dispatcher.Wakeup(id.String())
+
+	return mapToGatewayResponse2(gateway, 0,store.ComponentCertificate{},token, 0, nil), nil
 }
 
 // EnrollGateway enrolls a gateway using a token hash and CSR.
@@ -417,7 +495,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No active cert to revoke, but we can return the gateway response as success
-			return mapToGatewayResponse2(gateway, 0, 0, nil), nil
+			return mapToGatewayResponse2(gateway, 0, store.ComponentCertificate{}, "", 0, nil), nil
 		}
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
 	}
@@ -484,7 +562,7 @@ func (s *Service) RevokeGatewayCert(ctx context.Context, gatewayID uuid.UUID, re
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse2(updatedGateway, 0, 0, nil), nil
+	return mapToGatewayResponse2(updatedGateway, 0, store.ComponentCertificate{}, "", 0, nil), nil
 }
 
 // RevokeGateway revokes an entire gateway.
@@ -581,7 +659,7 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID) (GatewayRespo
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse2(updatedGateway, 0, 0, nil), nil
+	return mapToGatewayResponse2(updatedGateway, 0, store.ComponentCertificate{}, "", 0, nil), nil
 }
 
 // Send Rotate Gateway Cert Cmd
@@ -626,7 +704,7 @@ func (s *Service) RotateGatewayCert(ctx context.Context, id uuid.UUID) (GatewayR
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse2(updatedGateway, 0, 0, nil), nil
+	return mapToGatewayResponse2(updatedGateway, 0, store.ComponentCertificate{}, "", 0, nil), nil
 }
 
 // DrainGateway sets status to 'draining' and pushes DrainGatewayCmd.
@@ -681,5 +759,5 @@ func (s *Service) DrainGateway(ctx context.Context, id uuid.UUID) (GatewayRespon
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToGatewayResponse2(updatedGateway, 0, 0, nil), nil
+	return mapToGatewayResponse2(updatedGateway, 0, store.ComponentCertificate{}, "", 0, nil), nil
 }
