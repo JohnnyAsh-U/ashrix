@@ -344,14 +344,15 @@ func (i *IDPHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, token, err := i.idpService.ExchangeService(ctx, state, code)
+	gatewayurl, token, err := i.idpService.ExchangeService(ctx, state, code)
 	if err != nil {
 		dto.SendError(w, dto.NewAppError(500, dto.CodeForbidden, err.Error(), nil))
 		return
 	}
 
+	gatewayRedirectUrl := fmt.Sprintf("https://%s:8443", gatewayurl)
 	//Redirect to Gateway with token
-	redirectUrl := fmt.Sprintf("%s/_ashrix/auth/callback?state=%s", "http://gateway.ashrix.io:8000", url.QueryEscape(token))
+	redirectUrl := fmt.Sprintf("%s/_ashrix/auth/callback?state=%s", gatewayRedirectUrl, url.QueryEscape(token))
 	// dto.SendSuccess(w, http.StatusCreated, redirectUrl)
 	http.Redirect(w, r, redirectUrl, http.StatusTemporaryRedirect)
 }

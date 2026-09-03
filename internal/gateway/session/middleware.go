@@ -43,7 +43,7 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			if !exists {
 				logger.Error("Connection NOT FOUND")
 				errHandler.ErrorPage(w, http.StatusNotFound, "NOT FOUND", "The application you requested could not be found.", "")
-				return 
+				return
 			}
 
 			// if !connector.IsRoutable() {
@@ -73,8 +73,6 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			ctx := context.WithValue(r.Context(), ConnectorID, connector.ConnectorID)
 			ctx = context.WithValue(ctx, AppID, foundApp.Id)
 			ctx = context.WithValue(ctx, AppIsPublic, foundApp.IsPublic)
-
-
 
 			//Check if public no session needed
 			if foundApp.IsPublic {
@@ -118,14 +116,13 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			params.Set("aid", foundApp.Id)
 			params.Set("gid", cfg.GatewayID)
 
-			fmt.Println(connector.TenantID, foundApp.Id)
+			domain := CookieDomain(cfg.GatewayUrl)
 			//Set the state in the cookies
 			http.SetCookie(w, &http.Cookie{
 				Name:  "state",
 				Value: state,
 				Path:  "/",
-				// Domain: cfg.GatewayUrl,
-				Domain:   ".ashrix.io",
+				Domain:   domain,
 				MaxAge:   int(600),
 				HttpOnly: true,
 				Secure:   cfg.CookieSecure,
@@ -144,6 +141,3 @@ func isInternalPath(path string) bool {
 	return path == "/_ashrix/health" || path == "/_ashrix/logout" ||
 		strings.HasPrefix(path, "/_ashrix/auth/") || strings.HasPrefix(path, "/_ashrix/static/")
 }
-
-
-

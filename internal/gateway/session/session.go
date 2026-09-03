@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
+    "golang.org/x/net/publicsuffix"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -124,11 +127,13 @@ func (sm *SessionManager) Create(w http.ResponseWriter, r *http.Request, identit
 		return fmt.Errorf("create session: %w", err)
 	}
 
+	domain := CookieDomain(r.Host)
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
 		Value:    sid,
 		Path:     "/",
-		Domain:   ".ashrix.io",
+		Domain:   domain,
 		MaxAge:   int(sm.ttl.Seconds()),
 		HttpOnly: true,
 		Secure:   sm.secure,
@@ -293,4 +298,20 @@ func (sm *SessionManager) RevokeGatewaySession(
 	}
 
 	return nil
+}
+
+
+func CookieDomain(host string) string {
+    host = strings.TrimSuffix(host, ".")
+
+    if h, _, err := net.SplitHostPort(host); err == nil {
+        host = h
+    }
+
+    domain, err := publicsuffix.EffectiveTLDPlusOne(host)
+    if err != nil {
+        return ""
+    }
+
+    return domain
 }
