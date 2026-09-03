@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
@@ -145,7 +144,6 @@ func (h *GatewayHandler) EnrollGateway(w http.ResponseWriter, r *http.Request) {
 
 	enrollmentResponse, appErr := h.service.EnrollGateway(r.Context(), req.Token, req.CsrPem, h.signer)
 	if appErr != nil {
-		fmt.Println("Error enrolling gateway:", appErr)
 		dto.SendError(w, appErr)
 		return
 	}

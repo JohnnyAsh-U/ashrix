@@ -458,7 +458,6 @@ func (h *StreamManager) handlePolicyUpdate(ctx context.Context, msg *pb.CPEnvelo
 	if err != nil {
 		h.log.Warn("ERROR: GETTING CHECKPOINT")
 	}
-	fmt.Println(checkpoint)
 	h.engine.ApplyVerifiedDelta(ctx, msg.GetPolicyBundle(), checkpoint)
 }
 

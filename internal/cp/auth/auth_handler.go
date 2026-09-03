@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/dto"
@@ -137,7 +136,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.svc.Login(r.Context(), req)
 	if err != nil {
-		fmt.Println(err)
 		dto.SendError(w, err)
 		return
 	}

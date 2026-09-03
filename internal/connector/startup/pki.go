@@ -103,6 +103,7 @@ func (p *PKIInitialiser) TLSConfig() *tls.Config {
 
 		RootCAs:    p.pool,
 		MinVersion: tls.VersionTLS13,
+		NextProtos: []string{"ashrix-mtls", "h2", "ashrix-quic-v1"},
 	}
 }
 

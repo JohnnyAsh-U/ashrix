@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
@@ -112,7 +111,6 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 
 	//Generate a 6 chars token and hash
 	token := utils.GenerateRandomString(6)
-	fmt.Println(token)
 
 	params := store.CreateConnectorParams{
 		OrgID:     AdminUUID,
@@ -189,7 +187,6 @@ func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name stri
 
 	//Generate a 6 chars token and hash
 	token := utils.GenerateRandomString(6)
-	fmt.Println(token)
 
 	params := store.ReCreateConnectorParams{
 		ID:        id,

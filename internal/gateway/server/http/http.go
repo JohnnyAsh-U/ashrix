@@ -1,8 +1,9 @@
 package http_proxy
 
 import (
-	"fmt"
+	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/posture"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5"
@@ -36,6 +38,7 @@ func NewProxyServer(
 	activeStreams *registry.ActiveStreamRegistry,
 	engine *policy.PolicyEngine,
 	rtr *router.Router,
+	grpcServer *grpc.GRPCServer,
 ) *ProxyServer {
 
 	rateLimiter := session.NewRedisLimiter(redisClient, 10, time.Minute)
@@ -43,15 +46,15 @@ func NewProxyServer(
 	staticFileHandler := web.NewStaticFileHandler()
 
 	handler := NewHandler(
-		log, 
-		connectorRegistry, 
-		sessions, 
-		rateLimiter, 
-		redisClient, 
-		grpcClient, 
-		activeStreams, 
-		cfg, 
-		rtr, 
+		log,
+		connectorRegistry,
+		sessions,
+		rateLimiter,
+		redisClient,
+		grpcClient,
+		activeStreams,
+		cfg,
+		rtr,
 		errHandler,
 	)
 
@@ -73,8 +76,6 @@ func NewProxyServer(
 
 	collector := posture.NewCollector(geoReader, torChecker, repDB)
 
-	
-
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.ClientIPFromHeader("X-Real-IP"))
@@ -84,8 +85,6 @@ func NewProxyServer(
 	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig())) // <-- updated
 	r.Use(chimiddleware.Timeout(30 * time.Second))
 
-
-
 	r.Use(session.SessionMiddleware(connectorRegistry, sessions, redisClient, cfg, errHandler, log))
 	r.Use(posture.PostureMiddleware(collector, log))
 	r.Use(RateLimiterMiddleware(DefaultRateLimiterConfig(redisClient), log, errHandler)) // ← after session
@@ -93,30 +92,84 @@ func NewProxyServer(
 
 	r.Handle("/_ashrix/static/*", staticFileHandler)
 
-
 	r.Get("/_ashrix/health", handler.Health)
 	r.Get("/_ashrix/logout", handler.Logout)
 	r.Get("/_ashrix/auth/callback", handler.Callback)
 	r.HandleFunc("/*", handler.ProxyHandler)
 
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%s", cfg.HTTPPort),
-		Handler:      r,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
-		// TLSConfig will be set by the main loop using GatewayPKI
-	}
+	// ------------------------------------------------------------
+	// Shared HTTP + gRPC handler
+	// ------------------------------------------------------------
+
+	rootHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+
+			// ----------------------------------------------------
+			// gRPC
+			// ----------------------------------------------------
+
+			if grpcServer.IsGRPCRequest(req) {
+				// Defense in depth.
+
+				// Even though "grpc-mtls" caused the TLS layer
+				// to require a client certificate, we still
+				// explicitly verify it here.
+				if !grpcServer.HasVerifiedClientCertificate(req) {
+					log.Warn("gRPC request rejected: missing verified client certificate", slog.String("remote_addr", req.RemoteAddr))
+					http.Error(w, "mTLS client certificate required", http.StatusUnauthorized)
+					return
+				}
+				// IMPORTANT:
+				//
+				// Do NOT run the normal Chi middleware chain.
+				//
+				// gRPC has its own protocol semantics and
+				// long-lived HTTP/2 streams.
+				// TLS was performed by net/http.
+				//
+				// grpc-go therefore doesn't automatically have
+				// credentials.TLSInfo in peer.AuthInfo.
+				//
+				// Inject it into the request context.
+				ctx := grpcServer.ContextWithTLSInfo(req.Context(), req.TLS)
+
+				req = req.WithContext(ctx)
+				grpcServer.Handler().ServeHTTP(w, req)
+				return
+			}
+
+			// ----------------------------------------------------
+			// Normal HTTPS application traffic
+			// ----------------------------------------------------
+
+			r.ServeHTTP(w, req)
+		},
+	)
 
 	return &ProxyServer{
-		http: srv,
-		log:  log,
+		http: &http.Server{
+			Addr:              "",
+			Handler:           rootHandler,
+			ReadHeaderTimeout: 10 * time.Second,
+			IdleTimeout:       120 * time.Second,
+		},
+
+		log: log,
 	}
 }
 
-func (s *ProxyServer) Start() error {
-	s.log.Info("Gateway Http Proxy Server starting", slog.String("addr", s.http.Addr))
-	// In production, this uses s.http.ListenAndServeTLS("", "")
-	// with the Gateway's certificate identity.
-	return s.http.ListenAndServe()
+// Start serves HTTP and gRPC on the supplied TLS listener.
+func (s *ProxyServer) Start(listener net.Listener) error {
+	s.log.Info("Gateway HTTP + gRPC server starting", slog.String("addr", listener.Addr().String()))
+	return s.http.Serve(listener)
+}
+
+func (s *ProxyServer) Shutdown(ctx context.Context) error {
+	s.log.Info("Gateway HTTP + gRPC server shutting down")
+	return s.http.Shutdown(ctx)
+}
+
+func (s *ProxyServer) Stop() error {
+	s.log.Info("Gateway HTTP + gRPC server stopping")
+	return s.http.Close()
 }

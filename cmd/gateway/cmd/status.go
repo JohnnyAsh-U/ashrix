@@ -57,7 +57,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	certPath := filepath.Join(cfg.DataDir, "gateway.crt")
 	_, cert, err := pki_utils.LoadKeyAndCert(keyPath, certPath, "SECRET", "GATEWAY")
 
-	fmt.Println(keyPath)
 	if err != nil {
 		fmt.Println("certificate or key: not found — run register")
 	}

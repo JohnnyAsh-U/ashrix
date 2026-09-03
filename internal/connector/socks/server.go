@@ -239,8 +239,6 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 		return fmt.Errorf("failed to decode response frame: %w", err)
 	}
 
-	fmt.Println(&respFrame)
-
 	if respFrame.Method != "OPEN_OK" {
 		writeConnectReply(conn, ReplyNotAllowed)
 		return fmt.Errorf("gateway rejected open request: status=%s", respFrame.Method)

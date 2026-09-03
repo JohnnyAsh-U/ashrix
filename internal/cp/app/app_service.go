@@ -233,7 +233,6 @@ func (s *Service) DispatchReloadConnectorCmd(ctx context.Context, connectorID st
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	fmt.Println(connectorUUID)
 	connector, err := s.connectorRepo.GetConnectorByID(ctx, connectorUUID)
 	if err != nil {
 		fmt.Println(err.Error())

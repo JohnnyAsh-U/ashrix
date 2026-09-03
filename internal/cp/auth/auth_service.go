@@ -177,7 +177,6 @@ func (s *Service) VerifyOTPSetup(ctx context.Context, req VerifyOTPSetupRequest)
 		OrgID: pgtype.UUID{Bytes: orgID, Valid: true},
 	})
 	if err != nil {
-		fmt.Println(err)
 		return TokenPair{}, dto.NewErrInternal(err)
 	}
 
@@ -336,7 +335,6 @@ func (s *Service) ChangePassword(ctx context.Context, adminID uuid.UUID, req Cha
 
 	if err := bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash.String), []byte(req.CurrentPassword)); err != nil {
 
-		fmt.Println(err)
 		return dto.NewBadRequestError("Password Not Correct")
 	}
 

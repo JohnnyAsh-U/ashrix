@@ -22,6 +22,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
@@ -242,30 +243,36 @@ func runStart(cmd *cobra.Command, args []string) error {
 	defer pki.Stop()
 
 	//--------------------Start Listeners--------------------
+	mtlsConfig := pki.GetTLSConfig()
 
-	// Instantiate new servers
-	grpcServer := grpc.NewGRPCServer(cfg, pki.GetTLSConfig(), log, reg)
-	quicServer := quic_server.NewQUICServer(cfg, pki.GetTLSConfig(), log, reg, rtr)
-	httpServer := http_proxy.NewProxyServer(cfg, grpcClient, reg, redisStore.Client(), sessions, log, activeStreams, engine, rtr)
+	log.Info("initializing Gateway servers")
 
-	// Start servers in background
-	go func() {
-		if err := httpServer.Start(); err != nil {
-			log.Error("HTTP server stopped", slog.Any("err", err))
-		}
-	}()
+	grpcServer := grpc.NewGRPCServer(log, reg, mtlsConfig, cfg.IsProdEnv)
+	httpServer := http_proxy.NewProxyServer(
+		cfg,
+		grpcClient,
+		reg,
+		redisStore.Client(),
+		sessions,
+		log,
+		activeStreams,
+		engine,
+		rtr,
+		grpcServer,
+	)
+	
+	quicServer := quic_server.NewQUICServer(
+		cfg,
+		mtlsConfig,
+		log,
+		reg,
+		rtr,
+	)
 
-	go func() {
-		if err := grpcServer.Start(); err != nil {
-			log.Error("gRPC server stopped", slog.Any("err", err))
-		}
-	}()
-
-	go func() {
-		if err := quicServer.Start(ctx); err != nil {
-			log.Error("QUIC server stopped", slog.Any("err", err))
-		}
-	}()
+	if err := server.StartServers(cfg, mtlsConfig, ctx, log, grpcServer, httpServer, quicServer); err != nil {
+		log.Error(err.Error())
+		os.Exit(1)
+	}
 
 	// Block until SIGTERM or SIGINT (Ctrl+C / systemd stop / our stop command).
 	quit := make(chan os.Signal, 1)
@@ -274,18 +281,17 @@ func runStart(cmd *cobra.Command, args []string) error {
 	sig := <-quit
 	log.Info("shutdown signal received", slog.String("signal", sig.String()))
 
-	// Stop listeners gracefully
-	grpcServer.Stop()
-	quicServer.Stop()
-	// If your HTTP server has a Stop/Shutdown method, call it here:
-	// httpServer.Stop()
+	server.ShutdownServers(httpServer, grpcServer, quicServer, log)
 
-	// Cancel context → StreamManager.Run and HealthCheckLoop exit
+	// Cancel context → StreamManager.Run exits.
 	cancel()
 
-	// Close the gRPC connection explicitly
+	// Close the CP connection explicitly.
 	if err := cm.Close(); err != nil {
-		log.Error("failed to close CP connection", slog.Any("err", err))
+		log.Error(
+			"failed to close CP connection",
+			slog.Any("err", err),
+		)
 	}
 
 	return nil

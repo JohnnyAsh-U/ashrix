@@ -143,12 +143,12 @@ func runStart() (err error) {
 		apps := result.Status.Apps
 
 		//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
-		gRPCURL := result.Status.GatewayIp + ":9444"
+		gRPCURL := result.Status.GatewayIp + ":8443"
 
 		//---------------------------Config for different Transport---------------------------------------------//
 		config := transport.Config{
-			GatewayQUICAddr: result.Status.GatewayIp + ":9445",
-			GatewayGRPCAddr: result.Status.GatewayIp + ":9444",
+			GatewayQUICAddr: result.Status.GatewayIp + ":8443",
+			GatewayGRPCAddr: result.Status.GatewayIp + ":8443",
 			GatewayWSURL:    "wss://" + result.Status.GatewayIp + "/ws",
 			ConnectorID:     connectorID,
 			OpenSock:        result.Status.OpenSock,

@@ -253,7 +253,6 @@ func (h *ConnectorHandler) RenewConnectorCert(w http.ResponseWriter, r *http.Req
 	timestampSeconds := req.Timestamp.AsTime().Unix()
 	enrollmentResponse, appErr := h.service.RenewConnectorCert(r.Context(), connID, req.Signature, req.CsrPem, timestampSeconds, h.signer)
 	if appErr != nil {
-		fmt.Println(appErr.Details)
 		dto.SendError(w, appErr)
 		return
 	}

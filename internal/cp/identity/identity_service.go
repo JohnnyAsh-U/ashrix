@@ -145,7 +145,6 @@ func (r *IDPService) ResolveAppIDP(ctx context.Context, appID, gatewayID uuid.UU
 
 		adapter, err := r.getOrCreateAdapter(ctx, &cfg)
 		if err != nil {
-			fmt.Println(err)
 			// Log error but continue with other providers
 			continue
 		}
@@ -311,8 +310,6 @@ func (r *IDPService) CreateTenantIdentityConfig(ctx context.Context, orgID uuid.
 	if err != nil {
 		return store.IdpConfig{}, fmt.Errorf("encrypt client secret: %w", err)
 	}
-
-	fmt.Println(encryptedSecret, req.ClientSecretEnc)
 
 	var identityProvider *oidc.IdentityProvider
 	switch req.Type {

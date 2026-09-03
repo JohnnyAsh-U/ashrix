@@ -14,3 +14,5 @@ docs/
 *.db
 *.sqlite
 *.sqlite3
+server.crt
+server.key

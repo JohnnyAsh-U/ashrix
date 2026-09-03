@@ -26,12 +26,21 @@ type QUICServer struct {
 }
 
 func NewQUICServer(cfg *config.Config, tlsConfig *tls.Config, log *slog.Logger, registry *registry.Registry, rtr *router.Router) *QUICServer {
-	// Enforce mTLS by requiring client certificates
-	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	
+	quicTLS := tlsConfig.Clone()
+
+	// Connector authentication.
+	quicTLS.ClientAuth =
+		tls.RequireAndVerifyClientCert
+
+	// QUIC has its own ALPN.
+	quicTLS.NextProtos = []string{
+		"ashrix-quic-v1",
+	}
 
 	return &QUICServer{
 		addr:     fmt.Sprintf(":%s", cfg.QUICPort),
-		tlsConf:  tlsConfig,
+		tlsConf:  quicTLS,
 		log:      log,
 		registry: registry,
 		router:   rtr,

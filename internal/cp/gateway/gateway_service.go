@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
@@ -47,7 +46,7 @@ func mapToGatewayResponse(g store.CreateGatewayRow, token string) GatewayRespons
 		LogToCP:        g.LogToCp,
 		Apps:           []GatewayAppSummary{},
 		CreatedAt:      g.CreatedAt,
-		Token: token,
+		Token:          token,
 	}
 	if g.LastHeartbeat.Valid {
 		resp.LastHeartBeat = &g.LastHeartbeat.Time
@@ -76,9 +75,9 @@ func mapToGatewayResponse2(g store.Gateway, activeSessions int64, certificate st
 		NumberOfSessionActive: activeSessions,
 		CurrentPolicyVersion:  currentPolicyVersion,
 		CreatedAt:             g.CreatedAt,
-		Token: token,
-		CertificateIssuedAt:            &certificate.CreatedAt,
-		CertificateExpiresAt:     &certificate.ExpiresAt,
+		Token:                 token,
+		CertificateIssuedAt:   &certificate.CreatedAt,
+		CertificateExpiresAt:  &certificate.ExpiresAt,
 	}
 	if g.LastHeartbeat.Valid {
 		resp.LastHeartBeat = &g.LastHeartbeat.Time
@@ -117,7 +116,6 @@ func (s *Service) CreateGateway(ctx context.Context, name, IPAdress, PublicURL s
 
 	//Generate a 6 chars token and hash
 	token := utils.GenerateRandomString(6)
-	fmt.Println(token)
 
 	params := store.CreateGatewayParams{
 		OrgID:          AdminUUID,
@@ -132,7 +130,7 @@ func (s *Service) CreateGateway(ctx context.Context, name, IPAdress, PublicURL s
 	if err != nil {
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create gateway", err.Error())
 	}
-	return mapToGatewayResponse(gateway,token), nil
+	return mapToGatewayResponse(gateway, token), nil
 }
 
 // ListGatewaysByOrg lists all gateways for a given organization.
@@ -144,17 +142,15 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 
 	latestPolicyVer, _ := s.repo.GetLatestPolicyVersion(ctx, orgID)
 
-	
-
 	var responses []GatewayResponse
 	for _, g := range gateways {
 		activeSessions, _ := s.repo.CountActiveUserSessionsByGateway(ctx, g.ID)
 		apps, _ := s.repo.ListAppsByGateway(ctx, g.ID)
 		cert, _ := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
-			ComponentID: pgtype.UUID{Bytes: g.ID, Valid: true},
-			ComponentType:  "gateway",
+			ComponentID:   pgtype.UUID{Bytes: g.ID, Valid: true},
+			ComponentType: "gateway",
 		})
-		responses = append(responses, mapToGatewayResponse2(g, activeSessions,cert, "", latestPolicyVer, apps))
+		responses = append(responses, mapToGatewayResponse2(g, activeSessions, cert, "", latestPolicyVer, apps))
 	}
 	if responses == nil {
 		responses = []GatewayResponse{}
@@ -191,6 +187,12 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdr
 
 	gateway, err := s.repo.ReCreateGateway(ctx, params)
 
+	if err != nil {
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to re-enroll gateway", err.Error())
+	}
+
+	_ = s.eventRepo.AckGatewayEvents(ctx, store.AckGatewayEventsParams{GatewayID: id})
+
 	//Revoke any Existing cert and disconnect the gateway
 	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "gateway",
@@ -224,8 +226,6 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdr
 	if err != nil {
 		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
 	}
-
-
 
 	// Dispatch RevokeGatewayCertCmd to the gateway if connected
 
@@ -262,7 +262,7 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdr
 
 	s.dispatcher.Wakeup(id.String())
 
-	return mapToGatewayResponse2(gateway, 0,store.ComponentCertificate{},token, 0, nil), nil
+	return mapToGatewayResponse2(gateway, 0, store.ComponentCertificate{}, token, 0, nil), nil
 }
 
 // EnrollGateway enrolls a gateway using a token hash and CSR.

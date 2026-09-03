@@ -2,7 +2,6 @@ package registry
 
 import (
 	"crypto/x509"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -350,8 +349,6 @@ func (r *Registry) VerifyGatewayConnections() {
 	//Remove the connectors which are not present in the authconnectors
 	r.mu.RLock()
 	// This function is called when CP comes up
-	fmt.Println("Gateway Verifying connections...")
-	fmt.Println("Auth connectors:", r.authConnectors)
 	var toClose []string
 
 	for connectorID, entry := range r.connectors {
@@ -370,7 +367,7 @@ func (r *Registry) VerifyGatewayConnections() {
 	for _, connectorID := range toClose {
 		r.ForceCloseConnector(connectorID)
 	}
-	fmt.Println("Gateway Connections Verified")
+	r.log.Info("Gateway Connections Verified")
 }
 
 func (r *Registry) ActiveConnectors() int {
