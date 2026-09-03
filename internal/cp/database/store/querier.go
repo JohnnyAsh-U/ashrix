@@ -242,9 +242,9 @@ type Querier interface {
 	UpdateApp(ctx context.Context, arg UpdateAppParams) (App, error)
 	UpdateAppHealthStatus(ctx context.Context, arg UpdateAppHealthStatusParams) (App, error)
 	UpdateConnectorStatus(ctx context.Context, arg UpdateConnectorStatusParams) (Connector, error)
-	UpdateGatewayBinaryVersion(ctx context.Context, arg UpdateGatewayBinaryVersionParams) (Gateway, error)
 	// Called every 30s by Gateway. Updates last_heartbeat and version.
 	UpdateGatewayHeartbeat(ctx context.Context, id uuid.UUID) (Gateway, error)
+	UpdateGatewayInfo(ctx context.Context, arg UpdateGatewayInfoParams) (Gateway, error)
 	UpdateGatewayStatus(ctx context.Context, arg UpdateGatewayStatusParams) (Gateway, error)
 	// Updating secrets rotates the encrypted value.
 	UpdateIDPConfig(ctx context.Context, arg UpdateIDPConfigParams) (IdpConfig, error)

@@ -30,23 +30,13 @@ type GRPCServer struct {
 	stopOnce sync.Once
 }
 
-func NewGRPCServer(log *slog.Logger, registry *registry.Registry, tlsConfig *tls.Config, IsProdEnv bool) *GRPCServer {
+func NewGRPCServer(log *slog.Logger, registry *registry.Registry, tlsConfig *tls.Config, samePort bool) *GRPCServer {
 	// IMPORTANT:
-	//
-	// We are using grpc.Server as an HTTP/2 handler.
-	//
-	// TLS/mTLS is handled by the shared TCP listener.
-	//
-	// Therefore grpc.Server itself does not need to own
-	// the TLS configuration or TCP listener.
-	// s := grpc.NewServer()
 
 	opts := []grpc.ServerOption{}
 
-	//When In Dev mode different port must be used and the tls
-	//Config is handled here
-	
-	if !IsProdEnv {
+	//When in different port mode, the grpc tls config is handled here
+	if !samePort {
 		opts = append(
 			opts,
 			grpc.Creds(credentials.NewTLS(tlsConfig)),
@@ -55,8 +45,7 @@ func NewGRPCServer(log *slog.Logger, registry *registry.Registry, tlsConfig *tls
 		)
 	}
 
-	// When Prod Same Port is used for HTTP AND GRPC so the tls is 
-	// handled in the tls.go for both http and grpc
+	// When in Same Port mode, the tls is handled as sharedtls in the tls.go
 	s := grpc.NewServer(opts...)
 
 	// TODO: Register your gRPC handlers here

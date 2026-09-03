@@ -167,6 +167,9 @@ type Gateway struct {
 	Version        pgtype.Text        `json:"version"`
 	DeploymentType string             `json:"deployment_type"`
 	PublicUrl      string             `json:"public_url"`
+	QuicPort       pgtype.Text        `json:"quic_port"`
+	GrpcPort       pgtype.Text        `json:"grpc_port"`
+	HttpsPort      pgtype.Text        `json:"https_port"`
 	IpAddress      string             `json:"ip_address"`
 	LastHeartbeat  pgtype.Timestamptz `json:"last_heartbeat"`
 	Status         string             `json:"status"`

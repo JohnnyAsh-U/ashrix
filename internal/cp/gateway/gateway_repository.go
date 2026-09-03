@@ -21,7 +21,7 @@ type Repository interface {
 
 	UpdateGatewayHeartBeat(ctx context.Context, id uuid.UUID) (store.Gateway, error)
 
-	UpdateGatewayBinaryVersion(ctx context.Context, params store.UpdateGatewayBinaryVersionParams) (store.Gateway, error)
+	UpdateGatewayInfo(ctx context.Context, params store.UpdateGatewayInfoParams) (store.Gateway, error)
 
 	RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error)
 
@@ -76,8 +76,8 @@ func (r *postgresRepository) UpdateGatewayHeartBeat(ctx context.Context, id uuid
 	return r.q.UpdateGatewayHeartbeat(ctx, id)
 }
 
-func (r *postgresRepository) UpdateGatewayBinaryVersion(ctx context.Context, params store.UpdateGatewayBinaryVersionParams) (store.Gateway, error) {
-	return r.q.UpdateGatewayBinaryVersion(ctx, params)
+func (r *postgresRepository) UpdateGatewayInfo(ctx context.Context, params store.UpdateGatewayInfoParams) (store.Gateway, error) {
+	return r.q.UpdateGatewayInfo(ctx, params)
 }
 
 func (r *postgresRepository) RevokeGateway(ctx context.Context, params store.RevokeGatewayParams) (store.Gateway, error) {

@@ -6,19 +6,19 @@ import (
 )
 
 type CreateConnector struct {
-	Name  string    `json:"name"`
+	Name      string    `json:"name"`
 	GatewayID uuid.UUID `json:"gateway_id"`
-	OpenSock	  bool 		 `json:"open_sock"`
+	OpenSock  bool      `json:"open_sock"`
 }
 
 type ReEnrollConnectorRequest struct {
-	Name  string    `json:"name"`
+	Name      string    `json:"name"`
 	GatewayID uuid.UUID `json:"gateway_id"`
-	OpenSock	  bool 		 `json:"open_sock"`
+	OpenSock  bool      `json:"open_sock"`
 }
 
 type RevokeConnectorCertRequest struct {
-	RevokeReason  string    `json:"revoke_reason"`
+	RevokeReason string `json:"revoke_reason"`
 }
 
 type RevokeConnectorRequest struct {
@@ -44,6 +44,7 @@ type ConnectorResponse struct {
 	GatewayName   string                        `json:"gateway_name"`
 	Version       string                        `json:"version"`
 	LastHeartBeat *time.Time                    `json:"last_seen,omitempty"`
+	Token         string                        `json:"token"`
 	Status        string                        `json:"status"`
 	OpenSock      bool                          `json:"open_sock"`
 	ActiveStream  int32                         `json:"active_stream"`

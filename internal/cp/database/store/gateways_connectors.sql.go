@@ -72,7 +72,7 @@ WITH new_gateway AS (
         log_to_cp
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7)
-    RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
+    RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
 ),
 init_sequence AS (
     INSERT INTO gateway_event_sequences (gateway_id)
@@ -84,7 +84,7 @@ init_acks AS (
     SELECT id FROM new_gateway
     ON CONFLICT DO NOTHING
 )
-SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM new_gateway
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM new_gateway
 `
 
 type CreateGatewayParams struct {
@@ -105,6 +105,9 @@ type CreateGatewayRow struct {
 	Version        pgtype.Text        `json:"version"`
 	DeploymentType string             `json:"deployment_type"`
 	PublicUrl      string             `json:"public_url"`
+	QuicPort       pgtype.Text        `json:"quic_port"`
+	GrpcPort       pgtype.Text        `json:"grpc_port"`
+	HttpsPort      pgtype.Text        `json:"https_port"`
 	IpAddress      string             `json:"ip_address"`
 	LastHeartbeat  pgtype.Timestamptz `json:"last_heartbeat"`
 	Status         string             `json:"status"`
@@ -138,6 +141,9 @@ func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (C
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
@@ -190,7 +196,7 @@ SET enrolled_at = NOW(),
 WHERE token_hash = $1
   AND is_active = true
   AND revoked_at IS NULL
-RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
 `
 
 func (q *Queries) EnrollGateway(ctx context.Context, tokenHash string) (Gateway, error) {
@@ -204,6 +210,9 @@ func (q *Queries) EnrollGateway(ctx context.Context, tokenHash string) (Gateway,
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
@@ -245,7 +254,7 @@ func (q *Queries) GetActiveConnectorByID(ctx context.Context, id uuid.UUID) (Con
 }
 
 const getActiveGatewayByID = `-- name: GetActiveGatewayByID :one
-SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
 WHERE id         = $1
   AND is_active = true
   AND revoked_at IS NULL
@@ -262,6 +271,9 @@ func (q *Queries) GetActiveGatewayByID(ctx context.Context, id uuid.UUID) (Gatew
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
@@ -363,7 +375,7 @@ func (q *Queries) GetConnectorByTokenHash(ctx context.Context, tokenHash string)
 }
 
 const getGatewayByID = `-- name: GetGatewayByID :one
-SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
 WHERE id         = $1
 `
 
@@ -378,6 +390,9 @@ func (q *Queries) GetGatewayByID(ctx context.Context, id uuid.UUID) (Gateway, er
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
@@ -391,7 +406,7 @@ func (q *Queries) GetGatewayByID(ctx context.Context, id uuid.UUID) (Gateway, er
 }
 
 const getGatewayByIDAndOrg = `-- name: GetGatewayByIDAndOrg :one
-SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
 WHERE id         = $1
   AND org_id     = $2
   AND is_active = true
@@ -414,6 +429,9 @@ func (q *Queries) GetGatewayByIDAndOrg(ctx context.Context, arg GetGatewayByIDAn
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
@@ -427,7 +445,7 @@ func (q *Queries) GetGatewayByIDAndOrg(ctx context.Context, arg GetGatewayByIDAn
 }
 
 const getGatewayByTokenHash = `-- name: GetGatewayByTokenHash :one
-SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
 WHERE token_hash = $1
   AND status = 'pending'
   AND is_active = true
@@ -447,6 +465,9 @@ func (q *Queries) GetGatewayByTokenHash(ctx context.Context, tokenHash string) (
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
@@ -511,7 +532,7 @@ func (q *Queries) ListActiveConnectorsByGateway(ctx context.Context, gatewayID u
 }
 
 const listActiveGatewaysByOrg = `-- name: ListActiveGatewaysByOrg :many
-SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
 WHERE org_id = $1
 AND is_active = true
 ORDER BY created_at ASC
@@ -534,6 +555,9 @@ func (q *Queries) ListActiveGatewaysByOrg(ctx context.Context, orgID uuid.UUID) 
 			&i.Version,
 			&i.DeploymentType,
 			&i.PublicUrl,
+			&i.QuicPort,
+			&i.GrpcPort,
+			&i.HttpsPort,
 			&i.IpAddress,
 			&i.LastHeartbeat,
 			&i.Status,
@@ -696,7 +720,7 @@ func (q *Queries) ListConnectorsWithGatewayNameByOrg(ctx context.Context, orgID 
 }
 
 const listGatewaysByOrg = `-- name: ListGatewaysByOrg :many
-SELECT id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
+SELECT id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at FROM gateways
 WHERE org_id     = $1
 ORDER BY created_at ASC
 `
@@ -718,6 +742,9 @@ func (q *Queries) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 			&i.Version,
 			&i.DeploymentType,
 			&i.PublicUrl,
+			&i.QuicPort,
+			&i.GrpcPort,
+			&i.HttpsPort,
 			&i.IpAddress,
 			&i.LastHeartbeat,
 			&i.Status,
@@ -795,6 +822,9 @@ SET created_at = NOW(),
     last_heartbeat = NULL,
     revoked_at = NULL,
     version = NULL,
+    http_port = NULL,
+    quic_port = NULL,
+    grpc_port = NULL,
     is_active = true,
     log_to_cp = $6,
     ip_address = $5,
@@ -802,7 +832,7 @@ SET created_at = NOW(),
     token_hash = $2,
     name = $3
 WHERE id = $1
-RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
 `
 
 type ReCreateGatewayParams struct {
@@ -832,6 +862,9 @@ func (q *Queries) ReCreateGateway(ctx context.Context, arg ReCreateGatewayParams
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
@@ -908,7 +941,7 @@ WHERE id         = $1
   AND org_id     = $2
   AND is_active = true
   AND revoked_at IS NULL
-RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
 `
 
 type RevokeGatewayParams struct {
@@ -928,6 +961,9 @@ func (q *Queries) RevokeGateway(ctx context.Context, arg RevokeGatewayParams) (G
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
@@ -978,50 +1014,13 @@ func (q *Queries) UpdateConnectorStatus(ctx context.Context, arg UpdateConnector
 	return i, err
 }
 
-const updateGatewayBinaryVersion = `-- name: UpdateGatewayBinaryVersion :one
-UPDATE gateways
-SET version = $2
-WHERE id = $1
-  AND is_active = true
-  AND revoked_at IS NULL
-RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
-`
-
-type UpdateGatewayBinaryVersionParams struct {
-	ID      uuid.UUID   `json:"id"`
-	Version pgtype.Text `json:"version"`
-}
-
-func (q *Queries) UpdateGatewayBinaryVersion(ctx context.Context, arg UpdateGatewayBinaryVersionParams) (Gateway, error) {
-	row := q.db.QueryRow(ctx, updateGatewayBinaryVersion, arg.ID, arg.Version)
-	var i Gateway
-	err := row.Scan(
-		&i.ID,
-		&i.OrgID,
-		&i.Name,
-		&i.TokenHash,
-		&i.Version,
-		&i.DeploymentType,
-		&i.PublicUrl,
-		&i.IpAddress,
-		&i.LastHeartbeat,
-		&i.Status,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.LogToCp,
-		&i.EnrolledAt,
-		&i.RevokedAt,
-	)
-	return i, err
-}
-
 const updateGatewayHeartbeat = `-- name: UpdateGatewayHeartbeat :one
 UPDATE gateways
 SET last_heartbeat = now()
 WHERE id           = $1
   AND is_active = true
   AND revoked_at   IS NULL
-RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
 `
 
 // Called every 30s by Gateway. Updates last_heartbeat and version.
@@ -1036,6 +1035,61 @@ func (q *Queries) UpdateGatewayHeartbeat(ctx context.Context, id uuid.UUID) (Gat
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
+		&i.IpAddress,
+		&i.LastHeartbeat,
+		&i.Status,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.LogToCp,
+		&i.EnrolledAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const updateGatewayInfo = `-- name: UpdateGatewayInfo :one
+UPDATE gateways
+SET version = $5,
+    quic_port= $4,
+    https_port = $3,
+    grpc_port = $2
+WHERE id = $1
+  AND is_active = true
+  AND revoked_at IS NULL
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
+`
+
+type UpdateGatewayInfoParams struct {
+	ID        uuid.UUID   `json:"id"`
+	GrpcPort  pgtype.Text `json:"grpc_port"`
+	HttpsPort pgtype.Text `json:"https_port"`
+	QuicPort  pgtype.Text `json:"quic_port"`
+	Version   pgtype.Text `json:"version"`
+}
+
+func (q *Queries) UpdateGatewayInfo(ctx context.Context, arg UpdateGatewayInfoParams) (Gateway, error) {
+	row := q.db.QueryRow(ctx, updateGatewayInfo,
+		arg.ID,
+		arg.GrpcPort,
+		arg.HttpsPort,
+		arg.QuicPort,
+		arg.Version,
+	)
+	var i Gateway
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Name,
+		&i.TokenHash,
+		&i.Version,
+		&i.DeploymentType,
+		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,
@@ -1054,7 +1108,7 @@ SET status = $2
 WHERE id = $1
   AND is_active = true
   AND revoked_at IS NULL
-RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
+RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, quic_port, grpc_port, https_port, ip_address, last_heartbeat, status, is_active, created_at, log_to_cp, enrolled_at, revoked_at
 `
 
 type UpdateGatewayStatusParams struct {
@@ -1073,6 +1127,9 @@ func (q *Queries) UpdateGatewayStatus(ctx context.Context, arg UpdateGatewayStat
 		&i.Version,
 		&i.DeploymentType,
 		&i.PublicUrl,
+		&i.QuicPort,
+		&i.GrpcPort,
+		&i.HttpsPort,
 		&i.IpAddress,
 		&i.LastHeartbeat,
 		&i.Status,

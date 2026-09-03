@@ -547,6 +547,10 @@ func (sm *StreamManager) makeHello(ctx context.Context) *pb.GatewayEnvelope {
 				TenantId:      sm.cfg.TenantId,
 				PolicyVersion: policyVersion.LastBundleVersion,
 				BinaryVersion: version.GetGatewayVersion(),
+				QuicPort: sm.cfg.QUICPort,
+				GrpcPort: sm.cfg.GRPCPort,
+				HttpsPort: sm.cfg.HTTPSPort,
+				
 			},
 		},
 	}

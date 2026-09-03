@@ -38,54 +38,51 @@ func StartServers(
 	// ---------------------------------------------------------
 
 	var publicTLS *tls.Config
-	httpsEnabled := false
 
 	publicCert, err := tls.LoadX509KeyPair("server.crt", "server.key")
 
 	if err != nil {
 		log.Warn("Unable to load public HTTPS certificate; HTTPS disabled", "error", err)
-		if cfg.IsProdEnv {
-			return fmt.Errorf("Configure the TLS Cert.")
-		}
-	} else {
-		publicTLS = &tls.Config{
-			MinVersion: tls.VersionTLS13,
-			Certificates: []tls.Certificate{
-				publicCert,
-			},
-			NextProtos: []string{
-				"h2",
-				"http/1.1",
-			},
-		}
-		httpsEnabled = true
+		return fmt.Errorf("Configure the TLS Cert.")
 	}
 
-	// ---------------------------------------------------------
-	// 3. Build Gateway TLS configurations
-	// ---------------------------------------------------------
-
-	gatewayTLS := tlsconfig.NewGatewayTLSConfig(mtlsConfig, publicTLS, httpsEnabled)
+	publicTLS = &tls.Config{
+		MinVersion: tls.VersionTLS13,
+		Certificates: []tls.Certificate{
+			publicCert,
+		},
+		NextProtos: []string{
+			"h2",
+			"http/1.1",
+		},
+	}
 
 	// ---------------------------------------------------------
 	// 4. Start HTTP / HTTPS / gRPC
 	// ---------------------------------------------------------
 
-	if httpsEnabled && cfg.IsProdEnv {
+	samePorts := false
+	if cfg.GRPCPort == cfg.HTTPSPort {
+		samePorts = true
+	}
+
+	if samePorts {
 
 		// =====================================================
 		// Production path
 		//
-		// TCP :443
+		// If Same Port
 		//
 		// HTTPS + gRPC mTLS
 		// =====================================================
-		// When Prod and Cert is Available the TLS Is Handled HERE
+		// When Same Port for http and grpc the TLS Is Handled HERE
 
 		rawListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.HTTPSPort))
 		if err != nil {
 			return fmt.Errorf("listen HTTPS %s: %w", cfg.HTTPSPort, err)
 		}
+
+		gatewayTLS := tlsconfig.NewGatewayTLSConfig(mtlsConfig, publicTLS)
 
 		tlsListener := tls.NewListener(rawListener, gatewayTLS.Shared)
 
@@ -99,36 +96,33 @@ func StartServers(
 	} else {
 
 		// =====================================================
-		// HTTPS disabled
 		//
-		// TCP :80  → plaintext HTTP
-		// TCP :443 → gRPC mTLS
+		//
+		// When the port of grpc and http are different
+		// The HTTP tls is handled here
 		// =====================================================
 
-		httpListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.HTTPPort))
+		httpListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.HTTPSPort))
 		if err != nil {
-			return fmt.Errorf("listen HTTP %s: %w", cfg.HTTPPort, err)
+			return fmt.Errorf("listen HTTP %s: %w", cfg.HTTPSPort, err)
 		}
 
+		gatewayTLS := tlsconfig.NewGatewayTLSConfig(mtlsConfig, publicTLS)
+		tlsListener := tls.NewListener(httpListener, gatewayTLS.Shared)
+
 		go func() {
-			log.Info("Gateway running without HTTPS", "addr", cfg.HTTPPort)
-			if err := httpServer.Start(httpListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Info("Gateway running with HTTP", "addr", cfg.HTTPSPort)
+			if err := httpServer.Start(tlsListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Error("HTTP server stopped", "error", err)
 			}
 		}()
 
-		// -----------------------------------------------------
-		// gRPC always remains mTLS.
-		// -----------------------------------------------------
-		// When Dev mode Different Port is used for HTTP AND GRPC so the tls for
-		//grpc is handled in the grpc server
+		//grpc tls is handled in the grpc server
 
 		grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.GRPCPort))
 		if err != nil {
 			return fmt.Errorf("listen gRPC %s: %w", cfg.GRPCPort, err)
 		}
-
-		// grpcTLSListener := tls.NewListener(grpcListener, gatewayTLS.GRPC)
 
 		go func() {
 			log.Info("Gateway gRPC mTLS listener started", "addr", cfg.GRPCPort)

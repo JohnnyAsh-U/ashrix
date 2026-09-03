@@ -176,6 +176,9 @@ message HelloMessage {
   string tenant_id      = 2;
   string binary_version = 3;  // Ashrix binary version for compatibility checks
   int64  policy_version = 4;  // policy bundle version currently applied
+  string  quic_port = 5;
+  string  https_port = 6;
+  string  grpc_port = 7;
 }
 
 message CommandAck {
@@ -266,9 +269,12 @@ message ConnectorStatusResponse {
   string                 gateway_id   = 2;
   string                 gateway_url  = 3;
   string                 gateway_ip   = 4;
-  string                 tenant_id    = 5;
-  bool                   open_sock    = 6;
-  repeated ConnectorApps apps         = 7;
+  string                 grpc_port   = 5;
+  string                 https_port   = 6;
+  string                 quic_port   = 7;
+  string                 tenant_id    = 8;
+  bool                   open_sock    = 9;
+  repeated ConnectorApps apps         = 10;
 }
 
 message ConnectorApps {

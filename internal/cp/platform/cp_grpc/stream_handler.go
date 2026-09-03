@@ -273,12 +273,15 @@ func (s *cpServer) handleHello(ctx context.Context, conn *registry.GatewayConn, 
 	}
 
 
-	_, err = s.gatewayRepo.UpdateGatewayBinaryVersion(ctx, store.UpdateGatewayBinaryVersionParams{
+	_, err = s.gatewayRepo.UpdateGatewayInfo(ctx, store.UpdateGatewayInfoParams{
 		ID: gatewayID,
 		Version: pgtype.Text{
 			Valid:  true,
 			String: hello.BinaryVersion,
 		},
+		HttpsPort:pgtype.Text{Valid: true, String: hello.HttpsPort},
+		QuicPort:pgtype.Text{Valid: true, String: hello.QuicPort},
+		GrpcPort:pgtype.Text{Valid: true, String: hello.GrpcPort},
 	},
 	)
 	if err != nil {

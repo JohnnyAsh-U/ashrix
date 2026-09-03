@@ -7,7 +7,7 @@ tmp_dir = "tmp"
 
 [build]
   args_bin = ["start"] 
-  #args_bin = ["register", "--token=B02pkr", "--cp-url=http://localhost:8001"] 
+  #args_bin = ["register", "--token=5VxGwl", "--cp-url=http://localhost:8001"] 
   bin = "./tmp/ashrix-gateway"
   cmd = "go build -o ./tmp/ashrix-gateway ./cmd/gateway/main.go"
   delay = 1000

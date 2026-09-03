@@ -247,7 +247,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	log.Info("initializing Gateway servers")
 
-	grpcServer := grpc.NewGRPCServer(log, reg, mtlsConfig, cfg.IsProdEnv)
+	grpcServer := grpc.NewGRPCServer(log, reg, mtlsConfig, cfg.GRPCPort == cfg.HTTPSPort)
 	httpServer := http_proxy.NewProxyServer(
 		cfg,
 		grpcClient,
@@ -260,7 +260,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		rtr,
 		grpcServer,
 	)
-	
+
 	quicServer := quic_server.NewQUICServer(
 		cfg,
 		mtlsConfig,

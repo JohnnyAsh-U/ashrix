@@ -1830,6 +1830,9 @@ type HelloMessage struct {
 	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	BinaryVersion string                 `protobuf:"bytes,3,opt,name=binary_version,json=binaryVersion,proto3" json:"binary_version,omitempty"`  // Ashrix binary version for compatibility checks
 	PolicyVersion int64                  `protobuf:"varint,4,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"` // policy bundle version currently applied
+	QuicPort      string                 `protobuf:"bytes,5,opt,name=quic_port,json=quicPort,proto3" json:"quic_port,omitempty"`
+	HttpsPort     string                 `protobuf:"bytes,6,opt,name=https_port,json=httpsPort,proto3" json:"https_port,omitempty"`
+	GrpcPort      string                 `protobuf:"bytes,7,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1890,6 +1893,27 @@ func (x *HelloMessage) GetPolicyVersion() int64 {
 		return x.PolicyVersion
 	}
 	return 0
+}
+
+func (x *HelloMessage) GetQuicPort() string {
+	if x != nil {
+		return x.QuicPort
+	}
+	return ""
+}
+
+func (x *HelloMessage) GetHttpsPort() string {
+	if x != nil {
+		return x.HttpsPort
+	}
+	return ""
+}
+
+func (x *HelloMessage) GetGrpcPort() string {
+	if x != nil {
+		return x.GrpcPort
+	}
+	return ""
 }
 
 type CommandAck struct {
@@ -2581,9 +2605,12 @@ type ConnectorStatusResponse struct {
 	GatewayId     string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
 	GatewayUrl    string                 `protobuf:"bytes,3,opt,name=gateway_url,json=gatewayUrl,proto3" json:"gateway_url,omitempty"`
 	GatewayIp     string                 `protobuf:"bytes,4,opt,name=gateway_ip,json=gatewayIp,proto3" json:"gateway_ip,omitempty"`
-	TenantId      string                 `protobuf:"bytes,5,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	OpenSock      bool                   `protobuf:"varint,6,opt,name=open_sock,json=openSock,proto3" json:"open_sock,omitempty"`
-	Apps          []*ConnectorApps       `protobuf:"bytes,7,rep,name=apps,proto3" json:"apps,omitempty"`
+	GrpcPort      string                 `protobuf:"bytes,5,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
+	HttpsPort     string                 `protobuf:"bytes,6,opt,name=https_port,json=httpsPort,proto3" json:"https_port,omitempty"`
+	QuicPort      string                 `protobuf:"bytes,7,opt,name=quic_port,json=quicPort,proto3" json:"quic_port,omitempty"`
+	TenantId      string                 `protobuf:"bytes,8,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	OpenSock      bool                   `protobuf:"varint,9,opt,name=open_sock,json=openSock,proto3" json:"open_sock,omitempty"`
+	Apps          []*ConnectorApps       `protobuf:"bytes,10,rep,name=apps,proto3" json:"apps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2642,6 +2669,27 @@ func (x *ConnectorStatusResponse) GetGatewayUrl() string {
 func (x *ConnectorStatusResponse) GetGatewayIp() string {
 	if x != nil {
 		return x.GatewayIp
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetGrpcPort() string {
+	if x != nil {
+		return x.GrpcPort
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetHttpsPort() string {
+	if x != nil {
+		return x.HttpsPort
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetQuicPort() string {
+	if x != nil {
+		return x.QuicPort
 	}
 	return ""
 }
@@ -4386,13 +4434,17 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"connectors\"7\n" +
 	"\rConnectorInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
-	"\x06status\x18\x02 \x01(\tR\x06status\"\x98\x01\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\"\xf1\x01\n" +
 	"\fHelloMessage\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12%\n" +
 	"\x0ebinary_version\x18\x03 \x01(\tR\rbinaryVersion\x12%\n" +
-	"\x0epolicy_version\x18\x04 \x01(\x03R\rpolicyVersion\"\x9a\x01\n" +
+	"\x0epolicy_version\x18\x04 \x01(\x03R\rpolicyVersion\x12\x1b\n" +
+	"\tquic_port\x18\x05 \x01(\tR\bquicPort\x12\x1d\n" +
+	"\n" +
+	"https_port\x18\x06 \x01(\tR\thttpsPort\x12\x1b\n" +
+	"\tgrpc_port\x18\a \x01(\tR\bgrpcPort\"\x9a\x01\n" +
 	"\n" +
 	"CommandAck\x12\x1d\n" +
 	"\n" +
@@ -4452,7 +4504,7 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x12\x1b\n" +
 	"\topen_sock\x18\x04 \x01(\bR\bopenSock\x129\n" +
 	"\n" +
-	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xff\x01\n" +
+	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xd8\x02\n" +
 	"\x17ConnectorStatusResponse\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1d\n" +
 	"\n" +
@@ -4461,9 +4513,14 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"gatewayUrl\x12\x1d\n" +
 	"\n" +
 	"gateway_ip\x18\x04 \x01(\tR\tgatewayIp\x12\x1b\n" +
-	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12\x1b\n" +
-	"\topen_sock\x18\x06 \x01(\bR\bopenSock\x12(\n" +
-	"\x04apps\x18\a \x03(\v2\x14.proto.ConnectorAppsR\x04apps\"\xdb\x02\n" +
+	"\tgrpc_port\x18\x05 \x01(\tR\bgrpcPort\x12\x1d\n" +
+	"\n" +
+	"https_port\x18\x06 \x01(\tR\thttpsPort\x12\x1b\n" +
+	"\tquic_port\x18\a \x01(\tR\bquicPort\x12\x1b\n" +
+	"\ttenant_id\x18\b \x01(\tR\btenantId\x12\x1b\n" +
+	"\topen_sock\x18\t \x01(\bR\bopenSock\x12(\n" +
+	"\x04apps\x18\n" +
+	" \x03(\v2\x14.proto.ConnectorAppsR\x04apps\"\xdb\x02\n" +
 	"\rConnectorApps\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +

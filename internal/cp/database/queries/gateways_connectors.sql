@@ -52,6 +52,9 @@ SET created_at = NOW(),
     last_heartbeat = NULL,
     revoked_at = NULL,
     version = NULL,
+    http_port = NULL,
+    quic_port = NULL,
+    grpc_port = NULL,
     is_active = true,
     log_to_cp = $6,
     ip_address = $5,
@@ -118,9 +121,12 @@ WHERE id           = $1
 RETURNING *;
 
 
--- name: UpdateGatewayBinaryVersion :one
+-- name: UpdateGatewayInfo :one
 UPDATE gateways
-SET version = $2
+SET version = $5,
+    quic_port= $4,
+    https_port = $3,
+    grpc_port = $2
 WHERE id = $1
   AND is_active = true
   AND revoked_at IS NULL

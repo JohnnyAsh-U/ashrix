@@ -18,7 +18,6 @@ type Config struct {
 	DataDir       string
 	LogDir        string
 	PIDFile       string
-	HTTPPort      string
 	HTTPSPort     string
 	GRPCPort      string
 	QUICPort      string
@@ -31,7 +30,6 @@ type Config struct {
 
 // Load reads gateway configuration from environment variables.
 func LoadFromViper() (*Config, error) {
-	viper.SetDefault("http_port", "8000")
 	viper.SetDefault("https_port", "8443")
 	viper.SetDefault("grpc_port", "8443")
 	viper.SetDefault("quic_port", "8443")
@@ -49,7 +47,6 @@ func LoadFromViper() (*Config, error) {
 		LogDir:        viper.GetString("log_dir"),
 		DataDir:       viper.GetString("data_dir"),
 		PIDFile:       filepath.Join(viper.GetString("data_dir"), "gateway.pid"),
-		HTTPPort:      viper.GetString("http_port"),
 		HTTPSPort:     viper.GetString("https_port"),
 		GRPCPort:      viper.GetString("grpc_port"),
 		QUICPort:      viper.GetString("quic_port"),

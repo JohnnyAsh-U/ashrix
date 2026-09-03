@@ -142,23 +142,21 @@ func runStart() (err error) {
 		tenantID := result.Status.TenantId
 		apps := result.Status.Apps
 
-		//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
-		gRPCURL := result.Status.GatewayIp + ":8443"
-
 		//---------------------------Config for different Transport---------------------------------------------//
 		config := transport.Config{
-			GatewayQUICAddr: result.Status.GatewayIp + ":8443",
-			GatewayGRPCAddr: result.Status.GatewayIp + ":8443",
+			GatewayQUICAddr: result.Status.GatewayIp + ":" + result.Status.QuicPort,
+			GatewayGRPCAddr: result.Status.GatewayIp + ":" + result.Status.GrpcPort,
 			GatewayWSURL:    "wss://" + result.Status.GatewayIp + "/ws",
 			ConnectorID:     connectorID,
 			OpenSock:        result.Status.OpenSock,
 			TLSConfig:       tlsConfig,
 		}
 
-		log.Info("Opening management stream with gateway", "addr", gRPCURL, "attempt", attempt)
-		managementConn, err := management.OpenStream(ctx, gRPCURL, connectorID, tenantID, tlsConfig, log, apps, result.PKI, appStorage)
+		//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
+		log.Info("Opening management stream with gateway", "addr", config.GatewayGRPCAddr, "attempt", attempt)
+		managementConn, err := management.OpenStream(ctx, config.GatewayGRPCAddr, connectorID, tenantID, tlsConfig, log, apps, result.PKI, appStorage)
 		if err != nil {
-			log.Error("Failed to open Gateway stream", "cp_url", gRPCURL, "error", err)
+			log.Error("Failed to open Gateway stream", "cp_url", config.GatewayGRPCAddr, "error", err)
 			select {
 			case <-time.After(reconnectDelay(attempt)):
 				continue
@@ -182,7 +180,7 @@ func runStart() (err error) {
 			}
 		}
 
-		log.Info("connector management stream ready", "connector_id", connectorID, "app_addr", gRPCURL)
+		log.Info("connector management stream ready", "connector_id", connectorID, "app_addr", config.GatewayGRPCAddr)
 
 		//--------------------Mangement Receiver, HeartBeat, and Tunnel Loop ---------------------------//
 		sessionCtx, sessionCancel := context.WithCancel(ctx)
@@ -289,11 +287,11 @@ func runTunnelLoop(ctx context.Context, config transport.Config, log *slog.Logge
 			}
 			for _, app := range apps {
 				credentialStore.Replace([]socks.Credential{{
-					AppID: app.Id,
+					AppID:        app.Id,
 					PasswordHash: app.SockPass,
 				}})
 			}
-			socksServer = socks.NewServer(socksAddr,credentialStore, transportProto, log)
+			socksServer = socks.NewServer(socksAddr, credentialStore, transportProto, log)
 			go func() {
 				if err := socksServer.ListenAndServe(ctx); err != nil {
 					log.Error("SOCKS5 server error", "error", err)

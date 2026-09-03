@@ -38,7 +38,7 @@ func NewService(repo Repository, pkiRepo pkica.Repository, eventRepo events.Repo
 }
 
 // mapToConnectorResponse converts a store.Connector to a ConnectorResponse DTO.
-func mapToConnectorResponse(g store.Connector) ConnectorResponse {
+func mapToConnectorResponse(g store.Connector, token string) ConnectorResponse {
 	resp := ConnectorResponse{
 		ID:           g.ID.String(),
 		Name:         g.Name,
@@ -48,6 +48,7 @@ func mapToConnectorResponse(g store.Connector) ConnectorResponse {
 		OpenSock:     g.OpenSock,
 		Status:       g.Status,
 		Apps:         []ConnectorAppSummaryResponse{},
+		Token: token,
 		CreatedAt:    g.CreatedAt,
 	}
 	if g.LastSeen.Valid {
@@ -127,7 +128,7 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 	//Send Updated Active Connectors list to Gateway
 	s.SyncConnectorToGateway(ctx, connector.GatewayID)
 
-	return mapToConnectorResponse(connector), nil
+	return mapToConnectorResponse(connector, token), nil
 }
 
 func (s *Service) SyncConnectorToGateway(ctx context.Context, gatewayID uuid.UUID) {
@@ -203,7 +204,7 @@ func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name stri
 	//Send Updated Active Connectors list to Gateway
 	s.SyncConnectorToGateway(ctx, connector.GatewayID)
 
-	return mapToConnectorResponse(connector), nil
+	return mapToConnectorResponse(connector, token), nil
 }
 
 // EnrollConnector enrolls a connector using a token hash and CSR.
@@ -425,7 +426,7 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No active cert to revoke, but we can return the connector response as success
-			return mapToConnectorResponse(connector), nil
+			return mapToConnectorResponse(connector, ""), nil
 		}
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
 	}
@@ -492,7 +493,7 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToConnectorResponse(updatedConnector), nil
+	return mapToConnectorResponse(updatedConnector, ""), nil
 }
 
 // RevokeConnector revokes an entire Connector.
@@ -586,7 +587,7 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 	//Send Updated Active Connectors list to Gateway
 	s.SyncConnectorToGateway(ctx, Connector.GatewayID)
 
-	return mapToConnectorResponse(revokedConnector), nil
+	return mapToConnectorResponse(revokedConnector, ""), nil
 }
 
 // Send Rotate Command to Gateway for Connector
@@ -626,7 +627,7 @@ func (s *Service) SendRotateConnectorCmd(ctx context.Context, connectorId uuid.U
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
 	}
 
-	return mapToConnectorResponse(Connector), nil
+	return mapToConnectorResponse(Connector, ""), nil
 }
 
 func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID, canonicalString, signature string) (gen.ConnectorStatusResponse, *dto.AppError) {
@@ -712,6 +713,8 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		GatewayIp:   GatewayRow.IpAddress,
 		OpenSock:    ConnectorRow.OpenSock,
 		TenantId:    ConnectorRow.OrgID.String(),
+		GrpcPort:    GatewayRow.GrpcPort.String,
+		QuicPort:    GatewayRow.QuicPort.String,
 		Apps:        appsResp,
 	}, nil
 }

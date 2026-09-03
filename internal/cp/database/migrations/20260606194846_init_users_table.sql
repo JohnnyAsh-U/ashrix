@@ -139,6 +139,9 @@ CREATE TABLE gateways (
     version         TEXT,                        -- reported by gateway on heartbeat
     deployment_type            TEXT NOT NULL DEFAULT 'hosted' CHECK (deployment_type IN ('hosted', 'self_hosted')),
     public_url      TEXT NOT NULL, --"gw1.company.com; gateway own public url"
+    quic_port       TEXT,
+    grpc_port       TEXT,
+    https_port       TEXT,
     ip_address      TEXT NOT NULL,
     last_heartbeat  TIMESTAMPTZ,
     status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'healthy', 'degraded', 'offline', 'draining')),

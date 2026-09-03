@@ -56,25 +56,16 @@ type GatewayTLS struct {
 func NewGatewayTLSConfig(
 	mtlsTLS *tls.Config,
 	publicTLS *tls.Config,
-	httpsEnabled bool,
 ) *GatewayTLS {
 
 	grpcTLS := newGRPCTLSConfig(mtlsTLS)
 
 	quicTLS := newQUICTLSConfig(mtlsTLS)
 
-	var sharedTLS *tls.Config
-
-	if httpsEnabled {
-		if publicTLS == nil {
-			panic("public TLS configuration is required when HTTPS is enabled")
-		}
-
-		sharedTLS = newSharedTLSConfig(
-			publicTLS,
-			grpcTLS,
-		)
-	}
+	sharedTLS := newSharedTLSConfig(
+		publicTLS,
+		grpcTLS,
+	)
 
 	return &GatewayTLS{
 		Shared: sharedTLS,
@@ -140,7 +131,6 @@ func newGRPCTLSConfig(
 	return cfg
 }
 
-
 func newQUICTLSConfig(mtlsTLS *tls.Config) *tls.Config {
 	cfg := mtlsTLS.Clone()
 
@@ -154,7 +144,6 @@ func newQUICTLSConfig(mtlsTLS *tls.Config) *tls.Config {
 
 	return cfg
 }
-
 
 func supportsALPN(
 	protocols []string,
