@@ -15,7 +15,6 @@ import (
 
 var (
 	App   *slog.Logger
-	Audit *auditLogger
 )
 
 type Config struct {
@@ -139,17 +138,6 @@ func initDev(cfg Config) error {
 	}
 	App = slog.New(NewElegantConsoleHandler(os.Stdout, opts))
 
-	// Audit log
-	auditFile, err := os.OpenFile(
-		cfg.LogDir+"/audit.log",
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0640,
-	)
-	if err != nil {
-		return err
-	}
-	Audit = newAuditLogger(auditFile)
-
 	return nil
 }
 
@@ -180,17 +168,6 @@ func initProd(cfg Config) error {
 			consoleHandler,
 		},
 	}).With("service", "gateway")
-
-	// Audit log
-	auditFile, err := os.OpenFile(
-		cfg.LogDir+"/audit.log",
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0640,
-	)
-	if err != nil {
-		return err
-	}
-	Audit = newAuditLogger(auditFile)
 
 	return nil
 }

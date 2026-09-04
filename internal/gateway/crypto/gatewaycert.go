@@ -16,7 +16,6 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/bootstrap"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/utils"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
@@ -276,13 +275,6 @@ func (g *GatewayPKI) renew(force bool) error {
 	if saveErr := utils.SaveKeyAndCertAndBundle(priv, apiResponse.Data.Certificate, apiResponse.Data.TrustBundle, g.cfg.DataDir, "SECRET", "GATEWAY"); saveErr != nil {
 		return fmt.Errorf("save key and cert and bundle failed: %w", saveErr)
 	}
-
-	logging.Audit.Log(logging.AuditEvent{
-		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
-		EventType: logging.EventGatewayRegistered,
-		GatewayID: apiResponse.Data.GatewayId,
-		Decision:  "ALLOW",
-	})
 
 	g.log.Info("Gateway Cert Renewed, Swapping", slog.String("gateway_id", apiResponse.Data.GatewayId))
 

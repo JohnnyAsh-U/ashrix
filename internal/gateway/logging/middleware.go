@@ -7,10 +7,11 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
@@ -80,7 +81,17 @@ func (lrw *logResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackLogger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+			if shouldSkipAccessLog(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			start := time.Now()
+
+			// Create request-scoped access context.
+			ctx, accessCtx := WithAccessContext(r.Context())
+			r = r.WithContext(ctx)
 
 			requestCounter := &countingReadCloser{
 				ReadCloser: r.Body,
@@ -95,26 +106,18 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 			bytesIn := requestCounter.bytes
 			bytesOut := lrw.bytes
 
-			appID := session.AppIDFromCtx(r.Context())
+			// ----------------------------------------------------
+			// Read everything collected during the request.
+			// ----------------------------------------------------
 
-			// Gather identity & decision if available
-			var userID, userEmail, tenantID, decisionEffect, policyID, denyReason string
-			sess := session.IdentityFromCtx(r.Context())
-			if sess != nil {
-				userID = sess.UserId
-				userEmail = sess.Email
-				tenantID = sess.TenantId
-			}
+			appID := accessCtx.AppID
+			userID := accessCtx.UserID
+			userEmail := accessCtx.UserEmail
+			tenantID := accessCtx.TenantID
 
-			if dec, ok := policy.DecisionFromContext(r.Context()); ok {
-				decisionEffect = string(dec.Effect)
-				policyID = dec.PolicyID
-				if dec.Effect == policy.EffectDeny {
-					denyReason = "policy_deny"
-				}
-			}
-
-			fmt.Println("AppID", appID)
+			policyID := accessCtx.PolicyID
+			decisionEffect := accessCtx.Decision
+			denyReason := accessCtx.DenyReason
 
 			result := "allowed"
 			if lrw.statusCode >= 400 || decisionEffect == "DENY" {
@@ -125,6 +128,8 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 						denyReason = "no_session"
 					case http.StatusForbidden:
 						denyReason = "policy_deny"
+					case http.StatusTooManyRequests:
+						denyReason = "rate_limit"
 					case http.StatusServiceUnavailable, http.StatusBadGateway:
 						denyReason = "app_offline"
 					}
@@ -190,4 +195,56 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 			}
 		})
 	}
+}
+
+func shouldSkipAccessLog(r *http.Request) bool {
+	path := r.URL.Path
+	return strings.HasPrefix(path, "/_ashrix")
+}
+
+func IsStaticAsset(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+
+	accept := r.Header.Get("Accept")
+
+	// Browser explicitly asking for an image/font/style/script.
+	if strings.Contains(accept, "text/css") ||
+		strings.Contains(accept, "javascript") ||
+		strings.Contains(accept, "image/") ||
+		strings.Contains(accept, "font/") {
+		return true
+	}
+
+	// Common asset extensions as a fallback.
+	path := strings.ToLower(r.URL.Path)
+
+	extensions := []string{
+		".css",
+		".js",
+		".mjs",
+		".map",
+		".png",
+		".jpg",
+		".jpeg",
+		".gif",
+		".svg",
+		".ico",
+		".webp",
+		".avif",
+		".woff",
+		".woff2",
+		".ttf",
+		".otf",
+		".eot",
+	}
+
+	for _, ext := range extensions {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+
+	return false
 }

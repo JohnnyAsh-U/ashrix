@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/bootstrap"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
@@ -187,13 +186,6 @@ func runRegister(cmd *cobra.Command, args []string) error {
 	if saveErr := utils.SaveKeyAndCertAndBundle(priv, apiResp.Data.Certificate, apiResp.Data.TrustBundle, cfg.DataDir, "SECRET", "GATEWAY"); saveErr != nil {
 		return saveErr
 	}
-
-	logging.Audit.Log(logging.AuditEvent{
-		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
-		EventType: logging.EventGatewayRegistered,
-		GatewayID: apiResp.Data.GatewayId,
-		Decision:  "ALLOW",
-	})
 
 	log.Info("Gateway Registered", slog.String("gateway_id", apiResp.Data.GatewayId), slog.String("cp_url", cfg.CPURL))
 

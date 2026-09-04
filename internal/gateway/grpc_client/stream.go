@@ -444,11 +444,15 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 					h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 					//ONly run after commandstatusupdate is sent
 					_ = h.cm.RefreshConnection(ctx)
+					//Close all connector connection
+					h.registry.CloseAllConnectorConnection()
+
 				}
 			}()
 
 		case *pb.Command_RevokeGatewayCert:
 			h.log.Error("gateway certificate revoked - clearing credentials and shutting down")
+			h.registry.CloseAllConnectorConnection()
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 			_ = h.pki.ClearCredential()
 			_ = h.cm.Close()
@@ -459,6 +463,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 		case *pb.Command_RevokeGateway:
 			h.log.Error("gateway revoked - clearing credentials and shutting down")
+			h.registry.CloseAllConnectorConnection()
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
 			_ = h.pki.ClearCredential()
 			_ = h.cm.Close()

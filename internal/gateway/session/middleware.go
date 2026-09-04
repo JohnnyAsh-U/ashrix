@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 
@@ -46,6 +47,11 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 				return
 			}
 
+			accessCtx := logging.AccessContextFromContext(r.Context())
+			if accessCtx != nil {
+				accessCtx.ConnectorID = connector.ConnectorID
+			}
+
 			// if !connector.IsRoutable() {
 			// 	logger.Error("Connection Failed")
 			// 	http.Error(w, "Connection NOT FOUND", http.StatusNotFound)
@@ -68,6 +74,11 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 				return
 			}
 
+			if accessCtx != nil {
+				accessCtx.AppID = foundApp.Id
+				accessCtx.AppName = foundApp.Name
+			}
+
 			//Add Connector And App ID to the Context
 			// Inject claims into context for downstream handlers.
 			ctx := context.WithValue(r.Context(), ConnectorID, connector.ConnectorID)
@@ -85,6 +96,12 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			if err == nil {
 				ctx := context.WithValue(ctx, Identity, identity)
 				ctx = context.WithValue(ctx, SessionID, sessionID)
+				if accessCtx != nil {
+					accessCtx.UserID = identity.UserId
+					accessCtx.UserEmail = identity.Email
+					accessCtx.TenantID = identity.TenantId
+				}
+
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
@@ -119,9 +136,9 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			domain := CookieDomain(cfg.GatewayUrl)
 			//Set the state in the cookies
 			http.SetCookie(w, &http.Cookie{
-				Name:  "state",
-				Value: state,
-				Path:  "/",
+				Name:     "state",
+				Value:    state,
+				Path:     "/",
 				Domain:   domain,
 				MaxAge:   int(600),
 				HttpOnly: true,

@@ -10,6 +10,7 @@ import (
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/posture"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
@@ -19,9 +20,7 @@ import (
 
 type decisionContextKey struct{}
 
-
-
-func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logger, errorHandler *web.ErrorHandler) func(http.Handler) http.Handler {
+func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log *slog.Logger, errorHandler *web.ErrorHandler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			appIsPublic := session.AppIsPublicFromCtx(r.Context())
@@ -33,22 +32,20 @@ func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logge
 
 			// 1. Read session from context (set by SessionMiddleware)
 			sess := session.IdentityFromCtx(r.Context())
-			
+
 			// 2. Read posture from context (set by PostureMiddleware)
 			posture, _ := posture.FromContext(r.Context())
 			// 3. Extract resource from request
 
-
 			appID := session.AppIDFromCtx(r.Context())
-
 
 			// 4. Build AuthorizationContext — ZERO I/O
 			authCtx := AuthorizationContext{
 				Principal: Principal{
-					UserID:   sess.UserId,
-					Name: sess.Name,
-					Email:    sess.Email,
-					Groups:   sess.Groups,
+					UserID: sess.UserId,
+					Name:   sess.Name,
+					Email:  sess.Email,
+					Groups: sess.Groups,
 				},
 				Device: DeviceContext{
 					Posture: posture.Status,
@@ -76,6 +73,15 @@ func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logge
 			// 6. Log every decision (success or failure)
 			logPolicyDecision(decision, authCtx, log)
 
+			accessCtx := logging.AccessContextFromContext(r.Context())
+			if accessCtx != nil {
+				accessCtx.PolicyID = decision.PolicyID
+				accessCtx.Decision = string(decision.Effect)
+				if decision.Effect == EffectDeny {
+					accessCtx.DenyReason = "policy_deny"
+				}
+			}
+
 			// 7. Enforce
 			if decision.Denied() {
 				// Return structured error with debugging headers
@@ -97,18 +103,15 @@ func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log  *slog.Logge
 	}
 }
 
-
 func isInternalPath(path string) bool {
 	return path == "/_ashrix/health" || path == "/_ashrix/logout" ||
 		strings.HasPrefix(path, "/_ashrix/auth/") || strings.HasPrefix(path, "/_ashrix/static/")
 }
 
-
 func DecisionFromContext(ctx context.Context) (*Decision, bool) {
 	dp, ok := ctx.Value(decisionContextKey{}).(*Decision)
 	return dp, ok
 }
-
 
 func logPolicyDecision(decision Decision, authCtx AuthorizationContext, log *slog.Logger) {
 	// Structured JSON log for observability

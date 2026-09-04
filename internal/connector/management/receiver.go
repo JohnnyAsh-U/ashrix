@@ -51,7 +51,7 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 			)
 			switch p.Cmd.Cmd {
 			case pb.CommandType_CMD_ROTATE_CONNECTOR_CERT:
-				go c.handleCertRotation(ctx, rotateCh)
+				go c.handleCertRotation(rotateCh)
 			case pb.CommandType_CMD_REVOKE_CONNECTOR_CERT, pb.CommandType_CMD_REVOKE_CONNECTOR:
 				go func() {
 					c.log.Error("connector certificate or component revoked - clearing credentials and shutting down")
@@ -72,7 +72,7 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 
 }
 
-func (c *ManagementConn) handleCertRotation(ctx context.Context, rotateCh chan<- error) {
+func (c *ManagementConn) handleCertRotation(rotateCh chan<- error) {
 	c.rotatingMu.Lock()
 	if c.isRotating {
 		c.rotatingMu.Unlock()
@@ -91,7 +91,12 @@ func (c *ManagementConn) handleCertRotation(ctx context.Context, rotateCh chan<-
 	c.log.Warn("starting connector cert rotation")
 
 	// Perform renewal & hot-swap in memory
-	if err := c.PKI.Renew(ctx, true); err != nil {
+	c.log.Info("connector cert rotation in progress")
+
+	newCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := c.PKI.Renew(newCtx, true); err != nil {
 		c.log.Error("connector cert rotation failed", "error", err)
 		return
 	}

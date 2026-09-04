@@ -408,6 +408,26 @@ func (r *Registry) ForceCloseConnector(connectorID string) {
 	}
 }
 
+//Close And Detach Management And Tunnel Session
+func (r *Registry) CloseAllConnectorConnection() {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, entry := range r.connectors {
+		if entry.ManagementSession != nil {
+			entry.ManagementSession.Close()
+			entry.ManagementSession = nil
+			entry.managementAttached = false
+		}
+		if entry.TunnelSession != nil {
+			_ = entry.TunnelSession.Close()
+			entry.tunnelAttached = false
+			entry.TunnelSession = nil
+		}
+	}
+}
+
+
 func (e *ConnectorEntry) IsManagementAttached() bool {
 	return e.ManagementSession != nil
 }

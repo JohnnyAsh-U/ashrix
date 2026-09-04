@@ -139,7 +139,6 @@ func (p *PKIInitialiser) Renew(ctx context.Context, force bool) error {
 		return fmt.Errorf("renew: %w", err)
 	}
 
-
 	if err := p.appStorage.SaveCredential(result, newKey); err != nil {
 		return err
 	}
@@ -203,10 +202,10 @@ func (p *PKIInitialiser) Stop() {
 }
 
 func (p *PKIInitialiser) rotator() {
-	ticker := time.NewTicker(30 * time.Minute)
+	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
-	p.log.Debug("cert rotator started")
+	p.log.Info("Certificate Rotator started")
 
 	for {
 		select {
@@ -215,25 +214,19 @@ func (p *PKIInitialiser) rotator() {
 			remaining := time.Until(p.leaf.NotAfter)
 			p.mu.RUnlock()
 
-			p.log.Debug("cert expiry check",
+			p.log.Info("certificate expiry check",
 				"remaining", remaining,
 				"expires_at", p.leaf.NotAfter,
 			)
 
-			if remaining < 30*24*time.Hour {
-				p.log.Info("cert approaching expiry — renewing",
-					"remaining", remaining,
+			if err := p.Renew(context.Background(), false); err != nil {
+				p.log.Error("background renewal failed",
+					"error", err,
 				)
-				if err := p.Renew(context.Background(), true); err != nil {
-					p.log.Error("background renewal failed",
-						"error", err,
-					)
-					// Rotator will retry on next tick (5 min)
-				}
 			}
 
 		case <-p.stopCh:
-			p.log.Debug("cert rotator stopped")
+			p.log.Info("Certificate Rotator stopped")
 			return
 		}
 	}
