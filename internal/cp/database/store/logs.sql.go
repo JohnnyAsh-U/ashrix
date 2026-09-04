@@ -14,17 +14,22 @@ import (
 )
 
 type BulkCreateAccessLogsParams struct {
-	OrgID       uuid.UUID   `json:"org_id"`
-	AppID       pgtype.UUID `json:"app_id"`
-	IdpConfigID pgtype.UUID `json:"idp_config_id"`
-	UserEmail   pgtype.Text `json:"user_email"`
-	Method      pgtype.Text `json:"method"`
-	Path        pgtype.Text `json:"path"`
-	Status      pgtype.Int4 `json:"status"`
-	LatencyMs   pgtype.Int4 `json:"latency_ms"`
-	Ip          pgtype.Text `json:"ip"`
-	Result      string      `json:"result"`
-	DenyReason  pgtype.Text `json:"deny_reason"`
+	OrgID      uuid.UUID   `json:"org_id"`
+	GatewayID  pgtype.UUID `json:"gateway_id"`
+	AppID      pgtype.UUID `json:"app_id"`
+	UserID     pgtype.Text `json:"user_id"`
+	UserEmail  pgtype.Text `json:"user_email"`
+	Method     pgtype.Text `json:"method"`
+	Path       pgtype.Text `json:"path"`
+	Status     pgtype.Int4 `json:"status"`
+	LatencyMs  pgtype.Int4 `json:"latency_ms"`
+	Action     pgtype.Text `json:"action"`
+	PolicyID   pgtype.UUID `json:"policy_id"`
+	Ip         pgtype.Text `json:"ip"`
+	Result     string      `json:"result"`
+	DenyReason pgtype.Text `json:"deny_reason"`
+	BytesIn    int64       `json:"bytes_in"`
+	BytesOut   int64       `json:"bytes_out"`
 }
 
 const countAccessLogsByResult = `-- name: CountAccessLogsByResult :one
@@ -72,26 +77,31 @@ func (q *Queries) CountAppTrafficToday(ctx context.Context, appID pgtype.UUID) (
 const createAccessLog = `-- name: CreateAccessLog :one
 
 INSERT INTO access_logs (
-    org_id, app_id, idp_config_id, user_email,
-    method, path, status, latency_ms,
-    ip, result, deny_reason
+    org_id, gateway_id, app_id, user_id, user_email,
+    method, path, status, latency_ms, action, policy_id,
+    ip, result, deny_reason, bytes_in, bytes_out
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, org_id, app_id, idp_config_id, user_email, method, path, status, latency_ms, ip, result, deny_reason, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+RETURNING id, org_id, gateway_id, app_id, policy_id, user_id, user_email, method, path, status, latency_ms, action, ip, result, deny_reason, bytes_in, bytes_out, created_at
 `
 
 type CreateAccessLogParams struct {
-	OrgID       uuid.UUID   `json:"org_id"`
-	AppID       pgtype.UUID `json:"app_id"`
-	IdpConfigID pgtype.UUID `json:"idp_config_id"`
-	UserEmail   pgtype.Text `json:"user_email"`
-	Method      pgtype.Text `json:"method"`
-	Path        pgtype.Text `json:"path"`
-	Status      pgtype.Int4 `json:"status"`
-	LatencyMs   pgtype.Int4 `json:"latency_ms"`
-	Ip          pgtype.Text `json:"ip"`
-	Result      string      `json:"result"`
-	DenyReason  pgtype.Text `json:"deny_reason"`
+	OrgID      uuid.UUID   `json:"org_id"`
+	GatewayID  pgtype.UUID `json:"gateway_id"`
+	AppID      pgtype.UUID `json:"app_id"`
+	UserID     pgtype.Text `json:"user_id"`
+	UserEmail  pgtype.Text `json:"user_email"`
+	Method     pgtype.Text `json:"method"`
+	Path       pgtype.Text `json:"path"`
+	Status     pgtype.Int4 `json:"status"`
+	LatencyMs  pgtype.Int4 `json:"latency_ms"`
+	Action     pgtype.Text `json:"action"`
+	PolicyID   pgtype.UUID `json:"policy_id"`
+	Ip         pgtype.Text `json:"ip"`
+	Result     string      `json:"result"`
+	DenyReason pgtype.Text `json:"deny_reason"`
+	BytesIn    int64       `json:"bytes_in"`
+	BytesOut   int64       `json:"bytes_out"`
 }
 
 // =================================================================
@@ -101,31 +111,41 @@ type CreateAccessLogParams struct {
 func (q *Queries) CreateAccessLog(ctx context.Context, arg CreateAccessLogParams) (AccessLog, error) {
 	row := q.db.QueryRow(ctx, createAccessLog,
 		arg.OrgID,
+		arg.GatewayID,
 		arg.AppID,
-		arg.IdpConfigID,
+		arg.UserID,
 		arg.UserEmail,
 		arg.Method,
 		arg.Path,
 		arg.Status,
 		arg.LatencyMs,
+		arg.Action,
+		arg.PolicyID,
 		arg.Ip,
 		arg.Result,
 		arg.DenyReason,
+		arg.BytesIn,
+		arg.BytesOut,
 	)
 	var i AccessLog
 	err := row.Scan(
 		&i.ID,
 		&i.OrgID,
+		&i.GatewayID,
 		&i.AppID,
-		&i.IdpConfigID,
+		&i.PolicyID,
+		&i.UserID,
 		&i.UserEmail,
 		&i.Method,
 		&i.Path,
 		&i.Status,
 		&i.LatencyMs,
+		&i.Action,
 		&i.Ip,
 		&i.Result,
 		&i.DenyReason,
+		&i.BytesIn,
+		&i.BytesOut,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -178,7 +198,7 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 }
 
 const listAccessLogsByApp = `-- name: ListAccessLogsByApp :many
-SELECT id, org_id, app_id, idp_config_id, user_email, method, path, status, latency_ms, ip, result, deny_reason, created_at FROM access_logs
+SELECT id, org_id, gateway_id, app_id, policy_id, user_id, user_email, method, path, status, latency_ms, action, ip, result, deny_reason, bytes_in, bytes_out, created_at FROM access_logs
 WHERE app_id     = $1
   AND org_id     = $2
   AND created_at >= $3
@@ -215,16 +235,21 @@ func (q *Queries) ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByA
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrgID,
+			&i.GatewayID,
 			&i.AppID,
-			&i.IdpConfigID,
+			&i.PolicyID,
+			&i.UserID,
 			&i.UserEmail,
 			&i.Method,
 			&i.Path,
 			&i.Status,
 			&i.LatencyMs,
+			&i.Action,
 			&i.Ip,
 			&i.Result,
 			&i.DenyReason,
+			&i.BytesIn,
+			&i.BytesOut,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -238,7 +263,7 @@ func (q *Queries) ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByA
 }
 
 const listAccessLogsByOrg = `-- name: ListAccessLogsByOrg :many
-SELECT id, org_id, app_id, idp_config_id, user_email, method, path, status, latency_ms, ip, result, deny_reason, created_at FROM access_logs
+SELECT id, org_id, gateway_id, app_id, policy_id, user_id, user_email, method, path, status, latency_ms, action, ip, result, deny_reason, bytes_in, bytes_out, created_at FROM access_logs
 WHERE org_id     = $1
   AND created_at >= $2
   AND created_at <= $3
@@ -272,16 +297,21 @@ func (q *Queries) ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByO
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrgID,
+			&i.GatewayID,
 			&i.AppID,
-			&i.IdpConfigID,
+			&i.PolicyID,
+			&i.UserID,
 			&i.UserEmail,
 			&i.Method,
 			&i.Path,
 			&i.Status,
 			&i.LatencyMs,
+			&i.Action,
 			&i.Ip,
 			&i.Result,
 			&i.DenyReason,
+			&i.BytesIn,
+			&i.BytesOut,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -457,7 +487,7 @@ func (q *Queries) ListAuditLogsByTarget(ctx context.Context, arg ListAuditLogsBy
 }
 
 const listDeniedAccessLogs = `-- name: ListDeniedAccessLogs :many
-SELECT id, org_id, app_id, idp_config_id, user_email, method, path, status, latency_ms, ip, result, deny_reason, created_at FROM access_logs
+SELECT id, org_id, gateway_id, app_id, policy_id, user_id, user_email, method, path, status, latency_ms, action, ip, result, deny_reason, bytes_in, bytes_out, created_at FROM access_logs
 WHERE org_id     = $1
   AND result     = 'denied'
   AND created_at >= $2
@@ -493,16 +523,21 @@ func (q *Queries) ListDeniedAccessLogs(ctx context.Context, arg ListDeniedAccess
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrgID,
+			&i.GatewayID,
 			&i.AppID,
-			&i.IdpConfigID,
+			&i.PolicyID,
+			&i.UserID,
 			&i.UserEmail,
 			&i.Method,
 			&i.Path,
 			&i.Status,
 			&i.LatencyMs,
+			&i.Action,
 			&i.Ip,
 			&i.Result,
 			&i.DenyReason,
+			&i.BytesIn,
+			&i.BytesOut,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

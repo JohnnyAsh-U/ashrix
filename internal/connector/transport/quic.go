@@ -95,6 +95,5 @@ func (s *quicStream) Read(b []byte) (int, error)  { return s.stream.Read(b) }
 func (s *quicStream) Write(b []byte) (int, error) { return s.stream.Write(b) }
 func (s *quicStream) Close() error                { return s.stream.Close() }
 func (s *quicStream) CloseWrite() error {
-	s.stream.CancelWrite(0)
-	return nil
+	return s.stream.Close()
 }

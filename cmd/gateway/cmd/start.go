@@ -211,7 +211,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// 1. Connection Manager
 	cm := gateway_grpc.NewConnectionManager(cpHost, pki.GetTLSConfig())
 
-	// ── 2. Stream Manager (bidi stream + hello handshake) ─────────
+	//2. Access Logger
+	accessLogger := logging.NewAccessLogger(cfg, nil)
+	defer accessLogger.Close()
+
+	// ── 3. Stream Manager (bidi stream + hello handshake) ─────────
 	// var epochCounter atomic.Uint64
 	sm := gateway_grpc.NewStreamManager(
 		cm,
@@ -224,17 +228,21 @@ func runStart(cmd *cobra.Command, args []string) error {
 		reg,
 		redisStore.Client(),
 		sessions,
+		accessLogger,
 	)
 
-	// 3. Safe Unary Client (for HTTP handlers that need CP)
+	// StreamManager implements LogSender.
+	accessLogger.SetSender(sm)
+
+	// 4. Safe Unary Client (for HTTP handlers that need CP)
 	grpcClient := gateway_grpc.NewSafeClient(cm)
 
-	// 4. Establish initial connection
+	// 5. Establish initial connection
 	if err := cm.RefreshConnection(ctx); err != nil {
 		log.Error("initial connection failed", slog.Any("err", err))
 	}
 
-	// 5. Background loops
+	// 6. Background loops
 	go sm.Run(ctx)
 	// go cm.HealthCheckLoop(ctx, 10*time.Second)
 
@@ -259,6 +267,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		engine,
 		rtr,
 		grpcServer,
+		accessLogger,
 	)
 
 	quicServer := quic_server.NewQUICServer(

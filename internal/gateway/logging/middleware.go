@@ -3,6 +3,7 @@ package logging
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -20,6 +21,17 @@ import (
 // outer layer so it can capture the final status code and
 // latency of the entire chain (including Policy → Proxy).
 // ============================================================
+
+type countingReadCloser struct {
+	io.ReadCloser
+	bytes int64
+}
+
+func (c *countingReadCloser) Read(p []byte) (int, error) {
+	n, err := c.ReadCloser.Read(p)
+	c.bytes += int64(n)
+	return n, err
+}
 
 type logResponseWriter struct {
 	http.ResponseWriter
@@ -56,65 +68,125 @@ func (lrw *logResponseWriter) Flush() {
 }
 
 func (lrw *logResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-    h, ok := lrw.ResponseWriter.(http.Hijacker)
-    if !ok {
-        return nil, nil, fmt.Errorf("underlying ResponseWriter does not support hijacking")
-    }
+	h, ok := lrw.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("underlying ResponseWriter does not support hijacking")
+	}
 
-    return h.Hijack()
+	return h.Hijack()
 }
 
-// AccessLogMiddleware logs every request. Place it early in the
-// middleware stack (after RequestID/RealIP but before the core chain).
-func AccessLogMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
+// AccessLogMiddleware logs every request to rotated file and optionally CP asynchronously.
+func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackLogger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
+
+			requestCounter := &countingReadCloser{
+				ReadCloser: r.Body,
+			}
+			r.Body = requestCounter
 
 			// Wrap writer to capture status and bytes
 			lrw := newLogResponseWriter(w)
 
 			next.ServeHTTP(lrw, r)
 
+			bytesIn := requestCounter.bytes
+			bytesOut := lrw.bytes
+
+			appID := session.AppIDFromCtx(r.Context())
+
 			// Gather identity & decision if available
-			var userID, tenantID, decisionEffect, policyID string
+			var userID, userEmail, tenantID, decisionEffect, policyID, denyReason string
 			sess := session.IdentityFromCtx(r.Context())
 			if sess != nil {
 				userID = sess.UserId
+				userEmail = sess.Email
 				tenantID = sess.TenantId
 			}
 
 			if dec, ok := policy.DecisionFromContext(r.Context()); ok {
 				decisionEffect = string(dec.Effect)
 				policyID = dec.PolicyID
+				if dec.Effect == policy.EffectDeny {
+					denyReason = "policy_deny"
+				}
 			}
 
-			// Build structured log
+			fmt.Println("AppID", appID)
+
+			result := "allowed"
+			if lrw.statusCode >= 400 || decisionEffect == "DENY" {
+				result = "denied"
+				if denyReason == "" {
+					switch lrw.statusCode {
+					case http.StatusUnauthorized:
+						denyReason = "no_session"
+					case http.StatusForbidden:
+						denyReason = "policy_deny"
+					case http.StatusServiceUnavailable, http.StatusBadGateway:
+						denyReason = "app_offline"
+					}
+				}
+			}
+
+			latency := time.Since(start)
+
+			// Build structured log attributes
 			attrs := []any{
 				"event", "http.access",
+				"gateway_id", gatewayID,
+				"app_id", appID,
 				"request_id", middleware.GetReqID(r.Context()),
 				"method", r.Method,
 				"path", r.URL.Path,
 				"host", r.Host,
 				"remote_addr", r.RemoteAddr,
 				"status", lrw.statusCode,
-				"bytes", lrw.bytes,
-				"latency", time.Since(start),
+				"bytes_in", bytesIn,
+				"bytes_out", bytesOut,
+				"latency", latency.Milliseconds(),
 				"user_agent", r.UserAgent(),
 				"user_id", userID,
+				"user_email", userEmail,
 				"tenant_id", tenantID,
-				"decision_effect", decisionEffect,
+				"result", result,
+				"deny_reason", denyReason,
 				"policy_id", policyID,
 			}
 
-			// Log at appropriate level
-			switch {
-			case lrw.statusCode >= 500:
-				logger.Error("http access", attrs...)
-			case lrw.statusCode >= 400:
-				logger.Warn("http access", attrs...)
-			default:
-				logger.Info("http access", attrs...)
+			protoEntry := BuildProtoAccessLogEntry(
+				gatewayID,
+				tenantID,
+				appID,  // app_id can be populated if available
+				userID, // user_id
+				userEmail,
+				r.Method,
+				r.URL.Path,
+				int32(lrw.statusCode),
+				int32(latency.Milliseconds()),
+				r.RemoteAddr,
+				"Access",
+				policyID,
+				bytesIn,
+				bytesOut,
+				result,
+				denyReason,
+			)
+
+			if accessLogger != nil {
+				accessLogger.Log(r.Context(), protoEntry, attrs...)
+				fallbackLogger.Info("http access", attrs...)
+			} else if fallbackLogger != nil {
+				switch {
+				case lrw.statusCode >= 500:
+					fallbackLogger.Error("http access", attrs...)
+				case lrw.statusCode >= 400:
+					fallbackLogger.Warn("http access", attrs...)
+				default:
+					fallbackLogger.Info("http access", attrs...)
+				}
 			}
 		})
 	}

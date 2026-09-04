@@ -14,7 +14,9 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	gatewayevents "github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/logs"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
+
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
@@ -41,8 +43,8 @@ type cpServer struct {
 	PkiCARepo     pkica.Repository
 	connectorRepo connector.Repository
 	appRepo       app.Repository
-	// dbQueries   *store.Queries
-	log *slog.Logger
+	logRepo       logs.Repository
+	log           *slog.Logger
 }
 
 // Connect handles the bidirectional stream from a gateway
@@ -175,6 +177,9 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 				continue
 			}
 
+		case *proto.GatewayEnvelope_LogBatch:
+			go s.handleAccessLogBatch(ctx, connection, msg.GetLogBatch())
+
 		default:
 			log.Printf("Unknown message")
 		}
@@ -272,16 +277,16 @@ func (s *cpServer) handleHello(ctx context.Context, conn *registry.GatewayConn, 
 		return err
 	}
 
-
-	_, err = s.gatewayRepo.UpdateGatewayInfo(ctx, store.UpdateGatewayInfoParams{
+	gatewayRow, err := s.gatewayRepo.UpdateGatewayInfo(ctx, store.UpdateGatewayInfoParams{
 		ID: gatewayID,
 		Version: pgtype.Text{
 			Valid:  true,
 			String: hello.BinaryVersion,
 		},
-		HttpsPort:pgtype.Text{Valid: true, String: hello.HttpsPort},
-		QuicPort:pgtype.Text{Valid: true, String: hello.QuicPort},
-		GrpcPort:pgtype.Text{Valid: true, String: hello.GrpcPort},
+		HttpsPort: pgtype.Text{Valid: true, String: hello.HttpsPort},
+		QuicPort:  pgtype.Text{Valid: true, String: hello.QuicPort},
+		GrpcPort:  pgtype.Text{Valid: true, String: hello.GrpcPort},
+		Uptime:    hello.Uptime,
 	},
 	)
 	if err != nil {
@@ -313,7 +318,8 @@ func (s *cpServer) handleHello(ctx context.Context, conn *registry.GatewayConn, 
 				HelloAck: &proto.HelloAck{
 					ServerVersion: "1.0.0",
 					ServerTime:    timestamppb.Now(),
-					Connectors: connectorsInfo,
+					Connectors:    connectorsInfo,
+					LogToCp:       gatewayRow.LogToCp,
 				},
 			},
 		},
@@ -358,8 +364,8 @@ func (s *cpServer) handleHeartbeat(
 			continue
 		}
 		_, err = s.connectorRepo.UpdateConnectorStatus(ctx, store.UpdateConnectorStatusParams{
-			ID:     cID,
-			Status: connStat.Status,
+			ID:            cID,
+			Status:        connStat.Status,
 			ActiveStreams: heartbeat.ActiveSessions,
 		})
 		if err != nil {
@@ -512,4 +518,63 @@ func (t *cpServer) ExchangeToken(ctx context.Context, req *proto.ExchangeTokenRe
 
 	t.log.Info("token exchanged", slog.String("user_id", identity.UserId))
 	return &proto.ExchangeTokenResponse{Valid: true, Identity: &identity}, nil
+}
+
+func (s *cpServer) handleAccessLogBatch(
+	ctx context.Context,
+	conn *registry.GatewayConn,
+	batch *proto.AccessLogBatch,
+) {
+	if batch == nil || len(batch.Entries) == 0 {
+		return
+	}
+	var params []store.BulkCreateAccessLogsParams
+	for _, entry := range batch.Entries {
+		orgUUID, err := uuid.Parse(entry.OrgId)
+		if err != nil {
+			orgUUID, _ = uuid.Parse(conn.TenantID)
+		}
+
+		var gwParam pgtype.UUID
+		if gwUUID, err := uuid.Parse(entry.GatewayId); err == nil {
+			gwParam = pgtype.UUID{Bytes: gwUUID, Valid: true}
+		} else if parsedGw, err2 := uuid.Parse(conn.GatewayID); err2 == nil {
+			gwParam = pgtype.UUID{Bytes: parsedGw, Valid: true}
+		}
+
+		var appParam pgtype.UUID
+		if appUUID, err := uuid.Parse(entry.AppId); err == nil {
+			appParam = pgtype.UUID{Bytes: appUUID, Valid: true}
+		}
+
+		var policyParam pgtype.UUID
+		if policyUUID, err := uuid.Parse(entry.PolicyId); err == nil {
+			policyParam = pgtype.UUID{Bytes: policyUUID, Valid: true}
+		}
+
+		params = append(params, store.BulkCreateAccessLogsParams{
+			OrgID:      orgUUID,
+			GatewayID:  gwParam,
+			AppID:      appParam,
+			UserID:     pgtype.Text{String: entry.UserId, Valid: entry.UserId != ""},
+			UserEmail:  pgtype.Text{String: entry.UserEmail, Valid: entry.UserEmail != ""},
+			Method:     pgtype.Text{String: entry.Method, Valid: entry.Method != ""},
+			Path:       pgtype.Text{String: entry.Path, Valid: entry.Path != ""},
+			Status:     pgtype.Int4{Int32: entry.Status, Valid: entry.Status != 0},
+			LatencyMs:  pgtype.Int4{Int32: entry.LatencyMs, Valid: true},
+			Ip:         pgtype.Text{String: entry.Ip, Valid: entry.Ip != ""},
+			PolicyID:   policyParam,
+			Action:     pgtype.Text{String: entry.Action, Valid: entry.Action != ""},
+			BytesIn:    entry.BytesIn,
+			BytesOut:   entry.BytesOut,
+			Result:     entry.Result,
+			DenyReason: pgtype.Text{String: entry.DenyReason, Valid: entry.DenyReason != ""},
+		})
+	}
+
+	if len(params) > 0 {
+		if _, err := s.logRepo.BulkCreateAccessLogs(ctx, params); err != nil {
+			s.log.Warn("failed to bulk insert access logs", "error", err)
+		}
+	}
 }

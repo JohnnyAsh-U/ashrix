@@ -39,6 +39,7 @@ func NewProxyServer(
 	engine *policy.PolicyEngine,
 	rtr *router.Router,
 	grpcServer *grpc.GRPCServer,
+	accessLogger *logging.AccessLogger,
 ) *ProxyServer {
 
 	rateLimiter := session.NewRedisLimiter(redisClient, 10, time.Minute)
@@ -79,7 +80,7 @@ func NewProxyServer(
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.ClientIPFromHeader("X-Real-IP"))
-	r.Use(logging.AccessLogMiddleware(log)) // <-- add here
+	r.Use(logging.AccessLogMiddleware(accessLogger, cfg.GatewayID, log))
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig())) // <-- updated

@@ -49,8 +49,7 @@ func (s *quicStreamAdapter) CloseRead() error {
 	return nil
 }
 func (s *quicStreamAdapter) CloseWrite() error {
-	s.stream.CancelWrite(0)
-	return nil
+	return s.stream.Close()
 }
 func (s *quicStreamAdapter) Context() context.Context {
 	if s.ctx != nil {

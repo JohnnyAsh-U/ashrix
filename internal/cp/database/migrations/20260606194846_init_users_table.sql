@@ -148,6 +148,7 @@ CREATE TABLE gateways (
     is_active       BOOLEAN NOT NULL DEFAULT true,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     log_to_cp  BOOLEAN     NOT NULL DEFAULT true,
+    uptime          BIGINT      NOT NULL DEFAULT 0,
     enrolled_at TIMESTAMPTZ,
     revoked_at      TIMESTAMPTZ,    
     UNIQUE (org_id, name)
@@ -582,16 +583,21 @@ CREATE TABLE audit_logs (
 CREATE TABLE access_logs (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id          UUID        NOT NULL REFERENCES orgs(id),
+    gateway_id      UUID        REFERENCES gateways(id),
     app_id          UUID        REFERENCES apps(id),
-    idp_config_id   UUID        REFERENCES idp_configs(id),
+    policy_id       UUID        REFERENCES policies(id),
+    user_id         TEXT,
     user_email      TEXT,
     method          TEXT,
     path            TEXT,
     status          INTEGER,
     latency_ms      INTEGER,
+    action          TEXT,
     ip              TEXT,
     result          TEXT        NOT NULL CHECK (result IN ('allowed', 'denied')),
     deny_reason     TEXT CHECK (deny_reason IN ('no_session', 'policy_deny', 'ip_deny', 'session_revoked', 'app_offline')),
+    bytes_in        BIGINT NOT NULL DEFAULT 0,
+    bytes_out       BIGINT NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

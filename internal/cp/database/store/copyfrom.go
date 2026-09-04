@@ -30,16 +30,21 @@ func (r *iteratorForBulkCreateAccessLogs) Next() bool {
 func (r iteratorForBulkCreateAccessLogs) Values() ([]interface{}, error) {
 	return []interface{}{
 		r.rows[0].OrgID,
+		r.rows[0].GatewayID,
 		r.rows[0].AppID,
-		r.rows[0].IdpConfigID,
+		r.rows[0].UserID,
 		r.rows[0].UserEmail,
 		r.rows[0].Method,
 		r.rows[0].Path,
 		r.rows[0].Status,
 		r.rows[0].LatencyMs,
+		r.rows[0].Action,
+		r.rows[0].PolicyID,
 		r.rows[0].Ip,
 		r.rows[0].Result,
 		r.rows[0].DenyReason,
+		r.rows[0].BytesIn,
+		r.rows[0].BytesOut,
 	}, nil
 }
 
@@ -50,5 +55,5 @@ func (r iteratorForBulkCreateAccessLogs) Err() error {
 // Uses pgx COPY protocol for high-throughput batch inserts.
 // Gateway drains its local buffer to CP every 10s.
 func (q *Queries) BulkCreateAccessLogs(ctx context.Context, arg []BulkCreateAccessLogsParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"access_logs"}, []string{"org_id", "app_id", "idp_config_id", "user_email", "method", "path", "status", "latency_ms", "ip", "result", "deny_reason"}, &iteratorForBulkCreateAccessLogs{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"access_logs"}, []string{"org_id", "gateway_id", "app_id", "user_id", "user_email", "method", "path", "status", "latency_ms", "action", "policy_id", "ip", "result", "deny_reason", "bytes_in", "bytes_out"}, &iteratorForBulkCreateAccessLogs{rows: arg})
 }

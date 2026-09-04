@@ -52,7 +52,7 @@ func InitializeGRPCServer(
 			Timeout:           20 * time.Second,
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime: 1 * time.Minute,
+			MinTime:             1 * time.Minute,
 			PermitWithoutStream: false,
 		}),
 	)
@@ -64,6 +64,7 @@ func InitializeGRPCServer(
 		connectorRepo: repositories.Connector,
 		appRepo:       repositories.App,
 		eventRepo:     repositories.Event,
+		logRepo:       repositories.Log,
 		registry:      registry,
 		distributor:   distributor,
 		log:           log,

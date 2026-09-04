@@ -124,9 +124,10 @@ RETURNING *;
 -- name: UpdateGatewayInfo :one
 UPDATE gateways
 SET version = $5,
-    quic_port= $4,
+    quic_port = $4,
     https_port = $3,
-    grpc_port = $2
+    grpc_port = $2,
+    uptime = $6
 WHERE id = $1
   AND is_active = true
   AND revoked_at IS NULL

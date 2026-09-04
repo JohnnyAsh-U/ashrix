@@ -14,19 +14,24 @@ import (
 )
 
 type AccessLog struct {
-	ID          uuid.UUID   `json:"id"`
-	OrgID       uuid.UUID   `json:"org_id"`
-	AppID       pgtype.UUID `json:"app_id"`
-	IdpConfigID pgtype.UUID `json:"idp_config_id"`
-	UserEmail   pgtype.Text `json:"user_email"`
-	Method      pgtype.Text `json:"method"`
-	Path        pgtype.Text `json:"path"`
-	Status      pgtype.Int4 `json:"status"`
-	LatencyMs   pgtype.Int4 `json:"latency_ms"`
-	Ip          pgtype.Text `json:"ip"`
-	Result      string      `json:"result"`
-	DenyReason  pgtype.Text `json:"deny_reason"`
-	CreatedAt   time.Time   `json:"created_at"`
+	ID         uuid.UUID   `json:"id"`
+	OrgID      uuid.UUID   `json:"org_id"`
+	GatewayID  pgtype.UUID `json:"gateway_id"`
+	AppID      pgtype.UUID `json:"app_id"`
+	PolicyID   pgtype.UUID `json:"policy_id"`
+	UserID     pgtype.Text `json:"user_id"`
+	UserEmail  pgtype.Text `json:"user_email"`
+	Method     pgtype.Text `json:"method"`
+	Path       pgtype.Text `json:"path"`
+	Status     pgtype.Int4 `json:"status"`
+	LatencyMs  pgtype.Int4 `json:"latency_ms"`
+	Action     pgtype.Text `json:"action"`
+	Ip         pgtype.Text `json:"ip"`
+	Result     string      `json:"result"`
+	DenyReason pgtype.Text `json:"deny_reason"`
+	BytesIn    int64       `json:"bytes_in"`
+	BytesOut   int64       `json:"bytes_out"`
+	CreatedAt  time.Time   `json:"created_at"`
 }
 
 type Admin struct {
@@ -176,6 +181,7 @@ type Gateway struct {
 	IsActive       bool               `json:"is_active"`
 	CreatedAt      time.Time          `json:"created_at"`
 	LogToCp        bool               `json:"log_to_cp"`
+	Uptime         int64              `json:"uptime"`
 	EnrolledAt     pgtype.Timestamptz `json:"enrolled_at"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }

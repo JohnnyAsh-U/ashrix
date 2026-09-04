@@ -41,22 +41,22 @@ LIMIT $4 OFFSET $5;
 
 -- name: CreateAccessLog :one
 INSERT INTO access_logs (
-    org_id, app_id, idp_config_id, user_email,
-    method, path, status, latency_ms,
-    ip, result, deny_reason
+    org_id, gateway_id, app_id, user_id, user_email,
+    method, path, status, latency_ms, action, policy_id,
+    ip, result, deny_reason, bytes_in, bytes_out
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 RETURNING *;
 
 -- name: BulkCreateAccessLogs :copyfrom
 -- Uses pgx COPY protocol for high-throughput batch inserts.
 -- Gateway drains its local buffer to CP every 10s.
 INSERT INTO access_logs (
-    org_id, app_id, idp_config_id, user_email,
-    method, path, status, latency_ms,
-    ip, result, deny_reason
+    org_id, gateway_id, app_id, user_id, user_email,
+    method, path, status, latency_ms, action, policy_id,
+    ip, result, deny_reason, bytes_in, bytes_out
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
 
 -- name: ListAccessLogsByOrg :many
 SELECT * FROM access_logs

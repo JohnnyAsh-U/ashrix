@@ -10,9 +10,6 @@ Frontend Building and integration
 Accesslog Api to get list with filters Access logging and audit logging 
 Audit log list api
 
-
-
-
 *App To App Communication using Sock5 proxy
 
 
@@ -20,10 +17,8 @@ Audit log list api
 
 
 # Flexibility in the Port designing for each service
-Now redesign the ports and host for gRPC server on cp, and gRPC/QUIc on gateway 
 
 Update the document of the platform with changes.
-
 
 Intégration testing in general
 

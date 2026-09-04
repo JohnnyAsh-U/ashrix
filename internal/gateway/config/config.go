@@ -25,7 +25,7 @@ type Config struct {
 	RedisPassword string
 	SessionTTL    time.Duration
 	CookieSecure  bool
-	IsProdEnv bool
+	IsProdEnv     bool
 }
 
 // Load reads gateway configuration from environment variables.
@@ -54,7 +54,7 @@ func LoadFromViper() (*Config, error) {
 		RedisPassword: viper.GetString("redis_password"),
 		SessionTTL:    viper.GetDuration("session_ttl"),
 		CookieSecure:  viper.GetBool("cookie_secure"),
-		IsProdEnv: viper.GetBool("is_prod_env"),
+		IsProdEnv:     viper.GetBool("is_prod_env"),
 	}
 
 	return cfg, nil

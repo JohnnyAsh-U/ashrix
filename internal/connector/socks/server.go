@@ -261,21 +261,29 @@ func (s *Server) handleConnection(parent context.Context, conn net.Conn) error {
 	return relayRes.Err
 }
 
+type closeReader interface {
+	CloseRead() error
+}
+
+type closeWriter interface {
+	CloseWrite() error
+}
+
 type tcpStreamAdapter struct {
 	net.Conn
 	ctx context.Context
 }
 
 func (t *tcpStreamAdapter) CloseRead() error {
-	if tc, ok := t.Conn.(*net.TCPConn); ok {
-		return tc.CloseRead()
+	if cr, ok := t.Conn.(closeReader); ok {
+		return cr.CloseRead()
 	}
 	return nil
 }
 
 func (t *tcpStreamAdapter) CloseWrite() error {
-	if tc, ok := t.Conn.(*net.TCPConn); ok {
-		return tc.CloseWrite()
+	if cw, ok := t.Conn.(closeWriter); ok {
+		return cw.CloseWrite()
 	}
 	return nil
 }

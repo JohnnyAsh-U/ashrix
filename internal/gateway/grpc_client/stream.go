@@ -12,6 +12,7 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
@@ -42,10 +43,13 @@ type StreamManager struct {
 	redisClient *redis.Client
 	session     *session.SessionManager
 
-	mu     sync.RWMutex
-	stream pb.ControlPlaneService_ConnectClient
-	active bool
-	sendCh chan *pb.GatewayEnvelope
+	accessLogger *logging.AccessLogger
+
+	mu        sync.RWMutex
+	stream    pb.ControlPlaneService_ConnectClient
+	active    bool
+	sendCh    chan *pb.GatewayEnvelope
+	startTime time.Time
 }
 
 func NewStreamManager(
@@ -60,22 +64,25 @@ func NewStreamManager(
 	reg *registry.Registry,
 	redisClient *redis.Client,
 	session *session.SessionManager,
+	accessLogger *logging.AccessLogger,
 ) *StreamManager {
 	if sendQueue <= 0 {
 		sendQueue = 64
 	}
 
 	return &StreamManager{
-		cm:          cm,
-		policyStore: policyStore,
-		cfg:         cfg,
-		pki:         pki,
-		engine:      engine,
-		log:         log,
-		sendCh:      make(chan *pb.GatewayEnvelope, sendQueue),
-		registry:    reg,
-		redisClient: redisClient,
-		session:     session,
+		cm:           cm,
+		policyStore:  policyStore,
+		cfg:          cfg,
+		pki:          pki,
+		engine:       engine,
+		log:          log,
+		sendCh:       make(chan *pb.GatewayEnvelope, sendQueue),
+		registry:     reg,
+		redisClient:  redisClient,
+		session:      session,
+		startTime:    time.Now(),
+		accessLogger: accessLogger,
 	}
 }
 
@@ -116,9 +123,16 @@ func (sm *StreamManager) Run(ctx context.Context) {
 			sm.log.Warn("stream session ended", slog.Any("error", err))
 		}
 
-		sm.setStream(nil, false)
+		// CP session is gone.
+		// Stop sending access logs to the dead session.
+		if sm.accessLogger != nil {
+			sm.accessLogger.StopCPSync()
+		}
 
-		// fmt.Println(status.FromError(err))
+		// CRITICAL: reset stream *before* potentially waiting/retrying.
+		// If you forget this, failed send() calls keep using the dead stream
+		// until the next runSession() brings a new one.
+		sm.setStream(nil, false)
 
 		// ── Auth/cert error path ─────────────────────────────────────
 		if sm.isAuthError(err) {
@@ -304,6 +318,18 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 	case *pb.CPEnvelope_HelloAck:
 		h.log.Info("Hello Acknowledged, Gateway Syncing", slog.Time("server_time", p.HelloAck.ServerTime.AsTime()))
+		logToCP := p.HelloAck.LogToCp
+
+		if h.accessLogger != nil {
+			if logToCP {
+				h.log.Info("CP access log streaming enabled")
+				h.accessLogger.StartCPSync()
+			} else {
+				h.log.Info("CP access log streaming disabled")
+				h.accessLogger.StopCPSync()
+			}
+		}
+
 		statusMap := make(map[string]string)
 		for _, c := range p.HelloAck.Connectors {
 			statusMap[c.Id] = c.Status
@@ -461,7 +487,6 @@ func (h *StreamManager) handlePolicyUpdate(ctx context.Context, msg *pb.CPEnvelo
 	h.engine.ApplyVerifiedDelta(ctx, msg.GetPolicyBundle(), checkpoint)
 }
 
-
 func (sm *StreamManager) isAuthError(err error) bool {
 	if err == nil {
 		return false
@@ -533,11 +558,25 @@ func (h *StreamManager) CommandStatusUpdate(
 	})
 }
 
+func (sm *StreamManager) SendLogBatch(batch *pb.AccessLogBatch) error {
+	if batch == nil || len(batch.Entries) == 0 {
+		return nil
+	}
+	return sm.Send(&pb.GatewayEnvelope{
+		GatewayId: sm.cfg.GatewayID,
+		Payload: &pb.GatewayEnvelope_LogBatch{
+			LogBatch: batch,
+		},
+	})
+}
+
 func (sm *StreamManager) makeHello(ctx context.Context) *pb.GatewayEnvelope {
 	policyVersion, err := sm.policyStore.GetCheckpoint(ctx)
 	if err != nil {
 		sm.log.Error("failed to get policy version", slog.Any("error", err))
 	}
+
+	uptimeSec := int64(time.Since(sm.startTime).Seconds())
 
 	return &pb.GatewayEnvelope{
 		GatewayId: sm.cfg.GatewayID,
@@ -547,10 +586,10 @@ func (sm *StreamManager) makeHello(ctx context.Context) *pb.GatewayEnvelope {
 				TenantId:      sm.cfg.TenantId,
 				PolicyVersion: policyVersion.LastBundleVersion,
 				BinaryVersion: version.GetGatewayVersion(),
-				QuicPort: sm.cfg.QUICPort,
-				GrpcPort: sm.cfg.GRPCPort,
-				HttpsPort: sm.cfg.HTTPSPort,
-				
+				QuicPort:      sm.cfg.QUICPort,
+				GrpcPort:      sm.cfg.GRPCPort,
+				HttpsPort:     sm.cfg.HTTPSPort,
+				Uptime:        uptimeSec,
 			},
 		},
 	}

@@ -94,6 +94,7 @@ message GatewayEnvelope {
     HelloMessage     hello     = 10;
     HeartbeatMessage heartbeat = 11;
     CommandAck       cmd_ack   = 12;
+    AccessLogBatch   log_batch = 13;
   }
 }
 
@@ -176,9 +177,10 @@ message HelloMessage {
   string tenant_id      = 2;
   string binary_version = 3;  // Ashrix binary version for compatibility checks
   int64  policy_version = 4;  // policy bundle version currently applied
-  string  quic_port = 5;
-  string  https_port = 6;
-  string  grpc_port = 7;
+  string quic_port      = 5;
+  string https_port     = 6;
+  string grpc_port      = 7;
+  int64  uptime         = 8;
 }
 
 message CommandAck {
@@ -217,7 +219,8 @@ message AppHealthStatus {
 message HelloAck {
   string                    server_version = 1;
   repeated ConnectorInfo    connectors     = 2;
-  google.protobuf.Timestamp server_time    = 3;
+  bool                      log_to_cp      = 3;
+  google.protobuf.Timestamp server_time    = 4;
 }
 
 message PolicyBundle {
@@ -269,9 +272,9 @@ message ConnectorStatusResponse {
   string                 gateway_id   = 2;
   string                 gateway_url  = 3;
   string                 gateway_ip   = 4;
-  string                 grpc_port   = 5;
+  string                 grpc_port    = 5;
   string                 https_port   = 6;
-  string                 quic_port   = 7;
+  string                 quic_port    = 7;
   string                 tenant_id    = 8;
   bool                   open_sock    = 9;
   repeated ConnectorApps apps         = 10;
@@ -509,38 +512,26 @@ message PolicyRecord {
   bytes signature = 5;
 }
 
-// message AccessLogEntry {
-//   string session_id         = 1;
-//   string client_cert_serial = 2; // who connected — cert serial as stable identity
-//   string connector_id       = 3; // which connector (if applicable)
-//   string target_app_id      = 4; // which internal app was accessed
-//   string action             = 5; // ALLOW / DENY
-//   string policy_id          = 6; // which policy rule matched
-//   string deny_reason        = 7; // set if action=DENY
-//   int32  status_code        = 8;
-//   int64  bytes_in           = 9;
-//   int64  bytes_out          = 10;
-//   google.protobuf.Timestamp started_at = 11;
-//   google.protobuf.Timestamp ended_at   = 12;
-// }
+message AccessLogEntry {
+  string                    gateway_id  = 1;
+  string                    org_id      = 2;
+  string                    app_id      = 3;
+  string                    user_id     = 4;
+  string                    user_email  = 5;
+  string                    method      = 6;
+  string                    path        = 7;
+  int32                     status      = 8;
+  int32                     latency_ms  = 9;
+  string                    ip          = 10;
+  string                    action      = 11;
+  string                    policy_id   = 12;
+  int64                    bytes_in    = 13;
+  int64                    bytes_out   = 14;
+  string                    result      = 15;
+  string                    deny_reason = 16;
+  google.protobuf.Timestamp created_at  = 17;
+}
 
-// message MetricsBatch {
-//   google.protobuf.Timestamp collected_at       = 1;
-//   int64  total_requests                        = 2;
-//   int64  denied_requests                       = 3;
-//   int64  tls_handshake_count                   = 4;
-//   int64  tls_handshake_errors                  = 5;
-//   int64  cert_validation_failures              = 6;
-//   int64  revoked_cert_rejections               = 7; // per-call CRL check hits
-//   double p50_latency_ms                        = 8;
-//   double p95_latency_ms                        = 9;
-//   double p99_latency_ms                        = 10;
-//   int32  active_connections                    = 11;
-//   int32  active_connectors                     = 12;
-//   double cpu_usage_percent                     = 13;
-//   double mem_usage_bytes                       = 14;
-// }
-
-// message AccessLogBatch {
-//   repeated AccessLogEntry entries = 1;
-// }
+message AccessLogBatch {
+  repeated AccessLogEntry entries = 1;
+}
