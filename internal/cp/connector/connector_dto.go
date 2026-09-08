@@ -38,6 +38,13 @@ type ConnectorAppSummaryResponse struct {
 	HealthStatus string `json:"health_status"`
 }
 
+type ConnectorInstruction struct {
+	DownloadURL string `json:"download_url"`
+	DownloadCmd string `json:"download_cmd"`
+	EnrollCmd   string `json:"enroll_cmd"`
+	StartCmd    string `json:"start_cmd"`
+}
+
 type ConnectorResponse struct {
 	ID                   string                        `json:"id"`
 	Name                 string                        `json:"name"`
@@ -48,7 +55,7 @@ type ConnectorResponse struct {
 	SecondaryGatewayName *string                       `json:"secondary_gateway_name,omitempty"`
 	Version              string                        `json:"version"`
 	LastHeartBeat        *time.Time                    `json:"last_seen,omitempty"`
-	Token                string                        `json:"token"`
+	Token                string                        `json:"token,omitempty"`
 	Status               string                        `json:"status"`
 	OpenSock             bool                          `json:"open_sock"`
 	ActiveStream         int32                         `json:"active_stream"`
@@ -56,4 +63,10 @@ type ConnectorResponse struct {
 	CreatedAt            time.Time                     `json:"created_at"`
 	EnrolledAt           *time.Time                    `json:"enrolled_at,omitempty"`
 	RevokedAt            *time.Time                    `json:"revoked_at,omitempty"`
+
+	DownloadURL string                `json:"download_url,omitempty"`
+	DownloadCmd string                `json:"download_cmd,omitempty"`
+	EnrollCmd   string                `json:"enroll_cmd,omitempty"`
+	StartCmd    string                `json:"start_cmd,omitempty"`
+	Instruction *ConnectorInstruction `json:"instruction,omitempty"`
 }

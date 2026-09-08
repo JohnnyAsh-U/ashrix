@@ -37,6 +37,13 @@ type GatewayAppSummary struct {
 	HealthStatus string `json:"health_status"`
 }
 
+type GatewayInstruction struct {
+	DownloadURL string `json:"download_url"`
+	DownloadCmd string `json:"download_cmd"`
+	EnrollCmd   string `json:"enroll_cmd"`
+	StartCmd    string `json:"start_cmd"`
+}
+
 type GatewayResponse struct {
 	ID                    string              `json:"id"`
 	Name                  string              `json:"name"`
@@ -55,9 +62,15 @@ type GatewayResponse struct {
 	CurrentPolicyVersion  int64               `json:"current_policy_version"`
 	NumberOfApps          int                 `json:"number_of_apps"`
 	Apps                  []GatewayAppSummary `json:"apps"`
-	Token                 string              `json:"token"`
-	
-	CertificateIssuedAt   *time.Time          `json:"certificate_issued_at,omitempty"`
-	CertificateExpiresAt  *time.Time          `json:"certificate_expires_at,omitempty"`
-	CreatedAt             time.Time           `json:"created_at"`
+	Token                 string              `json:"token,omitempty"`
+
+	DownloadURL string              `json:"download_url,omitempty"`
+	DownloadCmd string              `json:"download_cmd,omitempty"`
+	EnrollCmd   string              `json:"enroll_cmd,omitempty"`
+	StartCmd    string              `json:"start_cmd,omitempty"`
+	Instruction *GatewayInstruction `json:"instruction,omitempty"`
+
+	CertificateIssuedAt  *time.Time `json:"certificate_issued_at,omitempty"`
+	CertificateExpiresAt *time.Time `json:"certificate_expires_at,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
 }

@@ -2,6 +2,7 @@ package logs
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
@@ -20,24 +21,26 @@ type FilterAccessLogsRequest struct {
 }
 
 type AccessLogResponse struct {
-	ID         string     `json:"id"`
-	OrgID      string     `json:"org_id"`
-	GatewayID  string     `json:"gateway_id,omitempty"`
-	AppID      string     `json:"app_id,omitempty"`
-	PolicyID   string     `json:"policy_id,omitempty"`
-	UserID     string     `json:"user_id,omitempty"`
-	UserEmail  string     `json:"user_email,omitempty"`
-	Method     string     `json:"method,omitempty"`
-	Path       string     `json:"path,omitempty"`
-	Status     int32      `json:"status,omitempty"`
-	LatencyMs  int32      `json:"latency_ms,omitempty"`
-	Action     string     `json:"action,omitempty"`
-	IP         string     `json:"ip,omitempty"`
-	Result     string     `json:"result"`
-	DenyReason string     `json:"deny_reason,omitempty"`
-	BytesIn    int64      `json:"bytes_in"`
-	BytesOut   int64      `json:"bytes_out"`
-	CreatedAt  time.Time  `json:"created_at"`
+	ID          string    `json:"id"`
+	OrgID       string    `json:"org_id"`
+	GatewayID   string    `json:"gateway_id,omitempty"`
+	GatewayName string    `json:"gateway_name,omitempty"`
+	AppName     string    `json:"app_name,omitempty"`
+	AppID       string    `json:"app_id,omitempty"`
+	PolicyID    string    `json:"policy_id,omitempty"`
+	UserID      string    `json:"user_id,omitempty"`
+	UserEmail   string    `json:"user_email,omitempty"`
+	Method      string    `json:"method,omitempty"`
+	Path        string    `json:"path,omitempty"`
+	Status      int32     `json:"status,omitempty"`
+	LatencyMs   int32     `json:"latency_ms,omitempty"`
+	Action      string    `json:"action,omitempty"`
+	IP          string    `json:"ip,omitempty"`
+	Result      string    `json:"result"`
+	DenyReason  string    `json:"deny_reason,omitempty"`
+	BytesIn     int64     `json:"bytes_in"`
+	BytesOut    int64     `json:"bytes_out"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type Service struct {
@@ -90,21 +93,23 @@ func (s *Service) ListAccessLogs(ctx context.Context, orgID uuid.UUID, req Filte
 	res := make([]AccessLogResponse, 0, len(logs))
 	for _, l := range logs {
 		item := AccessLogResponse{
-			ID:         l.ID.String(),
-			OrgID:      l.OrgID.String(),
-			UserID:     l.UserID.String,
-			UserEmail:  l.UserEmail.String,
-			Method:     l.Method.String,
-			Path:       l.Path.String,
-			Status:     l.Status.Int32,
-			LatencyMs:  l.LatencyMs.Int32,
-			Action:     l.Action.String,
-			IP:         l.Ip.String,
-			Result:     l.Result,
-			DenyReason: l.DenyReason.String,
-			BytesIn:    l.BytesIn,
-			BytesOut:   l.BytesOut,
-			CreatedAt:  l.CreatedAt,
+			ID:          l.ID.String(),
+			OrgID:       l.OrgID.String(),
+			UserID:      l.UserID.String,
+			UserEmail:   l.UserEmail.String,
+			Method:      l.Method.String,
+			Path:        l.Path.String,
+			Status:      l.Status.Int32,
+			LatencyMs:   l.LatencyMs.Int32,
+			Action:      l.Action.String,
+			IP:          l.Ip.String,
+			GatewayName: l.GatewayName.String,
+			AppName:     l.AppName.String,
+			Result:      l.Result,
+			DenyReason:  l.DenyReason.String,
+			BytesIn:     l.BytesIn,
+			BytesOut:    l.BytesOut,
+			CreatedAt:   l.CreatedAt,
 		}
 		if l.GatewayID.Valid {
 			item.GatewayID = uuid.UUID(l.GatewayID.Bytes).String()
@@ -115,6 +120,7 @@ func (s *Service) ListAccessLogs(ctx context.Context, orgID uuid.UUID, req Filte
 		if l.PolicyID.Valid {
 			item.PolicyID = uuid.UUID(l.PolicyID.Bytes).String()
 		}
+		fmt.Println(l.AppName)
 		res = append(res, item)
 	}
 

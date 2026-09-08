@@ -27,15 +27,16 @@ func (q *Queries) CountActiveUserSessionsByGateway(ctx context.Context, gatewayI
 }
 
 const createUserSessionForGateway = `-- name: CreateUserSessionForGateway :one
-INSERT INTO user_sessions (org_id, user_id, gateway_id, expires_at, issued_at)
-VALUES ($1, $2, $3, $4, NOW())
-RETURNING id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at
+INSERT INTO user_sessions (org_id, user_id, gateway_id, user_email, expires_at, issued_at)
+VALUES ($1, $2, $3, $4, $5, NOW())
+RETURNING id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at, user_email
 `
 
 type CreateUserSessionForGatewayParams struct {
 	OrgID     uuid.UUID          `json:"org_id"`
 	UserID    uuid.UUID          `json:"user_id"`
 	GatewayID uuid.UUID          `json:"gateway_id"`
+	UserEmail string             `json:"user_email"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 }
 
@@ -44,6 +45,7 @@ func (q *Queries) CreateUserSessionForGateway(ctx context.Context, arg CreateUse
 		arg.OrgID,
 		arg.UserID,
 		arg.GatewayID,
+		arg.UserEmail,
 		arg.ExpiresAt,
 	)
 	var i UserSession
@@ -55,26 +57,37 @@ func (q *Queries) CreateUserSessionForGateway(ctx context.Context, arg CreateUse
 		&i.IssuedAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.UserEmail,
 	)
 	return i, err
 }
 
 const getUserActiveSession = `-- name: GetUserActiveSession :many
-SELECT id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at FROM user_sessions
-WHERE org_id     = $1
-  AND user_id    = $2
+SELECT sessions.id, sessions.org_id, sessions.user_id, sessions.gateway_id, sessions.issued_at, sessions.expires_at, sessions.revoked_at, sessions.user_email FROM user_sessions as sessions
+WHERE org_id     = $1::uuid
+  AND ($2::uuid IS NULL OR user_id = $2::uuid)
+  AND ($3::uuid IS NULL OR gateway_id = $3::uuid)
+  AND ($4::text IS NULL OR user_email ILIKE '%' || $4::text || '%')
   AND expires_at > NOW()
   AND revoked_at IS NULL
 ORDER BY issued_at DESC
 `
 
 type GetUserActiveSessionParams struct {
-	OrgID  uuid.UUID `json:"org_id"`
-	UserID uuid.UUID `json:"user_id"`
+	OrgID     uuid.UUID   `json:"org_id"`
+	UserID    pgtype.UUID `json:"user_id"`
+	GatewayID pgtype.UUID `json:"gateway_id"`
+	UserEmail pgtype.Text `json:"user_email"`
 }
 
+// JOIN gateways ON sessions.gateway_id = gateways.id
 func (q *Queries) GetUserActiveSession(ctx context.Context, arg GetUserActiveSessionParams) ([]UserSession, error) {
-	rows, err := q.db.Query(ctx, getUserActiveSession, arg.OrgID, arg.UserID)
+	rows, err := q.db.Query(ctx, getUserActiveSession,
+		arg.OrgID,
+		arg.UserID,
+		arg.GatewayID,
+		arg.UserEmail,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +103,7 @@ func (q *Queries) GetUserActiveSession(ctx context.Context, arg GetUserActiveSes
 			&i.IssuedAt,
 			&i.ExpiresAt,
 			&i.RevokedAt,
+			&i.UserEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -102,7 +116,7 @@ func (q *Queries) GetUserActiveSession(ctx context.Context, arg GetUserActiveSes
 }
 
 const getUserSessionByID = `-- name: GetUserSessionByID :one
-SELECT id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at FROM user_sessions
+SELECT id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at, user_email FROM user_sessions
 WHERE id = $1
 `
 
@@ -117,6 +131,7 @@ func (q *Queries) GetUserSessionByID(ctx context.Context, id uuid.UUID) (UserSes
 		&i.IssuedAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.UserEmail,
 	)
 	return i, err
 }
@@ -127,7 +142,7 @@ SET revoked_at = now()
 WHERE id    = $1
   AND expires_at > NOW()
   AND revoked_at IS NULL
-RETURNING id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at
+RETURNING id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at, user_email
 `
 
 func (q *Queries) RevokeActiveUserSession(ctx context.Context, id uuid.UUID) (UserSession, error) {
@@ -141,6 +156,7 @@ func (q *Queries) RevokeActiveUserSession(ctx context.Context, id uuid.UUID) (Us
 		&i.IssuedAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.UserEmail,
 	)
 	return i, err
 }
@@ -152,7 +168,7 @@ WHERE user_id    = $1
   AND org_id     = $2
   AND expires_at > NOW()
   AND revoked_at IS NULL
-RETURNING id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at
+RETURNING id, org_id, user_id, gateway_id, issued_at, expires_at, revoked_at, user_email
 `
 
 type RevokeAllUserSessionsParams struct {
@@ -177,6 +193,7 @@ func (q *Queries) RevokeAllUserSessions(ctx context.Context, arg RevokeAllUserSe
 			&i.IssuedAt,
 			&i.ExpiresAt,
 			&i.RevokedAt,
+			&i.UserEmail,
 		); err != nil {
 			return nil, err
 		}

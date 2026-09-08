@@ -67,13 +67,18 @@ ORDER BY created_at DESC
 LIMIT $4 OFFSET $5;
 
 -- name: ListAccessLogsFiltered :many
-SELECT * FROM access_logs
-WHERE org_id = $1
-  AND (sqlc.narg('user_email')::text IS NULL OR user_email ILIKE '%' || sqlc.narg('user_email')::text || '%')
-  AND (sqlc.narg('app_id')::uuid IS NULL OR app_id = sqlc.narg('app_id')::uuid)
-  AND (sqlc.narg('gateway_id')::uuid IS NULL OR gateway_id = sqlc.narg('gateway_id')::uuid)
-  AND (sqlc.narg('result')::text IS NULL OR result = sqlc.narg('result')::text)
-ORDER BY created_at DESC
+SELECT al.*,
+       a.name AS app_name,
+       g.name AS gateway_name
+FROM access_logs al
+LEFT JOIN apps a ON al.app_id = a.id
+LEFT JOIN gateways g ON al.gateway_id = g.id
+WHERE al.org_id = $1
+  AND (sqlc.narg('user_email')::text IS NULL OR al.user_email ILIKE '%' || sqlc.narg('user_email')::text || '%')
+  AND (sqlc.narg('app_id')::uuid IS NULL OR al.app_id = sqlc.narg('app_id')::uuid)
+  AND (sqlc.narg('gateway_id')::uuid IS NULL OR al.gateway_id = sqlc.narg('gateway_id')::uuid)
+  AND (sqlc.narg('result')::text IS NULL OR al.result = sqlc.narg('result')::text)
+ORDER BY al.created_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: ListAccessLogsByApp :many

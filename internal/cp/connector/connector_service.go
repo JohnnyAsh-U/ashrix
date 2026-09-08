@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
@@ -37,8 +38,26 @@ func NewService(repo Repository, pkiRepo pkica.Repository, eventRepo events.Repo
 	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo, eventRepo: eventRepo, dispatcher: dispatcher}
 }
 
+func buildConnectorInstruction(gatewayURL, token string) ConnectorInstruction {
+	downloadURL := "https://dl.ashrix.io/connector/linux-amd64"
+	downloadCmd := "curl -L https://dl.ashrix.io/connector/linux-amd64 -o ashrix-connector && chmod +x ashrix-connector"
+	gw := gatewayURL
+	if gw == "" {
+		gw = "gw.acme.com"
+	}
+	enrollCmd := fmt.Sprintf("ashrix-connector enroll \\\n  --token=%s \\\n  --gateway=%s", token, gw)
+	startCmd := "./ashrix-connector start"
+
+	return ConnectorInstruction{
+		DownloadURL: downloadURL,
+		DownloadCmd: downloadCmd,
+		EnrollCmd:   enrollCmd,
+		StartCmd:    startCmd,
+	}
+}
+
 // mapToConnectorResponse converts a store.Connector to a ConnectorResponse DTO.
-func mapToConnectorResponse(g store.Connector, token string) ConnectorResponse {
+func mapToConnectorResponse(g store.Connector, token string, gwURL string) ConnectorResponse {
 	resp := ConnectorResponse{
 		ID:           g.ID.String(),
 		Name:         g.Name,
@@ -54,6 +73,14 @@ func mapToConnectorResponse(g store.Connector, token string) ConnectorResponse {
 	if g.SecondaryGatewayID.Valid {
 		secIDStr := uuid.UUID(g.SecondaryGatewayID.Bytes).String()
 		resp.SecondaryGatewayID = &secIDStr
+	}
+	if token != "" {
+		inst := buildConnectorInstruction(gwURL, token)
+		resp.DownloadURL = inst.DownloadURL
+		resp.DownloadCmd = inst.DownloadCmd
+		resp.EnrollCmd = inst.EnrollCmd
+		resp.StartCmd = inst.StartCmd
+		resp.Instruction = &inst
 	}
 	if g.LastSeen.Valid {
 		resp.LastHeartBeat = &g.LastSeen.Time
@@ -148,7 +175,15 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 		s.SyncConnectorToGateway(ctx, uuid.UUID(connector.SecondaryGatewayID.Bytes))
 	}
 
-	return mapToConnectorResponse(connector, token), nil
+	var gwURL string
+	if gwRow, err := s.gatewayRepo.GetActiveGatewayByID(ctx, connector.GatewayID); err == nil {
+		gwURL = gwRow.PublicUrl
+		if gwURL == "" {
+			gwURL = gwRow.Name
+		}
+	}
+
+	return mapToConnectorResponse(connector, token, gwURL), nil
 }
 
 func (s *Service) SyncConnectorToGateway(ctx context.Context, gatewayID uuid.UUID) {
@@ -233,7 +268,15 @@ func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name stri
 		s.SyncConnectorToGateway(ctx, uuid.UUID(connector.SecondaryGatewayID.Bytes))
 	}
 
-	return mapToConnectorResponse(connector, token), nil
+	var gwURL string
+	if gwRow, err := s.gatewayRepo.GetActiveGatewayByID(ctx, connector.GatewayID); err == nil {
+		gwURL = gwRow.PublicUrl
+		if gwURL == "" {
+			gwURL = gwRow.Name
+		}
+	}
+
+	return mapToConnectorResponse(connector, token, gwURL), nil
 }
 
 // EnrollConnector enrolls a connector using a token hash and CSR.
@@ -455,7 +498,7 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No active cert to revoke, but we can return the connector response as success
-			return mapToConnectorResponse(connector, ""), nil
+			return mapToConnectorResponse(connector, "", ""), nil
 		}
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
 	}
@@ -519,7 +562,7 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
 	}
 
-	return mapToConnectorResponse(updatedConnector, ""), nil
+	return mapToConnectorResponse(updatedConnector, "", ""), nil
 }
 
 // RevokeConnector revokes an entire Connector.
@@ -608,7 +651,7 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 		s.SyncConnectorToGateway(ctx, uuid.MustParse(gwID))
 	}
 
-	return mapToConnectorResponse(revokedConnector, ""), nil
+	return mapToConnectorResponse(revokedConnector, "", ""), nil
 }
 
 // Send Rotate Command to Gateway for Connector
@@ -649,7 +692,7 @@ func (s *Service) SendRotateConnectorCmd(ctx context.Context, connectorId uuid.U
 		s.dispatcher.Wakeup(gwID)
 	}
 
-	return mapToConnectorResponse(Connector, ""), nil
+	return mapToConnectorResponse(Connector, "", ""), nil
 }
 
 func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID, canonicalString, signature string) (*gen.ConnectorStatusResponse, *dto.AppError) {

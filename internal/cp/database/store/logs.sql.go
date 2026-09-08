@@ -325,13 +325,18 @@ func (q *Queries) ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByO
 }
 
 const listAccessLogsFiltered = `-- name: ListAccessLogsFiltered :many
-SELECT id, org_id, gateway_id, app_id, policy_id, user_id, user_email, method, path, status, latency_ms, action, ip, result, deny_reason, bytes_in, bytes_out, created_at FROM access_logs
-WHERE org_id = $1
-  AND ($4::text IS NULL OR user_email ILIKE '%' || $4::text || '%')
-  AND ($5::uuid IS NULL OR app_id = $5::uuid)
-  AND ($6::uuid IS NULL OR gateway_id = $6::uuid)
-  AND ($7::text IS NULL OR result = $7::text)
-ORDER BY created_at DESC
+SELECT al.id, al.org_id, al.gateway_id, al.app_id, al.policy_id, al.user_id, al.user_email, al.method, al.path, al.status, al.latency_ms, al.action, al.ip, al.result, al.deny_reason, al.bytes_in, al.bytes_out, al.created_at,
+       a.name AS app_name,
+       g.name AS gateway_name
+FROM access_logs al
+LEFT JOIN apps a ON al.app_id = a.id
+LEFT JOIN gateways g ON al.gateway_id = g.id
+WHERE al.org_id = $1
+  AND ($4::text IS NULL OR al.user_email ILIKE '%' || $4::text || '%')
+  AND ($5::uuid IS NULL OR al.app_id = $5::uuid)
+  AND ($6::uuid IS NULL OR al.gateway_id = $6::uuid)
+  AND ($7::text IS NULL OR al.result = $7::text)
+ORDER BY al.created_at DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -345,7 +350,30 @@ type ListAccessLogsFilteredParams struct {
 	Result    pgtype.Text `json:"result"`
 }
 
-func (q *Queries) ListAccessLogsFiltered(ctx context.Context, arg ListAccessLogsFilteredParams) ([]AccessLog, error) {
+type ListAccessLogsFilteredRow struct {
+	ID          uuid.UUID   `json:"id"`
+	OrgID       uuid.UUID   `json:"org_id"`
+	GatewayID   pgtype.UUID `json:"gateway_id"`
+	AppID       pgtype.UUID `json:"app_id"`
+	PolicyID    pgtype.UUID `json:"policy_id"`
+	UserID      pgtype.Text `json:"user_id"`
+	UserEmail   pgtype.Text `json:"user_email"`
+	Method      pgtype.Text `json:"method"`
+	Path        pgtype.Text `json:"path"`
+	Status      pgtype.Int4 `json:"status"`
+	LatencyMs   pgtype.Int4 `json:"latency_ms"`
+	Action      pgtype.Text `json:"action"`
+	Ip          pgtype.Text `json:"ip"`
+	Result      string      `json:"result"`
+	DenyReason  pgtype.Text `json:"deny_reason"`
+	BytesIn     int64       `json:"bytes_in"`
+	BytesOut    int64       `json:"bytes_out"`
+	CreatedAt   time.Time   `json:"created_at"`
+	AppName     pgtype.Text `json:"app_name"`
+	GatewayName pgtype.Text `json:"gateway_name"`
+}
+
+func (q *Queries) ListAccessLogsFiltered(ctx context.Context, arg ListAccessLogsFilteredParams) ([]ListAccessLogsFilteredRow, error) {
 	rows, err := q.db.Query(ctx, listAccessLogsFiltered,
 		arg.OrgID,
 		arg.Limit,
@@ -359,9 +387,9 @@ func (q *Queries) ListAccessLogsFiltered(ctx context.Context, arg ListAccessLogs
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AccessLog{}
+	items := []ListAccessLogsFilteredRow{}
 	for rows.Next() {
-		var i AccessLog
+		var i ListAccessLogsFilteredRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrgID,
@@ -381,6 +409,8 @@ func (q *Queries) ListAccessLogsFiltered(ctx context.Context, arg ListAccessLogs
 			&i.BytesIn,
 			&i.BytesOut,
 			&i.CreatedAt,
+			&i.AppName,
+			&i.GatewayName,
 		); err != nil {
 			return nil, err
 		}

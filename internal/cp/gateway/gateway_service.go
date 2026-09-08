@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
@@ -32,6 +33,20 @@ func NewService(repo Repository, pkiRepo pkica.Repository, eventRepo events.Repo
 	return &Service{repo: repo, pkiRepo: pkiRepo, eventRepo: eventRepo, dispatcher: dispatcher}
 }
 
+func buildGatewayInstruction(gatewayName, token string) GatewayInstruction {
+	downloadURL := "https://dl.ashrix.io/gateway/linux-amd64"
+	downloadCmd := "curl -L https://dl.ashrix.io/gateway/linux-amd64 -o ashrix-gateway && chmod +x ashrix-gateway"
+	enrollCmd := fmt.Sprintf("./ashrix-gateway enroll \\\n  --token=%s \\\n  --name=\"%s\"", token, gatewayName)
+	startCmd := "./ashrix-gateway start"
+
+	return GatewayInstruction{
+		DownloadURL: downloadURL,
+		DownloadCmd: downloadCmd,
+		EnrollCmd:   enrollCmd,
+		StartCmd:    startCmd,
+	}
+}
+
 // mapToGatewayResponse converts a store.CreateGatewayRow to a GatewayResponse DTO.
 func mapToGatewayResponse(g store.CreateGatewayRow, token string) GatewayResponse {
 	resp := GatewayResponse{
@@ -47,6 +62,14 @@ func mapToGatewayResponse(g store.CreateGatewayRow, token string) GatewayRespons
 		Apps:           []GatewayAppSummary{},
 		CreatedAt:      g.CreatedAt,
 		Token:          token,
+	}
+	if token != "" {
+		inst := buildGatewayInstruction(g.Name, token)
+		resp.DownloadURL = inst.DownloadURL
+		resp.DownloadCmd = inst.DownloadCmd
+		resp.EnrollCmd = inst.EnrollCmd
+		resp.StartCmd = inst.StartCmd
+		resp.Instruction = &inst
 	}
 	if g.LastHeartbeat.Valid {
 		resp.LastHeartBeat = &g.LastHeartbeat.Time
@@ -78,6 +101,14 @@ func mapToGatewayResponse2(g store.Gateway, activeSessions int64, certificate st
 		Token:                 token,
 		CertificateIssuedAt:   &certificate.CreatedAt,
 		CertificateExpiresAt:  &certificate.ExpiresAt,
+	}
+	if token != "" {
+		inst := buildGatewayInstruction(g.Name, token)
+		resp.DownloadURL = inst.DownloadURL
+		resp.DownloadCmd = inst.DownloadCmd
+		resp.EnrollCmd = inst.EnrollCmd
+		resp.StartCmd = inst.StartCmd
+		resp.Instruction = &inst
 	}
 	if g.LastHeartbeat.Valid {
 		resp.LastHeartBeat = &g.LastHeartbeat.Time

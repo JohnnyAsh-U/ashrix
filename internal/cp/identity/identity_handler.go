@@ -83,7 +83,7 @@ func (i *IDPHandler) IDPResolverHandler(w http.ResponseWriter, r *http.Request) 
 	//Resolve the AppIDPProviders
 	providers, err := i.idpService.ResolveAppIDP(ctx, appUUID, gatewayUUID)
 	if err != nil {
-		w.Header().Set("Content-Type","text/html; charset=utf-8")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		i.templates.ExecuteTemplate(w, "error.html", nil)
 		// dto.SendError(w, dto.NewNotFoundError(err.Error()))
 		return
@@ -387,6 +387,39 @@ func (h *IDPHandler) RevokeUserSessionHandler(w http.ResponseWriter, r *http.Req
 	dto.SendSuccess(w, http.StatusOK, "All sessions revoked successfully")
 }
 
+// @Summary List active user sessions
+// @Description List active user sessions, optionally filtered by gateway or email.
+// @Tags Sessions
+// @Produce json
+// @Security BearerAuth
+// @Param gateway query string false "Gateway ID"
+// @Param email query string false "User email"
+// @Success 200 {array} ActiveUserSessionResponse
+// @Failure 400 {object} dto.AppError
+// @Router /idp-configs/sessions [get]
+func (h *IDPHandler) ListActiveUserSessionsHandler(w http.ResponseWriter, r *http.Request) {
+	sessions, err := h.idpService.ListActiveUserSessions(r.Context(), r.URL.Query().Get("gateway"), r.URL.Query().Get("email"))
+	if err != nil {
+		fmt.Println(err)
+		dto.SendError(w, dto.NewBadRequestError(err.Error()))
+		return
+	}
+
+	response := make([]ActiveUserSessionResponse, 0, len(sessions))
+	for _, session := range sessions {
+		response = append(response, ActiveUserSessionResponse{
+			ID: session.ID.String(), 
+			UserID: session.UserID.String(), 
+			UserEmail: session.UserEmail,
+			GatewayID: session.GatewayID.String(), 
+			IssuedAt: session.IssuedAt,
+			// GatewayName: session.Name,
+			ExpiresAt: session.ExpiresAt.Time,
+		})
+	}
+	dto.SendSuccess(w, http.StatusOK, response)
+}
+
 func (i *IDPHandler) StaticHandler() http.Handler {
 	// Serve the public static assets, not the private templates
 	staticFS, err := iofs.Sub(idpTemplateFS, "web/static")
@@ -403,7 +436,6 @@ func (h *IDPHandler) IdentityAuthRoutes(rg chi.Router) {
 	rg.Get("/callback", h.CallbackHandler)
 }
 
-
 func (h *IDPHandler) IdentityRoutes(rg chi.Router) {
 	rg.Post("/", h.CreateIdentityConfig)
 	rg.Get("/", h.ListIdentityConfigs)
@@ -411,4 +443,5 @@ func (h *IDPHandler) IdentityRoutes(rg chi.Router) {
 	rg.Post("/app", h.AddAppToIDP)
 	rg.Delete("/{id}", h.DeleteIdentityConfig)
 	rg.Delete("/revoke-session/{id}", h.RevokeUserSessionHandler)
+	rg.Get("/sessions", h.ListActiveUserSessionsHandler)
 }

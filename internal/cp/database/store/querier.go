@@ -158,6 +158,7 @@ type Querier interface {
 	GetPolicySubjects(ctx context.Context, policyID uuid.UUID) ([]PolicySubject, error)
 	GetPolicyWithDetails(ctx context.Context, arg GetPolicyWithDetailsParams) (GetPolicyWithDetailsRow, error)
 	GetSetupToken(ctx context.Context, tokenHash string) (AdminSetupToken, error)
+	// JOIN gateways ON sessions.gateway_id = gateways.id
 	GetUserActiveSession(ctx context.Context, arg GetUserActiveSessionParams) ([]UserSession, error)
 	GetUserSessionByID(ctx context.Context, id uuid.UUID) (UserSession, error)
 	GetValidCompCert(ctx context.Context, arg GetValidCompCertParams) (GetValidCompCertRow, error)
@@ -180,7 +181,7 @@ type Querier interface {
 	InsertPolicySubject(ctx context.Context, arg InsertPolicySubjectParams) error
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
-	ListAccessLogsFiltered(ctx context.Context, arg ListAccessLogsFilteredParams) ([]AccessLog, error)
+	ListAccessLogsFiltered(ctx context.Context, arg ListAccessLogsFilteredParams) ([]ListAccessLogsFilteredRow, error)
 	ListActiveCACerts(ctx context.Context, arg ListActiveCACertsParams) ([]ListActiveCACertsRow, error)
 	// Called on gateway → connector auth. Includes connectors where gateway is primary OR secondary.
 	ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)

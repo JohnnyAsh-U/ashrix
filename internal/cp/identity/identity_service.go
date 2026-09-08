@@ -434,6 +434,7 @@ func (r *IDPService) ExchangeService(ctx context.Context, state, code string) (s
 		OrgID:     tenantUUID,
 		UserID:    userUUID,
 		GatewayID: gatewayUUID,
+		UserEmail: identity.Email,
 		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(8 * time.Hour), Valid: true},
 	})
 
@@ -584,11 +585,32 @@ func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID)
 	return session, nil
 }
 
+func (s *IDPService) ListActiveUserSessions(ctx context.Context, gatewayID, email string) ([]store.UserSession, error) {
+	orgID, err := uuid.Parse(middleware.OrgIDFromCtx(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("invalid organization ID format: %w", err)
+	}
+
+	params := store.GetUserActiveSessionParams{OrgID: orgID}
+	if email != "" {
+		params.UserEmail = pgtype.Text{String: email, Valid: true}
+	}
+	if gatewayID != "" {
+		parsedGatewayID, parseErr := uuid.Parse(gatewayID)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid gateway ID format: %w", parseErr)
+		}
+		params.GatewayID = pgtype.UUID{Bytes: parsedGatewayID, Valid: true}
+	}
+
+	return s.repo.GetUserSessionsByOrgAndUser(ctx, params)
+}
+
 // RevokeAllUserSession Revoke All User Session for Gateway
 func (s *IDPService) RevokeAllUserSession(ctx context.Context, userID, orgID uuid.UUID) error {
 	sessions, err := s.repo.GetUserSessionsByOrgAndUser(ctx, store.GetUserActiveSessionParams{
 		OrgID:  orgID,
-		UserID: userID,
+		UserID: pgtype.UUID{Bytes: userID, Valid: true},
 	})
 	if err != nil {
 		return err

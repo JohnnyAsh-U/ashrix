@@ -29,7 +29,6 @@ type UpdateIDPConfig struct {
 	IsActive        bool   `json:"is_active"`
 }
 
-
 type IDPLoginPageData struct {
 	Providers []IDPLoginProvider
 }
@@ -91,8 +90,16 @@ type CreateAppIDPRelation struct {
 }
 
 type RemoveAppIDPRelation struct {
-	AppID      string `json:"app_id" validate:"required"`
-	IDPID      string `json:"idp_id" validate:"required"`
+	AppID string `json:"app_id" validate:"required"`
+	IDPID string `json:"idp_id" validate:"required"`
 }
 
-
+type ActiveUserSessionResponse struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	UserEmail string    `json:"user_email"`
+	GatewayID string    `json:"gateway_id"`
+	GatewayName string `json:"gateway_name"`
+	IssuedAt  time.Time `json:"issued_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}

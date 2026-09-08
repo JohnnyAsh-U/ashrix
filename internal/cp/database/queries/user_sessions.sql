@@ -1,15 +1,18 @@
 -- name: GetUserActiveSession :many
-SELECT * FROM user_sessions
-WHERE org_id     = $1
-  AND user_id    = $2
+SELECT sessions.* FROM user_sessions as sessions
+-- JOIN gateways ON sessions.gateway_id = gateways.id
+WHERE org_id     = sqlc.arg('org_id')::uuid
+  AND (sqlc.narg('user_id')::uuid IS NULL OR user_id = sqlc.narg('user_id')::uuid)
+  AND (sqlc.narg('gateway_id')::uuid IS NULL OR gateway_id = sqlc.narg('gateway_id')::uuid)
+  AND (sqlc.narg('user_email')::text IS NULL OR user_email ILIKE '%' || sqlc.narg('user_email')::text || '%')
   AND expires_at > NOW()
   AND revoked_at IS NULL
 ORDER BY issued_at DESC;
 
 
 -- name: CreateUserSessionForGateway :one
-INSERT INTO user_sessions (org_id, user_id, gateway_id, expires_at, issued_at)
-VALUES ($1, $2, $3, $4, NOW())
+INSERT INTO user_sessions (org_id, user_id, gateway_id, user_email, expires_at, issued_at)
+VALUES ($1, $2, $3, $4, $5, NOW())
 RETURNING *;
 
 -- name: RevokeActiveUserSession :one

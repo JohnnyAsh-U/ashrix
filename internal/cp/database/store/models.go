@@ -325,4 +325,5 @@ type UserSession struct {
 	IssuedAt  time.Time          `json:"issued_at"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+	UserEmail string             `json:"user_email"`
 }
