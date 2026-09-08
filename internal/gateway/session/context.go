@@ -14,11 +14,12 @@ import (
 type contextKey string
 
 var (
-	ConnectorID contextKey = "ConnectorID"
-	AppID contextKey = "AppID"
-	AppIsPublic contextKey = "AppIsPublic"
-	Identity contextKey = "Identity"
-	SessionID contextKey = "SessionID"
+	ConnectorID              contextKey = "ConnectorID"
+	AppID                    contextKey = "AppID"
+	AppIsPublic              contextKey = "AppIsPublic"
+	AppEnableSecurityHeaders contextKey = "AppEnableSecurityHeaders"
+	Identity                 contextKey = "Identity"
+	SessionID                contextKey = "SessionID"
 )
 
 
@@ -35,6 +36,11 @@ func AppIDFromCtx(ctx context.Context) string {
 func AppIsPublicFromCtx(ctx context.Context) bool {
 	isPublic, _ := ctx.Value(AppIsPublic).(bool)
 	return isPublic
+}
+
+func AppEnableSecurityHeadersFromCtx(ctx context.Context) (bool, bool) {
+	enableSec, ok := ctx.Value(AppEnableSecurityHeaders).(bool)
+	return enableSec, ok
 }
 
 func IdentityFromCtx(ctx context.Context) *gen.NormalizedIdentity {

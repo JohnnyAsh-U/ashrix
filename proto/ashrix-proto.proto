@@ -268,30 +268,37 @@ message ConnectorRenewCertResponse {
 }
 
 message ConnectorStatusResponse {
-  string                 connector_id = 1;
-  string                 gateway_id   = 2;
-  string                 gateway_url  = 3;
-  string                 gateway_ip   = 4;
-  string                 grpc_port    = 5;
-  string                 https_port   = 6;
-  string                 quic_port    = 7;
-  string                 tenant_id    = 8;
-  bool                   open_sock    = 9;
-  repeated ConnectorApps apps         = 10;
+  string                 connector_id           = 1;
+  string                 gateway_id             = 2;
+  string                 gateway_url            = 3;
+  string                 gateway_ip             = 4;
+  string                 grpc_port              = 5;
+  string                 https_port             = 6;
+  string                 quic_port              = 7;
+  string                 tenant_id              = 8;
+  bool                   open_sock              = 9;
+  repeated ConnectorApps apps                   = 10;
+  string                 secondary_gateway_id   = 11;
+  string                 secondary_gateway_url  = 12;
+  string                 secondary_gateway_ip   = 13;
+  string                 secondary_grpc_port    = 14;
+  string                 secondary_https_port   = 15;
+  string                 secondary_quic_port    = 16;
 }
 
 message ConnectorApps {
-  string id              = 1;
-  string name            = 2;
-  string subdomain       = 3;
-  string upstream        = 4; //must be host:port
-  string protocol        = 5;
-  bool   is_public       = 6;
-  string sock_pass       = 7;
-  bool   check_health    = 8;
-  int32  check_interval  = 9;
-  string health_endpoint = 10;
-  string health_status   = 11;
+  string id                      = 1;
+  string name                    = 2;
+  string subdomain               = 3;
+  string upstream                = 4; //must be host:port
+  string protocol                = 5;
+  bool   is_public               = 6;
+  string sock_pass               = 7;
+  bool   check_health            = 8;
+  int32  check_interval          = 9;
+  string health_endpoint         = 10;
+  string health_status           = 11;
+  bool   enable_security_headers = 12;
 }
 
 // =============================================================================

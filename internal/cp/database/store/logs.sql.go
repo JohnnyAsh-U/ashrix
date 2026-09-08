@@ -324,6 +324,74 @@ func (q *Queries) ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByO
 	return items, nil
 }
 
+const listAccessLogsFiltered = `-- name: ListAccessLogsFiltered :many
+SELECT id, org_id, gateway_id, app_id, policy_id, user_id, user_email, method, path, status, latency_ms, action, ip, result, deny_reason, bytes_in, bytes_out, created_at FROM access_logs
+WHERE org_id = $1
+  AND ($4::text IS NULL OR user_email ILIKE '%' || $4::text || '%')
+  AND ($5::uuid IS NULL OR app_id = $5::uuid)
+  AND ($6::uuid IS NULL OR gateway_id = $6::uuid)
+  AND ($7::text IS NULL OR result = $7::text)
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListAccessLogsFilteredParams struct {
+	OrgID     uuid.UUID   `json:"org_id"`
+	Limit     int32       `json:"limit"`
+	Offset    int32       `json:"offset"`
+	UserEmail pgtype.Text `json:"user_email"`
+	AppID     pgtype.UUID `json:"app_id"`
+	GatewayID pgtype.UUID `json:"gateway_id"`
+	Result    pgtype.Text `json:"result"`
+}
+
+func (q *Queries) ListAccessLogsFiltered(ctx context.Context, arg ListAccessLogsFilteredParams) ([]AccessLog, error) {
+	rows, err := q.db.Query(ctx, listAccessLogsFiltered,
+		arg.OrgID,
+		arg.Limit,
+		arg.Offset,
+		arg.UserEmail,
+		arg.AppID,
+		arg.GatewayID,
+		arg.Result,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AccessLog{}
+	for rows.Next() {
+		var i AccessLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.GatewayID,
+			&i.AppID,
+			&i.PolicyID,
+			&i.UserID,
+			&i.UserEmail,
+			&i.Method,
+			&i.Path,
+			&i.Status,
+			&i.LatencyMs,
+			&i.Action,
+			&i.Ip,
+			&i.Result,
+			&i.DenyReason,
+			&i.BytesIn,
+			&i.BytesOut,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAuditLogsByActor = `-- name: ListAuditLogsByActor :many
 SELECT id, org_id, actor_id, action, target_type, target_id, details, ip, created_at FROM audit_logs
 WHERE org_id     = $1

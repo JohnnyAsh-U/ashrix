@@ -163,8 +163,8 @@ RETURNING *;
 -- =================================================================
 
 -- name: CreateConnector :one
-INSERT INTO connectors (org_id, gateway_id, name, token_hash, open_sock)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO connectors (org_id, gateway_id, secondary_gateway_id, name, token_hash, open_sock)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 
@@ -179,7 +179,8 @@ SET created_at = NOW(),
     open_sock = $5,
     token_hash = $2,
     name = $3,
-    gateway_id = $4
+    gateway_id = $4,
+    secondary_gateway_id = $6
 WHERE id = $1
 RETURNING *;
 
@@ -215,10 +216,10 @@ WHERE id         = $1
 
 
 -- name: ListActiveConnectorsByGateway :many
--- Called on gateway → connector auth.
+-- Called on gateway → connector auth. Includes connectors where gateway is primary OR secondary.
 SELECT c.*
 FROM connectors c
-WHERE c.gateway_id = $1
+WHERE (c.gateway_id = $1 OR c.secondary_gateway_id = $1)
   AND c.is_active = true
   AND c.revoked_at IS NULL
   AND EXISTS (
@@ -244,15 +245,16 @@ WHERE org_id     = $1
 ORDER BY created_at ASC;
 
 -- name: ListConnectorsWithGatewayNameByOrg :many
-SELECT c.*, g.name AS gateway_name
+SELECT c.*, g.name AS gateway_name, g2.name AS secondary_gateway_name
 FROM connectors c
 JOIN gateways g ON c.gateway_id = g.id
+LEFT JOIN gateways g2 ON c.secondary_gateway_id = g2.id
 WHERE c.org_id = $1
 ORDER BY c.created_at ASC;
 
 -- name: ListConnectorsByGateway :many
 SELECT * FROM connectors
-WHERE gateway_id = $1
+WHERE (gateway_id = $1 OR secondary_gateway_id = $1)
   AND is_active = true
   AND revoked_at IS NULL
 ORDER BY created_at ASC;
@@ -274,7 +276,7 @@ SET revoked_at = now(),
     is_active = false,
     active_streams = 0
 WHERE id         = $1
-  AND gateway_id     = $2
+  AND (gateway_id = $2 OR secondary_gateway_id = $2 OR $2 IS NULL)
   AND is_active = true
   AND revoked_at IS NULL
 RETURNING *;
@@ -286,7 +288,7 @@ SET revoked_at = now(),
     status     = 'disconnected',
     active_streams = 0,
     is_active = false
-WHERE gateway_id = $1
+WHERE (gateway_id = $1 OR secondary_gateway_id = $1)
   AND revoked_at IS NULL;
 
 

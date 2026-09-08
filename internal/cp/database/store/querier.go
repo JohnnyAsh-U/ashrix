@@ -180,8 +180,9 @@ type Querier interface {
 	InsertPolicySubject(ctx context.Context, arg InsertPolicySubjectParams) error
 	ListAccessLogsByApp(ctx context.Context, arg ListAccessLogsByAppParams) ([]AccessLog, error)
 	ListAccessLogsByOrg(ctx context.Context, arg ListAccessLogsByOrgParams) ([]AccessLog, error)
+	ListAccessLogsFiltered(ctx context.Context, arg ListAccessLogsFilteredParams) ([]AccessLog, error)
 	ListActiveCACerts(ctx context.Context, arg ListActiveCACertsParams) ([]ListActiveCACertsRow, error)
-	// Called on gateway → connector auth.
+	// Called on gateway → connector auth. Includes connectors where gateway is primary OR secondary.
 	ListActiveConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)
 	ListActiveGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gateway, error)
 	ListAdminsByOrg(ctx context.Context, orgID pgtype.UUID) ([]Admin, error)

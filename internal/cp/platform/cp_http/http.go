@@ -15,6 +15,7 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/logs"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
@@ -136,6 +137,10 @@ func InitializeHttpServer(
 	policyService := policy.NewService(respositories.Policy, policyDistributor)
 	policyHandler := policy.NewPolicyHandler(policyService)
 
+	// Logs routes
+	logsService := logs.NewService(respositories.Log)
+	logsHandler := logs.NewLogsHandler(logsService)
+
 
 	r.Handle("/static/*", idpHandler.StaticHandler())
 
@@ -166,6 +171,7 @@ func InitializeHttpServer(
 			r.Route("/connectors", connectorHandler.WithAuthRoutes)
 			r.Route("/apps", appHandler.Routes)
 			r.Route("/policies", policyHandler.Routes)
+			r.Route("/logs", logsHandler.WithAuthRoutes)
 		})
 	})
 

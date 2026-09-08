@@ -15,23 +15,24 @@ import (
 
 const createApp = `-- name: CreateApp :one
 
-INSERT INTO apps (org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, check_health, check_interval, health_endpoint)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at
+INSERT INTO apps (org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, sock_pass, check_health, check_interval, health_endpoint)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at
 `
 
 type CreateAppParams struct {
-	OrgID          uuid.UUID   `json:"org_id"`
-	ConnectorID    pgtype.UUID `json:"connector_id"`
-	Name           string      `json:"name"`
-	Subdomain      string      `json:"subdomain"`
-	Upstream       string      `json:"upstream"`
-	Protocol       string      `json:"protocol"`
-	IsPublic       bool        `json:"is_public"`
-	SockPass       string      `json:"sock_pass"`
-	CheckHealth    bool        `json:"check_health"`
-	CheckInterval  int32       `json:"check_interval"`
-	HealthEndpoint pgtype.Text `json:"health_endpoint"`
+	OrgID                 uuid.UUID   `json:"org_id"`
+	ConnectorID           pgtype.UUID `json:"connector_id"`
+	Name                  string      `json:"name"`
+	Subdomain             string      `json:"subdomain"`
+	Upstream              string      `json:"upstream"`
+	Protocol              string      `json:"protocol"`
+	IsPublic              bool        `json:"is_public"`
+	EnableSecurityHeaders bool        `json:"enable_security_headers"`
+	SockPass              string      `json:"sock_pass"`
+	CheckHealth           bool        `json:"check_health"`
+	CheckInterval         int32       `json:"check_interval"`
+	HealthEndpoint        pgtype.Text `json:"health_endpoint"`
 }
 
 // =================================================================
@@ -46,6 +47,7 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		arg.Upstream,
 		arg.Protocol,
 		arg.IsPublic,
+		arg.EnableSecurityHeaders,
 		arg.SockPass,
 		arg.CheckHealth,
 		arg.CheckInterval,
@@ -61,6 +63,7 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.EnableSecurityHeaders,
 		&i.CheckHealth,
 		&i.CheckInterval,
 		&i.HealthEndpoint,
@@ -79,7 +82,7 @@ SET deleted_at = now()
 WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL
-RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at
+RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at
 `
 
 type DeleteAppParams struct {
@@ -100,6 +103,7 @@ func (q *Queries) DeleteApp(ctx context.Context, arg DeleteAppParams) (App, erro
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.EnableSecurityHeaders,
 		&i.CheckHealth,
 		&i.CheckInterval,
 		&i.HealthEndpoint,
@@ -113,7 +117,7 @@ func (q *Queries) DeleteApp(ctx context.Context, arg DeleteAppParams) (App, erro
 }
 
 const getAppByID = `-- name: GetAppByID :one
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
 WHERE id         = $1
   AND deleted_at IS NULL
 `
@@ -130,6 +134,7 @@ func (q *Queries) GetAppByID(ctx context.Context, id uuid.UUID) (App, error) {
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.EnableSecurityHeaders,
 		&i.CheckHealth,
 		&i.CheckInterval,
 		&i.HealthEndpoint,
@@ -143,7 +148,7 @@ func (q *Queries) GetAppByID(ctx context.Context, id uuid.UUID) (App, error) {
 }
 
 const getAppByIDAndOrg = `-- name: GetAppByIDAndOrg :one
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
 WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL
@@ -166,6 +171,7 @@ func (q *Queries) GetAppByIDAndOrg(ctx context.Context, arg GetAppByIDAndOrgPara
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.EnableSecurityHeaders,
 		&i.CheckHealth,
 		&i.CheckInterval,
 		&i.HealthEndpoint,
@@ -179,7 +185,7 @@ func (q *Queries) GetAppByIDAndOrg(ctx context.Context, arg GetAppByIDAndOrgPara
 }
 
 const getAppBySubdomain = `-- name: GetAppBySubdomain :one
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
 WHERE org_id     = $1
   AND subdomain  = $2
   AND deleted_at IS NULL
@@ -203,6 +209,7 @@ func (q *Queries) GetAppBySubdomain(ctx context.Context, arg GetAppBySubdomainPa
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.EnableSecurityHeaders,
 		&i.CheckHealth,
 		&i.CheckInterval,
 		&i.HealthEndpoint,
@@ -216,7 +223,7 @@ func (q *Queries) GetAppBySubdomain(ctx context.Context, arg GetAppBySubdomainPa
 }
 
 const listAppsByConnector = `-- name: ListAppsByConnector :many
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
 WHERE connector_id = $1
   AND deleted_at   IS NULL
 `
@@ -239,6 +246,7 @@ func (q *Queries) ListAppsByConnector(ctx context.Context, connectorID pgtype.UU
 			&i.Upstream,
 			&i.Protocol,
 			&i.IsPublic,
+			&i.EnableSecurityHeaders,
 			&i.CheckHealth,
 			&i.CheckInterval,
 			&i.HealthEndpoint,
@@ -259,10 +267,10 @@ func (q *Queries) ListAppsByConnector(ctx context.Context, connectorID pgtype.UU
 }
 
 const listAppsByGateway = `-- name: ListAppsByGateway :many
-SELECT a.id, a.org_id, a.connector_id, a.name, a.subdomain, a.upstream, a.protocol, a.is_public, a.check_health, a.check_interval, a.health_endpoint, a.health_status, a.last_seen, a.sock_pass, a.created_at, a.deleted_at
+SELECT a.id, a.org_id, a.connector_id, a.name, a.subdomain, a.upstream, a.protocol, a.is_public, a.enable_security_headers, a.check_health, a.check_interval, a.health_endpoint, a.health_status, a.last_seen, a.sock_pass, a.created_at, a.deleted_at
 FROM apps a
 JOIN connectors c ON a.connector_id = c.id
-WHERE c.gateway_id = $1
+WHERE (c.gateway_id = $1 OR c.secondary_gateway_id = $1)
   AND a.deleted_at IS NULL
 `
 
@@ -284,6 +292,7 @@ func (q *Queries) ListAppsByGateway(ctx context.Context, gatewayID uuid.UUID) ([
 			&i.Upstream,
 			&i.Protocol,
 			&i.IsPublic,
+			&i.EnableSecurityHeaders,
 			&i.CheckHealth,
 			&i.CheckInterval,
 			&i.HealthEndpoint,
@@ -304,7 +313,7 @@ func (q *Queries) ListAppsByGateway(ctx context.Context, gatewayID uuid.UUID) ([
 }
 
 const listAppsByOrg = `-- name: ListAppsByOrg :many
-SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
+SELECT id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at FROM apps
 WHERE org_id     = $1
   AND deleted_at IS NULL
 ORDER BY created_at ASC
@@ -328,6 +337,7 @@ func (q *Queries) ListAppsByOrg(ctx context.Context, orgID uuid.UUID) ([]App, er
 			&i.Upstream,
 			&i.Protocol,
 			&i.IsPublic,
+			&i.EnableSecurityHeaders,
 			&i.CheckHealth,
 			&i.CheckInterval,
 			&i.HealthEndpoint,
@@ -348,7 +358,7 @@ func (q *Queries) ListAppsByOrg(ctx context.Context, orgID uuid.UUID) ([]App, er
 }
 
 const listAppsWithDetailsByOrg = `-- name: ListAppsWithDetailsByOrg :many
-SELECT a.id, a.org_id, a.connector_id, a.name, a.subdomain, a.upstream, a.protocol, a.is_public, a.check_health, a.check_interval, a.health_endpoint, a.health_status, a.last_seen, a.sock_pass, a.created_at, a.deleted_at,
+SELECT a.id, a.org_id, a.connector_id, a.name, a.subdomain, a.upstream, a.protocol, a.is_public, a.enable_security_headers, a.check_health, a.check_interval, a.health_endpoint, a.health_status, a.last_seen, a.sock_pass, a.created_at, a.deleted_at,
        c.name AS connector_name,
        g.name AS gateway_name
 FROM apps a
@@ -360,24 +370,25 @@ ORDER BY a.created_at ASC
 `
 
 type ListAppsWithDetailsByOrgRow struct {
-	ID             uuid.UUID          `json:"id"`
-	OrgID          uuid.UUID          `json:"org_id"`
-	ConnectorID    pgtype.UUID        `json:"connector_id"`
-	Name           string             `json:"name"`
-	Subdomain      string             `json:"subdomain"`
-	Upstream       string             `json:"upstream"`
-	Protocol       string             `json:"protocol"`
-	IsPublic       bool               `json:"is_public"`
-	CheckHealth    bool               `json:"check_health"`
-	CheckInterval  int32              `json:"check_interval"`
-	HealthEndpoint pgtype.Text        `json:"health_endpoint"`
-	HealthStatus   string             `json:"health_status"`
-	LastSeen       pgtype.Timestamptz `json:"last_seen"`
-	SockPass       string             `json:"sock_pass"`
-	CreatedAt      time.Time          `json:"created_at"`
-	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
-	ConnectorName  pgtype.Text        `json:"connector_name"`
-	GatewayName    pgtype.Text        `json:"gateway_name"`
+	ID                    uuid.UUID          `json:"id"`
+	OrgID                 uuid.UUID          `json:"org_id"`
+	ConnectorID           pgtype.UUID        `json:"connector_id"`
+	Name                  string             `json:"name"`
+	Subdomain             string             `json:"subdomain"`
+	Upstream              string             `json:"upstream"`
+	Protocol              string             `json:"protocol"`
+	IsPublic              bool               `json:"is_public"`
+	EnableSecurityHeaders bool               `json:"enable_security_headers"`
+	CheckHealth           bool               `json:"check_health"`
+	CheckInterval         int32              `json:"check_interval"`
+	HealthEndpoint        pgtype.Text        `json:"health_endpoint"`
+	HealthStatus          string             `json:"health_status"`
+	LastSeen              pgtype.Timestamptz `json:"last_seen"`
+	SockPass              string             `json:"sock_pass"`
+	CreatedAt             time.Time          `json:"created_at"`
+	DeletedAt             pgtype.Timestamptz `json:"deleted_at"`
+	ConnectorName         pgtype.Text        `json:"connector_name"`
+	GatewayName           pgtype.Text        `json:"gateway_name"`
 }
 
 func (q *Queries) ListAppsWithDetailsByOrg(ctx context.Context, orgID uuid.UUID) ([]ListAppsWithDetailsByOrgRow, error) {
@@ -398,6 +409,7 @@ func (q *Queries) ListAppsWithDetailsByOrg(ctx context.Context, orgID uuid.UUID)
 			&i.Upstream,
 			&i.Protocol,
 			&i.IsPublic,
+			&i.EnableSecurityHeaders,
 			&i.CheckHealth,
 			&i.CheckInterval,
 			&i.HealthEndpoint,
@@ -421,35 +433,37 @@ func (q *Queries) ListAppsWithDetailsByOrg(ctx context.Context, orgID uuid.UUID)
 
 const updateApp = `-- name: UpdateApp :one
 UPDATE apps
-SET name            = $3,
-    subdomain       = $4,
-    upstream        = $5,
-    protocol        = $6,
-    is_public       = $7,
-    connector_id    = $8,
-    sock_pass       = $9,
-    check_health    = $10,
-    check_interval  = $11,
-    health_endpoint = $12
+SET name                    = $3,
+    subdomain               = $4,
+    upstream                = $5,
+    protocol                = $6,
+    is_public               = $7,
+    enable_security_headers = $8,
+    connector_id            = $9,
+    sock_pass               = $10,
+    check_health            = $11,
+    check_interval          = $12,
+    health_endpoint         = $13
 WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL
-RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at
+RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at
 `
 
 type UpdateAppParams struct {
-	ID             uuid.UUID   `json:"id"`
-	OrgID          uuid.UUID   `json:"org_id"`
-	Name           string      `json:"name"`
-	Subdomain      string      `json:"subdomain"`
-	Upstream       string      `json:"upstream"`
-	Protocol       string      `json:"protocol"`
-	IsPublic       bool        `json:"is_public"`
-	ConnectorID    pgtype.UUID `json:"connector_id"`
-	SockPass       string      `json:"sock_pass"`
-	CheckHealth    bool        `json:"check_health"`
-	CheckInterval  int32       `json:"check_interval"`
-	HealthEndpoint pgtype.Text `json:"health_endpoint"`
+	ID                    uuid.UUID   `json:"id"`
+	OrgID                 uuid.UUID   `json:"org_id"`
+	Name                  string      `json:"name"`
+	Subdomain             string      `json:"subdomain"`
+	Upstream              string      `json:"upstream"`
+	Protocol              string      `json:"protocol"`
+	IsPublic              bool        `json:"is_public"`
+	EnableSecurityHeaders bool        `json:"enable_security_headers"`
+	ConnectorID           pgtype.UUID `json:"connector_id"`
+	SockPass              string      `json:"sock_pass"`
+	CheckHealth           bool        `json:"check_health"`
+	CheckInterval         int32       `json:"check_interval"`
+	HealthEndpoint        pgtype.Text `json:"health_endpoint"`
 }
 
 func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, error) {
@@ -461,6 +475,7 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		arg.Upstream,
 		arg.Protocol,
 		arg.IsPublic,
+		arg.EnableSecurityHeaders,
 		arg.ConnectorID,
 		arg.SockPass,
 		arg.CheckHealth,
@@ -477,6 +492,7 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.EnableSecurityHeaders,
 		&i.CheckHealth,
 		&i.CheckInterval,
 		&i.HealthEndpoint,
@@ -495,7 +511,7 @@ SET health_status = $2,
     last_seen     = $3
 WHERE id         = $1
   AND deleted_at IS NULL
-RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at
+RETURNING id, org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, check_health, check_interval, health_endpoint, health_status, last_seen, sock_pass, created_at, deleted_at
 `
 
 type UpdateAppHealthStatusParams struct {
@@ -516,6 +532,7 @@ func (q *Queries) UpdateAppHealthStatus(ctx context.Context, arg UpdateAppHealth
 		&i.Upstream,
 		&i.Protocol,
 		&i.IsPublic,
+		&i.EnableSecurityHeaders,
 		&i.CheckHealth,
 		&i.CheckInterval,
 		&i.HealthEndpoint,

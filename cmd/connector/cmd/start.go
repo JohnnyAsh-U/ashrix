@@ -129,34 +129,64 @@ func runStart() (err error) {
 			"apps", len(result.Status.Apps),
 		)
 
-		//------------------------ Build Transport config from status response-------------------------//
-
-		gatewayAddr := result.Status.GatewayIp
-		if gatewayAddr == "" {
-			log.Error("Gateway address is empty / invalid")
-			os.Exit(1)
-		}
-
+		//------------------------ Build Transport targets from status response-------------------------//
 		tlsConfig := result.PKI.TLSConfig()
 		connectorID := result.Status.ConnectorId
 		tenantID := result.Status.TenantId
 		apps := result.Status.Apps
 
-		//---------------------------Config for different Transport---------------------------------------------//
+		type GatewayTarget struct {
+			Ip          string
+			GrpcPort    string
+			QuicPort    string
+			IsSecondary bool
+		}
+
+		var targets []GatewayTarget
+		if result.Status.GatewayIp != "" {
+			targets = append(targets, GatewayTarget{
+				Ip:          result.Status.GatewayIp,
+				GrpcPort:    result.Status.GrpcPort,
+				QuicPort:    result.Status.QuicPort,
+				IsSecondary: false,
+			})
+		}
+		if result.Status.SecondaryGatewayIp != "" {
+			targets = append(targets, GatewayTarget{
+				Ip:          result.Status.SecondaryGatewayIp,
+				GrpcPort:    result.Status.SecondaryGrpcPort,
+				QuicPort:    result.Status.SecondaryQuicPort,
+				IsSecondary: true,
+			})
+		}
+
+		if len(targets) == 0 {
+			log.Error("Gateway address is empty / invalid")
+			os.Exit(1)
+		}
+
+		currentTarget := targets[(attempt-1)%len(targets)]
+		log.Info("Selecting Gateway target",
+			"target_ip", currentTarget.Ip,
+			"is_secondary", currentTarget.IsSecondary,
+			"attempt", attempt,
+		)
+
+		//---------------------------Config for selected Transport Target---------------------------------------------//
 		config := transport.Config{
-			GatewayQUICAddr: result.Status.GatewayIp + ":" + result.Status.QuicPort,
-			GatewayGRPCAddr: result.Status.GatewayIp + ":" + result.Status.GrpcPort,
-			GatewayWSURL:    "wss://" + result.Status.GatewayIp + "/ws",
+			GatewayQUICAddr: currentTarget.Ip + ":" + currentTarget.QuicPort,
+			GatewayGRPCAddr: currentTarget.Ip + ":" + currentTarget.GrpcPort,
+			GatewayWSURL:    "wss://" + currentTarget.Ip + "/ws",
 			ConnectorID:     connectorID,
 			OpenSock:        result.Status.OpenSock,
 			TLSConfig:       tlsConfig,
 		}
 
 		//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
-		log.Info("Opening management stream with gateway", "addr", config.GatewayGRPCAddr, "attempt", attempt)
+		log.Info("Opening management stream with gateway", "addr", config.GatewayGRPCAddr, "is_secondary", currentTarget.IsSecondary, "attempt", attempt)
 		managementConn, err := management.OpenStream(ctx, config.GatewayGRPCAddr, connectorID, tenantID, tlsConfig, log, apps, result.PKI, appStorage)
 		if err != nil {
-			log.Error("Failed to open Gateway stream", "cp_url", config.GatewayGRPCAddr, "error", err)
+			log.Error("Failed to open Gateway stream", "addr", config.GatewayGRPCAddr, "is_secondary", currentTarget.IsSecondary, "error", err)
 			select {
 			case <-time.After(reconnectDelay(attempt)):
 				continue
@@ -170,7 +200,7 @@ func runStart() (err error) {
 		err = managementConn.Register(helloCtx)
 		helloCancel()
 		if err != nil {
-			log.Error("Failed to register management stream", "error", err)
+			log.Error("Failed to register management stream", "addr", config.GatewayGRPCAddr, "error", err)
 			managementConn.Conn.Close()
 			select {
 			case <-time.After(reconnectDelay(attempt)):
@@ -180,7 +210,7 @@ func runStart() (err error) {
 			}
 		}
 
-		log.Info("connector management stream ready", "connector_id", connectorID, "app_addr", config.GatewayGRPCAddr)
+		log.Info("connector management stream ready", "connector_id", connectorID, "app_addr", config.GatewayGRPCAddr, "is_secondary", currentTarget.IsSecondary)
 
 		//--------------------Mangement Receiver, HeartBeat, and Tunnel Loop ---------------------------//
 		sessionCtx, sessionCancel := context.WithCancel(ctx)

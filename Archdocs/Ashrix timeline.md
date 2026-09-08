@@ -10,10 +10,7 @@ Frontend Building and integration
 Accesslog Api to get list with filters Access logging and audit logging 
 Audit log list api
 
-*App To App Communication using Sock5 proxy
-
-
-
+*Add Security Header settings per app
 
 
 # Flexibility in the Port designing for each service
@@ -32,3 +29,4 @@ Create tools for LLM generations of policies.
 
 
 Deadline: October 2026
+

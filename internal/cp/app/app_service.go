@@ -39,17 +39,23 @@ func (s *Service) CreateApp(ctx context.Context, orgID uuid.UUID, req CreateAppR
 	}
 	healthEndpoint := pgtype.Text{String: req.HealthEndpoint, Valid: req.HealthEndpoint != ""}
 
+	enableSecHeaders := true
+	if req.EnableSecurityHeaders != nil {
+		enableSecHeaders = *req.EnableSecurityHeaders
+	}
+
 	params := store.CreateAppParams{
-		OrgID:          orgID,
-		Name:           req.Name,
-		Subdomain:      req.Subdomain,
-		Upstream:       req.Upstream,
-		Protocol:       req.Protocol,
-		IsPublic:       *req.IsPublic,
-		SockPass:       string(hash),
-		CheckHealth:    checkHealth,
-		CheckInterval:  checkInterval,
-		HealthEndpoint: healthEndpoint,
+		OrgID:                 orgID,
+		Name:                  req.Name,
+		Subdomain:             req.Subdomain,
+		Upstream:              req.Upstream,
+		Protocol:              req.Protocol,
+		IsPublic:              *req.IsPublic,
+		EnableSecurityHeaders: enableSecHeaders,
+		SockPass:              string(hash),
+		CheckHealth:           checkHealth,
+		CheckInterval:         checkInterval,
+		HealthEndpoint:        healthEndpoint,
 	}
 
 	if req.ConnectorID != nil {
@@ -104,19 +110,24 @@ func (s *Service) UpdateApp(ctx context.Context, id, orgID uuid.UUID, req Update
 	if req.HealthEndpoint != "" {
 		healthEndpoint = pgtype.Text{String: req.HealthEndpoint, Valid: true}
 	}
+	enableSecHeaders := app.EnableSecurityHeaders
+	if req.EnableSecurityHeaders != nil {
+		enableSecHeaders = *req.EnableSecurityHeaders
+	}
 
 	params := store.UpdateAppParams{
-		ID:             id,
-		OrgID:          orgID,
-		Name:           req.Name,
-		Subdomain:      req.Subdomain,
-		Upstream:       req.Upstream,
-		Protocol:       req.Protocol,
-		IsPublic:       *req.IsPublic,
-		SockPass:       string(sockPass),
-		CheckHealth:    checkHealth,
-		CheckInterval:  checkInterval,
-		HealthEndpoint: healthEndpoint,
+		ID:                    id,
+		OrgID:                 orgID,
+		Name:                  req.Name,
+		Subdomain:             req.Subdomain,
+		Upstream:              req.Upstream,
+		Protocol:              req.Protocol,
+		IsPublic:              *req.IsPublic,
+		EnableSecurityHeaders: enableSecHeaders,
+		SockPass:              string(sockPass),
+		CheckHealth:           checkHealth,
+		CheckInterval:         checkInterval,
+		HealthEndpoint:        healthEndpoint,
 	}
 
 	if req.ConnectorID != nil {
@@ -152,19 +163,20 @@ func (s *Service) ListAppsByOrg(ctx context.Context, orgID uuid.UUID) ([]AppResp
 
 func (s *Service) mapToAppDetailResponse(ctx context.Context, app store.ListAppsWithDetailsByOrgRow) AppResponse {
 	resp := AppResponse{
-		ID:             app.ID.String(),
-		OrgID:          app.OrgID.String(),
-		Name:           app.Name,
-		Subdomain:      app.Subdomain,
-		Upstream:       app.Upstream,
-		Protocol:       app.Protocol,
-		IsPublic:       app.IsPublic,
-		SockPass:       app.SockPass,
-		CheckHealth:    app.CheckHealth,
-		CheckInterval:  app.CheckInterval,
-		HealthEndpoint: app.HealthEndpoint.String,
-		HealthStatus:   app.HealthStatus,
-		CreatedAt:      app.CreatedAt,
+		ID:                    app.ID.String(),
+		OrgID:                 app.OrgID.String(),
+		Name:                  app.Name,
+		Subdomain:             app.Subdomain,
+		Upstream:              app.Upstream,
+		Protocol:              app.Protocol,
+		IsPublic:              app.IsPublic,
+		EnableSecurityHeaders: app.EnableSecurityHeaders,
+		SockPass:              app.SockPass,
+		CheckHealth:           app.CheckHealth,
+		CheckInterval:         app.CheckInterval,
+		HealthEndpoint:        app.HealthEndpoint.String,
+		HealthStatus:          app.HealthStatus,
+		CreatedAt:             app.CreatedAt,
 	}
 	if app.ConnectorID.Valid {
 		connIDStr := uuid.UUID(app.ConnectorID.Bytes).String()
@@ -232,39 +244,47 @@ func (s *Service) DispatchReloadConnectorCmd(ctx context.Context, connectorID st
 	connectorUUID, err := uuid.Parse(connectorID)
 	if err != nil {
 		fmt.Println(err.Error())
+		return
 	}
 	connector, err := s.connectorRepo.GetConnectorByID(ctx, connectorUUID)
 	if err != nil {
 		fmt.Println(err.Error())
+		return
 	}
-	payload := events.CommandJob{
-		Type:        events.CmdReloadConnector,
-		GatewayID:   connector.GatewayID.String(),
-		ConnectorID: connectorID,
+
+	targetGateways := []string{connector.GatewayID.String()}
+	if connector.SecondaryGatewayID.Valid {
+		targetGateways = append(targetGateways, uuid.UUID(connector.SecondaryGatewayID.Bytes).String())
 	}
-	_, err = s.eventRepo.CreateEvent(ctx, payload)
-	if err != nil {
-		fmt.Println(err.Error())
+
+	for _, gwID := range targetGateways {
+		payload := events.CommandJob{
+			Type:        events.CmdReloadConnector,
+			GatewayID:   gwID,
+			ConnectorID: connectorID,
+		}
+		_, _ = s.eventRepo.CreateEvent(ctx, payload)
+		s.dispatcher.Wakeup(gwID)
 	}
-	s.dispatcher.Wakeup(connector.GatewayID.String())
 }
 
 func mapToAppResponse(app store.App) AppResponse {
 	resp := AppResponse{
-		ID:             app.ID.String(),
-		OrgID:          app.OrgID.String(),
-		Name:           app.Name,
-		Subdomain:      app.Subdomain,
-		Upstream:       app.Upstream,
-		Protocol:       app.Protocol,
-		IsPublic:       app.IsPublic,
-		SockPass:       app.SockPass,
-		CheckHealth:    app.CheckHealth,
-		CheckInterval:  app.CheckInterval,
-		HealthEndpoint: app.HealthEndpoint.String,
-		HealthStatus:   app.HealthStatus,
-		Policies:       []AppPolicySummary{},
-		CreatedAt:      app.CreatedAt,
+		ID:                    app.ID.String(),
+		OrgID:                 app.OrgID.String(),
+		Name:                  app.Name,
+		Subdomain:             app.Subdomain,
+		Upstream:              app.Upstream,
+		Protocol:              app.Protocol,
+		IsPublic:              app.IsPublic,
+		EnableSecurityHeaders: app.EnableSecurityHeaders,
+		SockPass:              app.SockPass,
+		CheckHealth:           app.CheckHealth,
+		CheckInterval:         app.CheckInterval,
+		HealthEndpoint:        app.HealthEndpoint.String,
+		HealthStatus:          app.HealthStatus,
+		Policies:              []AppPolicySummary{},
+		CreatedAt:             app.CreatedAt,
 	}
 	if app.ConnectorID.Valid {
 		connIDStr := uuid.UUID(app.ConnectorID.Bytes).String()

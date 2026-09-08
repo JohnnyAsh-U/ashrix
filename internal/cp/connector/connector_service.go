@@ -48,8 +48,12 @@ func mapToConnectorResponse(g store.Connector, token string) ConnectorResponse {
 		OpenSock:     g.OpenSock,
 		Status:       g.Status,
 		Apps:         []ConnectorAppSummaryResponse{},
-		Token: token,
+		Token:        token,
 		CreatedAt:    g.CreatedAt,
+	}
+	if g.SecondaryGatewayID.Valid {
+		secIDStr := uuid.UUID(g.SecondaryGatewayID.Bytes).String()
+		resp.SecondaryGatewayID = &secIDStr
 	}
 	if g.LastSeen.Valid {
 		resp.LastHeartBeat = &g.LastSeen.Time
@@ -75,6 +79,13 @@ func mapToConnectorResponseRow(g store.ListConnectorsWithGatewayNameByOrgRow, ap
 		Status:       g.Status,
 		CreatedAt:    g.CreatedAt,
 	}
+	if g.SecondaryGatewayID.Valid {
+		secIDStr := uuid.UUID(g.SecondaryGatewayID.Bytes).String()
+		resp.SecondaryGatewayID = &secIDStr
+	}
+	if g.SecondaryGatewayName.Valid {
+		resp.SecondaryGatewayName = &g.SecondaryGatewayName.String
+	}
 	if g.LastSeen.Valid {
 		resp.LastHeartBeat = &g.LastSeen.Time
 	}
@@ -99,7 +110,7 @@ func mapToConnectorResponseRow(g store.ListConnectorsWithGatewayNameByOrgRow, ap
 }
 
 // CreateConnector creates a new connector.
-func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uuid.UUID, OpenSock bool) (ConnectorResponse, *dto.AppError) {
+func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uuid.UUID, secondaryGatewayID *uuid.UUID, OpenSock bool) (ConnectorResponse, *dto.AppError) {
 
 	//Check if the Org is same as the Admin
 	AdminOrgId := middleware.OrgIDFromCtx(ctx)
@@ -113,20 +124,29 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 	//Generate a 6 chars token and hash
 	token := utils.GenerateRandomString(6)
 
+	var secGwParam pgtype.UUID
+	if secondaryGatewayID != nil {
+		secGwParam = pgtype.UUID{Bytes: *secondaryGatewayID, Valid: true}
+	}
+
 	params := store.CreateConnectorParams{
-		OrgID:     AdminUUID,
-		Name:      name,
-		GatewayID: gatewayID,
-		TokenHash: utils.HashToken(token),
-		OpenSock:  OpenSock,
+		OrgID:              AdminUUID,
+		Name:               name,
+		GatewayID:          gatewayID,
+		SecondaryGatewayID: secGwParam,
+		TokenHash:          utils.HashToken(token),
+		OpenSock:           OpenSock,
 	}
 	connector, err := s.repo.CreateConnector(ctx, params)
 	if err != nil {
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create connector", err.Error())
 	}
 
-	//Send Updated Active Connectors list to Gateway
+	//Send Updated Active Connectors list to Primary & Secondary Gateway
 	s.SyncConnectorToGateway(ctx, connector.GatewayID)
+	if connector.SecondaryGatewayID.Valid {
+		s.SyncConnectorToGateway(ctx, uuid.UUID(connector.SecondaryGatewayID.Bytes))
+	}
 
 	return mapToConnectorResponse(connector, token), nil
 }
@@ -172,7 +192,7 @@ func (s *Service) ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]C
 }
 
 // ReEnrollConnector re-create a connector.
-func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name string, gatewayId uuid.UUID, OpenSock bool) (ConnectorResponse, *dto.AppError) {
+func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name string, gatewayId uuid.UUID, secondaryGatewayID *uuid.UUID, OpenSock bool) (ConnectorResponse, *dto.AppError) {
 
 	connectorRes, err := s.repo.GetConnectorByID(ctx, id)
 
@@ -189,20 +209,29 @@ func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name stri
 	//Generate a 6 chars token and hash
 	token := utils.GenerateRandomString(6)
 
+	var secGwParam pgtype.UUID
+	if secondaryGatewayID != nil {
+		secGwParam = pgtype.UUID{Bytes: *secondaryGatewayID, Valid: true}
+	}
+
 	params := store.ReCreateConnectorParams{
-		ID:        id,
-		GatewayID: gatewayId,
-		Name:      name, // Assuming name can be updated during re-enrollment
-		TokenHash: utils.HashToken(token),
-		OpenSock:  OpenSock,
+		ID:                 id,
+		GatewayID:          gatewayId,
+		SecondaryGatewayID: secGwParam,
+		Name:               name, // Assuming name can be updated during re-enrollment
+		TokenHash:          utils.HashToken(token),
+		OpenSock:           OpenSock,
 	}
 	connector, err := s.repo.ReCreateConnector(ctx, params)
 	if err != nil {
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to re-enroll connector", err.Error())
 	}
 
-	//Send Updated Active Connectors list to Gateway
+	//Send Updated Active Connectors list to Primary & Secondary Gateway
 	s.SyncConnectorToGateway(ctx, connector.GatewayID)
+	if connector.SecondaryGatewayID.Valid {
+		s.SyncConnectorToGateway(ctx, uuid.UUID(connector.SecondaryGatewayID.Bytes))
+	}
 
 	return mapToConnectorResponse(connector, token), nil
 }
@@ -460,34 +489,31 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		revokedSerials = append(revokedSerials, crl.SerialNumber)
 	}
 
-	payload := events.CommandJob{
-		Type:        events.CmdRevokeConnectorCert,
-		GatewayID:   connector.GatewayID.String(),
-		ConnectorID: connectorId.String(),
+	// Dispatch commands to Primary Gateway
+	targetGateways := []string{connector.GatewayID.String()}
+	if connector.SecondaryGatewayID.Valid {
+		targetGateways = append(targetGateways, uuid.UUID(connector.SecondaryGatewayID.Bytes).String())
 	}
 
-	_, err = s.eventRepo.CreateEvent(ctx, payload)
+	for _, gwID := range targetGateways {
+		payload := events.CommandJob{
+			Type:        events.CmdRevokeConnectorCert,
+			GatewayID:   gwID,
+			ConnectorID: connectorId.String(),
+		}
+		_, _ = s.eventRepo.CreateEvent(ctx, payload)
 
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
+		payload2 := events.CommandJob{
+			Type:                 events.CmdCrlSync,
+			GatewayID:            gwID,
+			RevokedSerialNumbers: revokedSerials,
+		}
+		_, _ = s.eventRepo.CreateEvent(ctx, payload2)
+		s.dispatcher.Wakeup(gwID)
+		s.SyncConnectorToGateway(ctx, uuid.MustParse(gwID))
 	}
 
-	payload2 := events.CommandJob{
-		Type:                 events.CmdCrlSync,
-		GatewayID:            connector.GatewayID.String(),
-		RevokedSerialNumbers: revokedSerials,
-	}
-
-	_, err = s.eventRepo.CreateEvent(ctx, payload2)
-
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
-	}
-
-	//Send Updated Active Connectors list to Gateway
-	s.SyncConnectorToGateway(ctx, connector.GatewayID)
-
-	// Fetch updated gateway status
+	// Fetch updated connector status
 	updatedConnector, err := s.repo.GetConnectorByID(ctx, connectorId)
 	if err != nil {
 		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
@@ -551,19 +577,6 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 		}
 	}
 
-	//payload
-	payload := events.CommandJob{
-		Type:        events.CmdRevokeConnector,
-		GatewayID:   Connector.GatewayID.String(),
-		ConnectorID: Connector.ID.String(),
-	}
-
-	_, err = s.eventRepo.CreateEvent(ctx, payload)
-
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
-	}
-
 	//Get all the active CRLs
 	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
 
@@ -572,20 +585,28 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 		revokedSerials = append(revokedSerials, crl.SerialNumber)
 	}
 
-	payload2 := events.CommandJob{
-		Type:                 events.CmdCrlSync,
-		GatewayID:            Connector.GatewayID.String(),
-		RevokedSerialNumbers: revokedSerials,
+	targetGateways := []string{Connector.GatewayID.String()}
+	if Connector.SecondaryGatewayID.Valid {
+		targetGateways = append(targetGateways, uuid.UUID(Connector.SecondaryGatewayID.Bytes).String())
 	}
 
-	_, err = s.eventRepo.CreateEvent(ctx, payload2)
+	for _, gwID := range targetGateways {
+		payload := events.CommandJob{
+			Type:        events.CmdRevokeConnector,
+			GatewayID:   gwID,
+			ConnectorID: Connector.ID.String(),
+		}
+		_, _ = s.eventRepo.CreateEvent(ctx, payload)
 
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
+		payload2 := events.CommandJob{
+			Type:                 events.CmdCrlSync,
+			GatewayID:            gwID,
+			RevokedSerialNumbers: revokedSerials,
+		}
+		_, _ = s.eventRepo.CreateEvent(ctx, payload2)
+		s.dispatcher.Wakeup(gwID)
+		s.SyncConnectorToGateway(ctx, uuid.MustParse(gwID))
 	}
-
-	//Send Updated Active Connectors list to Gateway
-	s.SyncConnectorToGateway(ctx, Connector.GatewayID)
 
 	return mapToConnectorResponse(revokedConnector, ""), nil
 }
@@ -613,66 +634,66 @@ func (s *Service) SendRotateConnectorCmd(ctx context.Context, connectorId uuid.U
 		return ConnectorResponse{}, dto.NewUnauthorizedError("OrgID Error")
 	}
 
-	payload := events.CommandJob{
-		Type:        events.CmdRotateConnectorCert,
-		GatewayID:   Connector.GatewayID.String(),
-		ConnectorID: Connector.ID.String(),
+	targetGateways := []string{Connector.GatewayID.String()}
+	if Connector.SecondaryGatewayID.Valid {
+		targetGateways = append(targetGateways, uuid.UUID(Connector.SecondaryGatewayID.Bytes).String())
 	}
 
-	_, err = s.eventRepo.CreateEvent(ctx, payload)
-
-	s.dispatcher.Wakeup(Connector.GatewayID.String())
-
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, err.Error(), nil)
+	for _, gwID := range targetGateways {
+		payload := events.CommandJob{
+			Type:        events.CmdRotateConnectorCert,
+			GatewayID:   gwID,
+			ConnectorID: Connector.ID.String(),
+		}
+		_, _ = s.eventRepo.CreateEvent(ctx, payload)
+		s.dispatcher.Wakeup(gwID)
 	}
 
 	return mapToConnectorResponse(Connector, ""), nil
 }
 
-func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID, canonicalString, signature string) (gen.ConnectorStatusResponse, *dto.AppError) {
+func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID, canonicalString, signature string) (*gen.ConnectorStatusResponse, *dto.AppError) {
 
 	ConnectorRow, err := s.repo.GetActiveConnectorByID(ctx, connectorID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return gen.ConnectorStatusResponse{}, dto.NewNotFoundError("Connector Not Found")
+			return &gen.ConnectorStatusResponse{}, dto.NewNotFoundError("Connector Not Found")
 		}
-		return gen.ConnectorStatusResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())
+		return &gen.ConnectorStatusResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())
 	}
 
 	GatewayRow, err := s.gatewayRepo.GetActiveGatewayByID(ctx, ConnectorRow.GatewayID)
 
 	if err != nil {
-		return gen.ConnectorStatusResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())
+		return &gen.ConnectorStatusResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Primary Gateway", err.Error())
 	}
 
 	//Get the active Cert for the connector
-	// Revoke the active component certificate if it exists
 	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
 		ComponentType: "connector",
 		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorID},
 	})
 
 	if err != nil {
-		return gen.ConnectorStatusResponse{}, dto.NewNotFoundError("Cert Not Found")
+		return &gen.ConnectorStatusResponse{}, dto.NewNotFoundError("Cert Not Found")
 	}
 
 	block, _ := pem.Decode([]byte(activeCert.CertPem))
 	if block == nil {
-		return gen.ConnectorStatusResponse{}, dto.NewNotFoundError("Cert Not Found")
+		return &gen.ConnectorStatusResponse{}, dto.NewNotFoundError("Cert Not Found")
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return gen.ConnectorStatusResponse{}, dto.NewBadRequestError("Error Parsing Cert")
+		return &gen.ConnectorStatusResponse{}, dto.NewBadRequestError("Error Parsing Cert")
 	}
 	pub, ok := cert.PublicKey.(*ecdsa.PublicKey)
 	if !ok {
-		return gen.ConnectorStatusResponse{}, dto.NewBadRequestError("Error Parsing Key")
+		return &gen.ConnectorStatusResponse{}, dto.NewBadRequestError("Error Parsing Key")
 	}
 
 	//Check the Signature and canonicalString
 	if err = utils.VerifySignature(pub, canonicalString, signature); err != nil {
-		return gen.ConnectorStatusResponse{}, dto.NewUnauthorizedError("Invalid Signature")
+		return &gen.ConnectorStatusResponse{}, dto.NewUnauthorizedError("Invalid Signature")
 	}
 
 	//Get the apps of the connector
@@ -684,29 +705,30 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		if errors.Is(err, sql.ErrNoRows) {
 			appsResp = []*gen.ConnectorApps{}
 		}
-		return gen.ConnectorStatusResponse{}, dto.NewNotFoundError("Connector Not Found")
+		return &gen.ConnectorStatusResponse{}, dto.NewNotFoundError("Connector Not Found")
 	}
 
 	if len(apps) > 0 {
 		for _, g := range apps {
 			app := &gen.ConnectorApps{
-				Id:             g.ID.String(),
-				Name:           g.Name,
-				Subdomain:      g.Subdomain,
-				Upstream:       g.Upstream,
-				Protocol:       g.Protocol,
-				IsPublic:       g.IsPublic,
-				SockPass:       g.SockPass,
-				CheckHealth:    g.CheckHealth,
-				CheckInterval:  g.CheckInterval,
-				HealthEndpoint: g.HealthEndpoint.String,
-				HealthStatus:   g.HealthStatus,
+				Id:                    g.ID.String(),
+				Name:                  g.Name,
+				Subdomain:             g.Subdomain,
+				Upstream:              g.Upstream,
+				Protocol:              g.Protocol,
+				IsPublic:              g.IsPublic,
+				SockPass:              g.SockPass,
+				CheckHealth:           g.CheckHealth,
+				CheckInterval:         g.CheckInterval,
+				HealthEndpoint:        g.HealthEndpoint.String,
+				HealthStatus:          g.HealthStatus,
+				EnableSecurityHeaders: g.EnableSecurityHeaders,
 			}
 			appsResp = append(appsResp, app)
 		}
 	}
 
-	return gen.ConnectorStatusResponse{
+	resp := &gen.ConnectorStatusResponse{
 		ConnectorId: ConnectorRow.ID.String(),
 		GatewayId:   ConnectorRow.GatewayID.String(),
 		GatewayUrl:  GatewayRow.PublicUrl,
@@ -716,5 +738,19 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		GrpcPort:    GatewayRow.GrpcPort.String,
 		QuicPort:    GatewayRow.QuicPort.String,
 		Apps:        appsResp,
-	}, nil
+	}
+
+	if ConnectorRow.SecondaryGatewayID.Valid {
+		secGWUUID := uuid.UUID(ConnectorRow.SecondaryGatewayID.Bytes)
+		if secGW, err := s.gatewayRepo.GetActiveGatewayByID(ctx, secGWUUID); err == nil {
+			resp.SecondaryGatewayId = secGW.ID.String()
+			resp.SecondaryGatewayUrl = secGW.PublicUrl
+			resp.SecondaryGatewayIp = secGW.IpAddress
+			resp.SecondaryGrpcPort = secGW.GrpcPort.String
+			resp.SecondaryHttpsPort = secGW.HttpsPort.String
+			resp.SecondaryQuicPort = secGW.QuicPort.String
+		}
+	}
+
+	return resp, nil
 }

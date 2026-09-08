@@ -71,22 +71,23 @@ type AdminSetupToken struct {
 }
 
 type App struct {
-	ID             uuid.UUID          `json:"id"`
-	OrgID          uuid.UUID          `json:"org_id"`
-	ConnectorID    pgtype.UUID        `json:"connector_id"`
-	Name           string             `json:"name"`
-	Subdomain      string             `json:"subdomain"`
-	Upstream       string             `json:"upstream"`
-	Protocol       string             `json:"protocol"`
-	IsPublic       bool               `json:"is_public"`
-	CheckHealth    bool               `json:"check_health"`
-	CheckInterval  int32              `json:"check_interval"`
-	HealthEndpoint pgtype.Text        `json:"health_endpoint"`
-	HealthStatus   string             `json:"health_status"`
-	LastSeen       pgtype.Timestamptz `json:"last_seen"`
-	SockPass       string             `json:"sock_pass"`
-	CreatedAt      time.Time          `json:"created_at"`
-	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
+	ID                    uuid.UUID          `json:"id"`
+	OrgID                 uuid.UUID          `json:"org_id"`
+	ConnectorID           pgtype.UUID        `json:"connector_id"`
+	Name                  string             `json:"name"`
+	Subdomain             string             `json:"subdomain"`
+	Upstream              string             `json:"upstream"`
+	Protocol              string             `json:"protocol"`
+	IsPublic              bool               `json:"is_public"`
+	EnableSecurityHeaders bool               `json:"enable_security_headers"`
+	CheckHealth           bool               `json:"check_health"`
+	CheckInterval         int32              `json:"check_interval"`
+	HealthEndpoint        pgtype.Text        `json:"health_endpoint"`
+	HealthStatus          string             `json:"health_status"`
+	LastSeen              pgtype.Timestamptz `json:"last_seen"`
+	SockPass              string             `json:"sock_pass"`
+	CreatedAt             time.Time          `json:"created_at"`
+	DeletedAt             pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type AppIdpMapping struct {
@@ -141,19 +142,20 @@ type ComponentCertificate struct {
 }
 
 type Connector struct {
-	ID            uuid.UUID          `json:"id"`
-	OrgID         uuid.UUID          `json:"org_id"`
-	GatewayID     uuid.UUID          `json:"gateway_id"`
-	Name          string             `json:"name"`
-	TokenHash     string             `json:"token_hash"`
-	LastSeen      pgtype.Timestamptz `json:"last_seen"`
-	Status        string             `json:"status"`
-	CreatedAt     time.Time          `json:"created_at"`
-	IsActive      bool               `json:"is_active"`
-	OpenSock      bool               `json:"open_sock"`
-	ActiveStreams int32              `json:"active_streams"`
-	EnrolledAt    pgtype.Timestamptz `json:"enrolled_at"`
-	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
+	ID                 uuid.UUID          `json:"id"`
+	OrgID              uuid.UUID          `json:"org_id"`
+	GatewayID          uuid.UUID          `json:"gateway_id"`
+	SecondaryGatewayID pgtype.UUID        `json:"secondary_gateway_id"`
+	Name               string             `json:"name"`
+	TokenHash          string             `json:"token_hash"`
+	LastSeen           pgtype.Timestamptz `json:"last_seen"`
+	Status             string             `json:"status"`
+	CreatedAt          time.Time          `json:"created_at"`
+	IsActive           bool               `json:"is_active"`
+	OpenSock           bool               `json:"open_sock"`
+	ActiveStreams      int32              `json:"active_streams"`
+	EnrolledAt         pgtype.Timestamptz `json:"enrolled_at"`
+	RevokedAt          pgtype.Timestamptz `json:"revoked_at"`
 }
 
 type CrlEntry struct {

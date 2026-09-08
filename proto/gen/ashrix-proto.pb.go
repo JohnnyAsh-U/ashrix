@@ -2632,19 +2632,25 @@ func (x *ConnectorRenewCertResponse) GetExpiresAt() *timestamppb.Timestamp {
 }
 
 type ConnectorStatusResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
-	GatewayId     string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
-	GatewayUrl    string                 `protobuf:"bytes,3,opt,name=gateway_url,json=gatewayUrl,proto3" json:"gateway_url,omitempty"`
-	GatewayIp     string                 `protobuf:"bytes,4,opt,name=gateway_ip,json=gatewayIp,proto3" json:"gateway_ip,omitempty"`
-	GrpcPort      string                 `protobuf:"bytes,5,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
-	HttpsPort     string                 `protobuf:"bytes,6,opt,name=https_port,json=httpsPort,proto3" json:"https_port,omitempty"`
-	QuicPort      string                 `protobuf:"bytes,7,opt,name=quic_port,json=quicPort,proto3" json:"quic_port,omitempty"`
-	TenantId      string                 `protobuf:"bytes,8,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	OpenSock      bool                   `protobuf:"varint,9,opt,name=open_sock,json=openSock,proto3" json:"open_sock,omitempty"`
-	Apps          []*ConnectorApps       `protobuf:"bytes,10,rep,name=apps,proto3" json:"apps,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	ConnectorId         string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
+	GatewayId           string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
+	GatewayUrl          string                 `protobuf:"bytes,3,opt,name=gateway_url,json=gatewayUrl,proto3" json:"gateway_url,omitempty"`
+	GatewayIp           string                 `protobuf:"bytes,4,opt,name=gateway_ip,json=gatewayIp,proto3" json:"gateway_ip,omitempty"`
+	GrpcPort            string                 `protobuf:"bytes,5,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
+	HttpsPort           string                 `protobuf:"bytes,6,opt,name=https_port,json=httpsPort,proto3" json:"https_port,omitempty"`
+	QuicPort            string                 `protobuf:"bytes,7,opt,name=quic_port,json=quicPort,proto3" json:"quic_port,omitempty"`
+	TenantId            string                 `protobuf:"bytes,8,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	OpenSock            bool                   `protobuf:"varint,9,opt,name=open_sock,json=openSock,proto3" json:"open_sock,omitempty"`
+	Apps                []*ConnectorApps       `protobuf:"bytes,10,rep,name=apps,proto3" json:"apps,omitempty"`
+	SecondaryGatewayId  string                 `protobuf:"bytes,11,opt,name=secondary_gateway_id,json=secondaryGatewayId,proto3" json:"secondary_gateway_id,omitempty"`
+	SecondaryGatewayUrl string                 `protobuf:"bytes,12,opt,name=secondary_gateway_url,json=secondaryGatewayUrl,proto3" json:"secondary_gateway_url,omitempty"`
+	SecondaryGatewayIp  string                 `protobuf:"bytes,13,opt,name=secondary_gateway_ip,json=secondaryGatewayIp,proto3" json:"secondary_gateway_ip,omitempty"`
+	SecondaryGrpcPort   string                 `protobuf:"bytes,14,opt,name=secondary_grpc_port,json=secondaryGrpcPort,proto3" json:"secondary_grpc_port,omitempty"`
+	SecondaryHttpsPort  string                 `protobuf:"bytes,15,opt,name=secondary_https_port,json=secondaryHttpsPort,proto3" json:"secondary_https_port,omitempty"`
+	SecondaryQuicPort   string                 `protobuf:"bytes,16,opt,name=secondary_quic_port,json=secondaryQuicPort,proto3" json:"secondary_quic_port,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ConnectorStatusResponse) Reset() {
@@ -2747,21 +2753,64 @@ func (x *ConnectorStatusResponse) GetApps() []*ConnectorApps {
 	return nil
 }
 
+func (x *ConnectorStatusResponse) GetSecondaryGatewayId() string {
+	if x != nil {
+		return x.SecondaryGatewayId
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetSecondaryGatewayUrl() string {
+	if x != nil {
+		return x.SecondaryGatewayUrl
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetSecondaryGatewayIp() string {
+	if x != nil {
+		return x.SecondaryGatewayIp
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetSecondaryGrpcPort() string {
+	if x != nil {
+		return x.SecondaryGrpcPort
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetSecondaryHttpsPort() string {
+	if x != nil {
+		return x.SecondaryHttpsPort
+	}
+	return ""
+}
+
+func (x *ConnectorStatusResponse) GetSecondaryQuicPort() string {
+	if x != nil {
+		return x.SecondaryQuicPort
+	}
+	return ""
+}
+
 type ConnectorApps struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Subdomain      string                 `protobuf:"bytes,3,opt,name=subdomain,proto3" json:"subdomain,omitempty"`
-	Upstream       string                 `protobuf:"bytes,4,opt,name=upstream,proto3" json:"upstream,omitempty"` //must be host:port
-	Protocol       string                 `protobuf:"bytes,5,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	IsPublic       bool                   `protobuf:"varint,6,opt,name=is_public,json=isPublic,proto3" json:"is_public,omitempty"`
-	SockPass       string                 `protobuf:"bytes,7,opt,name=sock_pass,json=sockPass,proto3" json:"sock_pass,omitempty"`
-	CheckHealth    bool                   `protobuf:"varint,8,opt,name=check_health,json=checkHealth,proto3" json:"check_health,omitempty"`
-	CheckInterval  int32                  `protobuf:"varint,9,opt,name=check_interval,json=checkInterval,proto3" json:"check_interval,omitempty"`
-	HealthEndpoint string                 `protobuf:"bytes,10,opt,name=health_endpoint,json=healthEndpoint,proto3" json:"health_endpoint,omitempty"`
-	HealthStatus   string                 `protobuf:"bytes,11,opt,name=health_status,json=healthStatus,proto3" json:"health_status,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Id                    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name                  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Subdomain             string                 `protobuf:"bytes,3,opt,name=subdomain,proto3" json:"subdomain,omitempty"`
+	Upstream              string                 `protobuf:"bytes,4,opt,name=upstream,proto3" json:"upstream,omitempty"` //must be host:port
+	Protocol              string                 `protobuf:"bytes,5,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	IsPublic              bool                   `protobuf:"varint,6,opt,name=is_public,json=isPublic,proto3" json:"is_public,omitempty"`
+	SockPass              string                 `protobuf:"bytes,7,opt,name=sock_pass,json=sockPass,proto3" json:"sock_pass,omitempty"`
+	CheckHealth           bool                   `protobuf:"varint,8,opt,name=check_health,json=checkHealth,proto3" json:"check_health,omitempty"`
+	CheckInterval         int32                  `protobuf:"varint,9,opt,name=check_interval,json=checkInterval,proto3" json:"check_interval,omitempty"`
+	HealthEndpoint        string                 `protobuf:"bytes,10,opt,name=health_endpoint,json=healthEndpoint,proto3" json:"health_endpoint,omitempty"`
+	HealthStatus          string                 `protobuf:"bytes,11,opt,name=health_status,json=healthStatus,proto3" json:"health_status,omitempty"`
+	EnableSecurityHeaders bool                   `protobuf:"varint,12,opt,name=enable_security_headers,json=enableSecurityHeaders,proto3" json:"enable_security_headers,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *ConnectorApps) Reset() {
@@ -2869,6 +2918,13 @@ func (x *ConnectorApps) GetHealthStatus() string {
 		return x.HealthStatus
 	}
 	return ""
+}
+
+func (x *ConnectorApps) GetEnableSecurityHeaders() bool {
+	if x != nil {
+		return x.EnableSecurityHeaders
+	}
+	return false
 }
 
 // 1. Wrapper for map[string][]string
@@ -4755,7 +4811,7 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x12\x1b\n" +
 	"\topen_sock\x18\x04 \x01(\bR\bopenSock\x129\n" +
 	"\n" +
-	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xd8\x02\n" +
+	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x82\x05\n" +
 	"\x17ConnectorStatusResponse\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1d\n" +
 	"\n" +
@@ -4771,7 +4827,13 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\ttenant_id\x18\b \x01(\tR\btenantId\x12\x1b\n" +
 	"\topen_sock\x18\t \x01(\bR\bopenSock\x12(\n" +
 	"\x04apps\x18\n" +
-	" \x03(\v2\x14.proto.ConnectorAppsR\x04apps\"\xdb\x02\n" +
+	" \x03(\v2\x14.proto.ConnectorAppsR\x04apps\x120\n" +
+	"\x14secondary_gateway_id\x18\v \x01(\tR\x12secondaryGatewayId\x122\n" +
+	"\x15secondary_gateway_url\x18\f \x01(\tR\x13secondaryGatewayUrl\x120\n" +
+	"\x14secondary_gateway_ip\x18\r \x01(\tR\x12secondaryGatewayIp\x12.\n" +
+	"\x13secondary_grpc_port\x18\x0e \x01(\tR\x11secondaryGrpcPort\x120\n" +
+	"\x14secondary_https_port\x18\x0f \x01(\tR\x12secondaryHttpsPort\x12.\n" +
+	"\x13secondary_quic_port\x18\x10 \x01(\tR\x11secondaryQuicPort\"\x93\x03\n" +
 	"\rConnectorApps\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
@@ -4784,7 +4846,8 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\x0echeck_interval\x18\t \x01(\x05R\rcheckInterval\x12'\n" +
 	"\x0fhealth_endpoint\x18\n" +
 	" \x01(\tR\x0ehealthEndpoint\x12#\n" +
-	"\rhealth_status\x18\v \x01(\tR\fhealthStatus\"$\n" +
+	"\rhealth_status\x18\v \x01(\tR\fhealthStatus\x126\n" +
+	"\x17enable_security_headers\x18\f \x01(\bR\x15enableSecurityHeaders\"$\n" +
 	"\n" +
 	"HeaderList\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\"\xad\x05\n" +

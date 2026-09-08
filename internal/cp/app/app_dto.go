@@ -7,29 +7,31 @@ import (
 )
 
 type CreateAppRequest struct {
-	Name           string     `json:"name" validate:"required"`
-	Subdomain      string     `json:"subdomain" validate:"required,hostname_rfc1123"`
-	Upstream       string     `json:"upstream" validate:"required"`
-	Protocol       string     `json:"protocol" validate:"required,oneof=http https tcp ssh"`
-	IsPublic       *bool      `json:"is_public" validate:"required"`
-	ConnectorID    *uuid.UUID `json:"connector_id,omitempty"`
-	SockPass       string     `json:"sock_pass"`
-	CheckHealth    *bool      `json:"check_health,omitempty"`
-	CheckInterval  *int32     `json:"check_interval,omitempty"`
-	HealthEndpoint string     `json:"health_endpoint,omitempty"`
+	Name                  string     `json:"name" validate:"required"`
+	Subdomain             string     `json:"subdomain" validate:"required,hostname_rfc1123"`
+	Upstream              string     `json:"upstream" validate:"required"`
+	Protocol              string     `json:"protocol" validate:"required,oneof=http https tcp ssh"`
+	IsPublic              *bool      `json:"is_public" validate:"required"`
+	EnableSecurityHeaders *bool      `json:"enable_security_headers,omitempty"`
+	ConnectorID           *uuid.UUID `json:"connector_id,omitempty"`
+	SockPass              string     `json:"sock_pass"`
+	CheckHealth           *bool      `json:"check_health,omitempty"`
+	CheckInterval         *int32     `json:"check_interval,omitempty"`
+	HealthEndpoint        string     `json:"health_endpoint,omitempty"`
 }
 
 type UpdateAppRequest struct {
-	Name           string     `json:"name" validate:"required"`
-	Subdomain      string     `json:"subdomain" validate:"required,hostname_rfc1123"`
-	Upstream       string     `json:"upstream" validate:"required"`
-	Protocol       string     `json:"protocol" validate:"required,oneof=http https tcp ssh"`
-	IsPublic       *bool      `json:"is_public" validate:"required"`
-	ConnectorID    *uuid.UUID `json:"connector_id,omitempty"`
-	SockPass       string     `json:"sock_pass"`
-	CheckHealth    *bool      `json:"check_health,omitempty"`
-	CheckInterval  *int32     `json:"check_interval,omitempty"`
-	HealthEndpoint string     `json:"health_endpoint,omitempty"`
+	Name                  string     `json:"name" validate:"required"`
+	Subdomain             string     `json:"subdomain" validate:"required,hostname_rfc1123"`
+	Upstream              string     `json:"upstream" validate:"required"`
+	Protocol              string     `json:"protocol" validate:"required,oneof=http https tcp ssh"`
+	IsPublic              *bool      `json:"is_public" validate:"required"`
+	EnableSecurityHeaders *bool      `json:"enable_security_headers,omitempty"`
+	ConnectorID           *uuid.UUID `json:"connector_id,omitempty"`
+	SockPass              string     `json:"sock_pass"`
+	CheckHealth           *bool      `json:"check_health,omitempty"`
+	CheckInterval         *int32     `json:"check_interval,omitempty"`
+	HealthEndpoint        string     `json:"health_endpoint,omitempty"`
 }
 
 type AppPolicySummary struct {
@@ -50,6 +52,7 @@ type AppResponse struct {
 	Upstream             string             `json:"upstream"`
 	Protocol             string             `json:"protocol"`
 	IsPublic             bool               `json:"is_public"`
+	EnableSecurityHeaders bool              `json:"enable_security_headers"`
 	SockPass             string             `json:"sock_pass"`
 	CheckHealth          bool               `json:"check_health"`
 	CheckInterval        int32              `json:"check_interval"`

@@ -66,6 +66,16 @@ WHERE org_id     = $1
 ORDER BY created_at DESC
 LIMIT $4 OFFSET $5;
 
+-- name: ListAccessLogsFiltered :many
+SELECT * FROM access_logs
+WHERE org_id = $1
+  AND (sqlc.narg('user_email')::text IS NULL OR user_email ILIKE '%' || sqlc.narg('user_email')::text || '%')
+  AND (sqlc.narg('app_id')::uuid IS NULL OR app_id = sqlc.narg('app_id')::uuid)
+  AND (sqlc.narg('gateway_id')::uuid IS NULL OR gateway_id = sqlc.narg('gateway_id')::uuid)
+  AND (sqlc.narg('result')::text IS NULL OR result = sqlc.narg('result')::text)
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;
+
 -- name: ListAccessLogsByApp :many
 SELECT * FROM access_logs
 WHERE app_id     = $1

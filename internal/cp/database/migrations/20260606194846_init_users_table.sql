@@ -162,19 +162,20 @@ CREATE TABLE gateways (
 -- token_hash: used for connector → gateway auth.
 -- -----------------------------------------------------------------
 CREATE TABLE connectors (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id        UUID        NOT NULL REFERENCES orgs(id),
-    gateway_id    UUID        NOT NULL REFERENCES gateways(id),
-    name          TEXT        NOT NULL,
-    token_hash    TEXT        NOT NULL UNIQUE,
-    last_seen     TIMESTAMPTZ,
-    status        TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'connected', 'disconnected')),
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    is_active       BOOLEAN NOT NULL DEFAULT true,
-    open_sock   BOOLEAN     NOT NULL DEFAULT false,
-    active_streams INT NOT NULL DEFAULT 0,
-    enrolled_at TIMESTAMPTZ,
-    revoked_at    TIMESTAMPTZ,
+    id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id               UUID        NOT NULL REFERENCES orgs(id),
+    gateway_id           UUID        NOT NULL REFERENCES gateways(id),
+    secondary_gateway_id UUID        REFERENCES gateways(id),
+    name                 TEXT        NOT NULL,
+    token_hash           TEXT        NOT NULL UNIQUE,
+    last_seen            TIMESTAMPTZ,
+    status               TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'connected', 'disconnected')),
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    is_active            BOOLEAN     NOT NULL DEFAULT true,
+    open_sock            BOOLEAN     NOT NULL DEFAULT false,
+    active_streams       INT         NOT NULL DEFAULT 0,
+    enrolled_at          TIMESTAMPTZ,
+    revoked_at           TIMESTAMPTZ,
 
     UNIQUE (org_id, name)
 );
@@ -189,23 +190,24 @@ CREATE TABLE connectors (
 -- Default policy is DENY ALL — no access until a policy rule added.
 -- -----------------------------------------------------------------
 CREATE TABLE apps (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id        UUID        NOT NULL REFERENCES orgs(id),
-    connector_id  UUID        REFERENCES connectors(id),
-    name          TEXT        NOT NULL,
-    subdomain     TEXT        NOT NULL,           -- must be URL-safe slug
-    upstream      TEXT        NOT NULL,           -- host:port
-    protocol      TEXT        NOT NULL DEFAULT 'http' CHECK (protocol IN ('http', 'tcp', 'ssh')),
-    is_public     BOOLEAN     NOT NULL DEFAULT false,
-    check_health  BOOLEAN     NOT NULL DEFAULT true,
-    check_interval INT     NOT NULL DEFAULT 60,
-    health_endpoint TEXT,           -- health check endpoint (relative path)
-    health_status TEXT        NOT NULL DEFAULT 'unknown' CHECK (health_status IN ('unknown', 'healthy', 'unhealthy')),
-    last_seen     TIMESTAMPTZ,
+    id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id                  UUID        NOT NULL REFERENCES orgs(id),
+    connector_id            UUID        REFERENCES connectors(id),
+    name                    TEXT        NOT NULL,
+    subdomain               TEXT        NOT NULL,           -- must be URL-safe slug
+    upstream                TEXT        NOT NULL,           -- host:port
+    protocol                TEXT        NOT NULL DEFAULT 'http' CHECK (protocol IN ('http', 'tcp', 'ssh')),
+    is_public               BOOLEAN     NOT NULL DEFAULT false,
+    enable_security_headers BOOLEAN     NOT NULL DEFAULT true,
+    check_health            BOOLEAN     NOT NULL DEFAULT true,
+    check_interval          INT         NOT NULL DEFAULT 60,
+    health_endpoint         TEXT,           -- health check endpoint (relative path)
+    health_status           TEXT        NOT NULL DEFAULT 'unknown' CHECK (health_status IN ('unknown', 'healthy', 'unhealthy')),
+    last_seen               TIMESTAMPTZ,
 
-    sock_pass     TEXT        NOT NULL,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at    TIMESTAMPTZ,
+    sock_pass               TEXT        NOT NULL,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at              TIMESTAMPTZ,
 
     UNIQUE (org_id, subdomain)
 );

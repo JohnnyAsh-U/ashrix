@@ -84,6 +84,7 @@ func SessionMiddleware(registry *registry.Registry, session *SessionManager, red
 			ctx := context.WithValue(r.Context(), ConnectorID, connector.ConnectorID)
 			ctx = context.WithValue(ctx, AppID, foundApp.Id)
 			ctx = context.WithValue(ctx, AppIsPublic, foundApp.IsPublic)
+			ctx = context.WithValue(ctx, AppEnableSecurityHeaders, foundApp.EnableSecurityHeaders)
 
 			//Check if public no session needed
 			if foundApp.IsPublic {

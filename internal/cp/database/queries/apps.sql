@@ -3,8 +3,8 @@
 -- =================================================================
 
 -- name: CreateApp :one
-INSERT INTO apps (org_id, connector_id, name, subdomain, upstream, protocol, is_public, sock_pass, check_health, check_interval, health_endpoint)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO apps (org_id, connector_id, name, subdomain, upstream, protocol, is_public, enable_security_headers, sock_pass, check_health, check_interval, health_endpoint)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetAppByID :one
@@ -51,21 +51,22 @@ WHERE connector_id = $1
 SELECT a.*
 FROM apps a
 JOIN connectors c ON a.connector_id = c.id
-WHERE c.gateway_id = $1
+WHERE (c.gateway_id = $1 OR c.secondary_gateway_id = $1)
   AND a.deleted_at IS NULL;
 
 -- name: UpdateApp :one
 UPDATE apps
-SET name            = $3,
-    subdomain       = $4,
-    upstream        = $5,
-    protocol        = $6,
-    is_public       = $7,
-    connector_id    = $8,
-    sock_pass       = $9,
-    check_health    = $10,
-    check_interval  = $11,
-    health_endpoint = $12
+SET name                    = $3,
+    subdomain               = $4,
+    upstream                = $5,
+    protocol                = $6,
+    is_public               = $7,
+    enable_security_headers = $8,
+    connector_id            = $9,
+    sock_pass               = $10,
+    check_health            = $11,
+    check_interval          = $12,
+    health_endpoint         = $13
 WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL
