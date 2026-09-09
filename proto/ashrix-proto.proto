@@ -198,6 +198,8 @@ message HeartbeatMessage {
   int32                     connector_count    = 5; // how many connectors currently connected
   repeated ConnectorsStatus connector_status   = 6;
   repeated AppHealthStatus  app_health         = 7;
+  int64                     uptime             = 8;
+
 }
 
 message ConnectorsStatus {
@@ -268,22 +270,22 @@ message ConnectorRenewCertResponse {
 }
 
 message ConnectorStatusResponse {
-  string                 connector_id           = 1;
-  string                 gateway_id             = 2;
-  string                 gateway_url            = 3;
-  string                 gateway_ip             = 4;
-  string                 grpc_port              = 5;
-  string                 https_port             = 6;
-  string                 quic_port              = 7;
-  string                 tenant_id              = 8;
-  bool                   open_sock              = 9;
-  repeated ConnectorApps apps                   = 10;
-  string                 secondary_gateway_id   = 11;
-  string                 secondary_gateway_url  = 12;
-  string                 secondary_gateway_ip   = 13;
-  string                 secondary_grpc_port    = 14;
-  string                 secondary_https_port   = 15;
-  string                 secondary_quic_port    = 16;
+  string                 connector_id          = 1;
+  string                 gateway_id            = 2;
+  string                 gateway_url           = 3;
+  string                 gateway_ip            = 4;
+  string                 grpc_port             = 5;
+  string                 https_port            = 6;
+  string                 quic_port             = 7;
+  string                 tenant_id             = 8;
+  bool                   open_sock             = 9;
+  repeated ConnectorApps apps                  = 10;
+  string                 secondary_gateway_id  = 11;
+  string                 secondary_gateway_url = 12;
+  string                 secondary_gateway_ip  = 13;
+  string                 secondary_grpc_port   = 14;
+  string                 secondary_https_port  = 15;
+  string                 secondary_quic_port   = 16;
 }
 
 message ConnectorApps {
@@ -532,8 +534,8 @@ message AccessLogEntry {
   string                    ip          = 10;
   string                    action      = 11;
   string                    policy_id   = 12;
-  int64                    bytes_in    = 13;
-  int64                    bytes_out   = 14;
+  int64                     bytes_in    = 13;
+  int64                     bytes_out   = 14;
   string                    result      = 15;
   string                    deny_reason = 16;
   google.protobuf.Timestamp created_at  = 17;

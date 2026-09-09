@@ -54,6 +54,7 @@ type GatewayResponse struct {
 	PublicURL             string              `json:"public_url"`
 	IPAddress             string              `json:"ip_address"`
 	LastHeartBeat         *time.Time          `json:"last_heartbeat,omitempty"`
+	Uptime int64 `json:"uptime,omitempty"`
 	LogToCP               bool                `json:"log_to_cp"`
 	EnrolledAt            *time.Time          `json:"enrolled_at,omitempty"`
 	RevokedAt             *time.Time          `json:"revoked_at,omitempty"`

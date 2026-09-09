@@ -95,6 +95,7 @@ func mapToGatewayResponse2(g store.Gateway, activeSessions int64, certificate st
 		IPAddress:             g.IpAddress,
 		LogToCP:               g.LogToCp,
 		Status:                g.Status,
+		Uptime:                g.Uptime,
 		NumberOfSessionActive: activeSessions,
 		CurrentPolicyVersion:  currentPolicyVersion,
 		CreatedAt:             g.CreatedAt,
@@ -187,6 +188,36 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 		responses = []GatewayResponse{}
 	}
 	return responses, nil
+}
+
+// GetGatewayByID returns a gateway owned by the authenticated organization.
+func (s *Service) GetGatewayByID(ctx context.Context, id uuid.UUID) (GatewayResponse, *dto.AppError) {
+	adminOrgID, err := uuid.Parse(middleware.OrgIDFromCtx(ctx))
+	if err != nil {
+		return GatewayResponse{}, dto.NewBadRequestError("Invalid Organization ID format")
+	}
+
+	gateway, err := s.repo.GetGatewayByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GatewayResponse{}, dto.NewNotFoundError("Gateway Not Found")
+		}
+		return GatewayResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
+	}
+
+	if gateway.OrgID != adminOrgID {
+		return GatewayResponse{}, dto.NewUnauthorizedError("OrgID Error")
+	}
+
+	activeSessions, _ := s.repo.CountActiveUserSessionsByGateway(ctx, gateway.ID)
+	apps, _ := s.repo.ListAppsByGateway(ctx, gateway.ID)
+	certificate, _ := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
+		ComponentID:   pgtype.UUID{Bytes: gateway.ID, Valid: true},
+		ComponentType: "gateway",
+	})
+	policyVersion, _ := s.repo.GetLatestPolicyVersion(ctx, gateway.OrgID)
+
+	return mapToGatewayResponse2(gateway, activeSessions, certificate, "", policyVersion, apps), nil
 }
 
 // ReEnrollGateway re-create a gateway.

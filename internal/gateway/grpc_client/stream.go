@@ -291,6 +291,7 @@ func (h *StreamManager) heartbeater(ctx context.Context) {
 			}
 
 			appHealth := h.registry.GetAllAppHealth()
+			uptimeSec := int64(time.Since(h.startTime).Seconds())
 
 			h.Send(&pb.GatewayEnvelope{
 				Payload: &pb.GatewayEnvelope_Heartbeat{
@@ -301,6 +302,7 @@ func (h *StreamManager) heartbeater(ctx context.Context) {
 						ActiveSessions:    int32(h.registry.ActiveSessions()),
 						ConnectorCount:    int32(h.registry.ActiveConnectors()),
 						ConnectorStatus:   connStatuses,
+						Uptime:            uptimeSec,
 						AppHealth:         appHealth,
 					},
 				},

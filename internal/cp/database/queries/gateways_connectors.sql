@@ -114,7 +114,8 @@ WHERE token_hash = $1
 -- name: UpdateGatewayHeartbeat :one
 -- Called every 30s by Gateway. Updates last_heartbeat and version.
 UPDATE gateways
-SET last_heartbeat = now()
+SET last_heartbeat = now(),
+    uptime = $2
 WHERE id           = $1
   AND is_active = true
   AND revoked_at   IS NULL

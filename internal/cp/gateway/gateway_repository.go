@@ -19,7 +19,7 @@ type Repository interface {
 	GetGatewayByID(ctx context.Context, id uuid.UUID) (store.Gateway, error)
 	EnrollGatewayUsingTokenHash(ctx context.Context, tokenHash string) (store.Gateway, error)
 
-	UpdateGatewayHeartBeat(ctx context.Context, id uuid.UUID) (store.Gateway, error)
+	UpdateGatewayHeartBeat(ctx context.Context, params store.UpdateGatewayHeartbeatParams) (store.Gateway, error)
 
 	UpdateGatewayInfo(ctx context.Context, params store.UpdateGatewayInfoParams) (store.Gateway, error)
 
@@ -72,8 +72,8 @@ func (r *postgresRepository) GetGatewayByTokenHash(ctx context.Context, token st
 	return r.q.GetGatewayByTokenHash(ctx, token)
 }
 
-func (r *postgresRepository) UpdateGatewayHeartBeat(ctx context.Context, id uuid.UUID) (store.Gateway, error) {
-	return r.q.UpdateGatewayHeartbeat(ctx, id)
+func (r *postgresRepository) UpdateGatewayHeartBeat(ctx context.Context,params store.UpdateGatewayHeartbeatParams) (store.Gateway, error) {
+	return r.q.UpdateGatewayHeartbeat(ctx, params)
 }
 
 func (r *postgresRepository) UpdateGatewayInfo(ctx context.Context, params store.UpdateGatewayInfoParams) (store.Gateway, error) {

@@ -80,6 +80,33 @@ func (h *GatewayHandler) ListGatewaysByOrg(w http.ResponseWriter, r *http.Reques
 	dto.SendSuccess(w, http.StatusOK, gateways)
 }
 
+// @Summary Get a gateway
+// @Description Retrieve a gateway by ID.
+// @Tags Gateways
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Gateway ID"
+// @Success 200 {object} GatewayResponse
+// @Failure 400 {object} dto.AppError
+// @Failure 404 {object} dto.AppError
+// @Failure 500 {object} dto.AppError
+// @Router /gateways/{id} [get]
+func (h *GatewayHandler) GetGateway(w http.ResponseWriter, r *http.Request) {
+	gatewayID, parseErr := uuid.Parse(chi.URLParam(r, "id"))
+	if parseErr != nil {
+		dto.SendError(w, dto.NewBadRequestError("Invalid Gateway ID format"))
+		return
+	}
+
+	gateway, appErr := h.service.GetGatewayByID(r.Context(), gatewayID)
+	if appErr != nil {
+		dto.SendError(w, appErr)
+		return
+	}
+	dto.SendSuccess(w, http.StatusOK, gateway)
+}
+
 // @Summary Re-create a gateway
 // @Description Re-create an existing gateway.
 // @Tags Gateways
@@ -297,7 +324,6 @@ func (h *GatewayHandler) SendRotateGatewayCmd(w http.ResponseWriter, r *http.Req
 	dto.SendSuccess(w, http.StatusOK, gateway)
 }
 
-
 // DrainGateway
 // @Summary Drain a gateway
 // @Description Drain a gateway.
@@ -337,6 +363,7 @@ func (h *GatewayHandler) WithoutAuthRoutes(rg chi.Router) {
 func (h *GatewayHandler) WithAuthRoutes(rg chi.Router) {
 	rg.Post("/", h.CreateGateway)
 	rg.Get("/", h.ListGatewaysByOrg)
+	rg.Get("/{id}", h.GetGateway)
 	rg.Put("/{id}/re-create", h.ReCreateGateway)
 	rg.Put("/{id}/certs/revoke", h.RevokeGatewayCert)
 	rg.Put("/{id}/revoke", h.RevokeGateway)

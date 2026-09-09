@@ -2009,6 +2009,7 @@ type HeartbeatMessage struct {
 	ConnectorCount    int32                  `protobuf:"varint,5,opt,name=connector_count,json=connectorCount,proto3" json:"connector_count,omitempty"`          // how many connectors currently connected
 	ConnectorStatus   []*ConnectorsStatus    `protobuf:"bytes,6,rep,name=connector_status,json=connectorStatus,proto3" json:"connector_status,omitempty"`
 	AppHealth         []*AppHealthStatus     `protobuf:"bytes,7,rep,name=app_health,json=appHealth,proto3" json:"app_health,omitempty"`
+	Uptime            int64                  `protobuf:"varint,8,opt,name=uptime,proto3" json:"uptime,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -2090,6 +2091,13 @@ func (x *HeartbeatMessage) GetAppHealth() []*AppHealthStatus {
 		return x.AppHealth
 	}
 	return nil
+}
+
+func (x *HeartbeatMessage) GetUptime() int64 {
+	if x != nil {
+		return x.Uptime
+	}
+	return 0
 }
 
 type ConnectorsStatus struct {
@@ -4757,7 +4765,7 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x122\n" +
 	"\x15processed_through_seq\x18\x02 \x01(\x03R\x13processedThroughSeq\x129\n" +
 	"\n" +
-	"time_stamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimeStamp\"\xbf\x02\n" +
+	"time_stamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimeStamp\"\xd7\x02\n" +
 	"\x10HeartbeatMessage\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12\x1d\n" +
 	"\n" +
@@ -4767,7 +4775,8 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\x0fconnector_count\x18\x05 \x01(\x05R\x0econnectorCount\x12B\n" +
 	"\x10connector_status\x18\x06 \x03(\v2\x17.proto.ConnectorsStatusR\x0fconnectorStatus\x125\n" +
 	"\n" +
-	"app_health\x18\a \x03(\v2\x16.proto.AppHealthStatusR\tappHealth\"\x8c\x01\n" +
+	"app_health\x18\a \x03(\v2\x16.proto.AppHealthStatusR\tappHealth\x12\x16\n" +
+	"\x06uptime\x18\b \x01(\x03R\x06uptime\"\x8c\x01\n" +
 	"\x10ConnectorsStatus\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12=\n" +

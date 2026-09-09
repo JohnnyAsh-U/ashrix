@@ -351,7 +351,10 @@ func (s *cpServer) handleHeartbeat(
 	_, err =
 		s.gatewayRepo.UpdateGatewayHeartBeat(
 			ctx,
-			gatewayID,
+			store.UpdateGatewayHeartbeatParams{
+				ID:     gatewayID,
+				Uptime: heartbeat.Uptime,
+			},
 		)
 	if err != nil {
 		return err
