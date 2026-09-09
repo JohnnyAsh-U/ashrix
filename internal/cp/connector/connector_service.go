@@ -39,26 +39,18 @@ func NewService(repo Repository, pkiRepo pkica.Repository, eventRepo events.Repo
 	return &Service{repo: repo, pkiRepo: pkiRepo, gatewayRepo: gatewayRepo, eventRepo: eventRepo, dispatcher: dispatcher}
 }
 
-func buildConnectorInstruction(gatewayURL, token string) ConnectorInstruction {
-	downloadURL := "https://dl.ashrix.io/connector/linux-amd64"
+func buildConnectorInstruction(token string) ConnectorInstruction {
 	downloadCmd := "curl -L https://dl.ashrix.io/connector/linux-amd64 -o ashrix-connector && chmod +x ashrix-connector"
-	gw := gatewayURL
-	if gw == "" {
-		gw = "gw.acme.com"
-	}
-	enrollCmd := fmt.Sprintf("ashrix-connector enroll \\\n  --token=%s \\\n  --gateway=%s", token, gw)
-	startCmd := "./ashrix-connector start"
+	startCmd := fmt.Sprintf("ashrix-connector start \\\n  --token=%s \\\n", token)
 
 	return ConnectorInstruction{
-		DownloadURL: downloadURL,
 		DownloadCmd: downloadCmd,
-		EnrollCmd:   enrollCmd,
 		StartCmd:    startCmd,
 	}
 }
 
 // mapToConnectorResponse converts a store.Connector to a ConnectorResponse DTO.
-func mapToConnectorResponse(g store.Connector, token string, gwURL string) ConnectorResponse {
+func mapToConnectorResponse(g store.Connector, token string) ConnectorResponse {
 	resp := ConnectorResponse{
 		ID:           g.ID.String(),
 		Name:         g.Name,
@@ -76,11 +68,7 @@ func mapToConnectorResponse(g store.Connector, token string, gwURL string) Conne
 		resp.SecondaryGatewayID = &secIDStr
 	}
 	if token != "" {
-		inst := buildConnectorInstruction(gwURL, token)
-		resp.DownloadURL = inst.DownloadURL
-		resp.DownloadCmd = inst.DownloadCmd
-		resp.EnrollCmd = inst.EnrollCmd
-		resp.StartCmd = inst.StartCmd
+		inst := buildConnectorInstruction(token)
 		resp.Instruction = &inst
 	}
 	if g.LastSeen.Valid {
@@ -184,7 +172,7 @@ func (s *Service) CreateConnector(ctx context.Context, name string, gatewayID uu
 		}
 	}
 
-	return mapToConnectorResponse(connector, token, gwURL), nil
+	return mapToConnectorResponse(connector, token), nil
 }
 
 func (s *Service) SyncConnectorToGateway(ctx context.Context, gatewayID uuid.UUID) {
@@ -226,6 +214,30 @@ func (s *Service) ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]C
 	}
 	return responses, nil
 }
+
+
+// GetGatewayByID returns a gateway owned by the authenticated organization.
+func (s *Service) GetConnectorByID(ctx context.Context, id uuid.UUID) (ConnectorResponse, *dto.AppError) {
+	adminOrgID, err := uuid.Parse(middleware.OrgIDFromCtx(ctx))
+	if err != nil {
+		return ConnectorResponse{}, dto.NewBadRequestError("Invalid Organization ID format")
+	}
+
+	Connector, err := s.repo.GetConnectorByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ConnectorResponse{}, dto.NewNotFoundError("Connector Not Found")
+		}
+		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())
+	}
+
+	if Connector.OrgID != adminOrgID {
+		return ConnectorResponse{}, dto.NewUnauthorizedError("OrgID Error")
+	}
+
+	return mapToConnectorResponse(Connector, ""), nil
+}
+
 
 // ReEnrollConnector re-create a connector.
 func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name string, gatewayId uuid.UUID, secondaryGatewayID *uuid.UUID, OpenSock bool) (ConnectorResponse, *dto.AppError) {
@@ -277,7 +289,7 @@ func (s *Service) ReCreateConnector(ctx context.Context, id uuid.UUID, name stri
 		}
 	}
 
-	return mapToConnectorResponse(connector, token, gwURL), nil
+	return mapToConnectorResponse(connector, token), nil
 }
 
 // EnrollConnector enrolls a connector using a token hash and CSR.
@@ -463,11 +475,14 @@ func (s *Service) RenewConnectorCert(ctx context.Context, connectorID uuid.UUID,
 	}, nil
 }
 
-// RevokeConnectorCert revokes a conn certificate.
-// It assumes componentID is the conn's ID.
-func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID, revokeReason string) (ConnectorResponse, *dto.AppError) {
+// RevokeConnector revokes an entire Connector.
+func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID, revokeReason string) (ConnectorResponse, *dto.AppError) {
 	// Retrieve the admin's OrgID from context
 	adminOrgIDStr := middleware.OrgIDFromCtx(ctx)
+	adminOrgID, parseErr := uuid.Parse(adminOrgIDStr)
+	if parseErr != nil {
+		return ConnectorResponse{}, dto.NewBadRequestError("Invalid Organization ID format")
+	}
 
 	// Validate the revocation reason against DB check constraints
 	switch revokeReason {
@@ -477,103 +492,6 @@ func (s *Service) RevokeConnectorCert(ctx context.Context, connectorId uuid.UUID
 		return ConnectorResponse{}, dto.NewBadRequestError("Invalid revocation reason")
 	}
 
-	// Fetch the connector first to verify it exists
-	connector, err := s.repo.GetConnectorByID(ctx, connectorId)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ConnectorResponse{}, dto.NewNotFoundError("Connector Not Found")
-		}
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve Connector", err.Error())
-	}
-
-	// Verify that the connector belongs to the admin's organization
-	if adminOrgIDStr != connector.OrgID.String() {
-		return ConnectorResponse{}, dto.NewUnauthorizedError("OrgID Error")
-	}
-
-	// Fetch active component certificate
-	activeCert, err := s.pkiRepo.GetActiveComponentCert(ctx, store.GetActiveComponentCertParams{
-		ComponentType: "connector",
-		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorId},
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// No active cert to revoke, but we can return the connector response as success
-			return mapToConnectorResponse(connector, "", ""), nil
-		}
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve active component certificate", err.Error())
-	}
-
-	// Revoke component cert
-	params := store.RevokeCompCertParams{
-		ComponentID:   pgtype.UUID{Valid: true, Bytes: connectorId},
-		ComponentType: "connector",
-		RevokeReason:  pgtype.Text{String: revokeReason, Valid: true},
-	}
-	_, err = s.pkiRepo.RevokeComponentCert(ctx, params)
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to revoke component certificate", err.Error())
-	}
-
-	// Create CRL Entry
-	_, err = s.pkiRepo.CreateCRLEntry(ctx, store.CreateCRLEntryParams{
-		CertID:       activeCert.ID,
-		SerialNumber: activeCert.SerialNumber,
-		Reason:       revokeReason,
-	})
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to create CRL entry", err.Error())
-	}
-
-	//Get all the active CRLs
-	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
-
-	var revokedSerials []string
-	for _, crl := range activeCRLs {
-		revokedSerials = append(revokedSerials, crl.SerialNumber)
-	}
-
-	// Dispatch commands to Primary Gateway
-	targetGateways := []string{connector.GatewayID.String()}
-	if connector.SecondaryGatewayID.Valid {
-		targetGateways = append(targetGateways, uuid.UUID(connector.SecondaryGatewayID.Bytes).String())
-	}
-
-	for _, gwID := range targetGateways {
-		payload := events.CommandJob{
-			Type:        events.CmdRevokeConnectorCert,
-			GatewayID:   gwID,
-			ConnectorID: connectorId.String(),
-		}
-		_, _ = s.eventRepo.CreateEvent(ctx, payload)
-
-		payload2 := events.CommandJob{
-			Type:                 events.CmdCrlSync,
-			GatewayID:            gwID,
-			RevokedSerialNumbers: revokedSerials,
-		}
-		_, _ = s.eventRepo.CreateEvent(ctx, payload2)
-		s.dispatcher.Wakeup(gwID)
-		s.SyncConnectorToGateway(ctx, uuid.MustParse(gwID))
-	}
-
-	// Fetch updated connector status
-	updatedConnector, err := s.repo.GetConnectorByID(ctx, connectorId)
-	if err != nil {
-		return ConnectorResponse{}, dto.NewAppError(500, dto.CodeInternal, "Failed to retrieve gateway", err.Error())
-	}
-
-	return mapToConnectorResponse(updatedConnector, "", ""), nil
-}
-
-// RevokeConnector revokes an entire Connector.
-func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorResponse, *dto.AppError) {
-	// Retrieve the admin's OrgID from context
-	adminOrgIDStr := middleware.OrgIDFromCtx(ctx)
-	adminOrgID, parseErr := uuid.Parse(adminOrgIDStr)
-	if parseErr != nil {
-		return ConnectorResponse{}, dto.NewBadRequestError("Invalid Organization ID format")
-	}
 
 	// Fetch the Connector to verify it exists
 	Connector, err := s.repo.GetConnectorByID(ctx, id)
@@ -652,7 +570,7 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID) (ConnectorR
 		s.SyncConnectorToGateway(ctx, uuid.MustParse(gwID))
 	}
 
-	return mapToConnectorResponse(revokedConnector, "", ""), nil
+	return mapToConnectorResponse(revokedConnector, ""), nil
 }
 
 // Send Rotate Command to Gateway for Connector
@@ -693,7 +611,7 @@ func (s *Service) SendRotateConnectorCmd(ctx context.Context, connectorId uuid.U
 		s.dispatcher.Wakeup(gwID)
 	}
 
-	return mapToConnectorResponse(Connector, "", ""), nil
+	return mapToConnectorResponse(Connector, ""), nil
 }
 
 func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID, canonicalString, signature string) (*gen.ConnectorStatusResponse, *dto.AppError) {

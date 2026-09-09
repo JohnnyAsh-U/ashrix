@@ -1085,7 +1085,11 @@ func (q *Queries) UpdateConnectorStatus(ctx context.Context, arg UpdateConnector
 const updateGatewayHeartbeat = `-- name: UpdateGatewayHeartbeat :one
 UPDATE gateways
 SET last_heartbeat = now(),
-    uptime = $2
+    uptime = $2,
+    status = CASE
+      WHEN status = 'draining' THEN 'draining' -- keeps draining without overwritting
+      ELSE $3
+    END
 WHERE id           = $1
   AND is_active = true
   AND revoked_at   IS NULL
@@ -1095,11 +1099,12 @@ RETURNING id, org_id, name, token_hash, version, deployment_type, public_url, qu
 type UpdateGatewayHeartbeatParams struct {
 	ID     uuid.UUID `json:"id"`
 	Uptime int64     `json:"uptime"`
+	Status string    `json:"status"`
 }
 
 // Called every 30s by Gateway. Updates last_heartbeat and version.
 func (q *Queries) UpdateGatewayHeartbeat(ctx context.Context, arg UpdateGatewayHeartbeatParams) (Gateway, error) {
-	row := q.db.QueryRow(ctx, updateGatewayHeartbeat, arg.ID, arg.Uptime)
+	row := q.db.QueryRow(ctx, updateGatewayHeartbeat, arg.ID, arg.Uptime, arg.Status)
 	var i Gateway
 	err := row.Scan(
 		&i.ID,

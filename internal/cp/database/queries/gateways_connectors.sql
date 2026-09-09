@@ -115,7 +115,11 @@ WHERE token_hash = $1
 -- Called every 30s by Gateway. Updates last_heartbeat and version.
 UPDATE gateways
 SET last_heartbeat = now(),
-    uptime = $2
+    uptime = $2,
+    status = CASE
+      WHEN status = 'draining' THEN 'draining' -- keeps draining without overwritting
+      ELSE $3
+    END
 WHERE id           = $1
   AND is_active = true
   AND revoked_at   IS NULL

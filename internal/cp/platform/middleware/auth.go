@@ -67,11 +67,6 @@ func AuthMiddleware(jwtKey []byte) func(http.Handler) http.Handler {
 			}
 			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 			claims, err := ParseAccessToken(tokenString, jwtKey)
-			fmt.Println(claims.IssuedAt)
-			fmt.Println(claims.ExpiresAt)
-			fmt.Println(claims.AdminID)
-			fmt.Println(claims.AdminEmail)
-			fmt.Println(claims.OrgID)
 			if err != nil {
 				dto.SendError(w, dto.NewUnauthorizedError("Invalid Token"))
 				return

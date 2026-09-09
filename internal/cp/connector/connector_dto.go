@@ -39,9 +39,7 @@ type ConnectorAppSummaryResponse struct {
 }
 
 type ConnectorInstruction struct {
-	DownloadURL string `json:"download_url"`
 	DownloadCmd string `json:"download_cmd"`
-	EnrollCmd   string `json:"enroll_cmd"`
 	StartCmd    string `json:"start_cmd"`
 }
 
@@ -64,9 +62,5 @@ type ConnectorResponse struct {
 	EnrolledAt           *time.Time                    `json:"enrolled_at,omitempty"`
 	RevokedAt            *time.Time                    `json:"revoked_at,omitempty"`
 
-	DownloadURL string                `json:"download_url,omitempty"`
-	DownloadCmd string                `json:"download_cmd,omitempty"`
-	EnrollCmd   string                `json:"enroll_cmd,omitempty"`
-	StartCmd    string                `json:"start_cmd,omitempty"`
 	Instruction *ConnectorInstruction `json:"instruction,omitempty"`
 }

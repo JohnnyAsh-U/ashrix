@@ -89,6 +89,33 @@ func (h *ConnectorHandler) ListConnectorssByOrg(w http.ResponseWriter, r *http.R
 	dto.SendSuccess(w, http.StatusOK, gateways)
 }
 
+// @Summary Get a gateway
+// @Description Retrieve a gateway by ID.
+// @Tags Connectors
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Connector ID"
+// @Success 200 {object} ConnectorResponse
+// @Failure 400 {object} dto.AppError
+// @Failure 404 {object} dto.AppError
+// @Failure 500 {object} dto.AppError
+// @Router /gateways/{id} [get]
+func (h *ConnectorHandler) GetConnector(w http.ResponseWriter, r *http.Request) {
+	connectorID, parseErr := uuid.Parse(chi.URLParam(r, "id"))
+	if parseErr != nil {
+		dto.SendError(w, dto.NewBadRequestError("Invalid Connector ID format"))
+		return
+	}
+
+	connector, appErr := h.service.GetConnectorByID(r.Context(), connectorID)
+	if appErr != nil {
+		dto.SendError(w, appErr)
+		return
+	}
+	dto.SendSuccess(w, http.StatusOK, connector)
+}
+
 // @Summary Re-create a connectors
 // @Description Re-create an existing connectors.
 // @Tags Connectors
@@ -259,45 +286,6 @@ func (h *ConnectorHandler) RenewConnectorCert(w http.ResponseWriter, r *http.Req
 	dto.SendSuccess(w, http.StatusOK, &enrollmentResponse)
 }
 
-// @Summary Revoke connector certificate
-// @Description Revoke a specific connector certificate.
-// @Tags Connectors
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "Connector ID"
-// @Param revocation body RevokeConnectorCertRequest true "Certificate revocation details"
-// @Success 200 {object} ConnectorResponse
-// @Failure 400 {object} dto.AppError
-// @Failure 500 {object} dto.AppError
-// @Router /connectors/{id}/certs/revoke [put]
-func (h *ConnectorHandler) RevokeConnectorCert(w http.ResponseWriter, r *http.Request) {
-	connectorIDStr := chi.URLParam(r, "id")
-	connectorID, parseErr := uuid.Parse(connectorIDStr)
-	if parseErr != nil {
-		dto.SendError(w, dto.NewBadRequestError("Invalid Gateway ID format"))
-		return
-	}
-
-	var req RevokeConnectorCertRequest
-	if err := dto.DecodeJSON(w, r, &req); err != nil {
-		dto.SendError(w, err)
-		return
-	}
-
-	if validationErrors := dto.ValidateStruct(req); validationErrors != nil {
-		dto.SendError(w, dto.NewBadRequestError(validationErrors))
-		return
-	}
-
-	// Assuming componentID in RevokeConnectorCert is the connectorID.
-	conn, appErr := h.service.RevokeConnectorCert(r.Context(), connectorID, req.RevokeReason)
-	if appErr != nil {
-		dto.SendError(w, appErr)
-		return
-	}
-	dto.SendSuccess(w, http.StatusOK, conn)
-}
 
 // @Summary Revoke a connector
 // @Description Revoke an entire connector.
@@ -330,7 +318,7 @@ func (h *ConnectorHandler) RevokeConnector(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	connector, appErr := h.service.RevokeConnector(r.Context(), connectorID)
+	connector, appErr := h.service.RevokeConnector(r.Context(), connectorID, req.RevokeReason)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return
@@ -379,8 +367,8 @@ func (h *ConnectorHandler) WithoutAuthRoutes(rg chi.Router) {
 func (h *ConnectorHandler) WithAuthRoutes(rg chi.Router) {
 	rg.Post("/", h.CreateConnector)
 	rg.Get("/", h.ListConnectorssByOrg)
+	rg.Get("/{id}", h.GetConnector)
 	rg.Put("/{id}/re-create", h.ReCreateConnector)
-	rg.Put("/{id}/certs/revoke", h.RevokeConnectorCert)
 	rg.Put("/{id}/revoke", h.RevokeConnector)
 	rg.Put("/{id}/certs/rotate", h.SendRotateConnectorCmd)
 }
