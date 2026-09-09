@@ -30,6 +30,8 @@ type Repository interface {
 	CountActiveUserSessionsByGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
 	GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error)
 	ListAppsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]store.App, error)
+
+	MarkOfflineStaleGateways(ctx context.Context, minutes string) (int64, error)
 }
 
 type postgresRepository struct {
@@ -72,7 +74,7 @@ func (r *postgresRepository) GetGatewayByTokenHash(ctx context.Context, token st
 	return r.q.GetGatewayByTokenHash(ctx, token)
 }
 
-func (r *postgresRepository) UpdateGatewayHeartBeat(ctx context.Context,params store.UpdateGatewayHeartbeatParams) (store.Gateway, error) {
+func (r *postgresRepository) UpdateGatewayHeartBeat(ctx context.Context, params store.UpdateGatewayHeartbeatParams) (store.Gateway, error) {
 	return r.q.UpdateGatewayHeartbeat(ctx, params)
 }
 
@@ -100,4 +102,6 @@ func (r *postgresRepository) ListAppsByGateway(ctx context.Context, gatewayID uu
 	return r.q.ListAppsByGateway(ctx, gatewayID)
 }
 
-
+func (r *postgresRepository) MarkOfflineStaleGateways(ctx context.Context, minutes string) (int64, error) {
+	return r.q.MarkOfflineStaleGateways(ctx, minutes)
+}

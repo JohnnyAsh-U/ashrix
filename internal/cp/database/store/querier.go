@@ -209,6 +209,8 @@ type Querier interface {
 	ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)
 	// Called after owner completes SSO binding confirmation flow.
 	MarkIDPConfigVerified(ctx context.Context, arg MarkIDPConfigVerifiedParams) (IdpConfig, error)
+	MarkOfflineStaleConnectors(ctx context.Context, thresholdMinutes string) (int64, error)
+	MarkOfflineStaleGateways(ctx context.Context, thresholdMinutes string) (int64, error)
 	MarkPasswordResetTokenUsed(ctx context.Context, id uuid.UUID) error
 	MarkSetupTokenUsed(ctx context.Context, id uuid.UUID) error
 	// Called after owner confirms SSO migration.

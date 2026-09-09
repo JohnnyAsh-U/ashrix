@@ -34,8 +34,8 @@ import (
 
 // Server wraps the HTTP server and all dependencies.
 type Server struct {
-	http   *http.Server
-	log    *slog.Logger
+	http     *http.Server
+	log      *slog.Logger
 	CASigner pki.CASigner
 }
 
@@ -65,11 +65,11 @@ func InitializeHttpServer(
 
 	// ── Global middleware ──────────────────────────────────────
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins: []string{"http://localhost:5173"},
-		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: true,
-		MaxAge: 300,
+		MaxAge:           300,
 	}))
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.ClientIPFromHeader("X-Real-IP"))
@@ -90,7 +90,6 @@ func InitializeHttpServer(
 	orgService := org.NewService(respositories.Org)
 	orgHandler := org.NewOrgHandler(orgService)
 
-	
 	//IDP Routes
 	idpSession, err := identity.NewIDPSession(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix", redisStore.Client(), log)
 	if err != nil {
@@ -127,11 +126,12 @@ func InitializeHttpServer(
 	gatewayService := gateway.NewService(respositories.Gateway, respositories.PKICA, respositories.Event, eventsDispatcher)
 	gatewayHandler := gateway.NewGatewayHandler(gatewayService, CASigner)
 
-
 	//Connectors routes
-	connectorService := connector.NewService(respositories.Connector, respositories.PKICA,respositories.Event, respositories.Gateway, eventsDispatcher)
+	connectorService := connector.NewService(respositories.Connector, respositories.PKICA, respositories.Event, respositories.Gateway, eventsDispatcher)
 	connectorHandler := connector.NewConnectorHandler(connectorService, CASigner)
 
+
+	updateStaleGatewayConnector(context.Background(), respositories.Gateway, respositories.Connector, log)
 
 	// Policy routes
 	policyService := policy.NewService(respositories.Policy, policyDistributor)
@@ -141,19 +141,14 @@ func InitializeHttpServer(
 	logsService := logs.NewService(respositories.Log)
 	logsHandler := logs.NewLogsHandler(logsService)
 
-
 	r.Handle("/static/*", idpHandler.StaticHandler())
-
 
 	//Docs - date this in prod
 	r.Get("/docs/*", httpSwagger.Handler(
 		httpSwagger.URL("/docs/doc.json"),
 	))
 
-
-
 	r.Route("/authorize", idpHandler.IdentityAuthRoutes)
-
 
 	r.Route("/api/v1", func(r chi.Router) {
 
@@ -199,4 +194,16 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"ok"}`))
+}
+
+func updateStaleGatewayConnector(ctx context.Context, gatewayRepo gateway.Repository, connectorRepo connector.Repository, log *slog.Logger) {
+	ticker := time.NewTicker(5 * time.Second)
+
+	go func() {
+		log.Info("Started Checking And Updating Stale Gateways and Connector")
+		for range ticker.C {
+			gateway.CheckAndUpdateGatewayStatus(ctx, gatewayRepo, log)
+			connector.CheckAndUpdateConnectorStatus(ctx, connectorRepo, log)
+		}
+	}()
 }

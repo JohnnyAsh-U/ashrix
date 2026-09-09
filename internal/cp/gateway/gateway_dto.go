@@ -18,9 +18,6 @@ type ReEnrollGatewayRequest struct {
 	LogToCP   bool   `json:"log_to_cp"`
 }
 
-type RevokeGatewayCertRequest struct {
-	RevokeReason string `json:"revoke_reason"`
-}
 
 type RevokeGatewayRequest struct {
 	RevokeReason string `json:"revoke_reason" validate:"required"`
@@ -38,7 +35,6 @@ type GatewayAppSummary struct {
 }
 
 type GatewayInstruction struct {
-	DownloadURL string `json:"download_url"`
 	DownloadCmd string `json:"download_cmd"`
 	EnrollCmd   string `json:"enroll_cmd"`
 	StartCmd    string `json:"start_cmd"`

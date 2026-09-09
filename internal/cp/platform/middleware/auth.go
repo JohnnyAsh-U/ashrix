@@ -67,8 +67,13 @@ func AuthMiddleware(jwtKey []byte) func(http.Handler) http.Handler {
 			}
 			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 			claims, err := ParseAccessToken(tokenString, jwtKey)
+			fmt.Println(claims.IssuedAt)
+			fmt.Println(claims.ExpiresAt)
+			fmt.Println(claims.AdminID)
+			fmt.Println(claims.AdminEmail)
+			fmt.Println(claims.OrgID)
 			if err != nil {
-				dto.SendError(w, dto.NewForbiddenError("Invalid Token"))
+				dto.SendError(w, dto.NewUnauthorizedError("Invalid Token"))
 				return
 			}
 
@@ -96,7 +101,7 @@ func RequireOrgAccess(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		orgID := OrgIDFromCtx(r.Context())
 		if orgID == "" {
-			dto.SendError(w, dto.NewForbiddenError("Not Authorized For Admin without Org"))
+			dto.SendError(w, dto.NewUnauthorizedError("Not Authorized For Admin without Org"))
 			return
 		}
 
@@ -106,7 +111,7 @@ func RequireOrgAccess(next http.Handler) http.Handler {
 		urlOrgID := r.PathValue("orgId")
 		if urlOrgID != "" && urlOrgID != orgID {
 			// Return 404, not 403 — don't confirm the org exists to this caller.
-			dto.SendError(w, dto.NewNotFoundError("Not Found"))
+			dto.SendError(w, dto.NewUnauthorizedError("Not Found"))
 			return
 		}
 

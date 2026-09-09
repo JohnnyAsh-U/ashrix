@@ -431,7 +431,6 @@ func (s *Service) ResetPassword(ctx context.Context, req ResetPasswordRequest) *
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (TokenPair, *dto.AppError) {
 
 	// Look up the hashed token in the DB.
-	println(utils.HashToken(refreshToken))
 	session, err := s.repo.GetSession(ctx, utils.HashToken(refreshToken))
 	if err != nil {
 		return TokenPair{}, dto.NewBadRequestError("No Session")
@@ -454,7 +453,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (TokenPair, 
 		return TokenPair{}, dto.NewForbiddenError("Admin not active")
 	}
 
-	orgID, err := uuid.Parse(admin.ID.String())
+	orgID, err := uuid.Parse(admin.OrgID.String())
 	if err != nil {
 		return TokenPair{}, dto.NewErrInternal(fmt.Errorf("invalid org id: %w", err))
 	}

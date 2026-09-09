@@ -217,45 +217,6 @@ func (h *GatewayHandler) RenewGatewayCert(w http.ResponseWriter, r *http.Request
 	dto.SendSuccess(w, http.StatusOK, &enrollmentResponse)
 }
 
-// @Summary Revoke gateway certificate
-// @Description Revoke a specific gateway certificate.
-// @Tags Gateways
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "Gateway ID"
-// @Param revocation body RevokeGatewayCertRequest true "Certificate revocation details"
-// @Success 200 {object} GatewayResponse
-// @Failure 400 {object} dto.AppError
-// @Failure 500 {object} dto.AppError
-// @Router /gateways/{id}/certs/revoke [put]
-func (h *GatewayHandler) RevokeGatewayCert(w http.ResponseWriter, r *http.Request) {
-	gatewayIDStr := chi.URLParam(r, "id")
-	gatewayID, parseErr := uuid.Parse(gatewayIDStr)
-	if parseErr != nil {
-		dto.SendError(w, dto.NewBadRequestError("Invalid Gateway ID format"))
-		return
-	}
-
-	var req RevokeGatewayCertRequest
-	if err := dto.DecodeJSON(w, r, &req); err != nil {
-		dto.SendError(w, err)
-		return
-	}
-
-	if validationErrors := dto.ValidateStruct(req); validationErrors != nil {
-		dto.SendError(w, dto.NewBadRequestError(validationErrors))
-		return
-	}
-
-	// Assuming componentID in RevokeGatewayCertRequest is the gatewayID.
-	gateway, appErr := h.service.RevokeGatewayCert(r.Context(), gatewayID, req.RevokeReason)
-	if appErr != nil {
-		dto.SendError(w, appErr)
-		return
-	}
-	dto.SendSuccess(w, http.StatusOK, gateway)
-}
 
 // @Summary Revoke a gateway
 // @Description Revoke an entire gateway.
@@ -288,7 +249,7 @@ func (h *GatewayHandler) RevokeGateway(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gateway, appErr := h.service.RevokeGateway(r.Context(), gatewayID)
+	gateway, appErr := h.service.RevokeGateway(r.Context(), gatewayID, req.RevokeReason)
 	if appErr != nil {
 		dto.SendError(w, appErr)
 		return
@@ -365,7 +326,6 @@ func (h *GatewayHandler) WithAuthRoutes(rg chi.Router) {
 	rg.Get("/", h.ListGatewaysByOrg)
 	rg.Get("/{id}", h.GetGateway)
 	rg.Put("/{id}/re-create", h.ReCreateGateway)
-	rg.Put("/{id}/certs/revoke", h.RevokeGatewayCert)
 	rg.Put("/{id}/revoke", h.RevokeGateway)
 	rg.Put("/{id}/drain", h.DrainGateway)
 	rg.Put("/{id}/certs/rotate", h.SendRotateGatewayCmd)

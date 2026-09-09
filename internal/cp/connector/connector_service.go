@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
@@ -796,4 +797,22 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 	}
 
 	return resp, nil
+}
+
+
+
+
+func CheckAndUpdateConnectorStatus (ctx context.Context, connectorRepo Repository, log *slog.Logger){
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	count, err := connectorRepo.MarkOfflineStaleConnectors(ctx, "2")
+
+	if err != nil {
+		log.Error("[HealthCheck] failed %v", slog.Any("err",err))
+		return
+	}
+	if count > 0 {
+		log.Info("[HealthCheck] connectors marked offline", slog.Any("count", count))
+	}
 }

@@ -128,7 +128,8 @@ SET version = $5,
     quic_port = $4,
     https_port = $3,
     grpc_port = $2,
-    uptime = $6
+    uptime = $6,
+    status = 'healthy'
 WHERE id = $1
   AND is_active = true
   AND revoked_at IS NULL
@@ -156,6 +157,16 @@ WHERE id = $1
   AND is_active = true
   AND revoked_at IS NULL
 RETURNING *;
+
+
+-- name: MarkOfflineStaleGateways :execrows
+UPDATE gateways
+SET status = 'offline',
+    uptime = 0
+WHERE is_active = true
+  AND status IN ('healthy', 'degraded')
+  AND last_heartbeat < NOW() - (sqlc.arg(threshold_minutes)::text || ' minutes')::interval
+  AND last_heartbeat IS NOT NULL;
 
 
 -- =================================================================
@@ -294,4 +305,12 @@ WHERE (gateway_id = $1 OR secondary_gateway_id = $1)
 
 
 
+
+-- name: MarkOfflineStaleConnectors :execrows
+UPDATE connectors
+SET status = 'disconnected'
+WHERE is_active = true
+  AND status = 'connected'
+  AND last_seen < NOW() - (sqlc.arg(threshold_minutes)::text || ' minutes')::interval
+  AND last_seen IS NOT NULL;
 

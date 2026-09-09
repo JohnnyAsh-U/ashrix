@@ -24,6 +24,8 @@ type Repository interface {
 
 	RevokeConnector(ctx context.Context, params store.RevokeConnectorParams) (store.Connector, error)
 	ListConnectorsWithGatewayNameByOrg(ctx context.Context, orgID uuid.UUID) ([]store.ListConnectorsWithGatewayNameByOrgRow, error)
+
+	MarkOfflineStaleConnectors(ctx context.Context, minutes string) (int64, error)
 }
 
 type postgresRepository struct {
@@ -83,3 +85,6 @@ func (r *postgresRepository) ListConnectorsWithGatewayNameByOrg(ctx context.Cont
 	return r.q.ListConnectorsWithGatewayNameByOrg(ctx, orgID)
 }
 
+func (r *postgresRepository) MarkOfflineStaleConnectors(ctx context.Context, minutes string) (int64, error) {
+	return r.q.MarkOfflineStaleConnectors(ctx, minutes)
+}

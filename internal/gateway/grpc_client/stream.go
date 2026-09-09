@@ -465,10 +465,11 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 
 		case *pb.Command_RevokeGateway:
 			h.log.Error("gateway revoked - clearing credentials and shutting down")
-			h.registry.CloseAllConnectorConnection()
 			h.CommandStatusUpdate(p.Cmd.Seq, true, "")
-			_ = h.pki.ClearCredential()
+			h.registry.CloseAllConnectorConnection()
+			time.Sleep(10 * time.Second)
 			_ = h.cm.Close()
+			_ = h.pki.ClearCredential()
 			go func() {
 				time.Sleep(1 * time.Second)
 				_ = syscall.Kill(syscall.Getpid(), syscall.SIGTERM)

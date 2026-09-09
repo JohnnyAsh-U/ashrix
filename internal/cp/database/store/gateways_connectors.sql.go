@@ -789,6 +789,41 @@ func (q *Queries) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 	return items, nil
 }
 
+const markOfflineStaleConnectors = `-- name: MarkOfflineStaleConnectors :execrows
+UPDATE connectors
+SET status = 'disconnected'
+WHERE is_active = true
+  AND status = 'connected'
+  AND last_seen < NOW() - ($1::text || ' minutes')::interval
+  AND last_seen IS NOT NULL
+`
+
+func (q *Queries) MarkOfflineStaleConnectors(ctx context.Context, thresholdMinutes string) (int64, error) {
+	result, err := q.db.Exec(ctx, markOfflineStaleConnectors, thresholdMinutes)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markOfflineStaleGateways = `-- name: MarkOfflineStaleGateways :execrows
+UPDATE gateways
+SET status = 'offline',
+    uptime = 0
+WHERE is_active = true
+  AND status IN ('healthy', 'degraded')
+  AND last_heartbeat < NOW() - ($1::text || ' minutes')::interval
+  AND last_heartbeat IS NOT NULL
+`
+
+func (q *Queries) MarkOfflineStaleGateways(ctx context.Context, thresholdMinutes string) (int64, error) {
+	result, err := q.db.Exec(ctx, markOfflineStaleGateways, thresholdMinutes)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const reCreateConnector = `-- name: ReCreateConnector :one
 UPDATE connectors 
 SET created_at = NOW(), 
@@ -1096,7 +1131,8 @@ SET version = $5,
     quic_port = $4,
     https_port = $3,
     grpc_port = $2,
-    uptime = $6
+    uptime = $6,
+    status = 'healthy'
 WHERE id = $1
   AND is_active = true
   AND revoked_at IS NULL
