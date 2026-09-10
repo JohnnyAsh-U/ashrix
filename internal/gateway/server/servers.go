@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	// "net/http/pprof"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
@@ -131,6 +132,26 @@ func StartServers(
 			}
 		}()
 	}
+
+	// ---------------------------------------------------------
+	// 5. Local pprof / diagnostics
+	// ---------------------------------------------------------
+
+	// go func() {
+	// 	mux := http.NewServeMux()
+
+	// 	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	// 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	// 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	// 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	// 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	// 	log.Info("Gateway pprof listener started", "addr", "127.0.0.1:6060")
+
+	// 	if err := http.ListenAndServe("127.0.0.1:6060", mux); err != nil {
+	// 		log.Error("pprof server stopped", "error", err)
+	// 	}
+	// }()
 
 	// ---------------------------------------------------------
 	// 5. QUIC

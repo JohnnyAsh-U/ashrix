@@ -93,6 +93,17 @@ func (p *PKIInitialiser) Cert() *x509.Certificate {
 
 // TLSConfig returns a *tls.Config that always serves the current cert.
 func (p *PKIInitialiser) TLSConfig() *tls.Config {
+	return p.TLSConfigWithCRL(nil)
+}
+
+// TLSConfigWithCRL returns a TLS config that rejects gateway certificates
+// whose serial number is present in the control plane CRL.
+func (p *PKIInitialiser) TLSConfigWithCRL(revokedSerials []string) *tls.Config {
+	revoked := make(map[string]struct{}, len(revokedSerials))
+	for _, serial := range revokedSerials {
+		revoked[serial] = struct{}{}
+	}
+
 	return &tls.Config{
 		// Outbound: connector dials gateway
 		GetClientCertificate: func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
@@ -104,6 +115,18 @@ func (p *PKIInitialiser) TLSConfig() *tls.Config {
 		RootCAs:    p.pool,
 		MinVersion: tls.VersionTLS13,
 		NextProtos: []string{"ashrix-mtls", "h2", "ashrix-quic-v1"},
+		VerifyConnection: func(connectionState tls.ConnectionState) error {
+			if len(connectionState.PeerCertificates) == 0 {
+				return fmt.Errorf("gateway did not present a certificate")
+			}
+
+			serial := connectionState.PeerCertificates[0].SerialNumber.String()
+			if _, revoked := revoked[serial]; revoked {
+				return fmt.Errorf("gateway certificate serial %s is revoked by the control plane", serial)
+			}
+
+			return nil
+		},
 	}
 }
 

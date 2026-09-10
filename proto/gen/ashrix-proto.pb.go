@@ -2001,17 +2001,16 @@ func (x *CommandAck) GetTimeStamp() *timestamppb.Timestamp {
 }
 
 type HeartbeatMessage struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Seq               int64                  `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"` // full state snapshot — CP needs no separate query
-	GatewayId         string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
-	ActiveConnections int32                  `protobuf:"varint,3,opt,name=active_connections,json=activeConnections,proto3" json:"active_connections,omitempty"` // live connections (connectors + clients)
-	ActiveSessions    int32                  `protobuf:"varint,4,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"`          // authenticated sessions
-	ConnectorCount    int32                  `protobuf:"varint,5,opt,name=connector_count,json=connectorCount,proto3" json:"connector_count,omitempty"`          // how many connectors currently connected
-	ConnectorStatus   []*ConnectorsStatus    `protobuf:"bytes,6,rep,name=connector_status,json=connectorStatus,proto3" json:"connector_status,omitempty"`
-	AppHealth         []*AppHealthStatus     `protobuf:"bytes,7,rep,name=app_health,json=appHealth,proto3" json:"app_health,omitempty"`
-	Uptime            int64                  `protobuf:"varint,8,opt,name=uptime,proto3" json:"uptime,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Seq             int64                  `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"` // full state snapshot — CP needs no separate query
+	GatewayId       string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
+	ActiveSessions  int32                  `protobuf:"varint,3,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"` // authenticated sessions
+	ConnectorCount  int32                  `protobuf:"varint,4,opt,name=connector_count,json=connectorCount,proto3" json:"connector_count,omitempty"` // how many connectors currently connected
+	ConnectorStatus []*ConnectorsStatus    `protobuf:"bytes,5,rep,name=connector_status,json=connectorStatus,proto3" json:"connector_status,omitempty"`
+	AppHealth       []*AppHealthStatus     `protobuf:"bytes,6,rep,name=app_health,json=appHealth,proto3" json:"app_health,omitempty"`
+	Uptime          int64                  `protobuf:"varint,7,opt,name=uptime,proto3" json:"uptime,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *HeartbeatMessage) Reset() {
@@ -2058,13 +2057,6 @@ func (x *HeartbeatMessage) GetGatewayId() string {
 	return ""
 }
 
-func (x *HeartbeatMessage) GetActiveConnections() int32 {
-	if x != nil {
-		return x.ActiveConnections
-	}
-	return 0
-}
-
 func (x *HeartbeatMessage) GetActiveSessions() int32 {
 	if x != nil {
 		return x.ActiveSessions
@@ -2104,7 +2096,8 @@ type ConnectorsStatus struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
 	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"` //connected | disconnected
-	LastChecked   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_checked,json=lastChecked,proto3" json:"last_checked,omitempty"`
+	ActiveStreams int64                  `protobuf:"varint,3,opt,name=active_streams,json=activeStreams,proto3" json:"active_streams,omitempty"`
+	LastChecked   *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_checked,json=lastChecked,proto3" json:"last_checked,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2151,6 +2144,13 @@ func (x *ConnectorsStatus) GetStatus() string {
 		return x.Status
 	}
 	return ""
+}
+
+func (x *ConnectorsStatus) GetActiveStreams() int64 {
+	if x != nil {
+		return x.ActiveStreams
+	}
+	return 0
 }
 
 func (x *ConnectorsStatus) GetLastChecked() *timestamppb.Timestamp {
@@ -2657,6 +2657,7 @@ type ConnectorStatusResponse struct {
 	SecondaryGrpcPort   string                 `protobuf:"bytes,14,opt,name=secondary_grpc_port,json=secondaryGrpcPort,proto3" json:"secondary_grpc_port,omitempty"`
 	SecondaryHttpsPort  string                 `protobuf:"bytes,15,opt,name=secondary_https_port,json=secondaryHttpsPort,proto3" json:"secondary_https_port,omitempty"`
 	SecondaryQuicPort   string                 `protobuf:"bytes,16,opt,name=secondary_quic_port,json=secondaryQuicPort,proto3" json:"secondary_quic_port,omitempty"`
+	CrlEntries          []string               `protobuf:"bytes,17,rep,name=crl_entries,json=crlEntries,proto3" json:"crl_entries,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -2801,6 +2802,13 @@ func (x *ConnectorStatusResponse) GetSecondaryQuicPort() string {
 		return x.SecondaryQuicPort
 	}
 	return ""
+}
+
+func (x *ConnectorStatusResponse) GetCrlEntries() []string {
+	if x != nil {
+		return x.CrlEntries
+	}
+	return nil
 }
 
 type ConnectorApps struct {
@@ -4765,22 +4773,22 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x122\n" +
 	"\x15processed_through_seq\x18\x02 \x01(\x03R\x13processedThroughSeq\x129\n" +
 	"\n" +
-	"time_stamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimeStamp\"\xd7\x02\n" +
+	"time_stamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimeStamp\"\xa8\x02\n" +
 	"\x10HeartbeatMessage\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12\x1d\n" +
 	"\n" +
-	"gateway_id\x18\x02 \x01(\tR\tgatewayId\x12-\n" +
-	"\x12active_connections\x18\x03 \x01(\x05R\x11activeConnections\x12'\n" +
-	"\x0factive_sessions\x18\x04 \x01(\x05R\x0eactiveSessions\x12'\n" +
-	"\x0fconnector_count\x18\x05 \x01(\x05R\x0econnectorCount\x12B\n" +
-	"\x10connector_status\x18\x06 \x03(\v2\x17.proto.ConnectorsStatusR\x0fconnectorStatus\x125\n" +
+	"gateway_id\x18\x02 \x01(\tR\tgatewayId\x12'\n" +
+	"\x0factive_sessions\x18\x03 \x01(\x05R\x0eactiveSessions\x12'\n" +
+	"\x0fconnector_count\x18\x04 \x01(\x05R\x0econnectorCount\x12B\n" +
+	"\x10connector_status\x18\x05 \x03(\v2\x17.proto.ConnectorsStatusR\x0fconnectorStatus\x125\n" +
 	"\n" +
-	"app_health\x18\a \x03(\v2\x16.proto.AppHealthStatusR\tappHealth\x12\x16\n" +
-	"\x06uptime\x18\b \x01(\x03R\x06uptime\"\x8c\x01\n" +
+	"app_health\x18\x06 \x03(\v2\x16.proto.AppHealthStatusR\tappHealth\x12\x16\n" +
+	"\x06uptime\x18\a \x01(\x03R\x06uptime\"\xb3\x01\n" +
 	"\x10ConnectorsStatus\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x16\n" +
-	"\x06status\x18\x02 \x01(\tR\x06status\x12=\n" +
-	"\flast_checked\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vlastChecked\"\x86\x01\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12%\n" +
+	"\x0eactive_streams\x18\x03 \x01(\x03R\ractiveStreams\x12=\n" +
+	"\flast_checked\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vlastChecked\"\x86\x01\n" +
 	"\x0fAppHealthStatus\x12\x15\n" +
 	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12#\n" +
 	"\rhealth_status\x18\x02 \x01(\tR\fhealthStatus\x127\n" +
@@ -4820,7 +4828,7 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x12\x1b\n" +
 	"\topen_sock\x18\x04 \x01(\bR\bopenSock\x129\n" +
 	"\n" +
-	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x82\x05\n" +
+	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xa3\x05\n" +
 	"\x17ConnectorStatusResponse\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1d\n" +
 	"\n" +
@@ -4842,7 +4850,9 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\x14secondary_gateway_ip\x18\r \x01(\tR\x12secondaryGatewayIp\x12.\n" +
 	"\x13secondary_grpc_port\x18\x0e \x01(\tR\x11secondaryGrpcPort\x120\n" +
 	"\x14secondary_https_port\x18\x0f \x01(\tR\x12secondaryHttpsPort\x12.\n" +
-	"\x13secondary_quic_port\x18\x10 \x01(\tR\x11secondaryQuicPort\"\x93\x03\n" +
+	"\x13secondary_quic_port\x18\x10 \x01(\tR\x11secondaryQuicPort\x12\x1f\n" +
+	"\vcrl_entries\x18\x11 \x03(\tR\n" +
+	"crlEntries\"\x93\x03\n" +
 	"\rConnectorApps\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +

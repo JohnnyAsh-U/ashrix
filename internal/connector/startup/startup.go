@@ -3,6 +3,7 @@ package startup
 import (
 	"context"
 	"time"
+
 	// "crypto/ecdsa"
 	// "crypto/x509"
 	// "encoding/pem"
@@ -25,19 +26,19 @@ type Result struct {
 //
 // Workflow:
 //
-//	cert + key exist?
-//    YES
-//      Expiry cert date less than 30 days
-//	      YES → renew cert with CP
-//	          fail → delete cert + key → EXIT
-//	      NO  → continue
-//	  NO => register (generate keys, prompt token, send CSR)
-//	check connector status with CP
-//	  fail → delete cert + key → EXIT
+//		cert + key exist?
+//	   YES
+//	     Expiry cert date less than 30 days
+//		      YES → renew cert with CP
+//		          fail → delete cert + key → EXIT
+//		      NO  → continue
+//		  NO => register (generate keys, prompt token, send CSR)
+//		check connector status with CP
+//		  fail → delete cert + key → EXIT
 //
-//	save cert + key to disk
-//	init PKIInitialiser
-//	return Result
+//		save cert + key to disk
+//		init PKIInitialiser
+//		return Result
 func Run(ctx context.Context, cpurl string, log *slog.Logger, token string, appStorage storage.Storage) (*Result, error) {
 
 	if appStorage.CredentialExists() {
@@ -93,7 +94,6 @@ func Run(ctx context.Context, cpurl string, log *slog.Logger, token string, appS
 				err,
 			)
 		}
-
 		// ── Build PKIInitialiser ───────────────────────────────────
 		pkiInit, err := NewPKIInitialiser(
 			cred.Cert,
@@ -132,7 +132,6 @@ func Run(ctx context.Context, cpurl string, log *slog.Logger, token string, appS
 			err,
 		)
 	}
-
 	// ── Save renewed cert + key ────────────────────────────────
 
 	if err := appStorage.SaveCredential(regResult, newKey); err != nil {
@@ -146,7 +145,6 @@ func Run(ctx context.Context, cpurl string, log *slog.Logger, token string, appS
 	if err != nil {
 		return nil, fmt.Errorf("failed to load gateway identity: %w", err)
 	}
-
 	// ── Build PKIInitialiser ──────────────────────────────────────
 	pkiInit, err := NewPKIInitialiser(
 		cred.Cert,

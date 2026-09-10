@@ -160,6 +160,7 @@ type Connector struct {
 
 type CrlEntry struct {
 	ID           uuid.UUID `json:"id"`
+	OrgID        uuid.UUID `json:"org_id"`
 	CertID       uuid.UUID `json:"cert_id"`
 	SerialNumber string    `json:"serial_number"`
 	RevokedAt    time.Time `json:"revoked_at"`
@@ -321,9 +322,9 @@ type UserSession struct {
 	ID        uuid.UUID          `json:"id"`
 	OrgID     uuid.UUID          `json:"org_id"`
 	UserID    uuid.UUID          `json:"user_id"`
+	UserEmail string             `json:"user_email"`
 	GatewayID uuid.UUID          `json:"gateway_id"`
 	IssuedAt  time.Time          `json:"issued_at"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
-	UserEmail string             `json:"user_email"`
 }

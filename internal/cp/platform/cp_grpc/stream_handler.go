@@ -370,7 +370,7 @@ func (s *cpServer) handleHeartbeat(
 		_, err = s.connectorRepo.UpdateConnectorStatus(ctx, store.UpdateConnectorStatusParams{
 			ID:            cID,
 			Status:        connStat.Status,
-			ActiveStreams: heartbeat.ActiveSessions,
+			ActiveStreams: int32(connStat.ActiveStreams),
 		})
 		if err != nil {
 			s.log.Warn("failed to update connector status in DB", "connector_id", connStat.ConnectorId, "error", err)

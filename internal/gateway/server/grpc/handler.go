@@ -194,9 +194,9 @@ func (s *Server) handleConnectorMessage(connectorID string, env *gen.ConnectorGa
 	switch p := env.Payload.(type) {
 	case *gen.ConnectorGatewayEnvelope_Heartbeat:
 		if p.Heartbeat != nil && len(p.Heartbeat.AppHealth) > 0 {
-			s.registry.UpdateAppHealth(connectorID, p.Heartbeat.AppHealth)
+			s.registry.UpdateAppHealth(connectorID, p.Heartbeat.AppHealth, p.Heartbeat.ActiveStreams)
 		} else {
-			s.registry.UpdateHeartbeat(connectorID)
+			s.registry.UpdateHeartbeat(connectorID, p.Heartbeat.ActiveStreams)
 		}
 		s.log.Debug("heartbeat received",
 			slog.String("connector_id", connectorID),

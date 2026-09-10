@@ -87,8 +87,8 @@ LIMIT 1;
 -- =================================================================
 
 -- name: CreateCRLEntry :one
-INSERT INTO crl_entries (cert_id, serial_number, reason)
-VALUES ($1, $2, $3)
+INSERT INTO crl_entries (cert_id, serial_number, org_id, reason)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: GetCRLEntryBySerial :one
@@ -96,9 +96,10 @@ RETURNING *;
 SELECT * FROM crl_entries
 WHERE serial_number = $1;
 
--- name: ListCRLEntries :many
+-- name: ListCRLEntriesByOrg :many
 -- Gateway fetches full CRL on startup and after each sync.
 SELECT * FROM crl_entries
+WHERE org_id = $1
 ORDER BY revoked_at DESC;
 
 

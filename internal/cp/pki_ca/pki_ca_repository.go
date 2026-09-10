@@ -14,7 +14,7 @@ type Repository interface {
 	CreateCACert(ctx context.Context, params store.InsertCACertParams) (uuid.UUID , error)
 	GetActiveComponentCertByType(ctx context.Context, componentType string) (store.ComponentCertificate, error)
 	CreateCRLEntry(ctx context.Context, params store.CreateCRLEntryParams) (store.CrlEntry, error)
-	GetCRLEntry(ctx context.Context) ([]store.CrlEntry, error)
+	GetCRLEntryByOrg(ctx context.Context, OrgID uuid.UUID) ([]store.CrlEntry, error)
 	GetCRLEntryBySerial(ctx context.Context, serialNumber string) (store.CrlEntry, error)
 	CreateComponentCert(ctx context.Context, params store.RegisterCompCertParams) (store.ComponentCertificate, error)
 	RevokeComponentCert(ctx context.Context, params store.RevokeCompCertParams) (store.ComponentCertificate, error)
@@ -52,8 +52,8 @@ func (r *postgresRepository) CreateCRLEntry(ctx context.Context, params store.Cr
 	return r.q.CreateCRLEntry(ctx, params)
 }
 
-func (r *postgresRepository) GetCRLEntry(ctx context.Context) ([]store.CrlEntry, error) {
-	return r.q.ListCRLEntries(ctx)
+func (r *postgresRepository) GetCRLEntryByOrg(ctx context.Context, OrgID uuid.UUID) ([]store.CrlEntry, error) {
+	return r.q.ListCRLEntriesByOrg(ctx, OrgID)
 }
 
 func (r *postgresRepository) GetCRLEntryBySerial(ctx context.Context, serialNumber string) (store.CrlEntry, error) {

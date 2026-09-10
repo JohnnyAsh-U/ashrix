@@ -3,6 +3,14 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"math/rand"
+	// "net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/health"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/logger"
@@ -15,12 +23,7 @@ import (
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"log/slog"
-	"math/rand"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+	// _ "net/http/pprof"
 )
 
 func init() {
@@ -130,7 +133,7 @@ func runStart() (err error) {
 		)
 
 		//------------------------ Build Transport targets from status response-------------------------//
-		tlsConfig := result.PKI.TLSConfig()
+		tlsConfig := result.PKI.TLSConfigWithCRL(result.Status.GetCrlEntries())
 		connectorID := result.Status.ConnectorId
 		tenantID := result.Status.TenantId
 		apps := result.Status.Apps
@@ -249,6 +252,14 @@ func runStart() (err error) {
 			}()
 			errCh <- runTunnelLoop(sessionCtx, config, log, apps, managementConn)
 		}()
+
+		// go func() {
+		// 	log.Info("Connector pprof server started", "addr", "127.0.0.1:6061")
+
+		// 	if err := http.ListenAndServe("127.0.0.1:6061", nil); err != nil {
+		// 		log.Error("Connector pprof server stopped", "error", err)
+		// 	}
+		// }()
 
 		select {
 		case err := <-errCh:

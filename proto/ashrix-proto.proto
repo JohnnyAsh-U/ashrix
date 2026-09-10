@@ -191,21 +191,21 @@ message CommandAck {
 }
 
 message HeartbeatMessage {
-  int64                     seq                = 1; // full state snapshot — CP needs no separate query
-  string                    gateway_id         = 2;
-  int32                     active_connections = 3; // live connections (connectors + clients)
-  int32                     active_sessions    = 4; // authenticated sessions
-  int32                     connector_count    = 5; // how many connectors currently connected
-  repeated ConnectorsStatus connector_status   = 6;
-  repeated AppHealthStatus  app_health         = 7;
-  int64                     uptime             = 8;
+  int64                     seq              = 1; // full state snapshot — CP needs no separate query
+  string                    gateway_id       = 2;
+  int32                     active_sessions  = 3; // authenticated sessions
+  int32                     connector_count  = 4; // how many connectors currently connected
+  repeated ConnectorsStatus connector_status = 5;
+  repeated AppHealthStatus  app_health       = 6;
+  int64                     uptime           = 7;
 
 }
 
 message ConnectorsStatus {
-  string                    connector_id = 1;
-  string                    status       = 2; //connected | disconnected
-  google.protobuf.Timestamp last_checked = 3;
+  string                    connector_id   = 1;
+  string                    status         = 2; //connected | disconnected
+  int64                     active_streams = 3;
+  google.protobuf.Timestamp last_checked   = 4;
 }
 
 message AppHealthStatus {
@@ -286,6 +286,7 @@ message ConnectorStatusResponse {
   string                 secondary_grpc_port   = 14;
   string                 secondary_https_port  = 15;
   string                 secondary_quic_port   = 16;
+  repeated string        crl_entries           = 17;
 }
 
 message ConnectorApps {

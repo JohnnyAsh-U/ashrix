@@ -540,7 +540,7 @@ func (s *Service) RevokeConnector(ctx context.Context, id uuid.UUID, revokeReaso
 	}
 
 	//Get all the active CRLs
-	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
+	activeCRLs, _ := s.pkiRepo.GetCRLEntryByOrg(ctx, adminOrgID)
 
 	var revokedSerials []string
 	for _, crl := range activeCRLs {
@@ -690,6 +690,14 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		}
 	}
 
+	//Get all the active CRLs
+	activeCRLs, _ := s.pkiRepo.GetCRLEntryByOrg(ctx, ConnectorRow.OrgID)
+
+	var revokedSerials []string
+	for _, crl := range activeCRLs {
+		revokedSerials = append(revokedSerials, crl.SerialNumber)
+	}
+
 	resp := &gen.ConnectorStatusResponse{
 		ConnectorId: ConnectorRow.ID.String(),
 		GatewayId:   ConnectorRow.GatewayID.String(),
@@ -700,6 +708,7 @@ func (s *Service) GetConnectorStatus(ctx context.Context, connectorID uuid.UUID,
 		GrpcPort:    GatewayRow.GrpcPort.String,
 		QuicPort:    GatewayRow.QuicPort.String,
 		Apps:        appsResp,
+		CrlEntries:  revokedSerials,
 	}
 
 	if ConnectorRow.SecondaryGatewayID.Valid {

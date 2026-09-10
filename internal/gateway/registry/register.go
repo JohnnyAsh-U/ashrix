@@ -29,6 +29,7 @@ type ConnectorEntry struct {
 	TunnelConnAt    time.Time
 	tunnelAttached  bool
 	State           string // "active", "suspended"
+	ActiveStreams   int64
 
 	gRPCCert *x509.Certificate
 	quicCert *x509.Certificate
@@ -284,20 +285,22 @@ func (r *Registry) GetAppByID(appID string) (*pb.ConnectorApps, bool) {
 	return nil, false
 }
 
-func (r *Registry) UpdateHeartbeat(connectorID string) {
+func (r *Registry) UpdateHeartbeat(connectorID string, activeStreams int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if entry, ok := r.connectors[connectorID]; ok {
 		entry.LastHeartbeat = time.Now()
+		entry.ActiveStreams = activeStreams
 	}
 }
 
-func (r *Registry) UpdateAppHealth(connectorID string, appHealth []*pb.AppHealthStatus) {
+func (r *Registry) UpdateAppHealth(connectorID string, appHealth []*pb.AppHealthStatus, activeStreams int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if entry, ok := r.connectors[connectorID]; ok {
 		entry.AppHealth = appHealth
 		entry.LastHeartbeat = time.Now()
+		entry.ActiveStreams = activeStreams
 	}
 }
 
@@ -376,11 +379,6 @@ func (r *Registry) ActiveConnectors() int {
 	return len(r.connectors)
 }
 
-func (r *Registry) ActiveSessions() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return len(r.connectors)
-}
 
 func (r *Registry) ForceCloseConnector(connectorID string) {
 	r.mu.RLock()
@@ -408,7 +406,7 @@ func (r *Registry) ForceCloseConnector(connectorID string) {
 	}
 }
 
-//Close And Detach Management And Tunnel Session
+// Close And Detach Management And Tunnel Session
 func (r *Registry) CloseAllConnectorConnection() {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -426,7 +424,6 @@ func (r *Registry) CloseAllConnectorConnection() {
 		}
 	}
 }
-
 
 func (e *ConnectorEntry) IsManagementAttached() bool {
 	return e.ManagementSession != nil

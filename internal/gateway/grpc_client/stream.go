@@ -287,6 +287,7 @@ func (h *StreamManager) heartbeater(ctx context.Context) {
 					ConnectorId: entry.ConnectorID,
 					Status:      statusStr,
 					LastChecked: timestamppb.Now(),
+					ActiveStreams: entry.ActiveStreams,
 				})
 			}
 
@@ -298,8 +299,7 @@ func (h *StreamManager) heartbeater(ctx context.Context) {
 					Heartbeat: &pb.HeartbeatMessage{
 						Seq:               seq,
 						GatewayId:         h.cfg.GatewayID,
-						ActiveConnections: int32(h.registry.ActiveSessions()),
-						ActiveSessions:    int32(h.registry.ActiveSessions()),
+						ActiveSessions:    int32(h.registry.ActiveConnectors()),
 						ConnectorCount:    int32(h.registry.ActiveConnectors()),
 						ConnectorStatus:   connStatuses,
 						Uptime:            uptimeSec,

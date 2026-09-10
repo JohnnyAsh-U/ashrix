@@ -219,6 +219,7 @@ CREATE TABLE user_sessions (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id        UUID        NOT NULL REFERENCES orgs(id),
     user_id       UUID        NOT NULL,
+    user_email TEXT NOT NULL DEFAULT '',
     gateway_id    UUID        NOT NULL REFERENCES gateways(id),
     issued_at     TIMESTAMPTZ NOT NULL,
     expires_at    TIMESTAMPTZ,
@@ -550,6 +551,7 @@ CREATE TABLE component_certificates (
 -- -----------------------------------------------------------------
 CREATE TABLE crl_entries (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id        UUID        NOT NULL REFERENCES orgs(id),
     cert_id         UUID        NOT NULL REFERENCES component_certificates(id),
     serial_number   TEXT        NOT NULL UNIQUE,
     revoked_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -607,6 +609,10 @@ CREATE TABLE access_logs (
 -- =================================================================
 -- INDEXES
 -- =================================================================
+
+CREATE INDEX idx_user_sessions_org_email_active
+ON user_sessions(org_id, user_email, revoked_at, expires_at);
+
 
 -- Admin dashboard login (hot path for dashboard)
 CREATE INDEX idx_admins_org_email

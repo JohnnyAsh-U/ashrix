@@ -15,14 +15,15 @@ import (
 
 const createCRLEntry = `-- name: CreateCRLEntry :one
 
-INSERT INTO crl_entries (cert_id, serial_number, reason)
-VALUES ($1, $2, $3)
-RETURNING id, cert_id, serial_number, revoked_at, reason
+INSERT INTO crl_entries (cert_id, serial_number, org_id, reason)
+VALUES ($1, $2, $3, $4)
+RETURNING id, org_id, cert_id, serial_number, revoked_at, reason
 `
 
 type CreateCRLEntryParams struct {
 	CertID       uuid.UUID `json:"cert_id"`
 	SerialNumber string    `json:"serial_number"`
+	OrgID        uuid.UUID `json:"org_id"`
 	Reason       string    `json:"reason"`
 }
 
@@ -30,10 +31,16 @@ type CreateCRLEntryParams struct {
 // CRL ENTRIES
 // =================================================================
 func (q *Queries) CreateCRLEntry(ctx context.Context, arg CreateCRLEntryParams) (CrlEntry, error) {
-	row := q.db.QueryRow(ctx, createCRLEntry, arg.CertID, arg.SerialNumber, arg.Reason)
+	row := q.db.QueryRow(ctx, createCRLEntry,
+		arg.CertID,
+		arg.SerialNumber,
+		arg.OrgID,
+		arg.Reason,
+	)
 	var i CrlEntry
 	err := row.Scan(
 		&i.ID,
+		&i.OrgID,
 		&i.CertID,
 		&i.SerialNumber,
 		&i.RevokedAt,
@@ -251,7 +258,7 @@ func (q *Queries) GetActiveComponentCertByType(ctx context.Context, componentTyp
 }
 
 const getCRLEntryBySerial = `-- name: GetCRLEntryBySerial :one
-SELECT id, cert_id, serial_number, revoked_at, reason FROM crl_entries
+SELECT id, org_id, cert_id, serial_number, revoked_at, reason FROM crl_entries
 WHERE serial_number = $1
 `
 
@@ -261,6 +268,7 @@ func (q *Queries) GetCRLEntryBySerial(ctx context.Context, serialNumber string) 
 	var i CrlEntry
 	err := row.Scan(
 		&i.ID,
+		&i.OrgID,
 		&i.CertID,
 		&i.SerialNumber,
 		&i.RevokedAt,
@@ -393,14 +401,15 @@ func (q *Queries) ListActiveCACerts(ctx context.Context, arg ListActiveCACertsPa
 	return items, nil
 }
 
-const listCRLEntries = `-- name: ListCRLEntries :many
-SELECT id, cert_id, serial_number, revoked_at, reason FROM crl_entries
+const listCRLEntriesByOrg = `-- name: ListCRLEntriesByOrg :many
+SELECT id, org_id, cert_id, serial_number, revoked_at, reason FROM crl_entries
+WHERE org_id = $1
 ORDER BY revoked_at DESC
 `
 
 // Gateway fetches full CRL on startup and after each sync.
-func (q *Queries) ListCRLEntries(ctx context.Context) ([]CrlEntry, error) {
-	rows, err := q.db.Query(ctx, listCRLEntries)
+func (q *Queries) ListCRLEntriesByOrg(ctx context.Context, orgID uuid.UUID) ([]CrlEntry, error) {
+	rows, err := q.db.Query(ctx, listCRLEntriesByOrg, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -410,6 +419,7 @@ func (q *Queries) ListCRLEntries(ctx context.Context) ([]CrlEntry, error) {
 		var i CrlEntry
 		if err := rows.Scan(
 			&i.ID,
+			&i.OrgID,
 			&i.CertID,
 			&i.SerialNumber,
 			&i.RevokedAt,

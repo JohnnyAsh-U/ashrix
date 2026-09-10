@@ -300,7 +300,8 @@ func (s *Service) ReCreateGateway(ctx context.Context, id uuid.UUID, name, IPAdr
 	}
 
 	//Get all the active CRLs
-	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
+	adminOrgUUID, _ := uuid.Parse(AdminOrgId)
+	activeCRLs, _ := s.pkiRepo.GetCRLEntryByOrg(ctx, adminOrgUUID)
 
 	var revokedSerials []string
 	for _, crl := range activeCRLs {
@@ -595,7 +596,7 @@ func (s *Service) RevokeGateway(ctx context.Context, id uuid.UUID, revokeReason 
 	}
 
 	//Get all the active CRLs
-	activeCRLs, _ := s.pkiRepo.GetCRLEntry(ctx)
+	activeCRLs, _ := s.pkiRepo.GetCRLEntryByOrg(ctx, adminOrgID)
 
 	var revokedSerials []string
 	for _, crl := range activeCRLs {

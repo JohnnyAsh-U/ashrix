@@ -196,7 +196,7 @@ type Querier interface {
 	ListAuditLogsByOrg(ctx context.Context, arg ListAuditLogsByOrgParams) ([]AuditLog, error)
 	ListAuditLogsByTarget(ctx context.Context, arg ListAuditLogsByTargetParams) ([]AuditLog, error)
 	// Gateway fetches full CRL on startup and after each sync.
-	ListCRLEntries(ctx context.Context) ([]CrlEntry, error)
+	ListCRLEntriesByOrg(ctx context.Context, orgID uuid.UUID) ([]CrlEntry, error)
 	ListConnectorsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]Connector, error)
 	ListConnectorsByOrg(ctx context.Context, orgID uuid.UUID) ([]Connector, error)
 	ListConnectorsWithGatewayNameByOrg(ctx context.Context, orgID uuid.UUID) ([]ListConnectorsWithGatewayNameByOrgRow, error)
