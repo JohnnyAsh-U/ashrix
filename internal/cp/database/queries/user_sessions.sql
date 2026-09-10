@@ -10,6 +10,14 @@ WHERE org_id     = sqlc.arg('org_id')::uuid
 ORDER BY issued_at DESC;
 
 
+-- name: ListRevokedUserSessionByOrg :many
+SELECT * FROM user_sessions
+WHERE org_id = $1
+  AND expires_at > NOW()
+  AND revoked_at IS NOT NULL
+ORDER BY issued_at DESC;
+
+
 -- name: CreateUserSessionForGateway :one
 INSERT INTO user_sessions (org_id, user_id, gateway_id, user_email, expires_at, issued_at)
 VALUES ($1, $2, $3, $4, $5, NOW())

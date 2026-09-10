@@ -31,7 +31,7 @@ type Handler struct {
 	streamRegistry *registry.ActiveStreamRegistry
 	router         *router.Router
 	maxRequestBody int64
-	errorHandler *web.ErrorHandler
+	errorHandler   *web.ErrorHandler
 }
 
 func NewHandler(
@@ -58,13 +58,13 @@ func NewHandler(
 		streamRegistry: streamRegistry,
 		router:         rtr,
 		maxRequestBody: 500,
-		errorHandler: errHandler,
+		errorHandler:   errHandler,
 	}
 }
 
 func (h *Handler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 
-	if isWebSocketRequest(r){
+	if isWebSocketRequest(r) {
 		h.proxyWebSocket(w, r)
 		return
 	}
@@ -104,9 +104,10 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	tokenHash := crypto.HashToken(tokenStateFromCP)
 
-	protoIdentity, err := h.grpcClient.ExchangeToken(r.Context(), &gen.ExchangeTokenRequest{
+	exchange, err := h.grpcClient.ExchangeToken(r.Context(), &gen.ExchangeTokenRequest{
 		TokenHash:   tokenHash,
 		GatewayName: h.cfg.GatewayName,
+		GatewayId:   h.cfg.GatewayID,
 	})
 
 	if err != nil {
@@ -114,7 +115,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.session.Create(w, r, protoIdentity); err != nil {
+	if err := h.session.Create(w, r, exchange.SessionToken); err != nil {
 		h.log.Error("Session Creation Failed", slog.Any("err", err))
 		h.errorHandler.ErrorPage(w, http.StatusInternalServerError, "Internal Error", "An internal error occurred while creating the session.", "")
 		return
@@ -123,7 +124,6 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	h.log.Info("Session Creation")
 	http.Redirect(w, r, redirectURI, http.StatusTemporaryRedirect)
 }
-
 
 func isWebSocketRequest(r *http.Request) bool {
 	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")

@@ -18,21 +18,20 @@ import (
 // =============================================================================
 
 type BundleSigning interface {
-	SignBundle(payload []byte) ([]byte)
+	SignBundle(payload []byte) []byte
+	SignJWT(payload []byte) []byte
 	GetPublicKey() ed25519.PublicKey
 	GetPublicKeyString() (string, error)
 }
-
 
 type BundleSigner struct {
 	BundleSigningKey *ed25519.PrivateKey
 }
 
 var (
-	signingKeySecret string = "SIGNINGASHRIX"
+	signingKeySecret  string = "SIGNINGASHRIX"
 	signingKeyContext string = "CPPLATFORM"
 )
-
 
 func BundleSigningKeys(baseDir string, log *slog.Logger) (BundleSigning, error) {
 	log.Info("Initializing Bundle Signing Keys...")
@@ -76,7 +75,7 @@ func BundleSigningKeys(baseDir string, log *slog.Logger) (BundleSigning, error) 
 	}, nil
 }
 
-//Return the Public Key in string
+// Return the Public Key in string
 func (b *BundleSigner) GetPublicKey() ed25519.PublicKey {
 	return b.BundleSigningKey.Public().(ed25519.PublicKey)
 }
@@ -95,12 +94,15 @@ func (b *BundleSigner) GetPublicKeyString() (string, error) {
 	})
 
 	return string(pubPEM), nil
-} 
+}
 
 //Signing Implementation
 
-func (b *BundleSigner) SignBundle(payload []byte) ([]byte) {
+func (b *BundleSigner) SignBundle(payload []byte) []byte {
 	signature := ed25519.Sign(*b.BundleSigningKey, payload)
 	return signature
 }
 
+func (b *BundleSigner) SignJWT(payload []byte) []byte {
+	return ed25519.Sign(*b.BundleSigningKey, payload)
+}

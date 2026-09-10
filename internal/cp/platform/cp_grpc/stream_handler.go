@@ -2,7 +2,6 @@ package cp_grpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +13,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	gatewayevents "github.com/JohnnyAsh-U/ashrix-api/internal/cp/events"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/gateway"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/logs"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
 
@@ -40,6 +40,7 @@ type cpServer struct {
 	policyStore   policy.Repository
 	gatewayRepo   gateway.Repository
 	eventRepo     gatewayevents.Repository
+	identityRepo  identity.Repository
 	PkiCARepo     pkica.Repository
 	connectorRepo connector.Repository
 	appRepo       app.Repository
@@ -312,14 +313,29 @@ func (s *cpServer) handleHello(ctx context.Context, conn *registry.GatewayConn, 
 		})
 	}
 
+	//Get the list of revoked users for the org
+	revokedSessionRows, err := s.identityRepo.ListRevokedUserSessionByOrg(ctx, gatewayRow.OrgID)
+	if err != nil {
+		s.log.Warn("Failed to get Revoked Users")
+	}
+
+	var revokedSessions []*proto.RevokedSessions
+	for _, revokedSession := range revokedSessionRows {
+		revokedSessions = append(revokedSessions, &proto.RevokedSessions{
+			SessionId: revokedSession.ID.String(),
+			ExpiresAt: timestamppb.New(revokedSession.ExpiresAt.Time),
+		})
+	}
+
 	return conn.Send(
 		&proto.CPEnvelope{
 			Payload: &proto.CPEnvelope_HelloAck{
 				HelloAck: &proto.HelloAck{
-					ServerVersion: "1.0.0",
-					ServerTime:    timestamppb.Now(),
-					Connectors:    connectorsInfo,
-					LogToCp:       gatewayRow.LogToCp,
+					ServerVersion:   "1.0.0",
+					ServerTime:      timestamppb.Now(),
+					Connectors:      connectorsInfo,
+					LogToCp:         gatewayRow.LogToCp,
+					RevokedSessions: revokedSessions,
 				},
 			},
 		},
@@ -498,8 +514,16 @@ func (s *cpServer) reconcileGateway(
 }
 
 func (t *cpServer) ExchangeToken(ctx context.Context, req *proto.ExchangeTokenRequest) (*proto.ExchangeTokenResponse, error) {
-	if req.TokenHash == "" || req.GatewayName == "" {
+	if req.TokenHash == "" || req.GatewayName == "" || req.GatewayId == "" {
 		return nil, status.Error(codes.InvalidArgument, "token_hash required")
+	}
+	peerInfo, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing gateway identity")
+	}
+	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
+	if !ok || len(tlsInfo.State.PeerCertificates) == 0 || tlsInfo.State.PeerCertificates[0].Subject.CommonName != req.GatewayId {
+		return nil, status.Error(codes.PermissionDenied, "gateway identity mismatch")
 	}
 	key := fmt.Sprintf("session:%s:%s", req.GatewayName, req.TokenHash)
 
@@ -514,14 +538,16 @@ func (t *cpServer) ExchangeToken(ctx context.Context, req *proto.ExchangeTokenRe
 		return nil, status.Error(codes.Internal, "storage error")
 	}
 
-	var identity proto.NormalizedIdentity
-	if err := json.Unmarshal([]byte(data), &identity); err != nil {
-		t.log.Error("Corrupt identity data", slog.String("err", err.Error()))
-		return nil, status.Error(codes.Internal, "corrupt data")
+	gatewayID, err := uuid.Parse(req.GatewayId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid gateway_id")
+	}
+	gatewayRecord, err := t.gatewayRepo.GetGatewayByID(ctx, gatewayID)
+	if err != nil || gatewayRecord.Name != req.GatewayName {
+		return nil, status.Error(codes.PermissionDenied, "gateway identity mismatch")
 	}
 
-	t.log.Info("token exchanged", slog.String("user_id", identity.UserId))
-	return &proto.ExchangeTokenResponse{Valid: true, Identity: &identity}, nil
+	return &proto.ExchangeTokenResponse{Valid: true, SessionToken: string(data)}, nil
 }
 
 func (s *cpServer) handleAccessLogBatch(

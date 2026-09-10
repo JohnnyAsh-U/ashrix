@@ -568,10 +568,16 @@ func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID)
 		return store.UserSession{}, err
 	}
 
+
+	var sessionExpires time.Time
+	if session.ExpiresAt.Valid {
+		sessionExpires = session.ExpiresAt.Time
+	}
 	payload := events.CommandJob{
 		Type:      events.CmdRevokeUserSession,
 		GatewayID: session.GatewayID.String(),
 		SessionID: session.ID.String(),
+		SessionExpires: sessionExpires,
 	}
 
 	_, err = s.eventsRepo.CreateEvent(ctx, payload)

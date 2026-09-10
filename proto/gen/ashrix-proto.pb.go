@@ -640,6 +640,7 @@ type ExchangeTokenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	GatewayName   string                 `protobuf:"bytes,1,opt,name=gateway_name,json=gatewayName,proto3" json:"gateway_name,omitempty"`
 	TokenHash     string                 `protobuf:"bytes,2,opt,name=token_hash,json=tokenHash,proto3" json:"token_hash,omitempty"`
+	GatewayId     string                 `protobuf:"bytes,3,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -684,6 +685,13 @@ func (x *ExchangeTokenRequest) GetGatewayName() string {
 func (x *ExchangeTokenRequest) GetTokenHash() string {
 	if x != nil {
 		return x.TokenHash
+	}
+	return ""
+}
+
+func (x *ExchangeTokenRequest) GetGatewayId() string {
+	if x != nil {
+		return x.GatewayId
 	}
 	return ""
 }
@@ -799,7 +807,7 @@ func (x *NormalizedIdentity) GetAuthTime() *timestamppb.Timestamp {
 type ExchangeTokenResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
-	Identity      *NormalizedIdentity    `protobuf:"bytes,2,opt,name=identity,proto3" json:"identity,omitempty"`
+	SessionToken  string                 `protobuf:"bytes,2,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
 	ErrorMessage  string                 `protobuf:"bytes,3,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -842,11 +850,11 @@ func (x *ExchangeTokenResponse) GetValid() bool {
 	return false
 }
 
-func (x *ExchangeTokenResponse) GetIdentity() *NormalizedIdentity {
+func (x *ExchangeTokenResponse) GetSessionToken() string {
 	if x != nil {
-		return x.Identity
+		return x.SessionToken
 	}
-	return nil
+	return ""
 }
 
 func (x *ExchangeTokenResponse) GetErrorMessage() string {
@@ -1445,10 +1453,11 @@ func (*RevokeGatewayCmd) Descriptor() ([]byte, []int) {
 }
 
 type RevokeSessionCmd struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	SessionId        string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	SessionExpiresAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=session_expires_at,json=sessionExpiresAt,proto3" json:"session_expires_at,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RevokeSessionCmd) Reset() {
@@ -1486,6 +1495,13 @@ func (x *RevokeSessionCmd) GetSessionId() string {
 		return x.SessionId
 	}
 	return ""
+}
+
+func (x *RevokeSessionCmd) GetSessionExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SessionExpiresAt
+	}
+	return nil
 }
 
 type DrainGatewayCmd struct {
@@ -2221,13 +2237,14 @@ func (x *AppHealthStatus) GetLastSeen() *timestamppb.Timestamp {
 }
 
 type HelloAck struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ServerVersion string                 `protobuf:"bytes,1,opt,name=server_version,json=serverVersion,proto3" json:"server_version,omitempty"`
-	Connectors    []*ConnectorInfo       `protobuf:"bytes,2,rep,name=connectors,proto3" json:"connectors,omitempty"`
-	LogToCp       bool                   `protobuf:"varint,3,opt,name=log_to_cp,json=logToCp,proto3" json:"log_to_cp,omitempty"`
-	ServerTime    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ServerVersion   string                 `protobuf:"bytes,1,opt,name=server_version,json=serverVersion,proto3" json:"server_version,omitempty"`
+	Connectors      []*ConnectorInfo       `protobuf:"bytes,2,rep,name=connectors,proto3" json:"connectors,omitempty"`
+	RevokedSessions []*RevokedSessions     `protobuf:"bytes,3,rep,name=revoked_sessions,json=revokedSessions,proto3" json:"revoked_sessions,omitempty"`
+	LogToCp         bool                   `protobuf:"varint,4,opt,name=log_to_cp,json=logToCp,proto3" json:"log_to_cp,omitempty"`
+	ServerTime      *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *HelloAck) Reset() {
@@ -2274,6 +2291,13 @@ func (x *HelloAck) GetConnectors() []*ConnectorInfo {
 	return nil
 }
 
+func (x *HelloAck) GetRevokedSessions() []*RevokedSessions {
+	if x != nil {
+		return x.RevokedSessions
+	}
+	return nil
+}
+
 func (x *HelloAck) GetLogToCp() bool {
 	if x != nil {
 		return x.LogToCp
@@ -2284,6 +2308,58 @@ func (x *HelloAck) GetLogToCp() bool {
 func (x *HelloAck) GetServerTime() *timestamppb.Timestamp {
 	if x != nil {
 		return x.ServerTime
+	}
+	return nil
+}
+
+type RevokedSessions struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokedSessions) Reset() {
+	*x = RevokedSessions{}
+	mi := &file_ashrix_proto_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokedSessions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokedSessions) ProtoMessage() {}
+
+func (x *RevokedSessions) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_proto_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokedSessions.ProtoReflect.Descriptor instead.
+func (*RevokedSessions) Descriptor() ([]byte, []int) {
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *RevokedSessions) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *RevokedSessions) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
 	}
 	return nil
 }
@@ -2303,7 +2379,7 @@ type PolicyBundle struct {
 
 func (x *PolicyBundle) Reset() {
 	*x = PolicyBundle{}
-	mi := &file_ashrix_proto_proto_msgTypes[28]
+	mi := &file_ashrix_proto_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2315,7 +2391,7 @@ func (x *PolicyBundle) String() string {
 func (*PolicyBundle) ProtoMessage() {}
 
 func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[28]
+	mi := &file_ashrix_proto_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2328,7 +2404,7 @@ func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyBundle.ProtoReflect.Descriptor instead.
 func (*PolicyBundle) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{28}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PolicyBundle) GetVersion() int64 {
@@ -2370,7 +2446,7 @@ type ConnectorEnrollRequest struct {
 
 func (x *ConnectorEnrollRequest) Reset() {
 	*x = ConnectorEnrollRequest{}
-	mi := &file_ashrix_proto_proto_msgTypes[29]
+	mi := &file_ashrix_proto_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2382,7 +2458,7 @@ func (x *ConnectorEnrollRequest) String() string {
 func (*ConnectorEnrollRequest) ProtoMessage() {}
 
 func (x *ConnectorEnrollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[29]
+	mi := &file_ashrix_proto_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2395,7 +2471,7 @@ func (x *ConnectorEnrollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorEnrollRequest.ProtoReflect.Descriptor instead.
 func (*ConnectorEnrollRequest) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{29}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ConnectorEnrollRequest) GetToken() string {
@@ -2432,7 +2508,7 @@ type ConnectorEnrollResponse struct {
 
 func (x *ConnectorEnrollResponse) Reset() {
 	*x = ConnectorEnrollResponse{}
-	mi := &file_ashrix_proto_proto_msgTypes[30]
+	mi := &file_ashrix_proto_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2444,7 +2520,7 @@ func (x *ConnectorEnrollResponse) String() string {
 func (*ConnectorEnrollResponse) ProtoMessage() {}
 
 func (x *ConnectorEnrollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[30]
+	mi := &file_ashrix_proto_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2457,7 +2533,7 @@ func (x *ConnectorEnrollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorEnrollResponse.ProtoReflect.Descriptor instead.
 func (*ConnectorEnrollResponse) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{30}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ConnectorEnrollResponse) GetConnectorId() string {
@@ -2507,7 +2583,7 @@ type ConnectorRenewCertRequest struct {
 
 func (x *ConnectorRenewCertRequest) Reset() {
 	*x = ConnectorRenewCertRequest{}
-	mi := &file_ashrix_proto_proto_msgTypes[31]
+	mi := &file_ashrix_proto_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2519,7 +2595,7 @@ func (x *ConnectorRenewCertRequest) String() string {
 func (*ConnectorRenewCertRequest) ProtoMessage() {}
 
 func (x *ConnectorRenewCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[31]
+	mi := &file_ashrix_proto_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2532,7 +2608,7 @@ func (x *ConnectorRenewCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorRenewCertRequest.ProtoReflect.Descriptor instead.
 func (*ConnectorRenewCertRequest) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{31}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ConnectorRenewCertRequest) GetConnectorId() string {
@@ -2576,7 +2652,7 @@ type ConnectorRenewCertResponse struct {
 
 func (x *ConnectorRenewCertResponse) Reset() {
 	*x = ConnectorRenewCertResponse{}
-	mi := &file_ashrix_proto_proto_msgTypes[32]
+	mi := &file_ashrix_proto_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2588,7 +2664,7 @@ func (x *ConnectorRenewCertResponse) String() string {
 func (*ConnectorRenewCertResponse) ProtoMessage() {}
 
 func (x *ConnectorRenewCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[32]
+	mi := &file_ashrix_proto_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2601,7 +2677,7 @@ func (x *ConnectorRenewCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorRenewCertResponse.ProtoReflect.Descriptor instead.
 func (*ConnectorRenewCertResponse) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{32}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ConnectorRenewCertResponse) GetConnectorId() string {
@@ -2664,7 +2740,7 @@ type ConnectorStatusResponse struct {
 
 func (x *ConnectorStatusResponse) Reset() {
 	*x = ConnectorStatusResponse{}
-	mi := &file_ashrix_proto_proto_msgTypes[33]
+	mi := &file_ashrix_proto_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2676,7 +2752,7 @@ func (x *ConnectorStatusResponse) String() string {
 func (*ConnectorStatusResponse) ProtoMessage() {}
 
 func (x *ConnectorStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[33]
+	mi := &file_ashrix_proto_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2689,7 +2765,7 @@ func (x *ConnectorStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorStatusResponse.ProtoReflect.Descriptor instead.
 func (*ConnectorStatusResponse) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{33}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ConnectorStatusResponse) GetConnectorId() string {
@@ -2831,7 +2907,7 @@ type ConnectorApps struct {
 
 func (x *ConnectorApps) Reset() {
 	*x = ConnectorApps{}
-	mi := &file_ashrix_proto_proto_msgTypes[34]
+	mi := &file_ashrix_proto_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2843,7 +2919,7 @@ func (x *ConnectorApps) String() string {
 func (*ConnectorApps) ProtoMessage() {}
 
 func (x *ConnectorApps) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[34]
+	mi := &file_ashrix_proto_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2856,7 +2932,7 @@ func (x *ConnectorApps) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorApps.ProtoReflect.Descriptor instead.
 func (*ConnectorApps) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{34}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ConnectorApps) GetId() string {
@@ -2953,7 +3029,7 @@ type HeaderList struct {
 
 func (x *HeaderList) Reset() {
 	*x = HeaderList{}
-	mi := &file_ashrix_proto_proto_msgTypes[35]
+	mi := &file_ashrix_proto_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2965,7 +3041,7 @@ func (x *HeaderList) String() string {
 func (*HeaderList) ProtoMessage() {}
 
 func (x *HeaderList) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[35]
+	mi := &file_ashrix_proto_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2978,7 +3054,7 @@ func (x *HeaderList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeaderList.ProtoReflect.Descriptor instead.
 func (*HeaderList) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{35}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *HeaderList) GetValues() []string {
@@ -3013,7 +3089,7 @@ type StreamFrame struct {
 
 func (x *StreamFrame) Reset() {
 	*x = StreamFrame{}
-	mi := &file_ashrix_proto_proto_msgTypes[36]
+	mi := &file_ashrix_proto_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3025,7 +3101,7 @@ func (x *StreamFrame) String() string {
 func (*StreamFrame) ProtoMessage() {}
 
 func (x *StreamFrame) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[36]
+	mi := &file_ashrix_proto_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3038,7 +3114,7 @@ func (x *StreamFrame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamFrame.ProtoReflect.Descriptor instead.
 func (*StreamFrame) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{36}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *StreamFrame) GetRequestId() string {
@@ -3175,7 +3251,7 @@ type ConnectorGatewayEnvelope struct {
 
 func (x *ConnectorGatewayEnvelope) Reset() {
 	*x = ConnectorGatewayEnvelope{}
-	mi := &file_ashrix_proto_proto_msgTypes[37]
+	mi := &file_ashrix_proto_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3187,7 +3263,7 @@ func (x *ConnectorGatewayEnvelope) String() string {
 func (*ConnectorGatewayEnvelope) ProtoMessage() {}
 
 func (x *ConnectorGatewayEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[37]
+	mi := &file_ashrix_proto_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3200,7 +3276,7 @@ func (x *ConnectorGatewayEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorGatewayEnvelope.ProtoReflect.Descriptor instead.
 func (*ConnectorGatewayEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{37}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ConnectorGatewayEnvelope) GetConnectorId() string {
@@ -3272,7 +3348,7 @@ type GatewayConnectorEnvelope struct {
 
 func (x *GatewayConnectorEnvelope) Reset() {
 	*x = GatewayConnectorEnvelope{}
-	mi := &file_ashrix_proto_proto_msgTypes[38]
+	mi := &file_ashrix_proto_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3284,7 +3360,7 @@ func (x *GatewayConnectorEnvelope) String() string {
 func (*GatewayConnectorEnvelope) ProtoMessage() {}
 
 func (x *GatewayConnectorEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[38]
+	mi := &file_ashrix_proto_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3297,7 +3373,7 @@ func (x *GatewayConnectorEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GatewayConnectorEnvelope.ProtoReflect.Descriptor instead.
 func (*GatewayConnectorEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{38}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *GatewayConnectorEnvelope) GetPayload() isGatewayConnectorEnvelope_Payload {
@@ -3366,7 +3442,7 @@ type ConnectorCmd struct {
 
 func (x *ConnectorCmd) Reset() {
 	*x = ConnectorCmd{}
-	mi := &file_ashrix_proto_proto_msgTypes[39]
+	mi := &file_ashrix_proto_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3378,7 +3454,7 @@ func (x *ConnectorCmd) String() string {
 func (*ConnectorCmd) ProtoMessage() {}
 
 func (x *ConnectorCmd) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[39]
+	mi := &file_ashrix_proto_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3391,7 +3467,7 @@ func (x *ConnectorCmd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorCmd.ProtoReflect.Descriptor instead.
 func (*ConnectorCmd) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{39}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ConnectorCmd) GetCmd() CommandType {
@@ -3421,7 +3497,7 @@ type ConnectorHello struct {
 
 func (x *ConnectorHello) Reset() {
 	*x = ConnectorHello{}
-	mi := &file_ashrix_proto_proto_msgTypes[40]
+	mi := &file_ashrix_proto_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3433,7 +3509,7 @@ func (x *ConnectorHello) String() string {
 func (*ConnectorHello) ProtoMessage() {}
 
 func (x *ConnectorHello) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[40]
+	mi := &file_ashrix_proto_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3446,7 +3522,7 @@ func (x *ConnectorHello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorHello.ProtoReflect.Descriptor instead.
 func (*ConnectorHello) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{40}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ConnectorHello) GetConnectorId() string {
@@ -3498,7 +3574,7 @@ type ConnectorHeartbeat struct {
 
 func (x *ConnectorHeartbeat) Reset() {
 	*x = ConnectorHeartbeat{}
-	mi := &file_ashrix_proto_proto_msgTypes[41]
+	mi := &file_ashrix_proto_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3510,7 +3586,7 @@ func (x *ConnectorHeartbeat) String() string {
 func (*ConnectorHeartbeat) ProtoMessage() {}
 
 func (x *ConnectorHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[41]
+	mi := &file_ashrix_proto_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3523,7 +3599,7 @@ func (x *ConnectorHeartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorHeartbeat.ProtoReflect.Descriptor instead.
 func (*ConnectorHeartbeat) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{41}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ConnectorHeartbeat) GetSeq() int64 {
@@ -3578,7 +3654,7 @@ type ConnectorHelloAck struct {
 
 func (x *ConnectorHelloAck) Reset() {
 	*x = ConnectorHelloAck{}
-	mi := &file_ashrix_proto_proto_msgTypes[42]
+	mi := &file_ashrix_proto_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3590,7 +3666,7 @@ func (x *ConnectorHelloAck) String() string {
 func (*ConnectorHelloAck) ProtoMessage() {}
 
 func (x *ConnectorHelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[42]
+	mi := &file_ashrix_proto_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3603,7 +3679,7 @@ func (x *ConnectorHelloAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorHelloAck.ProtoReflect.Descriptor instead.
 func (*ConnectorHelloAck) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{42}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ConnectorHelloAck) GetSessionId() string {
@@ -3631,7 +3707,7 @@ type ConnectorReject struct {
 
 func (x *ConnectorReject) Reset() {
 	*x = ConnectorReject{}
-	mi := &file_ashrix_proto_proto_msgTypes[43]
+	mi := &file_ashrix_proto_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3643,7 +3719,7 @@ func (x *ConnectorReject) String() string {
 func (*ConnectorReject) ProtoMessage() {}
 
 func (x *ConnectorReject) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[43]
+	mi := &file_ashrix_proto_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3656,7 +3732,7 @@ func (x *ConnectorReject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorReject.ProtoReflect.Descriptor instead.
 func (*ConnectorReject) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{43}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ConnectorReject) GetReason() string {
@@ -3691,7 +3767,7 @@ type ScheduleRule struct {
 
 func (x *ScheduleRule) Reset() {
 	*x = ScheduleRule{}
-	mi := &file_ashrix_proto_proto_msgTypes[44]
+	mi := &file_ashrix_proto_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3703,7 +3779,7 @@ func (x *ScheduleRule) String() string {
 func (*ScheduleRule) ProtoMessage() {}
 
 func (x *ScheduleRule) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[44]
+	mi := &file_ashrix_proto_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3716,7 +3792,7 @@ func (x *ScheduleRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScheduleRule.ProtoReflect.Descriptor instead.
 func (*ScheduleRule) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{44}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ScheduleRule) GetDay() string {
@@ -3752,7 +3828,7 @@ type Schedule struct {
 
 func (x *Schedule) Reset() {
 	*x = Schedule{}
-	mi := &file_ashrix_proto_proto_msgTypes[45]
+	mi := &file_ashrix_proto_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3764,7 +3840,7 @@ func (x *Schedule) String() string {
 func (*Schedule) ProtoMessage() {}
 
 func (x *Schedule) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[45]
+	mi := &file_ashrix_proto_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3777,7 +3853,7 @@ func (x *Schedule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Schedule.ProtoReflect.Descriptor instead.
 func (*Schedule) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{45}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *Schedule) GetScheduleId() string {
@@ -3817,7 +3893,7 @@ type TimeCondition struct {
 
 func (x *TimeCondition) Reset() {
 	*x = TimeCondition{}
-	mi := &file_ashrix_proto_proto_msgTypes[46]
+	mi := &file_ashrix_proto_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3829,7 +3905,7 @@ func (x *TimeCondition) String() string {
 func (*TimeCondition) ProtoMessage() {}
 
 func (x *TimeCondition) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[46]
+	mi := &file_ashrix_proto_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3842,7 +3918,7 @@ func (x *TimeCondition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimeCondition.ProtoReflect.Descriptor instead.
 func (*TimeCondition) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{46}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *TimeCondition) GetScheduleName() string {
@@ -3861,7 +3937,7 @@ type DeviceCondition struct {
 
 func (x *DeviceCondition) Reset() {
 	*x = DeviceCondition{}
-	mi := &file_ashrix_proto_proto_msgTypes[47]
+	mi := &file_ashrix_proto_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3873,7 +3949,7 @@ func (x *DeviceCondition) String() string {
 func (*DeviceCondition) ProtoMessage() {}
 
 func (x *DeviceCondition) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[47]
+	mi := &file_ashrix_proto_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3886,7 +3962,7 @@ func (x *DeviceCondition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceCondition.ProtoReflect.Descriptor instead.
 func (*DeviceCondition) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{47}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *DeviceCondition) GetPostures() []string {
@@ -3909,7 +3985,7 @@ type NetworkCondition struct {
 
 func (x *NetworkCondition) Reset() {
 	*x = NetworkCondition{}
-	mi := &file_ashrix_proto_proto_msgTypes[48]
+	mi := &file_ashrix_proto_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3921,7 +3997,7 @@ func (x *NetworkCondition) String() string {
 func (*NetworkCondition) ProtoMessage() {}
 
 func (x *NetworkCondition) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[48]
+	mi := &file_ashrix_proto_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3934,7 +4010,7 @@ func (x *NetworkCondition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkCondition.ProtoReflect.Descriptor instead.
 func (*NetworkCondition) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{48}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *NetworkCondition) GetAllowedCountries() []string {
@@ -3982,7 +4058,7 @@ type MFACondition struct {
 
 func (x *MFACondition) Reset() {
 	*x = MFACondition{}
-	mi := &file_ashrix_proto_proto_msgTypes[49]
+	mi := &file_ashrix_proto_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3994,7 +4070,7 @@ func (x *MFACondition) String() string {
 func (*MFACondition) ProtoMessage() {}
 
 func (x *MFACondition) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[49]
+	mi := &file_ashrix_proto_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4007,7 +4083,7 @@ func (x *MFACondition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MFACondition.ProtoReflect.Descriptor instead.
 func (*MFACondition) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{49}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *MFACondition) GetRequired() bool {
@@ -4036,7 +4112,7 @@ type PolicyConditions struct {
 
 func (x *PolicyConditions) Reset() {
 	*x = PolicyConditions{}
-	mi := &file_ashrix_proto_proto_msgTypes[50]
+	mi := &file_ashrix_proto_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4048,7 +4124,7 @@ func (x *PolicyConditions) String() string {
 func (*PolicyConditions) ProtoMessage() {}
 
 func (x *PolicyConditions) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[50]
+	mi := &file_ashrix_proto_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4061,7 +4137,7 @@ func (x *PolicyConditions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyConditions.ProtoReflect.Descriptor instead.
 func (*PolicyConditions) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{50}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *PolicyConditions) GetMfa() *MFACondition {
@@ -4103,7 +4179,7 @@ type SubjectSelector struct {
 
 func (x *SubjectSelector) Reset() {
 	*x = SubjectSelector{}
-	mi := &file_ashrix_proto_proto_msgTypes[51]
+	mi := &file_ashrix_proto_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4115,7 +4191,7 @@ func (x *SubjectSelector) String() string {
 func (*SubjectSelector) ProtoMessage() {}
 
 func (x *SubjectSelector) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[51]
+	mi := &file_ashrix_proto_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4128,7 +4204,7 @@ func (x *SubjectSelector) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubjectSelector.ProtoReflect.Descriptor instead.
 func (*SubjectSelector) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{51}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *SubjectSelector) GetUsers() []string {
@@ -4163,7 +4239,7 @@ type ResourceSelector struct {
 
 func (x *ResourceSelector) Reset() {
 	*x = ResourceSelector{}
-	mi := &file_ashrix_proto_proto_msgTypes[52]
+	mi := &file_ashrix_proto_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4175,7 +4251,7 @@ func (x *ResourceSelector) String() string {
 func (*ResourceSelector) ProtoMessage() {}
 
 func (x *ResourceSelector) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[52]
+	mi := &file_ashrix_proto_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4188,7 +4264,7 @@ func (x *ResourceSelector) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceSelector.ProtoReflect.Descriptor instead.
 func (*ResourceSelector) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{52}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ResourceSelector) GetAppIds() []string {
@@ -4232,7 +4308,7 @@ type PolicyRule struct {
 
 func (x *PolicyRule) Reset() {
 	*x = PolicyRule{}
-	mi := &file_ashrix_proto_proto_msgTypes[53]
+	mi := &file_ashrix_proto_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4244,7 +4320,7 @@ func (x *PolicyRule) String() string {
 func (*PolicyRule) ProtoMessage() {}
 
 func (x *PolicyRule) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[53]
+	mi := &file_ashrix_proto_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4257,7 +4333,7 @@ func (x *PolicyRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyRule.ProtoReflect.Descriptor instead.
 func (*PolicyRule) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{53}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *PolicyRule) GetPolicyId() string {
@@ -4362,7 +4438,7 @@ type PolicyRecord struct {
 
 func (x *PolicyRecord) Reset() {
 	*x = PolicyRecord{}
-	mi := &file_ashrix_proto_proto_msgTypes[54]
+	mi := &file_ashrix_proto_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4374,7 +4450,7 @@ func (x *PolicyRecord) String() string {
 func (*PolicyRecord) ProtoMessage() {}
 
 func (x *PolicyRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[54]
+	mi := &file_ashrix_proto_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4387,7 +4463,7 @@ func (x *PolicyRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyRecord.ProtoReflect.Descriptor instead.
 func (*PolicyRecord) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{54}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *PolicyRecord) GetSequence() int64 {
@@ -4450,7 +4526,7 @@ type AccessLogEntry struct {
 
 func (x *AccessLogEntry) Reset() {
 	*x = AccessLogEntry{}
-	mi := &file_ashrix_proto_proto_msgTypes[55]
+	mi := &file_ashrix_proto_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4462,7 +4538,7 @@ func (x *AccessLogEntry) String() string {
 func (*AccessLogEntry) ProtoMessage() {}
 
 func (x *AccessLogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[55]
+	mi := &file_ashrix_proto_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4475,7 +4551,7 @@ func (x *AccessLogEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessLogEntry.ProtoReflect.Descriptor instead.
 func (*AccessLogEntry) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{55}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *AccessLogEntry) GetGatewayId() string {
@@ -4606,7 +4682,7 @@ type AccessLogBatch struct {
 
 func (x *AccessLogBatch) Reset() {
 	*x = AccessLogBatch{}
-	mi := &file_ashrix_proto_proto_msgTypes[56]
+	mi := &file_ashrix_proto_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4618,7 +4694,7 @@ func (x *AccessLogBatch) String() string {
 func (*AccessLogBatch) ProtoMessage() {}
 
 func (x *AccessLogBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[56]
+	mi := &file_ashrix_proto_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4631,7 +4707,7 @@ func (x *AccessLogBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessLogBatch.ProtoReflect.Descriptor instead.
 func (*AccessLogBatch) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{56}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *AccessLogBatch) GetEntries() []*AccessLogEntry {
@@ -4677,11 +4753,13 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\ftrust_bundle\x18\x03 \x01(\tR\vtrustBundle\x12\x1a\n" +
 	"\tlog_to_cp\x18\x04 \x01(\bR\alogToCp\x129\n" +
 	"\n" +
-	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"X\n" +
+	"expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"w\n" +
 	"\x14ExchangeTokenRequest\x12!\n" +
 	"\fgateway_name\x18\x01 \x01(\tR\vgatewayName\x12\x1d\n" +
 	"\n" +
-	"token_hash\x18\x02 \x01(\tR\ttokenHash\"\xa6\x02\n" +
+	"token_hash\x18\x02 \x01(\tR\ttokenHash\x12\x1d\n" +
+	"\n" +
+	"gateway_id\x18\x03 \x01(\tR\tgatewayId\"\xa6\x02\n" +
 	"\x12NormalizedIdentity\x12\x1b\n" +
 	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x1f\n" +
 	"\vprovider_id\x18\x02 \x01(\tR\n" +
@@ -4692,10 +4770,10 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\x06groups\x18\x06 \x03(\tR\x06groups\x12\x1a\n" +
 	"\bprovider\x18\a \x01(\tR\bprovider\x12\"\n" +
 	"\rcp_session_id\x18\b \x01(\tR\vcpSessionId\x127\n" +
-	"\tauth_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\bauthTime\"\x89\x01\n" +
+	"\tauth_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\bauthTime\"w\n" +
 	"\x15ExchangeTokenResponse\x12\x14\n" +
-	"\x05valid\x18\x01 \x01(\bR\x05valid\x125\n" +
-	"\bidentity\x18\x02 \x01(\v2\x19.proto.NormalizedIdentityR\bidentity\x12#\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12#\n" +
+	"\rsession_token\x18\x02 \x01(\tR\fsessionToken\x12#\n" +
 	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"\xba\x02\n" +
 	"\x0fGatewayEnvelope\x12\x1d\n" +
 	"\n" +
@@ -4733,10 +4811,11 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\apayload\"\x16\n" +
 	"\x14RotateGatewayCertCmd\"\x16\n" +
 	"\x14RevokeGatewayCertCmd\"\x12\n" +
-	"\x10RevokeGatewayCmd\"1\n" +
+	"\x10RevokeGatewayCmd\"{\n" +
 	"\x10RevokeSessionCmd\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"\x11\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12H\n" +
+	"\x12session_expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x10sessionExpiresAt\"\x11\n" +
 	"\x0fDrainGatewayCmd\"7\n" +
 	"\x12RevokeConnectorCmd\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\";\n" +
@@ -4792,15 +4871,21 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\x0fAppHealthStatus\x12\x15\n" +
 	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12#\n" +
 	"\rhealth_status\x18\x02 \x01(\tR\fhealthStatus\x127\n" +
-	"\tlast_seen\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"\xc0\x01\n" +
+	"\tlast_seen\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"\x83\x02\n" +
 	"\bHelloAck\x12%\n" +
 	"\x0eserver_version\x18\x01 \x01(\tR\rserverVersion\x124\n" +
 	"\n" +
 	"connectors\x18\x02 \x03(\v2\x14.proto.ConnectorInfoR\n" +
-	"connectors\x12\x1a\n" +
-	"\tlog_to_cp\x18\x03 \x01(\bR\alogToCp\x12;\n" +
-	"\vserver_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"serverTime\"\x92\x01\n" +
+	"connectors\x12A\n" +
+	"\x10revoked_sessions\x18\x03 \x03(\v2\x16.proto.RevokedSessionsR\x0frevokedSessions\x12\x1a\n" +
+	"\tlog_to_cp\x18\x04 \x01(\bR\alogToCp\x12;\n" +
+	"\vserver_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"serverTime\"k\n" +
+	"\x0fRevokedSessions\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
+	"\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x92\x01\n" +
 	"\fPolicyBundle\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x1b\n" +
 	"\tissued_at\x18\x02 \x01(\x03R\bissuedAt\x12-\n" +
@@ -5066,7 +5151,7 @@ func file_ashrix_proto_proto_rawDescGZIP() []byte {
 }
 
 var file_ashrix_proto_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_ashrix_proto_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
+var file_ashrix_proto_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
 var file_ashrix_proto_proto_goTypes = []any{
 	(RequestType)(0),                   // 0: proto.RequestType
 	(FlowType)(0),                      // 1: proto.FlowType
@@ -5102,118 +5187,121 @@ var file_ashrix_proto_proto_goTypes = []any{
 	(*ConnectorsStatus)(nil),           // 31: proto.ConnectorsStatus
 	(*AppHealthStatus)(nil),            // 32: proto.AppHealthStatus
 	(*HelloAck)(nil),                   // 33: proto.HelloAck
-	(*PolicyBundle)(nil),               // 34: proto.PolicyBundle
-	(*ConnectorEnrollRequest)(nil),     // 35: proto.ConnectorEnrollRequest
-	(*ConnectorEnrollResponse)(nil),    // 36: proto.ConnectorEnrollResponse
-	(*ConnectorRenewCertRequest)(nil),  // 37: proto.ConnectorRenewCertRequest
-	(*ConnectorRenewCertResponse)(nil), // 38: proto.ConnectorRenewCertResponse
-	(*ConnectorStatusResponse)(nil),    // 39: proto.ConnectorStatusResponse
-	(*ConnectorApps)(nil),              // 40: proto.ConnectorApps
-	(*HeaderList)(nil),                 // 41: proto.HeaderList
-	(*StreamFrame)(nil),                // 42: proto.StreamFrame
-	(*ConnectorGatewayEnvelope)(nil),   // 43: proto.ConnectorGatewayEnvelope
-	(*GatewayConnectorEnvelope)(nil),   // 44: proto.GatewayConnectorEnvelope
-	(*ConnectorCmd)(nil),               // 45: proto.ConnectorCmd
-	(*ConnectorHello)(nil),             // 46: proto.ConnectorHello
-	(*ConnectorHeartbeat)(nil),         // 47: proto.ConnectorHeartbeat
-	(*ConnectorHelloAck)(nil),          // 48: proto.ConnectorHelloAck
-	(*ConnectorReject)(nil),            // 49: proto.ConnectorReject
-	(*ScheduleRule)(nil),               // 50: proto.ScheduleRule
-	(*Schedule)(nil),                   // 51: proto.Schedule
-	(*TimeCondition)(nil),              // 52: proto.TimeCondition
-	(*DeviceCondition)(nil),            // 53: proto.DeviceCondition
-	(*NetworkCondition)(nil),           // 54: proto.NetworkCondition
-	(*MFACondition)(nil),               // 55: proto.MFACondition
-	(*PolicyConditions)(nil),           // 56: proto.PolicyConditions
-	(*SubjectSelector)(nil),            // 57: proto.SubjectSelector
-	(*ResourceSelector)(nil),           // 58: proto.ResourceSelector
-	(*PolicyRule)(nil),                 // 59: proto.PolicyRule
-	(*PolicyRecord)(nil),               // 60: proto.PolicyRecord
-	(*AccessLogEntry)(nil),             // 61: proto.AccessLogEntry
-	(*AccessLogBatch)(nil),             // 62: proto.AccessLogBatch
-	nil,                                // 63: proto.StreamFrame.HeadersEntry
-	(*timestamppb.Timestamp)(nil),      // 64: google.protobuf.Timestamp
+	(*RevokedSessions)(nil),            // 34: proto.RevokedSessions
+	(*PolicyBundle)(nil),               // 35: proto.PolicyBundle
+	(*ConnectorEnrollRequest)(nil),     // 36: proto.ConnectorEnrollRequest
+	(*ConnectorEnrollResponse)(nil),    // 37: proto.ConnectorEnrollResponse
+	(*ConnectorRenewCertRequest)(nil),  // 38: proto.ConnectorRenewCertRequest
+	(*ConnectorRenewCertResponse)(nil), // 39: proto.ConnectorRenewCertResponse
+	(*ConnectorStatusResponse)(nil),    // 40: proto.ConnectorStatusResponse
+	(*ConnectorApps)(nil),              // 41: proto.ConnectorApps
+	(*HeaderList)(nil),                 // 42: proto.HeaderList
+	(*StreamFrame)(nil),                // 43: proto.StreamFrame
+	(*ConnectorGatewayEnvelope)(nil),   // 44: proto.ConnectorGatewayEnvelope
+	(*GatewayConnectorEnvelope)(nil),   // 45: proto.GatewayConnectorEnvelope
+	(*ConnectorCmd)(nil),               // 46: proto.ConnectorCmd
+	(*ConnectorHello)(nil),             // 47: proto.ConnectorHello
+	(*ConnectorHeartbeat)(nil),         // 48: proto.ConnectorHeartbeat
+	(*ConnectorHelloAck)(nil),          // 49: proto.ConnectorHelloAck
+	(*ConnectorReject)(nil),            // 50: proto.ConnectorReject
+	(*ScheduleRule)(nil),               // 51: proto.ScheduleRule
+	(*Schedule)(nil),                   // 52: proto.Schedule
+	(*TimeCondition)(nil),              // 53: proto.TimeCondition
+	(*DeviceCondition)(nil),            // 54: proto.DeviceCondition
+	(*NetworkCondition)(nil),           // 55: proto.NetworkCondition
+	(*MFACondition)(nil),               // 56: proto.MFACondition
+	(*PolicyConditions)(nil),           // 57: proto.PolicyConditions
+	(*SubjectSelector)(nil),            // 58: proto.SubjectSelector
+	(*ResourceSelector)(nil),           // 59: proto.ResourceSelector
+	(*PolicyRule)(nil),                 // 60: proto.PolicyRule
+	(*PolicyRecord)(nil),               // 61: proto.PolicyRecord
+	(*AccessLogEntry)(nil),             // 62: proto.AccessLogEntry
+	(*AccessLogBatch)(nil),             // 63: proto.AccessLogBatch
+	nil,                                // 64: proto.StreamFrame.HeadersEntry
+	(*timestamppb.Timestamp)(nil),      // 65: google.protobuf.Timestamp
 }
 var file_ashrix_proto_proto_depIdxs = []int32{
-	64, // 0: proto.GatewayEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
-	64, // 1: proto.GatewayEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
-	64, // 2: proto.GatewayRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
-	64, // 3: proto.GatewayRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
-	64, // 4: proto.NormalizedIdentity.auth_time:type_name -> google.protobuf.Timestamp
-	11, // 5: proto.ExchangeTokenResponse.identity:type_name -> proto.NormalizedIdentity
-	64, // 6: proto.GatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	28, // 7: proto.GatewayEnvelope.hello:type_name -> proto.HelloMessage
-	30, // 8: proto.GatewayEnvelope.heartbeat:type_name -> proto.HeartbeatMessage
-	29, // 9: proto.GatewayEnvelope.cmd_ack:type_name -> proto.CommandAck
-	62, // 10: proto.GatewayEnvelope.log_batch:type_name -> proto.AccessLogBatch
-	64, // 11: proto.CPEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	33, // 12: proto.CPEnvelope.hello_ack:type_name -> proto.HelloAck
-	34, // 13: proto.CPEnvelope.policy_bundle:type_name -> proto.PolicyBundle
-	15, // 14: proto.CPEnvelope.cmd:type_name -> proto.Command
-	16, // 15: proto.Command.rotate_gateway_cert:type_name -> proto.RotateGatewayCertCmd
-	17, // 16: proto.Command.revoke_gateway_cert:type_name -> proto.RevokeGatewayCertCmd
-	18, // 17: proto.Command.revoke_gateway:type_name -> proto.RevokeGatewayCmd
-	19, // 18: proto.Command.revoke_session:type_name -> proto.RevokeSessionCmd
-	20, // 19: proto.Command.drain_gateway:type_name -> proto.DrainGatewayCmd
-	21, // 20: proto.Command.revoke_connector:type_name -> proto.RevokeConnectorCmd
-	22, // 21: proto.Command.rotate_connector_cert:type_name -> proto.RotateConnectorCertCmd
-	23, // 22: proto.Command.revoke_connector_cert:type_name -> proto.RevokeConnectorCertCmd
-	25, // 23: proto.Command.crl_sync:type_name -> proto.CrlSyncCmd
-	26, // 24: proto.Command.connector_sync:type_name -> proto.ConnectorSyncCmd
-	24, // 25: proto.Command.reload_connector:type_name -> proto.ReloadConnectorCmd
+	65, // 0: proto.GatewayEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
+	65, // 1: proto.GatewayEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
+	65, // 2: proto.GatewayRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
+	65, // 3: proto.GatewayRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
+	65, // 4: proto.NormalizedIdentity.auth_time:type_name -> google.protobuf.Timestamp
+	65, // 5: proto.GatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	28, // 6: proto.GatewayEnvelope.hello:type_name -> proto.HelloMessage
+	30, // 7: proto.GatewayEnvelope.heartbeat:type_name -> proto.HeartbeatMessage
+	29, // 8: proto.GatewayEnvelope.cmd_ack:type_name -> proto.CommandAck
+	63, // 9: proto.GatewayEnvelope.log_batch:type_name -> proto.AccessLogBatch
+	65, // 10: proto.CPEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	33, // 11: proto.CPEnvelope.hello_ack:type_name -> proto.HelloAck
+	35, // 12: proto.CPEnvelope.policy_bundle:type_name -> proto.PolicyBundle
+	15, // 13: proto.CPEnvelope.cmd:type_name -> proto.Command
+	16, // 14: proto.Command.rotate_gateway_cert:type_name -> proto.RotateGatewayCertCmd
+	17, // 15: proto.Command.revoke_gateway_cert:type_name -> proto.RevokeGatewayCertCmd
+	18, // 16: proto.Command.revoke_gateway:type_name -> proto.RevokeGatewayCmd
+	19, // 17: proto.Command.revoke_session:type_name -> proto.RevokeSessionCmd
+	20, // 18: proto.Command.drain_gateway:type_name -> proto.DrainGatewayCmd
+	21, // 19: proto.Command.revoke_connector:type_name -> proto.RevokeConnectorCmd
+	22, // 20: proto.Command.rotate_connector_cert:type_name -> proto.RotateConnectorCertCmd
+	23, // 21: proto.Command.revoke_connector_cert:type_name -> proto.RevokeConnectorCertCmd
+	25, // 22: proto.Command.crl_sync:type_name -> proto.CrlSyncCmd
+	26, // 23: proto.Command.connector_sync:type_name -> proto.ConnectorSyncCmd
+	24, // 24: proto.Command.reload_connector:type_name -> proto.ReloadConnectorCmd
+	65, // 25: proto.RevokeSessionCmd.session_expires_at:type_name -> google.protobuf.Timestamp
 	27, // 26: proto.ConnectorSyncCmd.connectors:type_name -> proto.ConnectorInfo
-	64, // 27: proto.CommandAck.time_stamp:type_name -> google.protobuf.Timestamp
+	65, // 27: proto.CommandAck.time_stamp:type_name -> google.protobuf.Timestamp
 	31, // 28: proto.HeartbeatMessage.connector_status:type_name -> proto.ConnectorsStatus
 	32, // 29: proto.HeartbeatMessage.app_health:type_name -> proto.AppHealthStatus
-	64, // 30: proto.ConnectorsStatus.last_checked:type_name -> google.protobuf.Timestamp
-	64, // 31: proto.AppHealthStatus.last_seen:type_name -> google.protobuf.Timestamp
+	65, // 30: proto.ConnectorsStatus.last_checked:type_name -> google.protobuf.Timestamp
+	65, // 31: proto.AppHealthStatus.last_seen:type_name -> google.protobuf.Timestamp
 	27, // 32: proto.HelloAck.connectors:type_name -> proto.ConnectorInfo
-	64, // 33: proto.HelloAck.server_time:type_name -> google.protobuf.Timestamp
-	60, // 34: proto.PolicyBundle.records:type_name -> proto.PolicyRecord
-	64, // 35: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
-	64, // 36: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
-	64, // 37: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
-	64, // 38: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
-	40, // 39: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
-	2,  // 40: proto.StreamFrame.protocol_type:type_name -> proto.ProtocolType
-	63, // 41: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
-	0,  // 42: proto.StreamFrame.stream_type:type_name -> proto.RequestType
-	1,  // 43: proto.StreamFrame.flow_type:type_name -> proto.FlowType
-	64, // 44: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	46, // 45: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
-	47, // 46: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
-	48, // 47: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
-	49, // 48: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
-	45, // 49: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
-	3,  // 50: proto.ConnectorCmd.cmd:type_name -> proto.CommandType
-	40, // 51: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
-	32, // 52: proto.ConnectorHeartbeat.app_health:type_name -> proto.AppHealthStatus
-	50, // 53: proto.Schedule.rules:type_name -> proto.ScheduleRule
-	55, // 54: proto.PolicyConditions.mfa:type_name -> proto.MFACondition
-	53, // 55: proto.PolicyConditions.device:type_name -> proto.DeviceCondition
-	54, // 56: proto.PolicyConditions.network:type_name -> proto.NetworkCondition
-	52, // 57: proto.PolicyConditions.time:type_name -> proto.TimeCondition
-	4,  // 58: proto.PolicyRule.effect:type_name -> proto.EffectEnum
-	57, // 59: proto.PolicyRule.subject:type_name -> proto.SubjectSelector
-	58, // 60: proto.PolicyRule.resource:type_name -> proto.ResourceSelector
-	56, // 61: proto.PolicyRule.conditions:type_name -> proto.PolicyConditions
-	64, // 62: proto.PolicyRule.created_at:type_name -> google.protobuf.Timestamp
-	5,  // 63: proto.PolicyRecord.operation:type_name -> proto.OperationEnum
-	59, // 64: proto.PolicyRecord.rule:type_name -> proto.PolicyRule
-	64, // 65: proto.AccessLogEntry.created_at:type_name -> google.protobuf.Timestamp
-	61, // 66: proto.AccessLogBatch.entries:type_name -> proto.AccessLogEntry
-	41, // 67: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
-	10, // 68: proto.ControlPlaneService.ExchangeToken:input_type -> proto.ExchangeTokenRequest
-	13, // 69: proto.ControlPlaneService.Connect:input_type -> proto.GatewayEnvelope
-	43, // 70: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
-	12, // 71: proto.ControlPlaneService.ExchangeToken:output_type -> proto.ExchangeTokenResponse
-	14, // 72: proto.ControlPlaneService.Connect:output_type -> proto.CPEnvelope
-	44, // 73: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
-	71, // [71:74] is the sub-list for method output_type
-	68, // [68:71] is the sub-list for method input_type
-	68, // [68:68] is the sub-list for extension type_name
-	68, // [68:68] is the sub-list for extension extendee
-	0,  // [0:68] is the sub-list for field type_name
+	34, // 33: proto.HelloAck.revoked_sessions:type_name -> proto.RevokedSessions
+	65, // 34: proto.HelloAck.server_time:type_name -> google.protobuf.Timestamp
+	65, // 35: proto.RevokedSessions.expires_at:type_name -> google.protobuf.Timestamp
+	61, // 36: proto.PolicyBundle.records:type_name -> proto.PolicyRecord
+	65, // 37: proto.ConnectorEnrollRequest.timestamp:type_name -> google.protobuf.Timestamp
+	65, // 38: proto.ConnectorEnrollResponse.expires_at:type_name -> google.protobuf.Timestamp
+	65, // 39: proto.ConnectorRenewCertRequest.timestamp:type_name -> google.protobuf.Timestamp
+	65, // 40: proto.ConnectorRenewCertResponse.expires_at:type_name -> google.protobuf.Timestamp
+	41, // 41: proto.ConnectorStatusResponse.apps:type_name -> proto.ConnectorApps
+	2,  // 42: proto.StreamFrame.protocol_type:type_name -> proto.ProtocolType
+	64, // 43: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
+	0,  // 44: proto.StreamFrame.stream_type:type_name -> proto.RequestType
+	1,  // 45: proto.StreamFrame.flow_type:type_name -> proto.FlowType
+	65, // 46: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
+	47, // 47: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
+	48, // 48: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
+	49, // 49: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
+	50, // 50: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
+	46, // 51: proto.GatewayConnectorEnvelope.cmd:type_name -> proto.ConnectorCmd
+	3,  // 52: proto.ConnectorCmd.cmd:type_name -> proto.CommandType
+	41, // 53: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
+	32, // 54: proto.ConnectorHeartbeat.app_health:type_name -> proto.AppHealthStatus
+	51, // 55: proto.Schedule.rules:type_name -> proto.ScheduleRule
+	56, // 56: proto.PolicyConditions.mfa:type_name -> proto.MFACondition
+	54, // 57: proto.PolicyConditions.device:type_name -> proto.DeviceCondition
+	55, // 58: proto.PolicyConditions.network:type_name -> proto.NetworkCondition
+	53, // 59: proto.PolicyConditions.time:type_name -> proto.TimeCondition
+	4,  // 60: proto.PolicyRule.effect:type_name -> proto.EffectEnum
+	58, // 61: proto.PolicyRule.subject:type_name -> proto.SubjectSelector
+	59, // 62: proto.PolicyRule.resource:type_name -> proto.ResourceSelector
+	57, // 63: proto.PolicyRule.conditions:type_name -> proto.PolicyConditions
+	65, // 64: proto.PolicyRule.created_at:type_name -> google.protobuf.Timestamp
+	5,  // 65: proto.PolicyRecord.operation:type_name -> proto.OperationEnum
+	60, // 66: proto.PolicyRecord.rule:type_name -> proto.PolicyRule
+	65, // 67: proto.AccessLogEntry.created_at:type_name -> google.protobuf.Timestamp
+	62, // 68: proto.AccessLogBatch.entries:type_name -> proto.AccessLogEntry
+	42, // 69: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
+	10, // 70: proto.ControlPlaneService.ExchangeToken:input_type -> proto.ExchangeTokenRequest
+	13, // 71: proto.ControlPlaneService.Connect:input_type -> proto.GatewayEnvelope
+	44, // 72: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
+	12, // 73: proto.ControlPlaneService.ExchangeToken:output_type -> proto.ExchangeTokenResponse
+	14, // 74: proto.ControlPlaneService.Connect:output_type -> proto.CPEnvelope
+	45, // 75: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
+	73, // [73:76] is the sub-list for method output_type
+	70, // [70:73] is the sub-list for method input_type
+	70, // [70:70] is the sub-list for extension type_name
+	70, // [70:70] is the sub-list for extension extendee
+	0,  // [0:70] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_proto_proto_init() }
@@ -5245,11 +5333,11 @@ func file_ashrix_proto_proto_init() {
 		(*Command_ConnectorSync)(nil),
 		(*Command_ReloadConnector)(nil),
 	}
-	file_ashrix_proto_proto_msgTypes[37].OneofWrappers = []any{
+	file_ashrix_proto_proto_msgTypes[38].OneofWrappers = []any{
 		(*ConnectorGatewayEnvelope_Hello)(nil),
 		(*ConnectorGatewayEnvelope_Heartbeat)(nil),
 	}
-	file_ashrix_proto_proto_msgTypes[38].OneofWrappers = []any{
+	file_ashrix_proto_proto_msgTypes[39].OneofWrappers = []any{
 		(*GatewayConnectorEnvelope_HelloAck)(nil),
 		(*GatewayConnectorEnvelope_Reject)(nil),
 		(*GatewayConnectorEnvelope_Cmd)(nil),
@@ -5260,7 +5348,7 @@ func file_ashrix_proto_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_proto_proto_rawDesc), len(file_ashrix_proto_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   58,
+			NumMessages:   59,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

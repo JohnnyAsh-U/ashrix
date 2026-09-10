@@ -205,7 +205,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 	//-------------------Session Initializing------------------------
 	activeStreams := registry.NewActiveStreamRegistry()
 
-	sessions := session.NewSessionManager(redisStore.Client(), cfg.SessionTTL, activeStreams, cfg.CookieSecure)
+	sessions, err := session.NewSessionManager(redisStore.Client(), cfg.SessionTTL, activeStreams, cfg.CookieSecure, cfg.GatewayID, cfg.TenantId)
+	if err != nil {
+		log.Error("Session initialization failed", slog.Any("err", err))
+		os.Exit(1)
+	}
 	log.Info("Session Initialized")
 
 	// 1. Connection Manager

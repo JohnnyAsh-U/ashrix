@@ -61,6 +61,7 @@ service ControlPlaneService {
 message ExchangeTokenRequest {
   string gateway_name = 1;
   string token_hash   = 2;
+  string gateway_id   = 3;
 }
 
 message NormalizedIdentity {
@@ -76,9 +77,9 @@ message NormalizedIdentity {
 }
 
 message ExchangeTokenResponse {
-  bool               valid         = 1;
-  NormalizedIdentity identity      = 2;
-  string             error_message = 3;
+  bool   valid         = 1;
+  string session_token = 2;
+  string error_message = 3;
 }
 
 // =============================================================================
@@ -134,7 +135,8 @@ message RevokeGatewayCertCmd {}
 message RevokeGatewayCmd {}
 
 message RevokeSessionCmd {
-  string session_id = 1;
+  string                    session_id         = 1;
+  google.protobuf.Timestamp session_expires_at = 2;
 }
 
 message DrainGatewayCmd {}
@@ -219,10 +221,17 @@ message AppHealthStatus {
 // =============================================================================
 
 message HelloAck {
-  string                    server_version = 1;
-  repeated ConnectorInfo    connectors     = 2;
-  bool                      log_to_cp      = 3;
-  google.protobuf.Timestamp server_time    = 4;
+  string                    server_version   = 1;
+  repeated ConnectorInfo    connectors       = 2;
+  repeated RevokedSessions  revoked_sessions = 3;
+  bool                      log_to_cp        = 4;
+  google.protobuf.Timestamp server_time      = 5;
+}
+
+message RevokedSessions {
+  string                    session_id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+
 }
 
 message PolicyBundle {

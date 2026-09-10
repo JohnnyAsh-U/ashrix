@@ -1,6 +1,10 @@
 package events
 
-import proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+import (
+	"time"
+
+	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+)
 
 
 type CommandType string
@@ -37,6 +41,8 @@ type persistedCommand struct {
 
 	SessionID string `json:"session_id,omitempty"`
 
+	SessionExpires time.Time `json:"session_expires,omitempty"`
+
 	RevokedSerialNumbers []string `json:"revoked_serial_numbers,omitempty"`
 
 	ConnectorInfo []*proto.ConnectorInfo `json:"connector_info,omitempty"`
@@ -60,6 +66,8 @@ type CommandJob struct {
 	ConnectorID string
 
 	SessionID string
+
+	SessionExpires time.Time
 
 	RevokedSerialNumbers []string
 

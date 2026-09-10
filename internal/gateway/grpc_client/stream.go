@@ -284,9 +284,9 @@ func (h *StreamManager) heartbeater(ctx context.Context) {
 					statusStr = "connected"
 				}
 				connStatuses = append(connStatuses, &pb.ConnectorsStatus{
-					ConnectorId: entry.ConnectorID,
-					Status:      statusStr,
-					LastChecked: timestamppb.Now(),
+					ConnectorId:   entry.ConnectorID,
+					Status:        statusStr,
+					LastChecked:   timestamppb.Now(),
 					ActiveStreams: entry.ActiveStreams,
 				})
 			}
@@ -297,13 +297,13 @@ func (h *StreamManager) heartbeater(ctx context.Context) {
 			h.Send(&pb.GatewayEnvelope{
 				Payload: &pb.GatewayEnvelope_Heartbeat{
 					Heartbeat: &pb.HeartbeatMessage{
-						Seq:               seq,
-						GatewayId:         h.cfg.GatewayID,
-						ActiveSessions:    int32(h.registry.ActiveConnectors()),
-						ConnectorCount:    int32(h.registry.ActiveConnectors()),
-						ConnectorStatus:   connStatuses,
-						Uptime:            uptimeSec,
-						AppHealth:         appHealth,
+						Seq:             seq,
+						GatewayId:       h.cfg.GatewayID,
+						ActiveSessions:  int32(h.registry.ActiveConnectors()),
+						ConnectorCount:  int32(h.registry.ActiveConnectors()),
+						ConnectorStatus: connStatuses,
+						Uptime:          uptimeSec,
+						AppHealth:       appHealth,
 					},
 				},
 			})
@@ -338,6 +338,10 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		}
 		h.registry.SetAuthorizedConnectors(statusMap)
 
+		for _, c := range p.HelloAck.RevokedSessions {
+			h.session.RevokeByCPSession(ctx, c.SessionId, c.ExpiresAt)
+		}
+
 	case *pb.CPEnvelope_PolicyBundle:
 		h.handlePolicyUpdate(ctx, msg)
 
@@ -347,7 +351,7 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 		case *pb.Command_RevokeSession:
 			h.log.Info("revoking session in Redis", slog.String("session_id", cmd.RevokeSession.SessionId))
 			if h.redisClient != nil {
-				if err := h.session.RevokeByCPSession(ctx, cmd.RevokeSession.SessionId); err != nil {
+				if err := h.session.RevokeByCPSession(ctx, cmd.RevokeSession.SessionId, cmd.RevokeSession.SessionExpiresAt); err != nil {
 					h.CommandStatusUpdate(p.Cmd.Seq, false, err.Error())
 				} else {
 					h.CommandStatusUpdate(p.Cmd.Seq, true, "")

@@ -20,6 +20,8 @@ type Repository interface {
 	GetUserSessionsByOrgAndUser(ctx context.Context, params store.GetUserActiveSessionParams) ([]store.UserSession, error)
 	RevokeUserSession(ctx context.Context, id uuid.UUID) (store.UserSession, error)
 
+	ListRevokedUserSessionByOrg(ctx context.Context, orgID uuid.UUID) ([]store.UserSession, error)
+
 	CreateAppIdPMapping(ctx context.Context, params store.AddAppIdpMappingParams) (store.AppIdpMapping, error)
 	DeleteAppIdpMapping(ctx context.Context, params store.DeleteAppIdpMappingParams) (store.AppIdpMapping, error)
 }
@@ -77,4 +79,8 @@ func (r *postgresRepository) CreateAppIdPMapping(ctx context.Context, params sto
 
 func (r *postgresRepository) DeleteAppIdpMapping(ctx context.Context, params store.DeleteAppIdpMappingParams) (store.AppIdpMapping, error) {
 	return r.q.DeleteAppIdpMapping(ctx, params)
+}
+
+func (r *postgresRepository) ListRevokedUserSessionByOrg(ctx context.Context, orgID uuid.UUID) ([]store.UserSession, error) {
+	return r.q.ListRevokedUserSessionByOrg(ctx, orgID)
 }

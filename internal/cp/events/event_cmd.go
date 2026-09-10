@@ -7,6 +7,7 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type GatewayEvent struct {
@@ -123,7 +124,8 @@ func BuildCommand(
 		return &gen.Command{
 			Payload: &gen.Command_RevokeSession{
 				RevokeSession: &gen.RevokeSessionCmd{
-					SessionId: job.SessionID,
+					SessionId:        job.SessionID,
+					SessionExpiresAt: timestamppb.New(job.SessionExpires),
 				},
 			},
 		}, nil
@@ -162,6 +164,7 @@ func MarshalCommand(job CommandJob) ([]byte, error) {
 			ConnectorID:          job.ConnectorID,
 			SessionID:            job.SessionID,
 			RevokedSerialNumbers: job.RevokedSerialNumbers,
+			SessionExpires:       job.SessionExpires,
 			ConnectorInfo:        job.ConnectorInfo,
 		},
 	)
@@ -183,6 +186,7 @@ func UnmarshalCommand(data []byte) (CommandJob, error) {
 		ConnectorID:          command.ConnectorID,
 		SessionID:            command.SessionID,
 		RevokedSerialNumbers: command.RevokedSerialNumbers,
+		SessionExpires:       command.SessionExpires,
 		ConnectorInfo:        command.ConnectorInfo,
 	}, nil
 }

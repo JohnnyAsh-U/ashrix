@@ -207,6 +207,7 @@ type Querier interface {
 	ListIDPConfigsByOrg(ctx context.Context, orgID uuid.UUID) ([]IdpConfig, error)
 	ListPoliciesByAppResource(ctx context.Context, arg ListPoliciesByAppResourceParams) ([]Policy, error)
 	ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error)
+	ListRevokedUserSessionByOrg(ctx context.Context, orgID uuid.UUID) ([]UserSession, error)
 	// Called after owner completes SSO binding confirmation flow.
 	MarkIDPConfigVerified(ctx context.Context, arg MarkIDPConfigVerifiedParams) (IdpConfig, error)
 	MarkOfflineStaleConnectors(ctx context.Context, thresholdMinutes string) (int64, error)

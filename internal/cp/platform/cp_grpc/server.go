@@ -62,6 +62,7 @@ func InitializeGRPCServer(
 		gatewayRepo:   repositories.Gateway,
 		PkiCARepo:     repositories.PKICA,
 		connectorRepo: repositories.Connector,
+		identityRepo:  repositories.IDP,
 		appRepo:       repositories.App,
 		eventRepo:     repositories.Event,
 		logRepo:       repositories.Log,

@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"sync"
 	"time"
-
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
@@ -42,21 +41,21 @@ type ConnectorEntry struct {
 // This is intentionally the ONLY shared mutable state connecting
 // the CP-facing and connector-facing halves of the gateway.
 type Registry struct {
-	mu             sync.RWMutex
-	connectors     map[string]*ConnectorEntry // connector_id → entry
-	routing        map[string]string          // subdomain → connector_id
-	crlSerials     map[string]struct{}
-	authConnectors map[string]string // connector_id -> status
-	log            *slog.Logger
+	mu              sync.RWMutex
+	connectors      map[string]*ConnectorEntry // connector_id → entry
+	routing         map[string]string          // subdomain → connector_id
+	crlSerials      map[string]struct{}
+	authConnectors  map[string]string // connector_id -> status
+	log             *slog.Logger
 }
 
 func New(log *slog.Logger) *Registry {
 	return &Registry{
-		connectors:     make(map[string]*ConnectorEntry),
-		routing:        make(map[string]string), //Subdomain to connectors
-		crlSerials:     make(map[string]struct{}),
-		authConnectors: make(map[string]string),
-		log:            log,
+		connectors:      make(map[string]*ConnectorEntry),
+		routing:         make(map[string]string), //Subdomain to connectors
+		crlSerials:      make(map[string]struct{}),
+		authConnectors:  make(map[string]string),
+		log:             log,
 	}
 }
 
@@ -379,7 +378,6 @@ func (r *Registry) ActiveConnectors() int {
 	return len(r.connectors)
 }
 
-
 func (r *Registry) ForceCloseConnector(connectorID string) {
 	r.mu.RLock()
 	entry, ok := r.connectors[connectorID]
@@ -460,3 +458,30 @@ func (r *Registry) GetTunnelSession(connectorID string) (TunnelSession, bool) {
 	}
 	return entry.TunnelSession, entry.TunnelSession != nil
 }
+
+// func (s *Registry) RevokeUserSession(sessionID string, expiresAt time.Time) {
+// 	if sessionID == "" {
+// 		return
+// 	}
+// 	s.mu.Lock()
+// 	defer s.mu.Unlock()
+// 	s.revokedSessions[sessionID] = expiresAt
+// }
+
+// func (s *Registry) IsUserSessionRevoked(sessionID string) bool {
+// 	s.mu.RLock()
+// 	expiresAt, ok := s.revokedSessions[sessionID]
+// 	s.mu.RUnlock()
+// 	return ok && time.Now().Before(expiresAt)
+// }
+
+// func (s *Registry) RemoveUserSessionExpired() {
+// 	now := time.Now()
+// 	s.mu.Lock()
+// 	defer s.mu.Unlock()
+// 	for sessionID, expiresAt := range s.revokedSessions {
+// 		if !now.Before(expiresAt) {
+// 			delete(s.revokedSessions, sessionID)
+// 		}
+// 	}
+// }

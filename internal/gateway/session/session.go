@@ -2,7 +2,7 @@ package session
 
 import (
 	"context"
-	"encoding/json"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"net"
@@ -10,11 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
-    "golang.org/x/net/publicsuffix"
+	"golang.org/x/net/publicsuffix"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -36,10 +38,32 @@ type SessionManager struct {
 	ttl            time.Duration
 	streamRegistry *registry.ActiveStreamRegistry
 	secure         bool
+	revocations    *RevocationStore
+	publicKey      ed25519.PublicKey
+	gatewayID      string
+	tenantID       string
 }
 
-func NewSessionManager(redis *redis.Client, ttl time.Duration, streamRegistry *registry.ActiveStreamRegistry, secure bool) *SessionManager {
-	return &SessionManager{redis: redis, ttl: ttl, streamRegistry: streamRegistry, secure: secure}
+func NewSessionManager(
+	redis *redis.Client, 
+	ttl time.Duration, 
+	streamRegistry *registry.ActiveStreamRegistry, 
+	secure bool, gatewayID, tenantID string,
+	) (*SessionManager, error) {
+	rootKey, err := store.RootPublicKey()
+	if err != nil {
+		return nil, err
+	}
+	return &SessionManager{
+		redis:          redis,
+		ttl:            ttl,
+		streamRegistry: streamRegistry,
+		secure:         secure,
+		revocations:    NewRevocationStore(),
+		publicKey:      rootKey.PublicKey,
+		gatewayID:      gatewayID,
+		tenantID:       tenantID,
+	}, nil
 }
 
 func sessionKey(sessionID string) string {
@@ -67,38 +91,50 @@ func (sm *SessionManager) Get(r *http.Request) (*proto.NormalizedIdentity, strin
 
 		return nil, "", fmt.Errorf("redis get session: %w", err)
 	}
-	var id proto.NormalizedIdentity
-	if err := json.Unmarshal([]byte(data), &id); err != nil {
-		return nil, "", fmt.Errorf("corrupt session")
+	token, err := sm.verifyToken(data)
+	if err != nil {
+		_ = sm.redis.Del(r.Context(), sessionKey(cookie.Value)).Err()
+		return nil, "", err
 	}
+	if sm.revocations.IsRevoked(token.SessionID) {
+		return nil, "", fmt.Errorf("session revoked")
+	}
+
+	
+	id := proto.NormalizedIdentity{
+		UserId: token.Subject, 
+		TenantId: token.TenantID, 
+		CpSessionId: token.SessionID, 
+		Groups: token.Groups,
+		Email: token.Email,
+		Name: token.Name,
+		ProviderId: token.ProviderID,
+		Provider: token.Provider,
+	}
+
+
 	return &id, sessionKey(cookie.Value), nil
 }
 
-func (sm *SessionManager) Create(w http.ResponseWriter, r *http.Request, identity *proto.NormalizedIdentity) error {
-
-	if identity == nil {
-		return fmt.Errorf("identity is nil")
-	}
-
-	if identity.CpSessionId == "" {
-		return fmt.Errorf("missing cp session id")
-	}
+func (sm *SessionManager) Create(w http.ResponseWriter, r *http.Request, sessionToken string) error {
 
 	sid, err := crypto.GenerateSessionID()
 	if err != nil {
 		return err
 	}
-	identity.AuthTime = timestamppb.Now()
-	data, err := json.Marshal(identity)
+	if sessionToken == "" {
+		return fmt.Errorf("missing CP session token")
+	}
+	claims, err := sm.verifyToken(sessionToken)
 	if err != nil {
-		return fmt.Errorf("marshal identity: %w", err)
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
 	sessionKey := sessionKey(sid)
-	cpIndexKey := cpSessionIndexKey(identity.CpSessionId)
+	cpIndexKey := cpSessionIndexKey(claims.SessionID)
 
 	// Create both:
 	//
@@ -111,7 +147,7 @@ func (sm *SessionManager) Create(w http.ResponseWriter, r *http.Request, identit
 	pipe.Set(
 		ctx,
 		sessionKey,
-		data,
+		sessionToken,
 		sm.ttl,
 	)
 
@@ -142,6 +178,45 @@ func (sm *SessionManager) Create(w http.ResponseWriter, r *http.Request, identit
 	return nil
 }
 
+type SessionClaims struct {
+	TenantID  string   `json:"tid"`
+	GatewayID string   `json:"gid"`
+	SessionID string   `json:"sid"`
+	ProviderID string `json:"pid"`
+	Provider string `json:"prov"`
+	Email string `json:"email"`
+	Name string `json:"name"`
+	Groups    []string `json:"groups"`
+	jwt.RegisteredClaims
+}
+
+func (sm *SessionManager) verifyToken(raw string) (*SessionClaims, error) {
+	claims := &SessionClaims{}
+	token, err := jwt.ParseWithClaims(raw, claims, func(token *jwt.Token) (any, error) {
+		if token.Method.Alg() != jwt.SigningMethodEdDSA.Alg() {
+			return nil, fmt.Errorf("unexpected session signing algorithm")
+		}
+		if token.Header["kid"] != "cp-2026-01" {
+			return nil, fmt.Errorf("unknown session signing key")
+		}
+		return sm.publicKey, nil
+	},
+		jwt.WithIssuer("ashrix-cp"),
+		jwt.WithAudience("ashrix-gateway"),
+		jwt.WithValidMethods([]string{"EdDSA"}))
+		
+	if err != nil || !token.Valid {
+		return nil, fmt.Errorf("invalid CP session token")
+	}
+	if claims.IssuedAt == nil || claims.IssuedAt.After(time.Now().Add(30*time.Second)) {
+		return nil, fmt.Errorf("invalid CP session issue time")
+	}
+	if claims.Subject == "" || claims.SessionID == "" || claims.TenantID != sm.tenantID || claims.GatewayID != sm.gatewayID {
+		return nil, fmt.Errorf("session claims do not match gateway")
+	}
+	return claims, nil
+}
+
 func (sm *SessionManager) Destroy(w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(sessionCookie)
 
@@ -159,10 +234,7 @@ func (sm *SessionManager) Destroy(w http.ResponseWriter, r *http.Request) error 
 		).Result()
 
 		if err == nil {
-			var identity proto.NormalizedIdentity
-
-			if json.Unmarshal([]byte(data), &identity) == nil &&
-				identity.CpSessionId != "" {
+			if claims, verifyErr := sm.verifyToken(data); verifyErr == nil {
 
 				pipe := sm.redis.TxPipeline()
 				pipe.Del(
@@ -172,7 +244,7 @@ func (sm *SessionManager) Destroy(w http.ResponseWriter, r *http.Request) error 
 
 				pipe.SRem(
 					ctx,
-					cpSessionIndexKey(identity.CpSessionId),
+					cpSessionIndexKey(claims.SessionID),
 					sid,
 				)
 
@@ -203,11 +275,14 @@ func (sm *SessionManager) Destroy(w http.ResponseWriter, r *http.Request) error 
 func (sm *SessionManager) RevokeByCPSession(
 	ctx context.Context,
 	cpSessionID string,
+	SessionExpiresAt *timestamppb.Timestamp,
 ) error {
 
 	if cpSessionID == "" {
 		return fmt.Errorf("missing cp session id")
 	}
+
+	sm.revocations.Revoke(cpSessionID, SessionExpiresAt.AsTime())
 
 	indexKey := cpSessionIndexKey(cpSessionID)
 
@@ -244,74 +319,18 @@ func (sm *SessionManager) RevokeByCPSession(
 	return nil
 }
 
-// RevokeGatewaySession revokes one specific gateway session.
-func (sm *SessionManager) RevokeGatewaySession(
-	ctx context.Context,
-	sessionID string,
-) error {
-
-	if sessionID == "" {
-		return fmt.Errorf("missing session id")
-	}
-
-	sm.streamRegistry.RevokeSession(sessionID)
-
-	data, err := sm.redis.Get(
-		ctx,
-		sessionKey(sessionID),
-	).Result()
-
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return nil
-		}
-		return fmt.Errorf("get gateway session: %w", err)
-	}
-
-	var identity proto.NormalizedIdentity
-
-	if err := json.Unmarshal([]byte(data), &identity); err != nil {
-		// Session is corrupt, but we can still delete it.
-		if err := sm.redis.Del(ctx, sessionKey(sessionID)).Err(); err != nil {
-			return fmt.Errorf("delete corrupt session: %w", err)
-		}
-
-		return ErrCorruptSession
-	}
-
-	pipe := sm.redis.TxPipeline()
-
-	pipe.Del(
-		ctx,
-		sessionKey(sessionID),
-	)
-	if identity.CpSessionId != "" {
-		pipe.SRem(
-			ctx,
-			cpSessionIndexKey(identity.CpSessionId),
-			sessionID,
-		)
-	}
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("revoke gateway session: %w", err)
-	}
-
-	return nil
-}
-
 
 func CookieDomain(host string) string {
-    host = strings.TrimSuffix(host, ".")
+	host = strings.TrimSuffix(host, ".")
 
-    if h, _, err := net.SplitHostPort(host); err == nil {
-        host = h
-    }
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
 
-    domain, err := publicsuffix.EffectiveTLDPlusOne(host)
-    if err != nil {
-        return ""
-    }
+	domain, err := publicsuffix.EffectiveTLDPlusOne(host)
+	if err != nil {
+		return ""
+	}
 
-    return domain
+	return domain
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/dispatcher"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/middleware"
@@ -49,6 +50,7 @@ func InitializeHttpServer(
 	log *slog.Logger,
 	CASigner pki.CASigner,
 	gatewayRegistry *registry.GatewayRegistry,
+	bundleSigner crypto.BundleSigning,
 ) *Server {
 
 	//Mailer config
@@ -91,7 +93,7 @@ func InitializeHttpServer(
 	orgHandler := org.NewOrgHandler(orgService)
 
 	//IDP Routes
-	idpSession, err := identity.NewIDPSession(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix", redisStore.Client(), log)
+	idpSession, err := identity.NewIDPSession(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix", redisStore.Client(), log, bundleSigner)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -129,7 +131,6 @@ func InitializeHttpServer(
 	//Connectors routes
 	connectorService := connector.NewService(respositories.Connector, respositories.PKICA, respositories.Event, respositories.Gateway, eventsDispatcher)
 	connectorHandler := connector.NewConnectorHandler(connectorService, CASigner)
-
 
 	updateStaleGatewayConnector(context.Background(), respositories.Gateway, respositories.Connector, log)
 

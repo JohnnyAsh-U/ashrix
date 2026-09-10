@@ -136,6 +136,43 @@ func (q *Queries) GetUserSessionByID(ctx context.Context, id uuid.UUID) (UserSes
 	return i, err
 }
 
+const listRevokedUserSessionByOrg = `-- name: ListRevokedUserSessionByOrg :many
+SELECT id, org_id, user_id, user_email, gateway_id, issued_at, expires_at, revoked_at FROM user_sessions
+WHERE org_id = $1
+  AND expires_at > NOW()
+  AND revoked_at IS NOT NULL
+ORDER BY issued_at DESC
+`
+
+func (q *Queries) ListRevokedUserSessionByOrg(ctx context.Context, orgID uuid.UUID) ([]UserSession, error) {
+	rows, err := q.db.Query(ctx, listRevokedUserSessionByOrg, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UserSession{}
+	for rows.Next() {
+		var i UserSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.UserID,
+			&i.UserEmail,
+			&i.GatewayID,
+			&i.IssuedAt,
+			&i.ExpiresAt,
+			&i.RevokedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeActiveUserSession = `-- name: RevokeActiveUserSession :one
 UPDATE user_sessions
 SET revoked_at = now()

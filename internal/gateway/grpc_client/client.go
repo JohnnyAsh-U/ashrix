@@ -21,7 +21,7 @@ func NewSafeClient(cm *ConnectionManager) *SafeClient {
 	return &SafeClient{cm: cm}
 }
 
-func (sc *SafeClient) ExchangeToken(ctx context.Context, req *pb.ExchangeTokenRequest, opts ...grpc.CallOption) (*pb.NormalizedIdentity, error) {
+func (sc *SafeClient) ExchangeToken(ctx context.Context, req *pb.ExchangeTokenRequest, opts ...grpc.CallOption) (*pb.ExchangeTokenResponse, error) {
 	conn := sc.cm.CurrentConn()
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
@@ -31,16 +31,14 @@ func (sc *SafeClient) ExchangeToken(ctx context.Context, req *pb.ExchangeTokenRe
 		return nil, status.Error(codes.Unavailable, "control plane not connected")
 	}
 
-	
 	resp, err := pb.NewControlPlaneServiceClient(conn).ExchangeToken(ctx, req, opts...)
 
-	if err != nil{
+	if err != nil {
 		return nil, fmt.Errorf("grpc Exchange: %w", err)
 	}
 	if !resp.Valid {
 		return nil, fmt.Errorf("Invalid Token: %s", resp.ErrorMessage)
 	}
 
-	return resp.Identity, nil
+	return resp, nil
 }
-

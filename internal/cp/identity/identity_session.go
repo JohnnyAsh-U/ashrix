@@ -19,6 +19,7 @@ import (
 	"time"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
+	cpcrypto "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -37,7 +38,7 @@ type BrokerClaims struct {
 }
 
 type StateEntry struct {
-	Nonce        string `json:"nonce"`
+	Nonce string `json:"nonce"`
 	// AppID        string `json:"app_id"`
 	TenantID     string `json:"tenant_id"`
 	ProviderID   string `json:"provider_id"`
@@ -51,11 +52,14 @@ type IDPSession struct {
 	issuer     string
 	tokenTTL   time.Duration
 
+	jwtTokenTTL time.Duration
+
 	rdbClient *redis.Client
 	stateTTL  time.Duration
+	signer    cpcrypto.BundleSigning
 }
 
-func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client, log *slog.Logger) (*IDPSession, error) {
+func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client, log *slog.Logger, signer cpcrypto.BundleSigning) (*IDPSession, error) {
 	log.Info("Initializing JWT PKI...")
 
 	jwtDir := filepath.Join(baseDir, "jwt")
@@ -104,7 +108,9 @@ func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client, 
 		issuer:     issuer,
 		tokenTTL:   15 * time.Minute,
 		stateTTL:   10 * time.Minute,
+		jwtTokenTTL: 8 *time.Hour,
 		rdbClient:  rdb,
+		signer:     signer,
 	}, nil
 }
 
@@ -115,8 +121,10 @@ func (t *IDPSession) CreateUserSession(ctx context.Context, gatewayID, gatewayNa
 		return "", fmt.Errorf("Generation failed: %w", err)
 	}
 
-
-	data, err := json.Marshal(identity)
+	if t.signer == nil {
+		return "", fmt.Errorf("session signer is not configured")
+	}
+	data, err := t.issueGatewaySessionToken(identity, gatewayID)
 	if err != nil {
 		return "", err
 	}
@@ -125,37 +133,44 @@ func (t *IDPSession) CreateUserSession(ctx context.Context, gatewayID, gatewayNa
 	// suspenders against a random-generation collision, which is
 	// astronomically unlikely with 32 bytes of entropy but costs
 	// nothing to guard against explicitly)
-	ok, err := t.rdbClient.SetNX(ctx, sessionKey(tokenHash, gatewayName), data, t.tokenTTL).Result()
+	ok, err := t.rdbClient.SetNX(ctx, sessionKey(gatewayName, tokenHash), data, t.tokenTTL).Result()
 	if err != nil {
 		return "", fmt.Errorf("redis setnx: %w", err)
 	}
 	if !ok {
 		return "", fmt.Errorf("state collision — retry")
 	}
-
-	// claims := BrokerClaims{
-	// 	RegisteredClaims: jwt.RegisteredClaims{
-	// 		Issuer:    t.issuer,
-	// 		Subject:   identity.UserID,
-	// 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(t.tokenTTL)),
-	// 		IssuedAt:  jwt.NewNumericDate(time.Now()),
-	// 		NotBefore: jwt.NewNumericDate(time.Now()),
-	// 	},
-	// 	TenantID: identity.TenantID,
-	// 	UserID:   identity.UserID,
-	// 	Email:    identity.Email,
-	// 	Name:     identity.Name,
-	// 	Groups:   identity.Groups,
-	// 	Provider: identity.Provider,
-	// }
-
-	// token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
-	// signed, err := token.SignedString(t.signingKey)
-	// if err != nil {
-	// 	return "", fmt.Errorf("sign broker token: %w", err)
-	// }
-	// return signed, nil
 	return token, nil
+}
+
+func (t *IDPSession) issueGatewaySessionToken(identity *proto.NormalizedIdentity, gatewayID string) (string, error) {
+	now := time.Now()
+	header, err := json.Marshal(map[string]string{"alg": "EdDSA", "kid": "cp-2026-01", "typ": "JWT"})
+	if err != nil {
+		return "", err
+	}
+	claims, err := json.Marshal(map[string]any{
+		"iss": "ashrix-cp", 
+		"aud": []string{"ashrix-gateway"}, 
+		"sub": identity.UserId,  //UserId
+		"sid": identity.CpSessionId, //CPSessionId
+		"tid": identity.TenantId, //TenantId
+		"gid": gatewayID,  //GatewayId
+		"email": identity.Email, //Email
+		"name": identity.Name, //Name
+		"groups": identity.Groups, //Groups
+		"prov": identity.Provider,
+		"iat": now.Unix(), //AuthTime
+		"pid": identity.ProviderId, //ProviderId
+		"nbf": now.Unix(), 
+		"exp": now.Add(t.jwtTokenTTL).Unix(),
+	})
+	if err != nil {
+		return "", err
+	}
+	encode := base64.RawURLEncoding.EncodeToString
+	signingInput := encode(header) + "." + encode(claims)
+	return signingInput + "." + encode(t.signer.SignJWT([]byte(signingInput))), nil
 }
 
 // For Gateway to verify; to be moved to gateway
@@ -291,7 +306,7 @@ func stateKey(state string) string {
 	return "broker:oidc_state:" + state
 }
 
-func sessionKey(state, gatewayName string) string {
+func sessionKey(gatewayName, state string) string {
 	return fmt.Sprintf("session:%s:%s", gatewayName, state)
 }
 

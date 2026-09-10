@@ -62,18 +62,17 @@ func main() {
 	}
 
 	if err := logger.LoggerInit(logger.LoggerConfig{
-		Env: "prod",
-		LogDir: LogDir,
-		Level: "info",
-		MaxSizeMB: 100,
+		Env:        "prod",
+		LogDir:     LogDir,
+		Level:      "info",
+		MaxSizeMB:  100,
 		MaxAgeDays: 30,
 		MaxBackups: 10,
-		Compress: true,
+		Compress:   true,
 	}); err != nil {
 		fmt.Println("Error initializing logger:", err)
 		os.Exit(1)
-	}	
-	
+	}
 
 	// Structured logger — JSON in production, text in dev
 	log := logger.LoggerApp
@@ -113,7 +112,6 @@ func main() {
 	}
 	defer redisStore.Close()
 
-	
 	BaseDir := filepath.Join(home, ".ashrix")
 	log.Info("Ashrix base directory Initialized")
 	if err := os.MkdirAll(BaseDir, 0700); err != nil {
@@ -153,7 +151,6 @@ func main() {
 	gatewayRegistry := registry.NewGatewayRegistry()
 	log.Info("Gateway Registry Initialized")
 
-
 	//Initialising Policy Distributor
 	policyDistributor := policy.NewPolicyDistributor(gatewayRegistry, repositories.Policy, bundleSigner, log)
 	log.Info("Policy Distributor Initialized")
@@ -171,6 +168,7 @@ func main() {
 		log,
 		CASigner,
 		gatewayRegistry,
+		bundleSigner,
 	)
 
 	// Build and start gRPC server
