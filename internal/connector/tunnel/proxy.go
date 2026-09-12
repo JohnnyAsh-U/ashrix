@@ -12,12 +12,13 @@ import (
 // proxies it to the internal app, streams response back.
 // Runs in its own goroutine — one per concurrent user request.
 func (c *ConnectorTunnel) handleRequestStream(ctx context.Context, stream transport.Stream) {
+	// defer stream.Close()
 	defer func() {
-		stream.Close()
-		c.managementConn.ActiveStreams.Add(-1)
 		if r := recover(); r != nil {
 			c.log.Error("panic in handleRequestStream", "panic", r)
 		}
+		c.managementConn.ActiveStreams.Add(-1)
+		stream.Close()
 	}()
 
 	payload, err := frame.ReadFrame(stream)

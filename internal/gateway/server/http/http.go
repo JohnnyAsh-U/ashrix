@@ -60,7 +60,7 @@ func NewProxyServer(
 	)
 
 	// 1. Initialize posture dependencies
-	geoReader, err := posture.NewMaxMindReader("/var/lib/ashrix/GeoLite2-City.mmdb")
+	geoReader, err := posture.NewMaxMindReader("/home/johnnyash/Downloads/GeoLite2-City.mmdb")
 	if err != nil {
 		log.Error("Georeader DB ERROR:", slog.Any("error", err))
 	}
@@ -74,6 +74,7 @@ func NewProxyServer(
 	repDB, _ := posture.NewStaticReputationDB([]string{
 		"192.0.2.0/24", // Example blocked range
 	})
+
 
 	collector := posture.NewCollector(geoReader, torChecker, repDB)
 

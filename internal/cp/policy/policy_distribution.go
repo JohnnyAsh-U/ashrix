@@ -142,6 +142,8 @@ func (d *PolicyDistributor) compileSnapshotBundle(ctx context.Context, orgID uui
 		return nil, 0, fmt.Errorf("sign bundle: %w", err)
 	}
 
+	fmt.Println(bundle, version)
+
 	return bundle, version, nil
 }
 
