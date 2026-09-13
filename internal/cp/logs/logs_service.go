@@ -2,7 +2,6 @@ package logs
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
@@ -95,6 +94,7 @@ func (s *Service) ListAccessLogs(ctx context.Context, orgID uuid.UUID, req Filte
 		item := AccessLogResponse{
 			ID:          l.ID.String(),
 			OrgID:       l.OrgID.String(),
+			PolicyID:    l.PolicyID.String(),
 			UserID:      l.UserID.String,
 			UserEmail:   l.UserEmail.String,
 			Method:      l.Method.String,
@@ -120,7 +120,6 @@ func (s *Service) ListAccessLogs(ctx context.Context, orgID uuid.UUID, req Filte
 		if l.PolicyID.Valid {
 			item.PolicyID = uuid.UUID(l.PolicyID.Bytes).String()
 		}
-		fmt.Println(l.AppName)
 		res = append(res, item)
 	}
 

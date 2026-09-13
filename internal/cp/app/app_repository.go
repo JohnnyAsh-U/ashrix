@@ -21,6 +21,7 @@ type Repository interface {
 	ListPoliciesByAppResource(ctx context.Context, params store.ListPoliciesByAppResourceParams) ([]store.Policy, error)
 	CountPolicyUserSubjectsByApp(ctx context.Context, params store.CountPolicyUserSubjectsByAppParams) (int64, error)
 	CountPolicyGroupSubjectsByApp(ctx context.Context, params store.CountPolicyGroupSubjectsByAppParams) (int64, error)
+	MarkOfflineStaleAppStatus(ctx context.Context, minutes string) (int64, error)
 }
 
 type postgresRepository struct {
@@ -77,4 +78,8 @@ func (r *postgresRepository) CountPolicyUserSubjectsByApp(ctx context.Context, p
 
 func (r *postgresRepository) CountPolicyGroupSubjectsByApp(ctx context.Context, params store.CountPolicyGroupSubjectsByAppParams) (int64, error) {
 	return r.q.CountPolicyGroupSubjectsByApp(ctx, params)
+}
+
+func (r *postgresRepository) MarkOfflineStaleAppStatus(ctx context.Context, minutes string) (int64, error) {
+	return r.q.MarkOfflineStaleApp(ctx, minutes)
 }

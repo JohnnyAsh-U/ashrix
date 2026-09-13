@@ -143,9 +143,9 @@ type Querier interface {
 	GetIDPConfigByIDAndOrg(ctx context.Context, arg GetIDPConfigByIDAndOrgParams) (IdpConfig, error)
 	GetLastAckedSeqForGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
 	GetLatestGatewayEventSeq(ctx context.Context, gatewayID uuid.UUID) (int64, error)
-	GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error)
+	GetLatestPolicySequence(ctx context.Context, orgID uuid.UUID) (int64, error)
 	GetMutationsSince(ctx context.Context, arg GetMutationsSinceParams) ([]GetMutationsSinceRow, error)
-	GetNextPolicySequence(ctx context.Context, arg GetNextPolicySequenceParams) (int32, error)
+	GetNextPolicyVersion(ctx context.Context, arg GetNextPolicyVersionParams) (int32, error)
 	// Used by Gateway to resolve incoming hostname to org (v2)
 	GetOrgByCustomDomain(ctx context.Context, customDomain pgtype.Text) (Org, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (Org, error)
@@ -168,10 +168,6 @@ type Querier interface {
 	// Normalized Policy CRUD
 	// =============================================================================
 	InsertPolicy(ctx context.Context, arg InsertPolicyParams) (Policy, error)
-	// =============================================================================
-	// Audit
-	// =============================================================================
-	InsertPolicyAuditLog(ctx context.Context, arg InsertPolicyAuditLogParams) error
 	InsertPolicyCondition(ctx context.Context, arg InsertPolicyConditionParams) error
 	InsertPolicyMutation(ctx context.Context, arg InsertPolicyMutationParams) (InsertPolicyMutationRow, error)
 	InsertPolicyResource(ctx context.Context, arg InsertPolicyResourceParams) error
@@ -210,6 +206,7 @@ type Querier interface {
 	ListRevokedUserSessionByOrg(ctx context.Context, orgID uuid.UUID) ([]UserSession, error)
 	// Called after owner completes SSO binding confirmation flow.
 	MarkIDPConfigVerified(ctx context.Context, arg MarkIDPConfigVerifiedParams) (IdpConfig, error)
+	MarkOfflineStaleApp(ctx context.Context, thresholdMinutes string) (int64, error)
 	MarkOfflineStaleConnectors(ctx context.Context, thresholdMinutes string) (int64, error)
 	MarkOfflineStaleGateways(ctx context.Context, thresholdMinutes string) (int64, error)
 	MarkPasswordResetTokenUsed(ctx context.Context, id uuid.UUID) error

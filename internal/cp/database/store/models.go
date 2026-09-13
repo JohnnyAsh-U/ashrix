@@ -257,24 +257,9 @@ type Policy struct {
 	Priority    pgtype.Int4 `json:"priority"`
 	Enabled     bool        `json:"enabled"`
 	Version     int64       `json:"version"`
-	Sequence    int64       `json:"sequence"`
 	CreatedBy   uuid.UUID   `json:"created_by"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
-}
-
-type PolicyAuditLog struct {
-	ID          int64       `json:"id"`
-	OrgID       uuid.UUID   `json:"org_id"`
-	PolicyID    pgtype.Text `json:"policy_id"`
-	Action      string      `json:"action"`
-	ActorID     string      `json:"actor_id"`
-	ActorEmail  pgtype.Text `json:"actor_email"`
-	OldState    []byte      `json:"old_state"`
-	NewState    []byte      `json:"new_state"`
-	IpAddress   *netip.Addr `json:"ip_address"`
-	UserAgent   pgtype.Text `json:"user_agent"`
-	PerformedAt time.Time   `json:"performed_at"`
 }
 
 type PolicyCondition struct {
@@ -284,16 +269,20 @@ type PolicyCondition struct {
 }
 
 type PolicyMutation struct {
-	Version         int64           `json:"version"`
+	ID              uuid.UUID       `json:"id"`
+	Sequence        int64           `json:"sequence"`
 	OrgID           uuid.UUID       `json:"org_id"`
 	PolicyID        uuid.UUID       `json:"policy_id"`
 	Op              string          `json:"op"`
 	RuleSnapshot    json.RawMessage `json:"rule_snapshot"`
-	Sequence        int64           `json:"sequence"`
+	OldRuleSnapshot []byte          `json:"old_rule_snapshot"`
+	Version         int64           `json:"version"`
 	Signature       []byte          `json:"signature"`
 	RecordTimestamp int64           `json:"record_timestamp"`
 	MutatedBy       pgtype.UUID     `json:"mutated_by"`
 	MutatedAt       time.Time       `json:"mutated_at"`
+	IpAddress       *netip.Addr     `json:"ip_address"`
+	UserAgent       pgtype.Text     `json:"user_agent"`
 }
 
 type PolicyResource struct {

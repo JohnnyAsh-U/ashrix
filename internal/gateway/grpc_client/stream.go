@@ -491,12 +491,17 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 }
 
 func (h *StreamManager) handlePolicyUpdate(ctx context.Context, msg *pb.CPEnvelope) {
-	h.log.Info("Updating Policy")
+	h.log.Info("Received Policy Version", slog.Any("Policies Count", len(msg.GetPolicyBundle().Records)), slog.Any("Polices Last Sequence", msg.GetPolicyBundle().GetLastSequence()))
 	checkpoint, err := h.policyStore.GetCheckpoint(ctx)
 	if err != nil {
 		h.log.Warn("ERROR: GETTING CHECKPOINT")
 	}
-	h.engine.ApplyVerifiedDelta(ctx, msg.GetPolicyBundle(), checkpoint)
+	if msg.GetPolicyBundle().LastSequence > checkpoint.LastSequence {
+		err := h.engine.ApplyVerifiedDelta(ctx, msg.GetPolicyBundle())
+		if err  != nil {
+			h.log.Error(err.Error())
+		}
+	}
 }
 
 func (sm *StreamManager) isAuthError(err error) bool {
@@ -596,7 +601,7 @@ func (sm *StreamManager) makeHello(ctx context.Context) *pb.GatewayEnvelope {
 			Hello: &pb.HelloMessage{
 				GatewayId:     sm.cfg.GatewayID,
 				TenantId:      sm.cfg.TenantId,
-				PolicyVersion: policyVersion.LastBundleVersion,
+				PolicyVersion: policyVersion.LastSequence,
 				BinaryVersion: version.GetGatewayVersion(),
 				QuicPort:      sm.cfg.QUICPort,
 				GrpcPort:      sm.cfg.GRPCPort,

@@ -261,7 +261,8 @@ CREATE TABLE app_idp_mappings (
 -- -----------------------------------------------------------
 
 CREATE TABLE policy_mutations (
-    version         BIGSERIAL PRIMARY KEY,
+    id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+    sequence         BIGINT NOT NULL,
     org_id       UUID NOT NULL REFERENCES orgs(id),
     policy_id       UUID NOT NULL,
     op              VARCHAR(10) NOT NULL CHECK (op IN ('UPSERT', 'DELETE')),
@@ -271,13 +272,17 @@ CREATE TABLE policy_mutations (
     -- + policy_conditions at write time. Used for delta computation
     -- and as a historical record.
     rule_snapshot   JSONB NOT NULL,
-
-    sequence        BIGINT NOT NULL DEFAULT 0,
+    old_rule_snapshot     JSONB,
+    
+    version        BIGINT NOT NULL DEFAULT 1,
     signature       BYTEA NOT NULL,   -- SHA256 digest of the bundle
     record_timestamp BIGINT NOT NULL DEFAULT 0, -- timestamp of when the policy was recorded
 
     mutated_by      UUID NULL REFERENCES admins(id),
-    mutated_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    mutated_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+
+    ip_address      INET,
+    user_agent      TEXT
 );
 
 CREATE INDEX idx_mutations_tenant_version
@@ -315,11 +320,7 @@ CREATE TABLE policies (
     priority        INT DEFAULT 0 CHECK (priority >= 0 AND priority <= 100),
     enabled         BOOLEAN DEFAULT TRUE NOT NULL,
 
-    -- Links to the mutation that created this version
-    version         BIGINT NOT NULL REFERENCES policy_mutations(version),
-
-    -- Track last known sequence on the live policy (gateways use this for delta sync)
-    sequence        BIGINT NOT NULL DEFAULT 0,
+    version         BIGINT NOT NULL DEFAULT 1,
 
     created_by      UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
 
@@ -443,27 +444,6 @@ CREATE TABLE policy_conditions (
 -- GIN index for partial condition queries (if needed later)
 CREATE INDEX idx_conditions_gin
     ON policy_conditions USING GIN(condition_tree);
-
--- -----------------------------------------------------------
--- AUDIT, VERSIONS, ACKS 
--- -----------------------------------------------------------
-
-CREATE TABLE policy_audit_log (
-    id        BIGSERIAL PRIMARY KEY,
-    org_id       UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
-    policy_id       VARCHAR(255),
-    action          VARCHAR(50) NOT NULL,
-    actor_id        VARCHAR(255) NOT NULL,
-    actor_email     VARCHAR(255),
-    old_state       JSONB,
-    new_state       JSONB,
-    ip_address      INET,
-    user_agent      TEXT,
-    performed_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
-
-CREATE INDEX idx_audit_tenant_time
-    ON policy_audit_log(org_id, performed_at DESC);
 
 
 -- ==========================================================================================
@@ -589,7 +569,7 @@ CREATE TABLE access_logs (
     org_id          UUID        NOT NULL REFERENCES orgs(id),
     gateway_id      UUID        REFERENCES gateways(id),
     app_id          UUID        REFERENCES apps(id),
-    policy_id       UUID        REFERENCES policies(id),
+    policy_id       UUID        REFERENCES policy_mutations(id),
     user_id         TEXT,
     user_email      TEXT,
     method          TEXT,
@@ -740,7 +720,6 @@ DROP INDEX IF EXISTS idx_resources_lookup;
 DROP INDEX IF EXISTS idx_resources_policy;
 DROP INDEX IF EXISTS idx_admin_sessions_token;
 DROP INDEX IF EXISTS idx_conditions_gin;
-DROP INDEX IF EXISTS idx_audit_tenant_time;
 
 DROP INDEX IF EXISTS idx_mutations_policy_version;
 DROP INDEX IF EXISTS idx_mutations_policy_sequence;
@@ -759,7 +738,6 @@ DROP TABLE IF EXISTS revocations;
 
 DROP TABLE IF EXISTS gateway_policy_acks;
 DROP TABLE IF EXISTS policy_versions;
-DROP TABLE IF EXISTS policy_audit_log;
 DROP TABLE IF EXISTS policy_subjects;
 DROP TABLE IF EXISTS policy_resources;
 DROP TABLE IF EXISTS policy_conditions;

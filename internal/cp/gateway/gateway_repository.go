@@ -28,7 +28,7 @@ type Repository interface {
 	UpdateGatewayStatus(ctx context.Context, params store.UpdateGatewayStatusParams) (store.Gateway, error)
 
 	CountActiveUserSessionsByGateway(ctx context.Context, gatewayID uuid.UUID) (int64, error)
-	GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error)
+	GetLatestPolicySequence(ctx context.Context, orgID uuid.UUID) (int64, error)
 	ListAppsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]store.App, error)
 
 	MarkOfflineStaleGateways(ctx context.Context, minutes string) (int64, error)
@@ -94,8 +94,8 @@ func (r *postgresRepository) CountActiveUserSessionsByGateway(ctx context.Contex
 	return r.q.CountActiveUserSessionsByGateway(ctx, gatewayID)
 }
 
-func (r *postgresRepository) GetLatestPolicyVersion(ctx context.Context, orgID uuid.UUID) (int64, error) {
-	return r.q.GetLatestPolicyVersion(ctx, orgID)
+func (r *postgresRepository) GetLatestPolicySequence(ctx context.Context, orgID uuid.UUID) (int64, error) {
+	return r.q.GetLatestPolicySequence(ctx, orgID)
 }
 
 func (r *postgresRepository) ListAppsByGateway(ctx context.Context, gatewayID uuid.UUID) ([]store.App, error) {

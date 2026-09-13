@@ -161,11 +161,8 @@ func runRegister(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("Bootstrap Successful", &apiResp.Data.GatewayId)
 
-	fmt.Println(apiResp.Data.Certificate)
-
 	log.Info("Writing config, cert, bundle and key to directory")
 
-	
 	configDir := filepath.Join(Home, "/.ashrix/gateway")
 
 	writeErr := utils.WriteConfig(

@@ -21,10 +21,10 @@ func TestVerifyRecord(t *testing.T) {
 		PolicyId: "policy-1",
 		TenantId: "tenant-1",
 		Effect:   pb.EffectEnum_EFFECT_ENUM_ALLOW,
+		Sequence:  10,
 	}
 
 	record := &pb.PolicyRecord{
-		Sequence:  10,
 		Operation: pb.OperationEnum_OPERATION_ENUM_UPSERT,
 		Timestamp: time.Now().UnixMilli(),
 		Rule:      rule,
@@ -44,10 +44,10 @@ func TestVerifyRecord(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 3. Modified sequence should fail
-	record.Sequence = 11
+	record.Rule.Sequence = 11
 	err = verifier.VerifyRecord(record)
 	assert.Error(t, err)
-	record.Sequence = 10 // restore
+	record.Rule.Sequence = 10 // restore
 
 	// 4. Modified rule content should fail
 	record.Rule.Effect = pb.EffectEnum_EFFECT_ENUM_DENY
@@ -73,9 +73,9 @@ func TestVerifyBundle(t *testing.T) {
 		PolicyId: "policy-1",
 		TenantId: "tenant-1",
 		Effect:   pb.EffectEnum_EFFECT_ENUM_ALLOW,
+		Sequence:  1,
 	}
 	record1 := &pb.PolicyRecord{
-		Sequence:  1,
 		Operation: pb.OperationEnum_OPERATION_ENUM_UPSERT,
 		Timestamp: time.Now().UnixMilli(),
 		Rule:      rule1,
@@ -88,9 +88,9 @@ func TestVerifyBundle(t *testing.T) {
 		PolicyId: "policy-2",
 		TenantId: "tenant-1",
 		Effect:   pb.EffectEnum_EFFECT_ENUM_DENY,
+		Sequence:  2,
 	}
 	record2 := &pb.PolicyRecord{
-		Sequence:  2,
 		Operation: pb.OperationEnum_OPERATION_ENUM_UPSERT,
 		Timestamp: time.Now().UnixMilli(),
 		Rule:      rule2,
@@ -100,7 +100,7 @@ func TestVerifyBundle(t *testing.T) {
 	record2.Signature = ed25519.Sign(priv, payload2)
 
 	bundle := &pb.PolicyBundle{
-		Version:  100,
+		LastSequence:  2,
 		IssuedAt: time.Now().UnixMilli(),
 		Records:  []*pb.PolicyRecord{record1, record2},
 	}
@@ -118,14 +118,13 @@ func TestVerifyBundle(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 3. Modified bundle version should fail
-	bundle.Version = 101
+	bundle.LastSequence = 4
 	err = verifier.VerifyBundle(bundle)
 	assert.Error(t, err)
-	bundle.Version = 100 // restore
+	bundle.LastSequence = 2 // restore
 
 	// 4. Bundle with an unsigned / incorrectly signed record should fail (even if bundle signature is valid for that state)
 	record3 := &pb.PolicyRecord{
-		Sequence:  3,
 		Operation: pb.OperationEnum_OPERATION_ENUM_UPSERT,
 		Timestamp: time.Now().UnixMilli(),
 		Rule:      rule1,
@@ -135,7 +134,7 @@ func TestVerifyBundle(t *testing.T) {
 	record3.Signature = ed25519.Sign(priv3, RecordSigningPayload(record3))
 
 	bundleWithBadRecord := &pb.PolicyBundle{
-		Version:  102,
+		LastSequence: 3,
 		IssuedAt: time.Now().UnixMilli(),
 		Records:  []*pb.PolicyRecord{record1, record3},
 	}

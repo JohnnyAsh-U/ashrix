@@ -48,9 +48,9 @@ func (cp *CompiledPolicy) matchesSubject(p Principal) bool {
 		}
 	}
 	if len(cp.Users) > 0 {
-		if _, ok := cp.Users[p.UserID]; !ok {
-			return false
-		}
+		_, okUserID := cp.Users[p.UserID]
+		_, okUserEmail := cp.Users[p.Email]
+		return okUserID || okUserEmail
 	}
 	if len(cp.SourceAppIDs) > 0 {
 		if _, ok := cp.SourceAppIDs[p.UserID]; !ok {

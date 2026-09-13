@@ -17,8 +17,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-
-
 // ============================================================
 // Policy Distributor — compiles signed bundles and pushes to gateways
 // ============================================================
@@ -114,7 +112,7 @@ func (d *PolicyDistributor) compileSnapshotBundle(ctx context.Context, orgID uui
 		return nil, 0, fmt.Errorf("list policies: %w", err)
 	}
 
-	version, err := d.policyStore.GetLatestVersion(ctx, orgID)
+	sequence, err := d.policyStore.GetLatestPolicySequence(ctx, orgID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get latest version: %w", err)
 	}
@@ -131,20 +129,22 @@ func (d *PolicyDistributor) compileSnapshotBundle(ctx context.Context, orgID uui
 		records = append(records, record)
 	}
 
+	if len(records) == 0 {
+		return &pb.PolicyBundle{}, 0, nil
+	}
+
 	bundle := &pb.PolicyBundle{
-		Version:   version,
-		IssuedAt:  issuedAt,
-		Records:   records,
-		Signature: nil, // signed below
+		LastSequence: sequence,
+		IssuedAt:     issuedAt,
+		Records:      records,
+		Signature:    nil, // signed below
 	}
 
 	if err := d.signBundle(bundle); err != nil {
 		return nil, 0, fmt.Errorf("sign bundle: %w", err)
 	}
 
-	fmt.Println(bundle, version)
-
-	return bundle, version, nil
+	return bundle, sequence, nil
 }
 
 func (d *PolicyDistributor) compileDeltaBundle(ctx context.Context, orgID uuid.UUID, sinceVersion int64) (*pb.PolicyBundle, error) {
@@ -153,7 +153,7 @@ func (d *PolicyDistributor) compileDeltaBundle(ctx context.Context, orgID uuid.U
 		return nil, fmt.Errorf("get mutations: %w", err)
 	}
 	if len(mutations) == 0 {
-		return nil, fmt.Errorf("no mutations since %d", sinceVersion)
+		return nil, nil
 	}
 
 	now := time.Now().UTC().UnixMilli()
@@ -172,12 +172,12 @@ func (d *PolicyDistributor) compileDeltaBundle(ctx context.Context, orgID uuid.U
 		records = append(records, record)
 	}
 
-	latestVersion := mutations[len(mutations)-1].Version
+	latestSequence := mutations[len(mutations)-1].Sequence
 	bundle := &pb.PolicyBundle{
-		Version:   latestVersion,
-		IssuedAt:  now,
-		Records:   records,
-		Signature: nil,
+		LastSequence: latestSequence,
+		IssuedAt:     now,
+		Records:      records,
+		Signature:    nil,
 	}
 
 	if err := d.signBundle(bundle); err != nil {
@@ -187,10 +187,9 @@ func (d *PolicyDistributor) compileDeltaBundle(ctx context.Context, orgID uuid.U
 	return bundle, nil
 }
 
-
-//Get latest version of policy for a given org
-func (d *PolicyDistributor) LatestVersion(orgID uuid.UUID) int64 {
-	version, err := d.policyStore.GetLatestVersion(context.Background(), orgID)
+// Get latest version of policy for a given org
+func (d *PolicyDistributor) LatestSequence(orgID uuid.UUID) int64 {
+	version, err := d.policyStore.GetLatestPolicySequence(context.Background(), orgID)
 	if err != nil {
 		d.log.Error("failed to get latest version", "org_id", orgID, "error", err)
 		return 0
@@ -219,7 +218,7 @@ func (d *PolicyDistributor) signBundle(bundle *pb.PolicyBundle) error {
 // recordSigningPayload mirrors the gateway's RecordSigningPayload exactly.
 func recordSigningPayload(record *pb.PolicyRecord) []byte {
 	h := sha256.New()
-	binary.Write(h, binary.BigEndian, record.Sequence)
+	binary.Write(h, binary.BigEndian, record.Rule.Sequence)
 	binary.Write(h, binary.BigEndian, int32(record.Operation))
 	binary.Write(h, binary.BigEndian, record.Timestamp)
 	h.Write(canonicalRuleHash(record.Rule))
@@ -229,7 +228,7 @@ func recordSigningPayload(record *pb.PolicyRecord) []byte {
 // bundleSigningPayload mirrors the gateway's BundleSigningPayload exactly.
 func bundleSigningPayload(bundle *pb.PolicyBundle) []byte {
 	h := sha256.New()
-	binary.Write(h, binary.BigEndian, bundle.Version)
+	binary.Write(h, binary.BigEndian, bundle.LastSequence)
 	binary.Write(h, binary.BigEndian, bundle.IssuedAt)
 	binary.Write(h, binary.BigEndian, int64(len(bundle.Records)))
 	for _, rec := range bundle.Records {
@@ -300,7 +299,6 @@ func policyToRecord(p Policy, timestamp int64) *pb.PolicyRecord {
 	rule.Conditions = conditionsToProto(p.Conditions)
 
 	return &pb.PolicyRecord{
-		Sequence:  p.Sequence,
 		Operation: pb.OperationEnum_OPERATION_ENUM_UPSERT,
 		Timestamp: timestamp,
 		Rule:      rule,
@@ -308,7 +306,7 @@ func policyToRecord(p Policy, timestamp int64) *pb.PolicyRecord {
 }
 
 func mutationToRecord(m Mutation) (*pb.PolicyRecord, error) {
-	rule, err := snapshotToRule(m.Snapshot, m.Version)
+	rule, err := snapshotToRule(m.Snapshot, m.Version, m.PolicyID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -322,16 +320,15 @@ func mutationToRecord(m Mutation) (*pb.PolicyRecord, error) {
 	}
 
 	return &pb.PolicyRecord{
-		Sequence:  m.Sequence,
 		Operation: op,
 		Timestamp: m.RecordTimestamp,
 		Rule:      rule,
 	}, nil
 }
 
-func snapshotToRule(snapshot map[string]interface{}, version int64) (*pb.PolicyRule, error) {
+func snapshotToRule(snapshot map[string]interface{}, version int64, policyMutationID string) (*pb.PolicyRule, error) {
 	rule := &pb.PolicyRule{
-		PolicyId:    getString(snapshot, "policy_id"),
+		PolicyId:    policyMutationID,
 		TenantId:    getString(snapshot, "tenant_id"),
 		Name:        getString(snapshot, "name"),
 		Description: getString(snapshot, "description"),
@@ -356,7 +353,7 @@ func snapshotToRule(snapshot map[string]interface{}, version int64) (*pb.PolicyR
 		rule.Subject = &pb.SubjectSelector{
 			Users:  getStringSlice(subj, "users"),
 			Groups: getStringSlice(subj, "groups"),
-			Apps: getStringSlice(subj, "apps"),
+			Apps:   getStringSlice(subj, "apps"),
 		}
 	}
 
@@ -473,7 +470,6 @@ func getStringSlice(m map[string]interface{}, key string) []string {
 	}
 	return out
 }
-
 
 // signer, _ := crypto.BundleSigningKeys(baseDir)
 // dist := policy.NewPolicyDistributor(registry, repo, signer.(*crypto.BundleSigner), logger)

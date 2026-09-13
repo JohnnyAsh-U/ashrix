@@ -169,7 +169,7 @@ func (s *Service) ListGatewaysByOrg(ctx context.Context, orgID uuid.UUID) ([]Gat
 		return nil, dto.NewAppError(500, dto.CodeInternal, "Failed to list gateways", err.Error())
 	}
 
-	latestPolicyVer, _ := s.repo.GetLatestPolicyVersion(ctx, orgID)
+	latestPolicyVer, _ := s.repo.GetLatestPolicySequence(ctx, orgID)
 
 	var responses []GatewayResponse
 	for _, g := range gateways {
@@ -212,7 +212,7 @@ func (s *Service) GetGatewayByID(ctx context.Context, id uuid.UUID) (GatewayResp
 		ComponentID:   pgtype.UUID{Bytes: gateway.ID, Valid: true},
 		ComponentType: "gateway",
 	})
-	policyVersion, _ := s.repo.GetLatestPolicyVersion(ctx, gateway.OrgID)
+	policyVersion, _ := s.repo.GetLatestPolicySequence(ctx, gateway.OrgID)
 
 	return mapToGatewayResponse2(gateway, activeSessions, certificate, "", policyVersion, apps), nil
 }

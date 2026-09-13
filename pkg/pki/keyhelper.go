@@ -214,7 +214,6 @@ func VerifyPossessionProof(
 	timestamp int64,
 	sigBytes string,
 ) bool {
-	fmt.Println(pubKey, string(csrPEM), connectorID, timestamp)
 
 	//Decode the sigbytes
 	signature, err := base64.StdEncoding.DecodeString(sigBytes)

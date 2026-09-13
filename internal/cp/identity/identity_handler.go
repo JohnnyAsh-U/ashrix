@@ -400,7 +400,6 @@ func (h *IDPHandler) RevokeUserSessionHandler(w http.ResponseWriter, r *http.Req
 func (h *IDPHandler) ListActiveUserSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	sessions, err := h.idpService.ListActiveUserSessions(r.Context(), r.URL.Query().Get("gateway"), r.URL.Query().Get("email"))
 	if err != nil {
-		fmt.Println(err)
 		dto.SendError(w, dto.NewBadRequestError(err.Error()))
 		return
 	}

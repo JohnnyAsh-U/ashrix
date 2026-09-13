@@ -431,6 +431,23 @@ func (q *Queries) ListAppsWithDetailsByOrg(ctx context.Context, orgID uuid.UUID)
 	return items, nil
 }
 
+const markOfflineStaleApp = `-- name: MarkOfflineStaleApp :execrows
+UPDATE apps
+SET health_status = 'unhealthy'
+WHERE check_health = true
+  AND health_status = 'healthy'
+  AND last_seen < NOW() - ($1::text || ' minutes')::interval
+  AND last_seen IS NOT NULL
+`
+
+func (q *Queries) MarkOfflineStaleApp(ctx context.Context, thresholdMinutes string) (int64, error) {
+	result, err := q.db.Exec(ctx, markOfflineStaleApp, thresholdMinutes)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateApp = `-- name: UpdateApp :one
 UPDATE apps
 SET name                    = $3,

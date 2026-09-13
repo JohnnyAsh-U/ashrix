@@ -26,10 +26,9 @@ type Repository interface {
 	Update(ctx context.Context, policyID uuid.UUID, orgID uuid.UUID, req UpdatePolicyRequest, actorID uuid.UUID, actorEmail string, clientIP string, userAgent string) (*Policy, error)
 	Delete(ctx context.Context, policyID, orgID uuid.UUID, actorID uuid.UUID, actorEmail string, clientIP string, userAgent string) error
 	GetMutationsSince(ctx context.Context, orgID uuid.UUID, sinceVersion int64) ([]Mutation, error)
-	GetLatestVersion(ctx context.Context, orgID uuid.UUID) (int64, error)
+	GetLatestPolicySequence(ctx context.Context, orgID uuid.UUID) (int64, error)
 	GetPolicyMutation(ctx context.Context, orgID, policyID uuid.UUID, sequence int64) (*Mutation, error)
 }
-
 
 // Mutation represents a single entry from the policy mutation log.
 type Mutation struct {
@@ -42,9 +41,8 @@ type Mutation struct {
 	Op              string // "UPSERT" or "DELETE"
 	Snapshot        map[string]interface{}
 	MutatedBy       *uuid.UUID
-	MutatedAt time.Time
+	MutatedAt       time.Time
 }
-
 
 // -----------------------------------------------------------
 // REPOSITORY STRUCT
@@ -58,7 +56,6 @@ type postgresRepository struct {
 func NewRepository(dbConn *pgxpool.Pool, queries *store.Queries) Repository {
 	return &postgresRepository{db: dbConn, queries: queries}
 }
-
 
 // -----------------------------------------------------------
 // SNAPSHOT HELPERS (proto-aligned JSONB)
@@ -94,7 +91,7 @@ func partitionResources(res []Resource) (appIDs, paths, methods []string) {
 
 // buildSnapshotFromRequest builds a proto-aligned JSONB snapshot during Create.
 func buildSnapshotFromRequest(policyID, orgID uuid.UUID, req CreatePolicyRequest, createdAt time.Time) map[string]interface{} {
-	users, groups, apps := partitionSubjects(req.Subjects)
+	users, groups, subjectApps := partitionSubjects(req.Subjects)
 	apps, paths, methods := partitionResources(req.Resources)
 
 	return map[string]any{
@@ -107,7 +104,7 @@ func buildSnapshotFromRequest(policyID, orgID uuid.UUID, req CreatePolicyRequest
 		"subject": map[string]any{
 			"users":  users,
 			"groups": groups,
-			"apps": apps,
+			"apps":   subjectApps,
 		},
 		"resource": map[string]any{
 			"app_ids": apps,
@@ -135,7 +132,7 @@ func buildSnapshotFromPolicy(p Policy) map[string]interface{} {
 		"subject": map[string]any{
 			"users":  users,
 			"groups": groups,
-			"apps" : apps,
+			"apps":   apps,
 		},
 		"resource": map[string]any{
 			"app_ids": apps,
@@ -148,7 +145,6 @@ func buildSnapshotFromPolicy(p Policy) map[string]interface{} {
 	}
 }
 
-
 // -----------------------------------------------------------
 // CREATE POLICY
 // -----------------------------------------------------------
@@ -156,8 +152,14 @@ func buildSnapshotFromPolicy(p Policy) map[string]interface{} {
 func (r *postgresRepository) Create(ctx context.Context, orgID uuid.UUID, req CreatePolicyRequest, actorID uuid.UUID, actorEmail string, clientIP string, userAgent string) (*Policy, error) {
 	policyID := uuid.New()
 	now := time.Now().UTC()
-	seq := int64(1) // first mutation for this policy
+	version := int64(1) // first mutation for this policy
 	ts := now.UnixMilli()
+
+	// Compute next sequence
+	nextSeq, err := r.queries.GetLatestPolicySequence(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("get next sequence: %w", err)
+	}
 
 	snapshot := buildSnapshotFromRequest(policyID, orgID, req, now)
 	snapshotBytes, err := json.Marshal(snapshot)
@@ -185,9 +187,15 @@ func (r *postgresRepository) Create(ctx context.Context, orgID uuid.UUID, req Cr
 		Op:              "UPSERT",
 		RuleSnapshot:    snapshotBytes,
 		MutatedBy:       pgtype.UUID{Bytes: actorID, Valid: true},
-		Sequence:        seq,
+		Sequence:        nextSeq + 1,
+		Version:         version,
 		Signature:       []byte{}, // signed later by the bundler / CP
 		RecordTimestamp: ts,
+		IpAddress: func() *netip.Addr {
+			ip, _ := netip.ParseAddr(clientIP)
+			return &ip
+		}(),
+		UserAgent: pgtype.Text{String: userAgent, Valid: userAgent != ""},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert mutation: %w", err)
@@ -203,7 +211,6 @@ func (r *postgresRepository) Create(ctx context.Context, orgID uuid.UUID, req Cr
 		Priority:    pgtype.Int4{Int32: req.Priority, Valid: true},
 		Enabled:     true,
 		Version:     mut.Version,
-		Sequence:    mut.Sequence,
 		CreatedBy:   actorID,
 	})
 	if err != nil {
@@ -238,24 +245,6 @@ func (r *postgresRepository) Create(ctx context.Context, orgID uuid.UUID, req Cr
 		ConditionTree: conditionsBytes,
 	}); err != nil {
 		return nil, fmt.Errorf("insert conditions: %w", err)
-	}
-
-	// 6. Audit log
-	if err := qtx.InsertPolicyAuditLog(ctx, store.InsertPolicyAuditLogParams{
-		OrgID:      orgID,
-		PolicyID:   pgtype.Text{String: policyID.String(), Valid: true},
-		Action:     "CREATE",
-		ActorID:    actorID.String(),
-		ActorEmail: pgtype.Text{String: actorEmail, Valid: true},
-		OldState:   nil,
-		NewState:   snapshotBytes,
-		IpAddress: func() *netip.Addr {
-			ip := netip.MustParseAddr(clientIP)
-			return &ip
-		}(),
-		UserAgent: pgtype.Text{String: userAgent, Valid: true},
-	}); err != nil {
-		return nil, fmt.Errorf("insert audit: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -302,7 +291,6 @@ func (r *postgresRepository) ListByOrg(ctx context.Context, orgID uuid.UUID) ([]
 			Priority:    row.Priority.Int32,
 			Enabled:     row.Enabled,
 			Version:     row.Version,
-			Sequence:    row.Sequence,
 			CreatedBy:   row.CreatedBy,
 			CreatedAt:   row.CreatedAt,
 			UpdatedAt:   row.UpdatedAt,
@@ -371,7 +359,6 @@ func (r *postgresRepository) GetByID(ctx context.Context, policyID, orgID uuid.U
 		Priority:    row.Priority.Int32,
 		Enabled:     row.Enabled,
 		Version:     row.Version,
-		Sequence:    row.Sequence,
 		CreatedBy:   row.CreatedBy,
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
@@ -417,7 +404,7 @@ func (r *postgresRepository) Update(ctx context.Context, policyID, orgID uuid.UU
 	oldStateBytes, _ := json.Marshal(oldPolicy)
 
 	// Compute next per-policy sequence
-	nextSeq, err := r.queries.GetNextPolicySequence(ctx, store.GetNextPolicySequenceParams{
+	nextSeq, err := r.queries.GetNextPolicyVersion(ctx, store.GetNextPolicyVersionParams{
 		OrgID:    orgID,
 		PolicyID: policyID,
 	})
@@ -469,11 +456,17 @@ func (r *postgresRepository) Update(ctx context.Context, policyID, orgID uuid.UU
 		OrgID:           orgID,
 		PolicyID:        policyID,
 		Op:              "UPSERT",
+		OldRuleSnapshot: oldStateBytes,
 		RuleSnapshot:    snapshotBytes,
 		MutatedBy:       pgtype.UUID{Bytes: actorID, Valid: true},
 		Sequence:        int64(nextSeq),
 		Signature:       nil,
 		RecordTimestamp: ts,
+		IpAddress: func() *netip.Addr {
+			ip, _ := netip.ParseAddr(clientIP)
+			return &ip
+		}(),
+		UserAgent: pgtype.Text{String: userAgent, Valid: userAgent != ""},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert mutation: %w", err)
@@ -483,7 +476,6 @@ func (r *postgresRepository) Update(ctx context.Context, policyID, orgID uuid.UU
 	_, err = qtx.UpdatePolicy(ctx, store.UpdatePolicyParams{
 		ID:          policyID,
 		Version:     mut.Version,
-		Sequence:    mut.Sequence,
 		OrgID:       pgtype.UUID{Bytes: orgID, Valid: true},
 		Name:        pgtype.Text{String: coalesceStr(req.Name, oldPolicy.Name), Valid: req.Name != nil},
 		Description: pgtype.Text{String: coalesceStr(req.Description, oldPolicy.Description), Valid: req.Description != nil},
@@ -538,25 +530,6 @@ func (r *postgresRepository) Update(ctx context.Context, policyID, orgID uuid.UU
 		}
 	}
 
-	// 6. Audit log
-	newStateBytes, _ := json.Marshal(snapshot)
-	if err := qtx.InsertPolicyAuditLog(ctx, store.InsertPolicyAuditLogParams{
-		OrgID:      orgID,
-		PolicyID:   pgtype.Text{String: policyID.String(), Valid: true},
-		Action:     "UPDATE",
-		ActorID:    actorID.String(),
-		ActorEmail: pgtype.Text{String: actorEmail, Valid: actorEmail != ""},
-		OldState:   oldStateBytes,
-		NewState:   newStateBytes,
-		IpAddress: func() *netip.Addr {
-			ip, _ := netip.ParseAddr(clientIP)
-			return &ip
-		}(),
-		UserAgent: pgtype.Text{String: userAgent, Valid: userAgent != ""},
-	}); err != nil {
-		return nil, fmt.Errorf("insert audit: %w", err)
-	}
-
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit: %w", err)
 	}
@@ -576,10 +549,7 @@ func (r *postgresRepository) Delete(ctx context.Context, policyID, orgID uuid.UU
 	oldStateBytes, _ := json.Marshal(oldPolicy)
 
 	// Compute next sequence for the DELETE mutation
-	nextSeq, err := r.queries.GetNextPolicySequence(ctx, store.GetNextPolicySequenceParams{
-		OrgID:    orgID,
-		PolicyID: policyID,
-	})
+	nextSeq, err := r.queries.GetLatestPolicySequence(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("get next sequence: %w", err)
 	}
@@ -621,24 +591,6 @@ func (r *postgresRepository) Delete(ctx context.Context, policyID, orgID uuid.UU
 		return fmt.Errorf("delete policy: %w", err)
 	}
 
-	// 4. Audit log
-	if err := qtx.InsertPolicyAuditLog(ctx, store.InsertPolicyAuditLogParams{
-		OrgID:      orgID,
-		PolicyID:   pgtype.Text{String: policyID.String(), Valid: true},
-		Action:     "DELETE",
-		ActorID:    actorID.String(),
-		ActorEmail: pgtype.Text{String: actorEmail, Valid: actorEmail != ""},
-		OldState:   oldStateBytes,
-		NewState:   nil,
-		IpAddress: func() *netip.Addr {
-			ip, _ := netip.ParseAddr(clientIP)
-			return &ip
-		}(),
-		UserAgent: pgtype.Text{String: userAgent, Valid: userAgent != ""},
-	}); err != nil {
-		return fmt.Errorf("insert audit: %w", err)
-	}
-
 	return tx.Commit(ctx)
 }
 
@@ -649,7 +601,7 @@ func (r *postgresRepository) Delete(ctx context.Context, policyID, orgID uuid.UU
 func (r *postgresRepository) GetMutationsSince(ctx context.Context, orgID uuid.UUID, sinceVersion int64) ([]Mutation, error) {
 	rows, err := r.queries.GetMutationsSince(ctx, store.GetMutationsSinceParams{
 		OrgID:   orgID,
-		Version: sinceVersion,
+		Sequence: sinceVersion,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get mutations: %w", err)
@@ -668,7 +620,7 @@ func (r *postgresRepository) GetMutationsSince(ctx context.Context, orgID uuid.U
 			RecordTimestamp: row.RecordTimestamp,
 			Signature:       row.Signature,
 			OrgID:           row.OrgID,
-			PolicyID:        row.PolicyID,
+			PolicyID:        row.ID,
 			Op:              row.Op,
 			Snapshot:        snapshot,
 			MutatedAt:       row.MutatedAt,
@@ -687,14 +639,13 @@ func (r *postgresRepository) GetMutationsSince(ctx context.Context, orgID uuid.U
 // GET LATEST VERSION
 // -----------------------------------------------------------
 
-func (r *postgresRepository) GetLatestVersion(ctx context.Context, orgID uuid.UUID) (int64, error) {
-	version, err := r.queries.GetLatestPolicyVersion(ctx, orgID)
+func (r *postgresRepository) GetLatestPolicySequence(ctx context.Context, orgID uuid.UUID) (int64, error) {
+	version, err := r.queries.GetLatestPolicySequence(ctx, orgID)
 	if err != nil {
 		return 0, fmt.Errorf("get latest version: %w", err)
 	}
 	return version, nil
 }
-
 
 // -----------------------------------------------------------
 // GET POLICY MUTATION (for signature caching / bundle building)

@@ -156,12 +156,12 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 			currentPolicy := msg.GetHello().PolicyVersion
 			tenantID := msg.GetHello().TenantId
 			tenantUUID, _ := uuid.Parse(tenantID)
-			log.Printf("gateway connected: %s (policy_version=%d)",
-				gatewayIDInCert, msg.GetHello().PolicyVersion)
+			s.log.Info("gateway connected: %s (policy_version=%d)", gatewayIDInCert, msg.GetHello().PolicyVersion)
+			s.handleHello(ctx, connection, msg.GetHello())
 
 			// If the gateway is behind on policy, push the latest immediately
-			if currentPolicy < s.distributor.LatestVersion(tenantUUID) {
-				go s.distributor.PushToGateway(ctx, connection, tenantUUID)
+			if currentPolicy < s.distributor.LatestSequence(tenantUUID) {
+				go s.distributor.PushDelta(ctx, connection, tenantUUID, currentPolicy)
 			}
 			s.handleHello(ctx, connection, msg.GetHello())
 
@@ -348,7 +348,7 @@ func (s *cpServer) handleHeartbeat(
 	heartbeat *proto.HeartbeatMessage,
 ) error {
 
-	log.Println("HeartBeat", heartbeat.Seq)
+	s.log.Info("HeartBeat", slog.Int64("Number", heartbeat.Seq))
 
 	if heartbeat.GatewayId != conn.GatewayID {
 		return status.Error(

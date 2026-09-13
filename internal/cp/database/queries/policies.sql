@@ -1,7 +1,20 @@
 -- name: InsertPolicyMutation :one
 INSERT INTO policy_mutations (
-    org_id, policy_id, op, rule_snapshot, mutated_by, sequence, signature, record_timestamp
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    org_id, 
+    policy_id, 
+    op, 
+    rule_snapshot, 
+    old_rule_snapshot,
+    version,
+    signature, 
+    record_timestamp,
+
+    mutated_by, 
+    mutated_at, 
+    ip_address,
+    user_agent,
+    sequence
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING version, sequence;
 
 
@@ -13,6 +26,7 @@ WHERE org_id = $2 AND policy_id = $3 AND sequence = $4;
 
 -- name: GetPolicyMutation :one
 SELECT 
+    id,
     version,
     org_id,
     policy_id,
@@ -29,6 +43,7 @@ WHERE org_id = $1 AND policy_id = $2 AND sequence = $3;
 
 -- name: GetMutationsSince :many
 SELECT 
+    id,
     version,
     org_id,
     policy_id,
@@ -40,17 +55,17 @@ SELECT
     mutated_by,
     mutated_at
 FROM policy_mutations
-WHERE org_id = $1 AND version > $2
+WHERE org_id = $1 AND sequence > $2
 ORDER BY version ASC;
 
 
--- name: GetLatestPolicyVersion :one
-SELECT COALESCE(MAX(version), 0)::bigint AS version
+-- name: GetLatestPolicySequence :one
+SELECT COALESCE(MAX(sequence), 0)::bigint AS last_sequence
 FROM policy_mutations
 WHERE org_id = $1;
 
--- name: GetNextPolicySequence :one
-SELECT COALESCE(MAX(sequence), 0) + 1 AS next_sequence
+-- name: GetNextPolicyVersion :one
+SELECT COALESCE(MAX(version), 0) + 1 AS next_policy_version
 FROM policy_mutations
 WHERE org_id = $1 AND policy_id = $2;
 
@@ -63,8 +78,8 @@ WHERE org_id = $1 AND policy_id = $2;
 
 -- name: InsertPolicy :one
 INSERT INTO policies (
-    id, org_id, name, description, effect, priority, enabled, version, sequence, created_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    id, org_id, name, description, effect, priority, enabled, version, created_by
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 
@@ -76,7 +91,6 @@ UPDATE policies SET
     priority = COALESCE(sqlc.narg('priority'), priority),
     enabled = COALESCE(sqlc.narg('enabled'), enabled),
     version = $2,
-    sequence = $3,
     updated_at = NOW()
 WHERE id = $1 AND org_id = sqlc.narg('org_id')
 RETURNING *;
@@ -88,7 +102,7 @@ DELETE FROM policies WHERE id = $1 AND org_id = $2;
 -- name: GetPolicyByID :one
 SELECT 
     p.id, p.org_id, p.name, p.description, p.effect, p.priority, 
-    p.enabled, p.version, p.sequence, p.created_by, p.created_at, p.updated_at
+    p.enabled, p.version, p.created_by, p.created_at, p.updated_at
 FROM policies p
 WHERE p.id = $1 AND p.org_id = $2;
 
@@ -96,7 +110,7 @@ WHERE p.id = $1 AND p.org_id = $2;
 -- name: ListPoliciesByOrg :many
 SELECT 
     p.id, p.org_id, p.name, p.description, p.effect, p.priority, 
-    p.enabled, p.version, p.sequence, p.created_by, p.created_at, p.updated_at
+    p.enabled, p.version, p.created_by, p.created_at, p.updated_at
 FROM policies p
 WHERE p.org_id = $1
 ORDER BY p.effect DESC, p.priority DESC, p.id;
@@ -107,7 +121,7 @@ ORDER BY p.effect DESC, p.priority DESC, p.id;
 -- name: GetPolicyWithDetails :one
 SELECT 
     p.id, p.org_id, p.name, p.description, p.effect, p.priority, 
-    p.enabled, p.version, p.sequence, p.created_by, p.created_at, p.updated_at,
+    p.enabled, p.version, p.created_by, p.created_at, p.updated_at,
     COALESCE(jsonb_agg(DISTINCT jsonb_build_object('type', ps.subject_type, 'value', ps.subject_value)) FILTER (WHERE ps.policy_id IS NOT NULL), '[]') AS subjects,
     COALESCE(jsonb_agg(DISTINCT jsonb_build_object('type', pr.resource_type, 'value', pr.resource_value)) FILTER (WHERE pr.policy_id IS NOT NULL), '[]') AS resources,
     pc.condition_tree as conditions
@@ -203,17 +217,9 @@ LEFT JOIN policy_conditions pc ON pc.policy_id = p.id
 WHERE p.id = $1 AND p.org_id = $2
 GROUP BY p.id, pc.condition_tree;
 
--- =============================================================================
--- Audit
--- =============================================================================
-
--- name: InsertPolicyAuditLog :exec
-INSERT INTO policy_audit_log (
-    org_id, policy_id, action, actor_id, actor_email, old_state, new_state, ip_address, user_agent
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- name: ListPoliciesByAppResource :many
-SELECT p.id, p.org_id, p.name, p.description, p.effect, p.priority, p.enabled, p.version, p.sequence, p.created_by, p.created_at, p.updated_at
+SELECT p.id, p.org_id, p.name, p.description, p.effect, p.priority, p.enabled, p.version, p.created_by, p.created_at, p.updated_at
 FROM policies p
 JOIN policy_resources pr ON pr.policy_id = p.id
 WHERE p.org_id = $1

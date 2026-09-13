@@ -88,3 +88,13 @@ WHERE id         = $1
   AND org_id     = $2
   AND deleted_at IS NULL
 RETURNING *;
+
+
+-- name: MarkOfflineStaleApp :execrows
+UPDATE apps
+SET health_status = 'unhealthy'
+WHERE check_health = true
+  AND health_status = 'healthy'
+  AND last_seen < NOW() - (sqlc.arg(threshold_minutes)::text || ' minutes')::interval
+  AND last_seen IS NOT NULL;
+

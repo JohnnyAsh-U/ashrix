@@ -18,7 +18,7 @@ type GatewayConn struct {
 
 	// Current state known from the gateway
 	CurrentPolicyVersion uint64
-	CurrentTrustVersion  uint64
+	// CurrentTrustVersion  uint64
 
 	// Control
 	Ctx    context.Context
@@ -48,7 +48,7 @@ func NewGatewayConn(
 		ConnectedAt: time.Now(),
 		LastSeen:    time.Now(),
 
-		// CurrentPolicyVersion: policyVersion,
+		CurrentPolicyVersion: 0,
 
 		Ctx:    ctx,
 		Cancel: cancel,

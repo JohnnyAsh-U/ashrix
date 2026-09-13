@@ -20,7 +20,7 @@ var (
 	ErrNotFound      = errors.New("policy not found")
 	ErrHashMismatch  = errors.New("policy state hash mismatch")
 	ErrStaleSequence = errors.New("stale policy sequence")
-	ErrSigInvalid = errors.New("signature verification failed")
+	ErrSigInvalid    = errors.New("signature verification failed")
 )
 
 const (
@@ -28,7 +28,6 @@ const (
 	bucketTombstones = "tombstones"
 	bucketSyncMeta   = "sync_meta"
 )
-
 
 // BoltStore persists policies durably. All writes are atomic bbolt transactions.
 type BoltStore struct {
@@ -160,7 +159,7 @@ func (s *BoltStore) ListTombstones(ctx context.Context) (map[string]TombstoneRec
 
 // ApplyDelta performs all mutations and the checkpoint update inside a single
 // bbolt transaction. Either everything commits or nothing does.
-func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRecord, checkpoint SyncCheckpoint) error {
+func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRecord, lastSeq int64) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		polB := tx.Bucket([]byte(bucketPolicies))
 		tombB := tx.Bucket([]byte(bucketTombstones))
@@ -182,17 +181,17 @@ func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRe
 				if err := proto.Unmarshal(v, existing); err != nil {
 					return fmt.Errorf("decode existing %s: %w", key, err)
 				}
-				if record.Sequence <= existing.Sequence {
+				if record.Rule.Version <= existing.Rule.Version {
 					return fmt.Errorf("policy %s: %w (stored=%d, incoming=%d)",
-						key, ErrStaleSequence, existing.Sequence, record.Sequence)
+						key, ErrStaleSequence, existing.Rule.Version, record.Rule.Version)
 				}
 			}
 			if v := tombB.Get(key); v != nil {
 				var tomb TombstoneRecord
 				if err := json.Unmarshal(v, &tomb); err == nil {
-					if record.Sequence <= tomb.Version {
+					if record.Rule.Version <= tomb.Version {
 						return fmt.Errorf("policy %s: %w (deleted at sequence %d, incoming=%d)",
-							key, ErrStaleSequence, tomb.Version, record.Sequence)
+							key, ErrStaleSequence, tomb.Version, record.Rule.Version)
 					}
 				}
 			}
@@ -206,6 +205,7 @@ func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRe
 				if err := polB.Put(key, data); err != nil {
 					return err
 				}
+				// lastPolicySeq = record.Rule.Version
 
 			case pb.OperationEnum_OPERATION_ENUM_DELETE:
 				// Remove active policy
@@ -216,7 +216,7 @@ func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRe
 				tomb := TombstoneRecord{
 					ID:        record.Rule.PolicyId,
 					DeletedAt: time.Now().UTC(),
-					Version:   record.Sequence,
+					Version:   record.Rule.Version,
 				}
 				data, _ := json.Marshal(tomb)
 				if err := tombB.Put(key, data); err != nil {
@@ -230,6 +230,11 @@ func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRe
 		}
 
 		// Checkpoint
+		checkpoint := SyncCheckpoint{
+			LastSequence: lastSeq,
+			LastSyncAt:   time.Now(),
+		}
+
 		cpData, err := json.Marshal(checkpoint)
 		if err != nil {
 			return err

@@ -235,7 +235,7 @@ message RevokedSessions {
 }
 
 message PolicyBundle {
-  int64 version   = 1;  // bundle protocol version
+  int64 last_sequence   = 1;  // bundle protocol version
   int64 issued_at = 2;  // epoch ms
   // Delta or full snapshot — gateway unpacks these one by one
   repeated PolicyRecord records = 3;
@@ -513,22 +513,22 @@ message PolicyRule {
   PolicyConditions          conditions  = 9;
   bool                      enabled     = 10;
   int64                     version     = 11;
-  google.protobuf.Timestamp created_at  = 12;
+  int64                     sequence     = 12;
+  google.protobuf.Timestamp created_at  = 13;
 }
 
 message PolicyRecord {
   // --- Envelope metadata (signed) ---
-  int64         sequence  = 1;  // STRICTLY monotonic per policy_id
-  OperationEnum operation = 2;  // UPSERT, DELETE
-  int64         timestamp = 3;  // epoch ms
+  OperationEnum operation = 1;  // UPSERT, DELETE
+  int64         timestamp = 2;  // epoch ms
 
   // --- Payload ---
   // For DELETE, this can be a minimal rule with just policy_id + tenant_id,
   // or the last known rule. The signature still covers it.
-  PolicyRule rule = 4;
+  PolicyRule rule = 3;
 
   // Signs: H(sequence || operation || timestamp || canonical_hash(rule))
-  bytes signature = 5;
+  bytes signature = 4;
 }
 
 message AccessLogEntry {

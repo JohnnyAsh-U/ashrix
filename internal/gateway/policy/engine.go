@@ -24,7 +24,7 @@ type PolicyEngine struct {
 	verifier      *store.RootKey
 	logger        *slog.Logger
 	scheduleCache map[string]*proto.Schedule
-	gatewayID      string
+	gatewayID     string
 
 	// In-memory index maps
 	byTenantApp    map[string]map[string][]*CompiledPolicy
@@ -45,7 +45,7 @@ func NewEngine(
 		store:          bboltStore,
 		verifier:       sigVerifier,
 		logger:         logger,
-		gatewayID: gatewayID,
+		gatewayID:      gatewayID,
 		scheduleCache:  make(map[string]*proto.Schedule),
 		byTenantApp:    make(map[string]map[string][]*CompiledPolicy),
 		globalPolicies: make(map[string][]*CompiledPolicy),
@@ -70,7 +70,7 @@ func NewEngine(
 	if sigVerifier != nil {
 		for _, rec := range records {
 			if err := sigVerifier.VerifyRecord(rec); err != nil {
-				return nil, fmt.Errorf("bootstrap verify policy %d: %w", rec.Sequence, err)
+				return nil, fmt.Errorf("bootstrap verify policy %d: %w", rec.Rule.Sequence, err)
 			}
 		}
 		logger.Info("all policy signatures verified", slog.Int("count", len(records)))
@@ -89,11 +89,11 @@ func NewEngine(
 
 	engine.byTenantApp = byTenantApp
 	engine.globalPolicies = globalPolicies
-	engine.version = cp.LastBundleVersion
+	engine.version = cp.LastSequence
 
 	logger.Info("policy bootstrap complete",
 		slog.Int("policies", len(rules)),
-		slog.Int64("bundle_version", cp.LastBundleVersion),
+		slog.Int64("bundle_version", cp.LastSequence),
 	)
 
 	return engine, nil
@@ -239,24 +239,21 @@ func (e *PolicyEngine) VerifyBundle(bundle *proto.PolicyBundle) error {
 func (e *PolicyEngine) ApplyVerifiedDelta(
 	ctx context.Context,
 	policyBundle *proto.PolicyBundle,
-	checkpoint store.SyncCheckpoint,
 ) error {
 	if e.verifier != nil {
 		if err := e.verifier.VerifyBundle(policyBundle); err != nil {
 			return fmt.Errorf("bundle signature verification failed: %w", err)
 		}
 		e.logger.Info("bundle signature verified",
-			slog.Int64("version", policyBundle.Version))
+			slog.Int64("version", policyBundle.LastSequence))
 	}
-	return e.UpdatePolicies(ctx, policyBundle.Records, checkpoint)
+	return e.UpdatePolicies(ctx, policyBundle.Records, policyBundle.LastSequence)
 }
-
-
 
 func (e *PolicyEngine) UpdatePolicies(
 	ctx context.Context,
 	policies []*proto.PolicyRecord,
-	checkpoint store.SyncCheckpoint,
+	lastSeq int64,
 ) error {
 	// 1. Verify signatures of each policy if signed
 	if e.verifier != nil {
@@ -275,7 +272,7 @@ func (e *PolicyEngine) UpdatePolicies(
 	}
 
 	// 3. Write to store
-	if err := e.store.ApplyDelta(ctx, policies, checkpoint); err != nil {
+	if err := e.store.ApplyDelta(ctx, policies, lastSeq); err != nil {
 		return fmt.Errorf("apply delta: %w", err)
 	}
 
@@ -298,12 +295,12 @@ func (e *PolicyEngine) UpdatePolicies(
 	e.mu.Lock()
 	e.byTenantApp = byTenantApp
 	e.globalPolicies = globalPolicies
-	e.version = checkpoint.LastBundleVersion
+	e.version = lastSeq
 	e.mu.Unlock()
 
 	e.logger.Info("policy update applied and engine reloaded",
 		slog.Int("policies", len(rules)),
-		slog.Int64("bundle_version", checkpoint.LastBundleVersion),
+		slog.Int64("bundle_version", lastSeq),
 	)
 	return nil
 }
@@ -349,7 +346,6 @@ func (e *PolicyEngine) Evaluate(ctx AuthorizationContext) Decision {
 	sort.Slice(candidates, func(i, j int) bool {
 		return candidates[i].Priority > candidates[j].Priority
 	})
-
 
 	var denies, allows []*CompiledPolicy
 	for _, cp := range candidates {

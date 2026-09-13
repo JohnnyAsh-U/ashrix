@@ -84,7 +84,7 @@ func RecordSigningPayload(record *pb.PolicyRecord) []byte {
 	h := sha256.New()
 
 	// Fixed-order envelope fields. BigEndian is explicit and stable.
-	binary.Write(h, binary.BigEndian, record.Sequence)
+	binary.Write(h, binary.BigEndian, record.Rule.Sequence)
 	binary.Write(h, binary.BigEndian, int32(record.Operation))
 	binary.Write(h, binary.BigEndian, record.Timestamp)
 
@@ -101,7 +101,7 @@ func RecordSigningPayload(record *pb.PolicyRecord) []byte {
 func BundleSigningPayload(bundle *pb.PolicyBundle) []byte {
 	h := sha256.New()
 
-	binary.Write(h, binary.BigEndian, bundle.Version)
+	binary.Write(h, binary.BigEndian, bundle.LastSequence)
 	binary.Write(h, binary.BigEndian, bundle.IssuedAt)
 	binary.Write(h, binary.BigEndian, int64(len(bundle.Records)))
 
@@ -141,7 +141,7 @@ func (v *RootKey) VerifyRecord(record *pb.PolicyRecord) error {
 		if record.Rule != nil {
 			pid = record.Rule.PolicyId
 		}
-		return fmt.Errorf("record seq=%d policy=%s signature invalid", record.Sequence, pid)
+		return fmt.Errorf("record seq=%d policy=%s signature invalid", record.Rule.Sequence, pid)
 	}
 	return nil
 }

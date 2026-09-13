@@ -98,8 +98,6 @@ func (s *Server) Connect(stream gen.ConnectorService_ConnectServer) error {
 		return status.Error(codes.Unauthenticated, "failed to parse certificate identity")
 	}
 
-	fmt.Println(connectorID, certConnectorID)
-
 	if certConnectorID != connectorID {
 		s.log.Error("mTLS identity spoofing attempt blocked",
 			slog.String("hello_connector_id", connectorID),

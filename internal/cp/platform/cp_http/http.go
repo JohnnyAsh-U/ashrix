@@ -132,7 +132,7 @@ func InitializeHttpServer(
 	connectorService := connector.NewService(respositories.Connector, respositories.PKICA, respositories.Event, respositories.Gateway, eventsDispatcher)
 	connectorHandler := connector.NewConnectorHandler(connectorService, CASigner)
 
-	updateStaleGatewayConnector(context.Background(), respositories.Gateway, respositories.Connector, log)
+	updateStaleGatewayConnector(context.Background(), respositories.Gateway, respositories.Connector,respositories.App, log)
 
 	// Policy routes
 	policyService := policy.NewService(respositories.Policy, policyDistributor)
@@ -197,14 +197,15 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"ok"}`))
 }
 
-func updateStaleGatewayConnector(ctx context.Context, gatewayRepo gateway.Repository, connectorRepo connector.Repository, log *slog.Logger) {
+func updateStaleGatewayConnector(ctx context.Context, gatewayRepo gateway.Repository, connectorRepo connector.Repository, appRepo app.Repository, log *slog.Logger) {
 	ticker := time.NewTicker(5 * time.Second)
 
 	go func() {
-		log.Info("Started Checking And Updating Stale Gateways and Connector")
+		log.Info("Started Checking And Updating Stale Gateways, Connectors, And Apps")
 		for range ticker.C {
 			gateway.CheckAndUpdateGatewayStatus(ctx, gatewayRepo, log)
 			connector.CheckAndUpdateConnectorStatus(ctx, connectorRepo, log)
+			app.CheckAndUpdateAppStatus(ctx, appRepo, log)
 		}
 	}()
 }

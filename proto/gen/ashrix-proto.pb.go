@@ -2365,9 +2365,9 @@ func (x *RevokedSessions) GetExpiresAt() *timestamppb.Timestamp {
 }
 
 type PolicyBundle struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Version  int64                  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`                   // bundle protocol version
-	IssuedAt int64                  `protobuf:"varint,2,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"` // epoch ms
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	LastSequence int64                  `protobuf:"varint,1,opt,name=last_sequence,json=lastSequence,proto3" json:"last_sequence,omitempty"` // bundle protocol version
+	IssuedAt     int64                  `protobuf:"varint,2,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`             // epoch ms
 	// Delta or full snapshot — gateway unpacks these one by one
 	Records []*PolicyRecord `protobuf:"bytes,3,rep,name=records,proto3" json:"records,omitempty"`
 	// Signs: H(version || issued_at || H(record[0]) || H(record[1]) || ...)
@@ -2407,9 +2407,9 @@ func (*PolicyBundle) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_proto_rawDescGZIP(), []int{29}
 }
 
-func (x *PolicyBundle) GetVersion() int64 {
+func (x *PolicyBundle) GetLastSequence() int64 {
 	if x != nil {
-		return x.Version
+		return x.LastSequence
 	}
 	return 0
 }
@@ -4301,7 +4301,8 @@ type PolicyRule struct {
 	Conditions    *PolicyConditions      `protobuf:"bytes,9,opt,name=conditions,proto3" json:"conditions,omitempty"`
 	Enabled       bool                   `protobuf:"varint,10,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	Version       int64                  `protobuf:"varint,11,opt,name=version,proto3" json:"version,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	Sequence      int64                  `protobuf:"varint,12,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4413,6 +4414,13 @@ func (x *PolicyRule) GetVersion() int64 {
 	return 0
 }
 
+func (x *PolicyRule) GetSequence() int64 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
 func (x *PolicyRule) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CreatedAt
@@ -4423,15 +4431,14 @@ func (x *PolicyRule) GetCreatedAt() *timestamppb.Timestamp {
 type PolicyRecord struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// --- Envelope metadata (signed) ---
-	Sequence  int64         `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`                            // STRICTLY monotonic per policy_id
-	Operation OperationEnum `protobuf:"varint,2,opt,name=operation,proto3,enum=proto.OperationEnum" json:"operation,omitempty"` // UPSERT, DELETE
-	Timestamp int64         `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`                          // epoch ms
+	Operation OperationEnum `protobuf:"varint,1,opt,name=operation,proto3,enum=proto.OperationEnum" json:"operation,omitempty"` // UPSERT, DELETE
+	Timestamp int64         `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`                          // epoch ms
 	// --- Payload ---
 	// For DELETE, this can be a minimal rule with just policy_id + tenant_id,
 	// or the last known rule. The signature still covers it.
-	Rule *PolicyRule `protobuf:"bytes,4,opt,name=rule,proto3" json:"rule,omitempty"`
+	Rule *PolicyRule `protobuf:"bytes,3,opt,name=rule,proto3" json:"rule,omitempty"`
 	// Signs: H(sequence || operation || timestamp || canonical_hash(rule))
-	Signature     []byte `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
+	Signature     []byte `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4464,13 +4471,6 @@ func (x *PolicyRecord) ProtoReflect() protoreflect.Message {
 // Deprecated: Use PolicyRecord.ProtoReflect.Descriptor instead.
 func (*PolicyRecord) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_proto_rawDescGZIP(), []int{55}
-}
-
-func (x *PolicyRecord) GetSequence() int64 {
-	if x != nil {
-		return x.Sequence
-	}
-	return 0
 }
 
 func (x *PolicyRecord) GetOperation() OperationEnum {
@@ -4885,9 +4885,9 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
 	"\n" +
-	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x92\x01\n" +
-	"\fPolicyBundle\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x1b\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x9d\x01\n" +
+	"\fPolicyBundle\x12#\n" +
+	"\rlast_sequence\x18\x01 \x01(\x03R\flastSequence\x12\x1b\n" +
 	"\tissued_at\x18\x02 \x01(\x03R\bissuedAt\x12-\n" +
 	"\arecords\x18\x03 \x03(\v2\x13.proto.PolicyRecordR\arecords\x12\x1c\n" +
 	"\tsignature\x18\x04 \x01(\fR\tsignature\"\x81\x01\n" +
@@ -5052,7 +5052,7 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\x10ResourceSelector\x12\x17\n" +
 	"\aapp_ids\x18\x01 \x03(\tR\x06appIds\x12\x14\n" +
 	"\x05paths\x18\x02 \x03(\tR\x05paths\x12\x18\n" +
-	"\amethods\x18\x03 \x03(\tR\amethods\"\xd2\x03\n" +
+	"\amethods\x18\x03 \x03(\tR\amethods\"\xee\x03\n" +
 	"\n" +
 	"PolicyRule\x12\x1b\n" +
 	"\tpolicy_id\x18\x01 \x01(\tR\bpolicyId\x12\x1b\n" +
@@ -5068,15 +5068,15 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"conditions\x12\x18\n" +
 	"\aenabled\x18\n" +
 	" \x01(\bR\aenabled\x12\x18\n" +
-	"\aversion\x18\v \x01(\x03R\aversion\x129\n" +
+	"\aversion\x18\v \x01(\x03R\aversion\x12\x1a\n" +
+	"\bsequence\x18\f \x01(\x03R\bsequence\x129\n" +
 	"\n" +
-	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xc1\x01\n" +
-	"\fPolicyRecord\x12\x1a\n" +
-	"\bsequence\x18\x01 \x01(\x03R\bsequence\x122\n" +
-	"\toperation\x18\x02 \x01(\x0e2\x14.proto.OperationEnumR\toperation\x12\x1c\n" +
-	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\x12%\n" +
-	"\x04rule\x18\x04 \x01(\v2\x11.proto.PolicyRuleR\x04rule\x12\x1c\n" +
-	"\tsignature\x18\x05 \x01(\fR\tsignature\"\xe9\x03\n" +
+	"created_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xa5\x01\n" +
+	"\fPolicyRecord\x122\n" +
+	"\toperation\x18\x01 \x01(\x0e2\x14.proto.OperationEnumR\toperation\x12\x1c\n" +
+	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\x12%\n" +
+	"\x04rule\x18\x03 \x01(\v2\x11.proto.PolicyRuleR\x04rule\x12\x1c\n" +
+	"\tsignature\x18\x04 \x01(\fR\tsignature\"\xe9\x03\n" +
 	"\x0eAccessLogEntry\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x12\x15\n" +

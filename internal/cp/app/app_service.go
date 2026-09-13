@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
@@ -294,4 +296,21 @@ func mapToAppResponse(app store.App) AppResponse {
 		resp.LastSeen = &app.LastSeen.Time
 	}
 	return resp
+}
+
+
+
+func CheckAndUpdateAppStatus (ctx context.Context, appRepo Repository, log *slog.Logger){
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	count, err := appRepo.MarkOfflineStaleAppStatus(ctx, "2")
+
+	if err != nil {
+		log.Error("[HealthCheck] failed %v", slog.Any("err",err))
+		return
+	}
+	if count > 0 {
+		log.Info("[HealthCheck] Apps marked offline", slog.Any("count", count))
+	}
 }
