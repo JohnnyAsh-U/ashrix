@@ -306,6 +306,39 @@ func (h *PolicyHandler) DeletePolicy(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, http.StatusNoContent, nil)
 }
 
+// GetPolicyHistory godoc
+// @Summary Get policy history
+// @Description Retrieve the mutation history for a policy.
+// @Tags Policy
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Policy ID" format(uuid)
+// @Success 200 {array} Mutation
+// @Failure 400 {object} dto.AppError
+// @Failure 401 {object} dto.AppError
+// @Failure 404 {object} dto.AppError
+// @Router /policies/{id}/history [get]
+func (h *PolicyHandler) GetPolicyHistory(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		dto.SendError(w, dto.NewBadRequestError("invalid_uuid"))
+		return
+	}
+
+	mutations, err := h.service.GetHistory(r.Context(), parsedID)
+	if err != nil {
+		if err.Error() == "policy not found" {
+			dto.SendError(w, dto.NewNotFoundError("not_found"))
+			return
+		}
+		dto.SendError(w, dto.NewBadRequestError(err))
+		return
+	}
+
+	dto.SendSuccess(w, http.StatusOK, mutations)
+}
+
 // // =============================================================================
 // // ROUTER REGISTRATION
 // // =============================================================================
@@ -315,6 +348,7 @@ func (h *PolicyHandler) Routes(rg chi.Router) {
 	rg.Post("/", h.CreatePolicy)
 	rg.Get("/", h.ListPolicies)
 	rg.Get("/{id}", h.GetPolicy)
+	rg.Get("/{id}/history", h.GetPolicyHistory)
 	rg.Put("/{id}", h.UpdatePolicy)
 	rg.Delete("/{id}", h.DeletePolicy)
 }

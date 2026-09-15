@@ -28,6 +28,7 @@ type Repository interface {
 	GetMutationsSince(ctx context.Context, orgID uuid.UUID, sinceVersion int64) ([]Mutation, error)
 	GetLatestPolicySequence(ctx context.Context, orgID uuid.UUID) (int64, error)
 	GetPolicyMutation(ctx context.Context, orgID, policyID uuid.UUID, sequence int64) (*Mutation, error)
+	GetPolicyHistory(ctx context.Context, policyID, orgID uuid.UUID) ([]Mutation, error)
 }
 
 // Mutation represents a single entry from the policy mutation log.
@@ -447,6 +448,9 @@ func (r *postgresRepository) Update(ctx context.Context, policyID, orgID uuid.UU
 		return nil, fmt.Errorf("get existing policy: %w", err)
 	}
 
+	policyMutationID := uuid.New()
+
+
 	// Compute next per-policy version
 	nextVersion, err := r.queries.GetNextPolicyVersion(ctx, store.GetNextPolicyVersionParams{
 		OrgID:    orgID,
@@ -504,6 +508,7 @@ func (r *postgresRepository) Update(ctx context.Context, policyID, orgID uuid.UU
 
 	// 1. Insert mutation log
 	mut, err := qtx.InsertPolicyMutation(ctx, store.InsertPolicyMutationParams{
+		ID: policyMutationID,
 		OrgID:           orgID,
 		PolicyID:        policyID,
 		Op:              "UPSERT",
@@ -694,6 +699,49 @@ func (r *postgresRepository) GetMutationsSince(ctx context.Context, orgID uuid.U
 
 	return mutations, nil
 }
+
+// -----------------------------------------------------------
+// GET POLICY HISTORY
+// -----------------------------------------------------------
+
+func (r *postgresRepository) GetPolicyHistory(ctx context.Context, policyID, orgID uuid.UUID) ([]Mutation, error) {
+	rows, err := r.queries.GetPolicyMutationsByPolicyID(ctx, store.GetPolicyMutationsByPolicyIDParams{
+		OrgID:    orgID,
+		PolicyID: policyID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get policy mutations: %w", err)
+	}
+
+	mutations := make([]Mutation, 0, len(rows))
+	for _, row := range rows {
+		var snapshot map[string]any
+		if err := json.Unmarshal(row.RuleSnapshot, &snapshot); err != nil {
+			return nil, fmt.Errorf("unmarshal snapshot v%d: %w", row.Version, err)
+		}
+
+		m := Mutation{
+			Version:          row.Version,
+			Sequence:         row.Sequence,
+			RecordTimestamp:  row.RecordTimestamp,
+			Signature:        row.Signature,
+			OrgID:            row.OrgID,
+			PolicyID:         row.PolicyID,
+			PolicyMutationID: row.ID,
+			Op:               row.Op,
+			Snapshot:         snapshot,
+			MutatedAt:        row.MutatedAt,
+		}
+		if row.MutatedBy.Valid {
+			id := uuid.UUID(row.MutatedBy.Bytes)
+			m.MutatedBy = &id
+		}
+		mutations = append(mutations, m)
+	}
+
+	return mutations, nil
+}
+
 
 // -----------------------------------------------------------
 // GET LATEST VERSION

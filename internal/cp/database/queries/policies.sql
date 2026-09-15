@@ -59,6 +59,23 @@ FROM policy_mutations
 WHERE org_id = $1 AND sequence > $2
 ORDER BY sequence ASC;
 
+-- name: GetPolicyMutationsByPolicyID :many
+SELECT 
+    id,
+    version,
+    org_id,
+    policy_id,
+    op,
+    sequence,
+    record_timestamp,
+    signature,
+    rule_snapshot,
+    mutated_by,
+    mutated_at
+FROM policy_mutations
+WHERE org_id = $1 AND policy_id = $2
+ORDER BY version DESC;
+
 
 -- name: GetLatestPolicySequence :one
 SELECT COALESCE(MAX(sequence), 0)::bigint AS last_sequence

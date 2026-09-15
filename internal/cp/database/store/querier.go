@@ -154,6 +154,7 @@ type Querier interface {
 	GetPolicyByID(ctx context.Context, arg GetPolicyByIDParams) (GetPolicyByIDRow, error)
 	GetPolicyCondition(ctx context.Context, policyID uuid.UUID) (PolicyCondition, error)
 	GetPolicyMutation(ctx context.Context, arg GetPolicyMutationParams) (GetPolicyMutationRow, error)
+	GetPolicyMutationsByPolicyID(ctx context.Context, arg GetPolicyMutationsByPolicyIDParams) ([]GetPolicyMutationsByPolicyIDRow, error)
 	GetPolicyResources(ctx context.Context, policyID uuid.UUID) ([]GetPolicyResourcesRow, error)
 	GetPolicySubjects(ctx context.Context, policyID uuid.UUID) ([]GetPolicySubjectsRow, error)
 	GetPolicyWithDetails(ctx context.Context, arg GetPolicyWithDetailsParams) (GetPolicyWithDetailsRow, error)

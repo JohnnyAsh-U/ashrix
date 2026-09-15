@@ -19,6 +19,7 @@ type Service interface {
 	List(ctx context.Context, query ListPoliciesQuery) ([]Policy, int64, error)
 	Update(ctx context.Context, policyID uuid.UUID, req UpdatePolicyRequest) (*Policy, error)
 	Delete(ctx context.Context, policyID uuid.UUID) error
+	GetHistory(ctx context.Context, policyID uuid.UUID) ([]Mutation, error)
 }
 
 type policyService struct {
@@ -162,4 +163,13 @@ func (s *policyService) Delete(ctx context.Context, policyID uuid.UUID) error {
 	}()
 
 	return nil
+}
+
+func (s *policyService) GetHistory(ctx context.Context, policyID uuid.UUID) ([]Mutation, error) {
+	orgID := middleware.OrgIDFromCtx(ctx)
+	orgUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetPolicyHistory(ctx, policyID, orgUUID)
 }

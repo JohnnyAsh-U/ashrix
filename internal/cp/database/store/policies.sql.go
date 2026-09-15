@@ -385,6 +385,75 @@ func (q *Queries) GetPolicyMutation(ctx context.Context, arg GetPolicyMutationPa
 	return i, err
 }
 
+const getPolicyMutationsByPolicyID = `-- name: GetPolicyMutationsByPolicyID :many
+SELECT 
+    id,
+    version,
+    org_id,
+    policy_id,
+    op,
+    sequence,
+    record_timestamp,
+    signature,
+    rule_snapshot,
+    mutated_by,
+    mutated_at
+FROM policy_mutations
+WHERE org_id = $1 AND policy_id = $2
+ORDER BY version DESC
+`
+
+type GetPolicyMutationsByPolicyIDParams struct {
+	OrgID    uuid.UUID `json:"org_id"`
+	PolicyID uuid.UUID `json:"policy_id"`
+}
+
+type GetPolicyMutationsByPolicyIDRow struct {
+	ID              uuid.UUID       `json:"id"`
+	Version         int64           `json:"version"`
+	OrgID           uuid.UUID       `json:"org_id"`
+	PolicyID        uuid.UUID       `json:"policy_id"`
+	Op              string          `json:"op"`
+	Sequence        int64           `json:"sequence"`
+	RecordTimestamp int64           `json:"record_timestamp"`
+	Signature       []byte          `json:"signature"`
+	RuleSnapshot    json.RawMessage `json:"rule_snapshot"`
+	MutatedBy       pgtype.UUID     `json:"mutated_by"`
+	MutatedAt       time.Time       `json:"mutated_at"`
+}
+
+func (q *Queries) GetPolicyMutationsByPolicyID(ctx context.Context, arg GetPolicyMutationsByPolicyIDParams) ([]GetPolicyMutationsByPolicyIDRow, error) {
+	rows, err := q.db.Query(ctx, getPolicyMutationsByPolicyID, arg.OrgID, arg.PolicyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetPolicyMutationsByPolicyIDRow{}
+	for rows.Next() {
+		var i GetPolicyMutationsByPolicyIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Version,
+			&i.OrgID,
+			&i.PolicyID,
+			&i.Op,
+			&i.Sequence,
+			&i.RecordTimestamp,
+			&i.Signature,
+			&i.RuleSnapshot,
+			&i.MutatedBy,
+			&i.MutatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPolicyResources = `-- name: GetPolicyResources :many
 SELECT pr.policy_id, pr.resource_type, pr.resource_value,
        a.name AS app_name
