@@ -257,6 +257,7 @@ type Policy struct {
 	Priority    pgtype.Int4 `json:"priority"`
 	Enabled     bool        `json:"enabled"`
 	Version     int64       `json:"version"`
+	Sequence    int64       `json:"sequence"`
 	CreatedBy   uuid.UUID   `json:"created_by"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`

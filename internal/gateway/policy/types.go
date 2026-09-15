@@ -113,6 +113,7 @@ type Resource struct {
 type Decision struct {
 	Effect        Effect    `json:"effect"`
 	PolicyID      string    `json:"policy_id"`
+	PolicyMutationID      string    `json:"policy_mutation_id"`
 	Reason        string    `json:"reason"`
 	EvaluatedAt   time.Time `json:"evaluated_at"`
 	UserID        string    `json:"user_id"`

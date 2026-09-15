@@ -78,6 +78,7 @@ type UpdatePolicyRequest struct {
 
 type Policy struct {
 	ID          uuid.UUID     `json:"id"`
+	PolicyMutationID uuid.UUID `json:"policy_mutation_id"`
 	OrgID       uuid.UUID     `json:"org_id"`
 	Name        string        `json:"name"`
 	Description string        `json:"description"`

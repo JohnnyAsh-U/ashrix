@@ -491,15 +491,41 @@ func (h *StreamManager) handleMessage(ctx context.Context, msg *pb.CPEnvelope) {
 }
 
 func (h *StreamManager) handlePolicyUpdate(ctx context.Context, msg *pb.CPEnvelope) {
-	h.log.Info("Received Policy Version", slog.Any("Policies Count", len(msg.GetPolicyBundle().Records)), slog.Any("Polices Last Sequence", msg.GetPolicyBundle().GetLastSequence()))
+	bundle := msg.GetPolicyBundle()
+	if bundle == nil {
+		return
+	}
+	h.log.Info("Received Policy Version", slog.Any("Policies Count", len(bundle.Records)), slog.Any("Polices Last Sequence", bundle.GetLastSequence()))
 	checkpoint, err := h.policyStore.GetCheckpoint(ctx)
 	if err != nil {
 		h.log.Warn("ERROR: GETTING CHECKPOINT")
 	}
-	if msg.GetPolicyBundle().LastSequence > checkpoint.LastSequence {
-		err := h.engine.ApplyVerifiedDelta(ctx, msg.GetPolicyBundle())
-		if err  != nil {
-			h.log.Error(err.Error())
+
+	lastSeq := bundle.GetLastSequence()
+	if lastSeq > checkpoint.LastSequence {
+		err := h.engine.ApplyVerifiedDelta(ctx, bundle)
+		if err != nil {
+			h.log.Error("failed to apply policy delta", slog.String("error", err.Error()))
+			return
+		}
+	} else if checkpoint.LastSequence > 0 {
+		lastSeq = checkpoint.LastSequence
+	}
+
+	if lastSeq > 0 {
+		if err := h.Send(&pb.GatewayEnvelope{
+			GatewayId: h.cfg.GatewayID,
+			Payload: &pb.GatewayEnvelope_PolicyAck{
+				PolicyAck: &pb.PolicyAck{
+					GatewayId: h.cfg.GatewayID,
+					Sequence:  lastSeq,
+					TimeStamp: timestamppb.Now(),
+				},
+			},
+		}); err != nil {
+			h.log.Error("failed to send policy ack", slog.String("error", err.Error()))
+		} else {
+			h.log.Info("sent policy ack to CP", slog.Int64("sequence", lastSeq))
 		}
 	}
 }

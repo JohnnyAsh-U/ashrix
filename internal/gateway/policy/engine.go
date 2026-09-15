@@ -108,11 +108,12 @@ func (e *PolicyEngine) Compile(rule *proto.PolicyRule) (*CompiledPolicy, error) 
 	}
 
 	cp := &CompiledPolicy{
-		Proto:    rule,
-		Effect:   eff,
-		PolicyID: rule.PolicyId,
-		Priority: int(rule.Priority),
-		Version:  rule.Version,
+		Proto:            rule,
+		Effect:           eff,
+		PolicyID:         rule.PolicyId,
+		PolicyMutationID: rule.PolicyMutationId,
+		Priority:         int(rule.Priority),
+		Version:          rule.Version,
 	}
 
 	if rule.Subject != nil {
@@ -363,15 +364,16 @@ func (e *PolicyEngine) Evaluate(ctx AuthorizationContext) Decision {
 		}
 		if ok, reason := cp.matchesConditions(ctx, schedules); ok {
 			return Decision{
-				Effect:        EffectDeny,
-				PolicyID:      cp.PolicyID,
-				Reason:        reason,
-				EvaluatedAt:   now,
-				UserID:        ctx.Principal.UserID,
-				AppID:         ctx.Resource.AppID,
-				GatewayID:     ctx.GatewayID,
-				TenantID:      ctx.TenantID,
-				PolicyVersion: cp.Version,
+				Effect:           EffectDeny,
+				PolicyID:         cp.PolicyID,
+				PolicyMutationID: cp.PolicyMutationID,
+				Reason:           reason,
+				EvaluatedAt:      now,
+				UserID:           ctx.Principal.UserID,
+				AppID:            ctx.Resource.AppID,
+				GatewayID:        ctx.GatewayID,
+				TenantID:         ctx.TenantID,
+				PolicyVersion:    cp.Version,
 			}
 		}
 	}
@@ -383,23 +385,25 @@ func (e *PolicyEngine) Evaluate(ctx AuthorizationContext) Decision {
 		}
 		if ok, _ := cp.matchesConditions(ctx, schedules); ok {
 			return Decision{
-				Effect:        EffectAllow,
-				PolicyID:      cp.PolicyID,
-				Reason:        "policy_matched",
-				EvaluatedAt:   now,
-				UserID:        ctx.Principal.UserID,
-				AppID:         ctx.Resource.AppID,
-				GatewayID:     ctx.GatewayID,
-				TenantID:      ctx.TenantID,
-				PolicyVersion: cp.Version,
+				Effect:           EffectAllow,
+				PolicyID:         cp.PolicyID,
+				PolicyMutationID: cp.PolicyMutationID,
+				Reason:           "policy_matched",
+				EvaluatedAt:      now,
+				UserID:           ctx.Principal.UserID,
+				AppID:            ctx.Resource.AppID,
+				GatewayID:        ctx.GatewayID,
+				TenantID:         ctx.TenantID,
+				PolicyVersion:    cp.Version,
 			}
 		}
 	}
 
 	// STEP 3: DEFAULT DENY
 	return Decision{
-		Effect:      EffectDeny,
-		PolicyID:    "",
+		Effect:           EffectDeny,
+		PolicyID:         "",
+		PolicyMutationID: "",
 		Reason:      "default_deny",
 		EvaluatedAt: now,
 		UserID:      ctx.Principal.UserID,

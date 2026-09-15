@@ -182,7 +182,7 @@ SELECT
     mutated_at
 FROM policy_mutations
 WHERE org_id = $1 AND sequence > $2
-ORDER BY version ASC
+ORDER BY sequence ASC
 `
 
 type GetMutationsSinceParams struct {
@@ -256,10 +256,16 @@ func (q *Queries) GetNextPolicyVersion(ctx context.Context, arg GetNextPolicyVer
 
 const getPolicyByID = `-- name: GetPolicyByID :one
 SELECT 
-    p.id, p.org_id, p.name, p.description, p.effect, p.priority, 
-    p.enabled, p.version, p.created_by, p.created_at, p.updated_at
+    p.id, p.org_id, p.name, p.description, p.effect, p.priority, p.sequence,
+    p.enabled, p.version, p.created_by, p.created_at, p.updated_at,
+    pm.id AS mutation_id,
+    pm.rule_snapshot,
+    pm.signature,
+    pm.version AS latest_version
 FROM policies p
+JOIN policy_mutations pm ON pm.policy_id = p.id
 WHERE p.id = $1 AND p.org_id = $2
+ORDER BY pm.version DESC LIMIT 1
 `
 
 type GetPolicyByIDParams struct {
@@ -267,9 +273,28 @@ type GetPolicyByIDParams struct {
 	OrgID uuid.UUID `json:"org_id"`
 }
 
-func (q *Queries) GetPolicyByID(ctx context.Context, arg GetPolicyByIDParams) (Policy, error) {
+type GetPolicyByIDRow struct {
+	ID            uuid.UUID       `json:"id"`
+	OrgID         uuid.UUID       `json:"org_id"`
+	Name          string          `json:"name"`
+	Description   pgtype.Text     `json:"description"`
+	Effect        string          `json:"effect"`
+	Priority      pgtype.Int4     `json:"priority"`
+	Sequence      int64           `json:"sequence"`
+	Enabled       bool            `json:"enabled"`
+	Version       int64           `json:"version"`
+	CreatedBy     uuid.UUID       `json:"created_by"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+	MutationID    uuid.UUID       `json:"mutation_id"`
+	RuleSnapshot  json.RawMessage `json:"rule_snapshot"`
+	Signature     []byte          `json:"signature"`
+	LatestVersion int64           `json:"latest_version"`
+}
+
+func (q *Queries) GetPolicyByID(ctx context.Context, arg GetPolicyByIDParams) (GetPolicyByIDRow, error) {
 	row := q.db.QueryRow(ctx, getPolicyByID, arg.ID, arg.OrgID)
-	var i Policy
+	var i GetPolicyByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrgID,
@@ -277,11 +302,16 @@ func (q *Queries) GetPolicyByID(ctx context.Context, arg GetPolicyByIDParams) (P
 		&i.Description,
 		&i.Effect,
 		&i.Priority,
+		&i.Sequence,
 		&i.Enabled,
 		&i.Version,
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MutationID,
+		&i.RuleSnapshot,
+		&i.Signature,
+		&i.LatestVersion,
 	)
 	return i, err
 }
@@ -356,21 +386,35 @@ func (q *Queries) GetPolicyMutation(ctx context.Context, arg GetPolicyMutationPa
 }
 
 const getPolicyResources = `-- name: GetPolicyResources :many
-SELECT policy_id, resource_type, resource_value
-FROM policy_resources
+SELECT pr.policy_id, pr.resource_type, pr.resource_value,
+       a.name AS app_name
+FROM policy_resources pr
+LEFT JOIN apps a on a.id::text = pr.resource_value AND pr.resource_type = 'app'
 WHERE policy_id = $1
 `
 
-func (q *Queries) GetPolicyResources(ctx context.Context, policyID uuid.UUID) ([]PolicyResource, error) {
+type GetPolicyResourcesRow struct {
+	PolicyID      uuid.UUID   `json:"policy_id"`
+	ResourceType  string      `json:"resource_type"`
+	ResourceValue string      `json:"resource_value"`
+	AppName       pgtype.Text `json:"app_name"`
+}
+
+func (q *Queries) GetPolicyResources(ctx context.Context, policyID uuid.UUID) ([]GetPolicyResourcesRow, error) {
 	rows, err := q.db.Query(ctx, getPolicyResources, policyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PolicyResource{}
+	items := []GetPolicyResourcesRow{}
 	for rows.Next() {
-		var i PolicyResource
-		if err := rows.Scan(&i.PolicyID, &i.ResourceType, &i.ResourceValue); err != nil {
+		var i GetPolicyResourcesRow
+		if err := rows.Scan(
+			&i.PolicyID,
+			&i.ResourceType,
+			&i.ResourceValue,
+			&i.AppName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -382,21 +426,35 @@ func (q *Queries) GetPolicyResources(ctx context.Context, policyID uuid.UUID) ([
 }
 
 const getPolicySubjects = `-- name: GetPolicySubjects :many
-SELECT policy_id, subject_type, subject_value
-FROM policy_subjects
+SELECT ps.policy_id, ps.subject_type, ps.subject_value,
+       a.name AS app_name
+FROM policy_subjects ps
+LEFT JOIN apps a ON a.id::text = ps.subject_value AND ps.subject_type = 'app'
 WHERE policy_id = $1
 `
 
-func (q *Queries) GetPolicySubjects(ctx context.Context, policyID uuid.UUID) ([]PolicySubject, error) {
+type GetPolicySubjectsRow struct {
+	PolicyID     uuid.UUID   `json:"policy_id"`
+	SubjectType  string      `json:"subject_type"`
+	SubjectValue string      `json:"subject_value"`
+	AppName      pgtype.Text `json:"app_name"`
+}
+
+func (q *Queries) GetPolicySubjects(ctx context.Context, policyID uuid.UUID) ([]GetPolicySubjectsRow, error) {
 	rows, err := q.db.Query(ctx, getPolicySubjects, policyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PolicySubject{}
+	items := []GetPolicySubjectsRow{}
 	for rows.Next() {
-		var i PolicySubject
-		if err := rows.Scan(&i.PolicyID, &i.SubjectType, &i.SubjectValue); err != nil {
+		var i GetPolicySubjectsRow
+		if err := rows.Scan(
+			&i.PolicyID,
+			&i.SubjectType,
+			&i.SubjectValue,
+			&i.AppName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -470,9 +528,9 @@ const insertPolicy = `-- name: InsertPolicy :one
 
 
 INSERT INTO policies (
-    id, org_id, name, description, effect, priority, enabled, version, created_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, org_id, name, description, effect, priority, enabled, version, created_by, created_at, updated_at
+    id, org_id, name, description, effect, priority, enabled, version,sequence, created_by
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, org_id, name, description, effect, priority, enabled, version, sequence, created_by, created_at, updated_at
 `
 
 type InsertPolicyParams struct {
@@ -484,6 +542,7 @@ type InsertPolicyParams struct {
 	Priority    pgtype.Int4 `json:"priority"`
 	Enabled     bool        `json:"enabled"`
 	Version     int64       `json:"version"`
+	Sequence    int64       `json:"sequence"`
 	CreatedBy   uuid.UUID   `json:"created_by"`
 }
 
@@ -500,6 +559,7 @@ func (q *Queries) InsertPolicy(ctx context.Context, arg InsertPolicyParams) (Pol
 		arg.Priority,
 		arg.Enabled,
 		arg.Version,
+		arg.Sequence,
 		arg.CreatedBy,
 	)
 	var i Policy
@@ -512,6 +572,7 @@ func (q *Queries) InsertPolicy(ctx context.Context, arg InsertPolicyParams) (Pol
 		&i.Priority,
 		&i.Enabled,
 		&i.Version,
+		&i.Sequence,
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -537,6 +598,7 @@ func (q *Queries) InsertPolicyCondition(ctx context.Context, arg InsertPolicyCon
 
 const insertPolicyMutation = `-- name: InsertPolicyMutation :one
 INSERT INTO policy_mutations (
+    id,
     org_id, 
     policy_id, 
     op, 
@@ -551,11 +613,12 @@ INSERT INTO policy_mutations (
     ip_address,
     user_agent,
     sequence
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 RETURNING version, sequence
 `
 
 type InsertPolicyMutationParams struct {
+	ID              uuid.UUID       `json:"id"`
 	OrgID           uuid.UUID       `json:"org_id"`
 	PolicyID        uuid.UUID       `json:"policy_id"`
 	Op              string          `json:"op"`
@@ -578,6 +641,7 @@ type InsertPolicyMutationRow struct {
 
 func (q *Queries) InsertPolicyMutation(ctx context.Context, arg InsertPolicyMutationParams) (InsertPolicyMutationRow, error) {
 	row := q.db.QueryRow(ctx, insertPolicyMutation,
+		arg.ID,
 		arg.OrgID,
 		arg.PolicyID,
 		arg.Op,
@@ -651,15 +715,29 @@ type ListPoliciesByAppResourceParams struct {
 	ResourceValue_2 string    `json:"resource_value_2"`
 }
 
-func (q *Queries) ListPoliciesByAppResource(ctx context.Context, arg ListPoliciesByAppResourceParams) ([]Policy, error) {
+type ListPoliciesByAppResourceRow struct {
+	ID          uuid.UUID   `json:"id"`
+	OrgID       uuid.UUID   `json:"org_id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Effect      string      `json:"effect"`
+	Priority    pgtype.Int4 `json:"priority"`
+	Enabled     bool        `json:"enabled"`
+	Version     int64       `json:"version"`
+	CreatedBy   uuid.UUID   `json:"created_by"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+}
+
+func (q *Queries) ListPoliciesByAppResource(ctx context.Context, arg ListPoliciesByAppResourceParams) ([]ListPoliciesByAppResourceRow, error) {
 	rows, err := q.db.Query(ctx, listPoliciesByAppResource, arg.OrgID, arg.ResourceValue, arg.ResourceValue_2)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Policy{}
+	items := []ListPoliciesByAppResourceRow{}
 	for rows.Next() {
-		var i Policy
+		var i ListPoliciesByAppResourceRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrgID,
@@ -684,23 +762,69 @@ func (q *Queries) ListPoliciesByAppResource(ctx context.Context, arg ListPolicie
 }
 
 const listPoliciesByOrg = `-- name: ListPoliciesByOrg :many
-SELECT 
-    p.id, p.org_id, p.name, p.description, p.effect, p.priority, 
-    p.enabled, p.version, p.created_by, p.created_at, p.updated_at
-FROM policies p
-WHERE p.org_id = $1
-ORDER BY p.effect DESC, p.priority DESC, p.id
+SELECT p.id, p.org_id, p.name, p.description, p.effect, p.priority, p.enabled, p.version, p.sequence, p.created_by, p.created_at, p.updated_at, 
+latest.id as mutation_id, 
+latest.sequence, 
+latest.op, 
+latest.rule_snapshot,
+latest.signature,
+latest.record_timestamp,
+latest.mutated_at,
+latest.mutated_by
+FROM (
+    SELECT DISTINCT ON (pm.policy_id) 
+    pm.id, 
+    pm.policy_id, 
+    pm.version, 
+    pm.sequence, 
+    pm.op,
+    pm.rule_snapshot,
+    pm.signature,
+    pm.record_timestamp,
+    pm.mutated_at,
+    pm.mutated_by
+    FROM policy_mutations pm
+    WHERE pm.org_id = $1
+    ORDER BY pm.policy_id, pm.version DESC
+) latest
+JOIN policies p ON p.id = latest.policy_id
+WHERE latest.op = 'UPSERT'
+AND p.enabled = true
+ORDER BY latest.sequence ASC, p.effect DESC, p.priority DESC, p.id
 `
 
-func (q *Queries) ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Policy, error) {
+type ListPoliciesByOrgRow struct {
+	ID              uuid.UUID       `json:"id"`
+	OrgID           uuid.UUID       `json:"org_id"`
+	Name            string          `json:"name"`
+	Description     pgtype.Text     `json:"description"`
+	Effect          string          `json:"effect"`
+	Priority        pgtype.Int4     `json:"priority"`
+	Enabled         bool            `json:"enabled"`
+	Version         int64           `json:"version"`
+	Sequence        int64           `json:"sequence"`
+	CreatedBy       uuid.UUID       `json:"created_by"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	MutationID      uuid.UUID       `json:"mutation_id"`
+	Sequence_2      int64           `json:"sequence_2"`
+	Op              string          `json:"op"`
+	RuleSnapshot    json.RawMessage `json:"rule_snapshot"`
+	Signature       []byte          `json:"signature"`
+	RecordTimestamp int64           `json:"record_timestamp"`
+	MutatedAt       time.Time       `json:"mutated_at"`
+	MutatedBy       pgtype.UUID     `json:"mutated_by"`
+}
+
+func (q *Queries) ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]ListPoliciesByOrgRow, error) {
 	rows, err := q.db.Query(ctx, listPoliciesByOrg, orgID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Policy{}
+	items := []ListPoliciesByOrgRow{}
 	for rows.Next() {
-		var i Policy
+		var i ListPoliciesByOrgRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrgID,
@@ -710,9 +834,18 @@ func (q *Queries) ListPoliciesByOrg(ctx context.Context, orgID uuid.UUID) ([]Pol
 			&i.Priority,
 			&i.Enabled,
 			&i.Version,
+			&i.Sequence,
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MutationID,
+			&i.Sequence_2,
+			&i.Op,
+			&i.RuleSnapshot,
+			&i.Signature,
+			&i.RecordTimestamp,
+			&i.MutatedAt,
+			&i.MutatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -757,7 +890,7 @@ UPDATE policies SET
     version = $2,
     updated_at = NOW()
 WHERE id = $1 AND org_id = $8
-RETURNING id, org_id, name, description, effect, priority, enabled, version, created_by, created_at, updated_at
+RETURNING id, org_id, name, description, effect, priority, enabled, version, sequence, created_by, created_at, updated_at
 `
 
 type UpdatePolicyParams struct {
@@ -792,6 +925,7 @@ func (q *Queries) UpdatePolicy(ctx context.Context, arg UpdatePolicyParams) (Pol
 		&i.Priority,
 		&i.Enabled,
 		&i.Version,
+		&i.Sequence,
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,

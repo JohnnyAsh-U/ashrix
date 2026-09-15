@@ -12,6 +12,7 @@ type CompiledPolicy struct {
 	Proto    *proto.PolicyRule
 	Effect   Effect
 	PolicyID string
+	PolicyMutationID string
 	Priority int
 	Version  int64
 

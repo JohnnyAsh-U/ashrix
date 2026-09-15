@@ -92,10 +92,11 @@ message GatewayEnvelope {
   google.protobuf.Timestamp sent_at    = 2;
 
   oneof payload {
-    HelloMessage     hello     = 10;
-    HeartbeatMessage heartbeat = 11;
-    CommandAck       cmd_ack   = 12;
-    AccessLogBatch   log_batch = 13;
+    HelloMessage     hello      = 10;
+    HeartbeatMessage heartbeat  = 11;
+    CommandAck       cmd_ack    = 12;
+    AccessLogBatch   log_batch  = 13;
+    PolicyAck        policy_ack = 14;
   }
 }
 
@@ -190,6 +191,12 @@ message CommandAck {
   int64                     processed_through_seq = 2;
   google.protobuf.Timestamp time_stamp            = 3;
 
+}
+
+message PolicyAck {
+  string                    gateway_id = 1;
+  int64                     sequence   = 2;
+  google.protobuf.Timestamp time_stamp = 3;
 }
 
 message HeartbeatMessage {
@@ -503,18 +510,19 @@ enum OperationEnum {
 
 message PolicyRule {
   string                    policy_id   = 1;
-  string                    tenant_id   = 2;
-  string                    name        = 3;
-  string                    description = 4;
-  EffectEnum                effect      = 5;
-  int32                     priority    = 6;
-  SubjectSelector           subject     = 7;
-  ResourceSelector          resource    = 8;
-  PolicyConditions          conditions  = 9;
-  bool                      enabled     = 10;
-  int64                     version     = 11;
-  int64                     sequence     = 12;
-  google.protobuf.Timestamp created_at  = 13;
+  string                    policy_mutation_id   = 2;
+  string                    tenant_id   = 3;
+  string                    name        = 4;
+  string                    description = 5;
+  EffectEnum                effect      = 6;
+  int32                     priority    = 7;
+  SubjectSelector           subject     = 8;
+  ResourceSelector          resource    = 9;
+  PolicyConditions          conditions  = 10;
+  bool                      enabled     = 11;
+  int64                     version     = 12;
+  int64                     sequence     = 13;
+  google.protobuf.Timestamp created_at  = 14;
 }
 
 message PolicyRecord {

@@ -14,6 +14,7 @@ type AccessContext struct {
 	TenantID  string
 
 	PolicyID   string
+	PolicyMutationID   string
 	Decision   string
 	DenyReason string
 }

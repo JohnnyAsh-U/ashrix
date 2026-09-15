@@ -47,22 +47,13 @@ func NewPolicyDistributor(
 	}
 }
 
-// Distribute is called after any policy mutation. It compiles the latest
-// snapshot, signs it, caches it, and pushes to all connected gateways.
+// Distribute is called after any policy mutation. For each connected gateway,
+// it checks the gateway's policy sequence (from Redis) and pushes a delta bundle
+// (or fallback snapshot if sequence is 0 or delta unavailable).
 func (d *PolicyDistributor) Distribute(ctx context.Context, orgID uuid.UUID) error {
-	bundle, version, err := d.compileSnapshotBundle(ctx, orgID)
-	if err != nil {
-		return fmt.Errorf("compile bundle for org %s: %w", orgID, err)
-	}
-
-	cacheKey := fmt.Sprintf("%s:%d", orgID, version)
-	d.mu.Lock()
-	d.bundleCache[cacheKey] = bundle
-	d.mu.Unlock()
-
 	gateways := d.registry.GetConnectionsForTenant(orgID.String())
 	if len(gateways) == 0 {
-		d.log.Info("no connected gateways for org", "org_id", orgID, "version", version)
+		d.log.Info("no connected gateways for org", "org_id", orgID)
 		return nil
 	}
 
@@ -71,6 +62,34 @@ func (d *PolicyDistributor) Distribute(ctx context.Context, orgID uuid.UUID) err
 		wg.Add(1)
 		go func(conn *registry.GatewayConn) {
 			defer wg.Done()
+
+			gwSeq, err := d.registry.GetGatewayPolicySequence(ctx, conn.GatewayID)
+			if err != nil {
+				d.log.Warn("failed to fetch gateway policy sequence from Redis, falling back to snapshot", "gateway_id", conn.GatewayID, "error", err)
+			}
+
+			var bundle *pb.PolicyBundle
+			if gwSeq > 0 {
+				bundle, err = d.compileDeltaBundle(ctx, orgID, gwSeq)
+				if err != nil {
+					d.log.Warn("compile delta bundle failed, falling back to snapshot", "gateway_id", conn.GatewayID, "since_seq", gwSeq, "error", err)
+					return
+				}
+			}
+
+			if bundle == nil {
+				snapBundle, version, err := d.compileSnapshotBundle(ctx, orgID)
+				if err != nil {
+					d.log.Error("failed to compile snapshot bundle for gateway", "gateway_id", conn.GatewayID, "error", err)
+					return
+				}
+				bundle = snapBundle
+				cacheKey := fmt.Sprintf("%s:%d", orgID, version)
+				d.mu.Lock()
+				d.bundleCache[cacheKey] = bundle
+				d.mu.Unlock()
+			}
+
 			if err := d.sendBundle(ctx, conn, bundle); err != nil {
 				d.log.Error("failed to push bundle", "gateway_id", conn.GatewayID, "error", err)
 			}
@@ -107,7 +126,7 @@ func (d *PolicyDistributor) PushDelta(ctx context.Context, conn *registry.Gatewa
 // ---------------------------------------------------------------------
 
 func (d *PolicyDistributor) compileSnapshotBundle(ctx context.Context, orgID uuid.UUID) (*pb.PolicyBundle, int64, error) {
-	policies, err := d.policyStore.ListByOrg(ctx, orgID)
+	_, mutations, err := d.policyStore.ListByOrg(ctx, orgID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list policies: %w", err)
 	}
@@ -117,14 +136,19 @@ func (d *PolicyDistributor) compileSnapshotBundle(ctx context.Context, orgID uui
 		return nil, 0, fmt.Errorf("get latest version: %w", err)
 	}
 
-	now := time.Now().UTC()
-	issuedAt := now.UnixMilli()
-	records := make([]*pb.PolicyRecord, 0, len(policies))
+	now := time.Now().UTC().UnixMilli()
 
-	for _, p := range policies {
-		record := policyToRecord(p, issuedAt)
+	records := make([]*pb.PolicyRecord, 0, len(mutations))
+
+	for _, p := range mutations {
+		record, err := mutationToRecord(p)
+		if err != nil {
+			return nil, 0, fmt.Errorf("convert mutation v%d: %w", p.Version, err)
+		}
+		// Override timestamp to bundle issuance time for snapshot consistency
+		record.Timestamp = now
 		if err := d.signRecord(record); err != nil {
-			return nil, 0, fmt.Errorf("sign record %s: %w", p.ID, err)
+			return nil, 0, fmt.Errorf("sign record %d: %w", p.Version, err)
 		}
 		records = append(records, record)
 	}
@@ -135,7 +159,7 @@ func (d *PolicyDistributor) compileSnapshotBundle(ctx context.Context, orgID uui
 
 	bundle := &pb.PolicyBundle{
 		LastSequence: sequence,
-		IssuedAt:     issuedAt,
+		IssuedAt:     now,
 		Records:      records,
 		Signature:    nil, // signed below
 	}
@@ -157,6 +181,7 @@ func (d *PolicyDistributor) compileDeltaBundle(ctx context.Context, orgID uuid.U
 	}
 
 	now := time.Now().UTC().UnixMilli()
+
 	records := make([]*pb.PolicyRecord, 0, len(mutations))
 
 	for _, m := range mutations {
@@ -271,42 +296,8 @@ func (d *PolicyDistributor) sendBundle(ctx context.Context, conn *registry.Gatew
 // Domain → Proto conversion
 // ---------------------------------------------------------------------
 
-func policyToRecord(p Policy, timestamp int64) *pb.PolicyRecord {
-	rule := &pb.PolicyRule{
-		PolicyId:    p.ID.String(),
-		TenantId:    p.OrgID.String(),
-		Name:        p.Name,
-		Description: p.Description,
-		Priority:    p.Priority,
-		Enabled:     p.Enabled,
-		Version:     p.Version,
-		CreatedAt:   timestamppb.New(p.CreatedAt),
-	}
-
-	switch p.Effect {
-	case EffectAllow:
-		rule.Effect = pb.EffectEnum_EFFECT_ENUM_ALLOW
-	case EffectDeny:
-		rule.Effect = pb.EffectEnum_EFFECT_ENUM_DENY
-	}
-
-	users, groups, apps := partitionSubjects(p.Subjects)
-	rule.Subject = &pb.SubjectSelector{Users: users, Groups: groups, Apps: apps}
-
-	apps, paths, methods := partitionResources(p.Resources)
-	rule.Resource = &pb.ResourceSelector{AppIds: apps, Paths: paths, Methods: methods}
-
-	rule.Conditions = conditionsToProto(p.Conditions)
-
-	return &pb.PolicyRecord{
-		Operation: pb.OperationEnum_OPERATION_ENUM_UPSERT,
-		Timestamp: timestamp,
-		Rule:      rule,
-	}
-}
-
 func mutationToRecord(m Mutation) (*pb.PolicyRecord, error) {
-	rule, err := snapshotToRule(m.Snapshot, m.Version, m.PolicyID.String())
+	rule, err := snapshotToRule(m)
 	if err != nil {
 		return nil, err
 	}
@@ -326,14 +317,17 @@ func mutationToRecord(m Mutation) (*pb.PolicyRecord, error) {
 	}, nil
 }
 
-func snapshotToRule(snapshot map[string]interface{}, version int64, policyMutationID string) (*pb.PolicyRule, error) {
+func snapshotToRule(mutation Mutation) (*pb.PolicyRule, error) {
+	
+	snapshot := mutation.Snapshot
 	rule := &pb.PolicyRule{
-		PolicyId:    policyMutationID,
-		TenantId:    getString(snapshot, "tenant_id"),
-		Name:        getString(snapshot, "name"),
-		Description: getString(snapshot, "description"),
-		Version:     version,
-		Enabled:     getBool(snapshot, "enabled"),
+		PolicyId:         mutation.PolicyID.String(),
+		PolicyMutationId: getString(snapshot, "policy_mutation_id"),
+		TenantId:         getString(snapshot, "tenant_id"),
+		Name:             getString(snapshot, "name"),
+		Description:      getString(snapshot, "description"),
+		Version:          mutation.Version,
+		Enabled:          getBool(snapshot, "enabled"),
 	}
 
 	if eff, ok := snapshot["effect"].(string); ok {
@@ -378,31 +372,6 @@ func snapshotToRule(snapshot map[string]interface{}, version int64, policyMutati
 	return rule, nil
 }
 
-func conditionsToProto(c Conditions) *pb.PolicyConditions {
-	if c.MFA == nil && c.Device == nil && c.Network == nil && c.Time == nil {
-		return nil
-	}
-	pc := &pb.PolicyConditions{}
-	if c.MFA != nil {
-		pc.Mfa = &pb.MFACondition{Required: c.MFA.Required, MinLevel: c.MFA.MinLevel}
-	}
-	if c.Device != nil {
-		pc.Device = &pb.DeviceCondition{Postures: c.Device.Postures}
-	}
-	if c.Network != nil {
-		pc.Network = &pb.NetworkCondition{
-			AllowedCountries: c.Network.AllowedCountries,
-			BlockedCountries: c.Network.BlockedCountries,
-			AllowedCidrs:     c.Network.AllowedCIDRs,
-			BlockedCidrs:     c.Network.BlockedCIDRs,
-			BlockTor:         c.Network.BlockTor,
-		}
-	}
-	if c.Time != nil {
-		pc.Time = &pb.TimeCondition{ScheduleName: c.Time.ScheduleName}
-	}
-	return pc
-}
 
 func mapToConditions(m map[string]interface{}) *pb.PolicyConditions {
 	pc := &pb.PolicyConditions{}

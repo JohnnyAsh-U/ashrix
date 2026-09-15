@@ -1,6 +1,6 @@
 # Makefile
 # -----Database configuration ------
-DATABASE_URL ?= postgres://postgres:12345678@localhost:5432/ashrixdb2?sslmode=disable
+DATABASE_URL ?= postgres://postgres:12345678@localhost:5432/ashrixdb?sslmode=disable
 
 MODULE := $(shell go list -m)
 

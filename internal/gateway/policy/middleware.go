@@ -76,6 +76,7 @@ func PolicyMiddleware(engine *PolicyEngine, cfg *config.Config, log *slog.Logger
 			accessCtx := logging.AccessContextFromContext(r.Context())
 			if accessCtx != nil {
 				accessCtx.PolicyID = decision.PolicyID
+				accessCtx.PolicyMutationID = decision.PolicyMutationID
 				accessCtx.Decision = string(decision.Effect)
 				if decision.Effect == EffectDeny {
 					accessCtx.DenyReason = "policy_deny"

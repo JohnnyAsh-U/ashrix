@@ -115,10 +115,9 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 			userEmail := accessCtx.UserEmail
 			tenantID := accessCtx.TenantID
 
-			policyID := accessCtx.PolicyID
+			policyID := accessCtx.PolicyMutationID
 			decisionEffect := accessCtx.Decision
 			denyReason := accessCtx.DenyReason
-			fmt.Println(policyID)
 
 			result := "allowed"
 			if lrw.statusCode >= 400 || decisionEffect == "DENY" {

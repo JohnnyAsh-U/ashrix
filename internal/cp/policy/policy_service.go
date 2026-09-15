@@ -63,15 +63,14 @@ func (s *policyService) Create(ctx context.Context, req CreatePolicyRequest) (*P
 	return policy, nil
 }
 
-
-
 func (s *policyService) GetByID(ctx context.Context, policyID uuid.UUID) (*Policy, error) {
 	orgID := middleware.OrgIDFromCtx(ctx)
 	orgUUID, err := uuid.Parse(orgID)
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.GetByID(ctx, policyID, orgUUID)
+	policy, _, err := s.repo.GetByID(ctx, policyID, orgUUID)
+	return policy, err
 }
 
 func (s *policyService) List(ctx context.Context, query ListPoliciesQuery) ([]Policy, int64, error) {
@@ -81,7 +80,7 @@ func (s *policyService) List(ctx context.Context, query ListPoliciesQuery) ([]Po
 		return nil, 0, err
 	}
 
-	all, err := s.repo.ListByOrg(ctx, orgUUID)
+	all, _, err := s.repo.ListByOrg(ctx, orgUUID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -99,7 +98,6 @@ func (s *policyService) List(ctx context.Context, query ListPoliciesQuery) ([]Po
 
 	return all[start:end], total, nil
 }
-
 
 func (s *policyService) Update(ctx context.Context, policyID uuid.UUID, req UpdatePolicyRequest) (*Policy, error) {
 	orgID := middleware.OrgIDFromCtx(ctx)
@@ -133,7 +131,6 @@ func (s *policyService) Update(ctx context.Context, policyID uuid.UUID, req Upda
 
 	return policy, nil
 }
-
 
 func (s *policyService) Delete(ctx context.Context, policyID uuid.UUID) error {
 	orgID := middleware.OrgIDFromCtx(ctx)

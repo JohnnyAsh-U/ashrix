@@ -321,6 +321,7 @@ CREATE TABLE policies (
     enabled         BOOLEAN DEFAULT TRUE NOT NULL,
 
     version         BIGINT NOT NULL DEFAULT 1,
+    sequence         BIGINT NOT NULL DEFAULT 1, -- From the mutation table, to make queries easier
 
     created_by      UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
 

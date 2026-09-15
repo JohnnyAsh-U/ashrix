@@ -149,6 +149,9 @@ func main() {
 
 	//Initializing Gateway GRPC Connection Registry
 	gatewayRegistry := registry.NewGatewayRegistry()
+	if redisStore != nil {
+		gatewayRegistry.SetRedisClient(redisStore.Client())
+	}
 	log.Info("Gateway Registry Initialized")
 
 	//Initialising Policy Distributor

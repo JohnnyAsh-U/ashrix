@@ -175,29 +175,20 @@ func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRe
 
 			key := policyKey(record.Rule.TenantId, record.Rule.PolicyId)
 
-			// 2. Replay / rollback protection: sequence must increase
-			if v := polB.Get(key); v != nil {
-				existing := new(pb.PolicyRecord)
-				if err := proto.Unmarshal(v, existing); err != nil {
-					return fmt.Errorf("decode existing %s: %w", key, err)
-				}
-				if record.Rule.Version <= existing.Rule.Version {
-					return fmt.Errorf("policy %s: %w (stored=%d, incoming=%d)",
-						key, ErrStaleSequence, existing.Rule.Version, record.Rule.Version)
-				}
-			}
-			if v := tombB.Get(key); v != nil {
-				var tomb TombstoneRecord
-				if err := json.Unmarshal(v, &tomb); err == nil {
-					if record.Rule.Version <= tomb.Version {
-						return fmt.Errorf("policy %s: %w (deleted at sequence %d, incoming=%d)",
-							key, ErrStaleSequence, tomb.Version, record.Rule.Version)
-					}
-				}
-			}
 			// 3. Apply operation
 			switch record.Operation {
 			case pb.OperationEnum_OPERATION_ENUM_UPSERT:
+				// 2. Replay / rollback protection: version must increase
+				if v := polB.Get(key); v != nil {
+					existing := new(pb.PolicyRecord)
+					if err := proto.Unmarshal(v, existing); err != nil {
+						return fmt.Errorf("decode existing %s: %w", key, err)
+					}
+					if record.Rule.Version <= existing.Rule.Version {
+						return fmt.Errorf("policy %s: %w (stored=%d, incoming=%d)",
+							key, ErrStaleSequence, existing.Rule.Version, record.Rule.Version)
+					}
+				}
 				data, err := proto.Marshal(record)
 				if err != nil {
 					return fmt.Errorf("marshal %s: %w", key, err)
@@ -208,6 +199,15 @@ func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRe
 				// lastPolicySeq = record.Rule.Version
 
 			case pb.OperationEnum_OPERATION_ENUM_DELETE:
+
+				if v := tombB.Get(key); v != nil {
+					var tomb TombstoneRecord
+					if err := json.Unmarshal(v, &tomb); err == nil {
+						// if record.Rule.Version <= tomb.Version {
+						return fmt.Errorf("policy %s: %w (deleted at sequence %d, incoming=%d)", key, ErrStaleSequence, tomb.Version, record.Rule.Version)
+					}
+					// }
+				}
 				// Remove active policy
 				if err := polB.Delete(key); err != nil {
 					return err

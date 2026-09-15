@@ -18,7 +18,7 @@ type Repository interface {
 	Delete(ctx context.Context, params store.DeleteAppParams) (store.App, error)
 	ListAppsWithDetailsByOrg(ctx context.Context, orgID uuid.UUID) ([]store.ListAppsWithDetailsByOrgRow, error)
 	CountAppTrafficToday(ctx context.Context, appID pgtype.UUID) (int64, error)
-	ListPoliciesByAppResource(ctx context.Context, params store.ListPoliciesByAppResourceParams) ([]store.Policy, error)
+	ListPoliciesByAppResource(ctx context.Context, params store.ListPoliciesByAppResourceParams) ([]store.ListPoliciesByAppResourceRow, error)
 	CountPolicyUserSubjectsByApp(ctx context.Context, params store.CountPolicyUserSubjectsByAppParams) (int64, error)
 	CountPolicyGroupSubjectsByApp(ctx context.Context, params store.CountPolicyGroupSubjectsByAppParams) (int64, error)
 	MarkOfflineStaleAppStatus(ctx context.Context, minutes string) (int64, error)
@@ -68,7 +68,7 @@ func (r *postgresRepository) CountAppTrafficToday(ctx context.Context, appID pgt
 	return r.q.CountAppTrafficToday(ctx, appID)
 }
 
-func (r *postgresRepository) ListPoliciesByAppResource(ctx context.Context, params store.ListPoliciesByAppResourceParams) ([]store.Policy, error) {
+func (r *postgresRepository) ListPoliciesByAppResource(ctx context.Context, params store.ListPoliciesByAppResourceParams) ([]store.ListPoliciesByAppResourceRow, error) {
 	return r.q.ListPoliciesByAppResource(ctx, params)
 }
 

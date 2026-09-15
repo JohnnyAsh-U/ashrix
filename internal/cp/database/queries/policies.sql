@@ -1,5 +1,6 @@
 -- name: InsertPolicyMutation :one
 INSERT INTO policy_mutations (
+    id,
     org_id, 
     policy_id, 
     op, 
@@ -14,7 +15,7 @@ INSERT INTO policy_mutations (
     ip_address,
     user_agent,
     sequence
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 RETURNING version, sequence;
 
 
@@ -56,7 +57,7 @@ SELECT
     mutated_at
 FROM policy_mutations
 WHERE org_id = $1 AND sequence > $2
-ORDER BY version ASC;
+ORDER BY sequence ASC;
 
 
 -- name: GetLatestPolicySequence :one
@@ -78,8 +79,8 @@ WHERE org_id = $1 AND policy_id = $2;
 
 -- name: InsertPolicy :one
 INSERT INTO policies (
-    id, org_id, name, description, effect, priority, enabled, version, created_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    id, org_id, name, description, effect, priority, enabled, version,sequence, created_by
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 
@@ -101,19 +102,48 @@ DELETE FROM policies WHERE id = $1 AND org_id = $2;
 
 -- name: GetPolicyByID :one
 SELECT 
-    p.id, p.org_id, p.name, p.description, p.effect, p.priority, 
-    p.enabled, p.version, p.created_by, p.created_at, p.updated_at
+    p.id, p.org_id, p.name, p.description, p.effect, p.priority, p.sequence,
+    p.enabled, p.version, p.created_by, p.created_at, p.updated_at,
+    pm.id AS mutation_id,
+    pm.rule_snapshot,
+    pm.signature,
+    pm.version AS latest_version
 FROM policies p
-WHERE p.id = $1 AND p.org_id = $2;
+JOIN policy_mutations pm ON pm.policy_id = p.id
+WHERE p.id = $1 AND p.org_id = $2
+ORDER BY pm.version DESC LIMIT 1;
 
 
 -- name: ListPoliciesByOrg :many
-SELECT 
-    p.id, p.org_id, p.name, p.description, p.effect, p.priority, 
-    p.enabled, p.version, p.created_by, p.created_at, p.updated_at
-FROM policies p
-WHERE p.org_id = $1
-ORDER BY p.effect DESC, p.priority DESC, p.id;
+SELECT p.*, 
+latest.id as mutation_id, 
+latest.sequence, 
+latest.op, 
+latest.rule_snapshot,
+latest.signature,
+latest.record_timestamp,
+latest.mutated_at,
+latest.mutated_by
+FROM (
+    SELECT DISTINCT ON (pm.policy_id) 
+    pm.id, 
+    pm.policy_id, 
+    pm.version, 
+    pm.sequence, 
+    pm.op,
+    pm.rule_snapshot,
+    pm.signature,
+    pm.record_timestamp,
+    pm.mutated_at,
+    pm.mutated_by
+    FROM policy_mutations pm
+    WHERE pm.org_id = $1
+    ORDER BY pm.policy_id, pm.version DESC
+) latest
+JOIN policies p ON p.id = latest.policy_id
+WHERE latest.op = 'UPSERT'
+AND p.enabled = true
+ORDER BY latest.sequence ASC, p.effect DESC, p.priority DESC, p.id;
 
 
 
@@ -156,13 +186,17 @@ VALUES ($1, $2)
 ON CONFLICT (policy_id) DO UPDATE SET condition_tree = EXCLUDED.condition_tree, updated_at = NOW();
 
 -- name: GetPolicySubjects :many
-SELECT policy_id, subject_type, subject_value
-FROM policy_subjects
+SELECT ps.policy_id, ps.subject_type, ps.subject_value,
+       a.name AS app_name
+FROM policy_subjects ps
+LEFT JOIN apps a ON a.id::text = ps.subject_value AND ps.subject_type = 'app'
 WHERE policy_id = $1;
 
 -- name: GetPolicyResources :many
-SELECT policy_id, resource_type, resource_value
-FROM policy_resources
+SELECT pr.policy_id, pr.resource_type, pr.resource_value,
+       a.name AS app_name
+FROM policy_resources pr
+LEFT JOIN apps a on a.id::text = pr.resource_value AND pr.resource_type = 'app'
 WHERE policy_id = $1;
 
 -- name: GetPolicyCondition :one

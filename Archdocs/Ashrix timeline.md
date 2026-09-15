@@ -10,8 +10,6 @@ Frontend Building and integration
 Accesslog Api to get list with filters Access logging and audit logging 
 Audit log list api
 
-*Add Security Header settings per app
-
 
 # Flexibility in the Port designing for each service
 

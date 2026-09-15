@@ -156,14 +156,18 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 			currentPolicy := msg.GetHello().PolicyVersion
 			tenantID := msg.GetHello().TenantId
 			tenantUUID, _ := uuid.Parse(tenantID)
-			s.log.Info("gateway connected: %s (policy_version=%d)", gatewayIDInCert, msg.GetHello().PolicyVersion)
+			s.log.Info("gateway connected", slog.String("gateway_id", gatewayIDInCert), slog.Int64("policy_version", currentPolicy))
+			if currentPolicy > 0 {
+				_ = s.registry.SetGatewayPolicySequence(ctx, connection.GatewayID, currentPolicy)
+			}
 			s.handleHello(ctx, connection, msg.GetHello())
 
 			// If the gateway is behind on policy, push the latest immediately
-			if currentPolicy < s.distributor.LatestSequence(tenantUUID) {
+			if currentPolicy == 0 {
+				go s.distributor.PushToGateway(ctx, connection, tenantUUID)
+			} else if currentPolicy < s.distributor.LatestSequence(tenantUUID) {
 				go s.distributor.PushDelta(ctx, connection, tenantUUID, currentPolicy)
 			}
-			s.handleHello(ctx, connection, msg.GetHello())
 
 		case *proto.GatewayEnvelope_Heartbeat:
 			s.handleHeartbeat(ctx, connection, msg.GetHeartbeat())
@@ -177,6 +181,9 @@ func (s *cpServer) Connect(stream proto.ControlPlaneService_ConnectServer) error
 				)
 				continue
 			}
+
+		case *proto.GatewayEnvelope_PolicyAck:
+			s.handlePolicyAck(ctx, connection, msg.GetPolicyAck())
 
 		case *proto.GatewayEnvelope_LogBatch:
 			go s.handleAccessLogBatch(ctx, connection, msg.GetLogBatch())
@@ -262,6 +269,44 @@ func (s *cpServer) handleCommandAck(
 	conn.ResolveThrough(seq, nil)
 
 	return nil
+}
+
+func (s *cpServer) handlePolicyAck(
+	ctx context.Context,
+	conn *registry.GatewayConn,
+	ack *proto.PolicyAck,
+) {
+	if ack == nil {
+		return
+	}
+
+	if ack.GatewayId != conn.GatewayID {
+		s.log.Warn(
+			"gateway policy ACK identity mismatch",
+			slog.String("expected", conn.GatewayID),
+			slog.String("got", ack.GatewayId),
+		)
+		return
+	}
+
+	if ack.Sequence < 0 {
+		s.log.Warn("invalid policy ACK sequence", slog.Int64("sequence", ack.Sequence))
+		return
+	}
+
+	s.log.Info(
+		"received policy ACK from gateway",
+		slog.String("gateway_id", conn.GatewayID),
+		slog.Int64("sequence", ack.Sequence),
+	)
+
+	if err := s.registry.SetGatewayPolicySequence(ctx, conn.GatewayID, ack.Sequence); err != nil {
+		s.log.Error(
+			"failed to set gateway policy sequence in Redis",
+			slog.String("gateway_id", conn.GatewayID),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 func (s *cpServer) handleHello(ctx context.Context, conn *registry.GatewayConn, hello *proto.HelloMessage) error {
