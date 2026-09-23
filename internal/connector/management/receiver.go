@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"syscall"
+	"os"
 	"time"
 
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -57,7 +57,7 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 					c.log.Error("connector certificate or component revoked - clearing credentials and shutting down")
 					_ = c.AppStorage.ClearCredential()
 					time.Sleep(500 * time.Millisecond)
-					_ = syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+					os.Exit(1)
 				}()
 			case pb.CommandType_CMD_RELOAD_CONNECTOR:
 				return fmt.Errorf("Received Reload Command")
@@ -71,6 +71,7 @@ func (c *ManagementConn) receiver(ctx context.Context) error {
 	}
 
 }
+
 
 func (c *ManagementConn) handleCertRotation(rotateCh chan<- error) {
 	c.rotatingMu.Lock()

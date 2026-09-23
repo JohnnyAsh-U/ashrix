@@ -16,3 +16,4 @@ docs/
 *.sqlite3
 server.crt
 server.key
+build/

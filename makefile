@@ -106,7 +106,7 @@ build-cp:
 
 #---------------Build PIPELINE--------------------------------
 build-connector:
-	GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" -o build/windows/ashrix-connector.exe ./cmd/connector
+	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o build/windows/ashrix-connector.exe ./cmd/connector
 	GOOS=linux GOARCH=amd64 go build -o build/linux/amd64/ashrix-connector ./cmd/connector
 	GOOS=linux GOARCH=arm64 go build -o build/linux/arm64/ashrix-connector ./cmd/connector
 

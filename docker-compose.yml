@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: ashrix-gateway
+    ports:
+      - "8443:8443"
+    environment:
+      - REDIS_URL=redis:6379
+      # Add any other required environment variables here
+    depends_on:
+      - redis
+    volumes:
+      - gateway_data:/data
+      - gateway_logs:/logs
+      - ./server.crt:/data/server.crt:ro
+      - ./server.key:/data/server.key:ro
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: ashrix-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+volumes:
+  gateway_data:
+  gateway_logs:
+  redis_data:

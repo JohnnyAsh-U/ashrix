@@ -43,12 +43,6 @@ Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
-
-[Run]
-
-; Install service
-Filename: "{app}\{#AppExeName}"; Parameters: "install"; Flags: runhidden;
-
 [UninstallRun]
 Filename: "{app}\{#AppExeName}"; Parameters: "stop"; Flags: runhidden; RunOnceId: "StopService"
 Filename: "{app}\{#AppExeName}"; Parameters: "uninstall"; Flags: runhidden; RunOnceId: "UninstallService"

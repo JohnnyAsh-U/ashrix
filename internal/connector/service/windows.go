@@ -28,7 +28,7 @@ func install() error {
 			Description: "Manages Ashrix tunnel connections",
 			StartType:   mgr.StartAutomatic,
 		},
-		"--service",
+		"start",
 	)
 	if err != nil {
 		return err

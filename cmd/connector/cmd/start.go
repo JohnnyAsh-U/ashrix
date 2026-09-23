@@ -37,7 +37,7 @@ var startCmd = &cobra.Command{
 	Short: "Start the Ashrix Connector",
 	Long:  `Start the Ashrix Gateway`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := runStart(); err != nil {
+		if err := runServiceOrConsole(); err != nil {
 			return err
 		}
 		return nil

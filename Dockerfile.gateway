@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.26.3-alpine AS deps
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+FROM deps AS build
+
+ARG VERSION=v1.0.0
+ARG BUILD_DATE
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build \
+    -trimpath \
+    -ldflags="-s -w -X github.com/JohnnyAsh-U/ashrix-api/internal/gateway/version.Version=${VERSION} -X github.com/JohnnyAsh-U/ashrix-api/internal/gateway/version.BuildDate=${BUILD_DATE}" \
+    -o /out/ashrix-gateway \
+    ./cmd/gateway
+
+FROM alpine:3.22 AS runtime
+
+RUN  addgroup -S ashrix \
+    && adduser -S -G ashrix ashrix \
+    && mkdir -p /data /logs \
+    && chown -R ashrix:ashrix /data /logs
+
+COPY --from=build /out/ashrix-gateway /usr/local/bin/ashrix-gateway
+
+USER ashrix
+WORKDIR /home/ashrix
+
+VOLUME ["/data", "/logs"]
+EXPOSE 8443
+
+ENTRYPOINT ["/usr/local/bin/ashrix-gateway"]

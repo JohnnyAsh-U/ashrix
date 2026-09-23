@@ -6,7 +6,7 @@ testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = ["start", "--token=gX7yab"]
+  args_bin = ["start", "--token=vTlCA4"]
   bin = "./tmp/ashrix-connector"
   cmd = "go build -o ./tmp/ashrix-connector ./cmd/connector/main.go"
   delay = 1000
