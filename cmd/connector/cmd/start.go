@@ -240,7 +240,7 @@ func runStart() (err error) {
 					errCh <- fmt.Errorf("management heartbeat panic: %v", r)
 				}
 			}()
-			errCh <- managementConn.RunHeartbeat(sessionCtx, 10*time.Second)
+			errCh <- managementConn.RunHeartbeat(sessionCtx, 15*time.Second)
 		}()
 
 		go func() {

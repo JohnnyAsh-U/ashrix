@@ -178,6 +178,19 @@ func (s *BoltStore) ApplyDelta(ctx context.Context, policyRecords []*pb.PolicyRe
 			// 3. Apply operation
 			switch record.Operation {
 			case pb.OperationEnum_OPERATION_ENUM_UPSERT:
+				if v := tombB.Get(key); v != nil {
+					var tomb TombstoneRecord
+					if err := json.Unmarshal(v, &tomb); err != nil {
+						return fmt.Errorf("decode tombstone %s: %w", key, err)
+					}
+					if record.Rule.Version <= tomb.Version {
+						return fmt.Errorf("policy %s: %w (deleted at version %d, incoming=%d)",
+							key, ErrStaleSequence, tomb.Version, record.Rule.Version)
+					}
+					if err := tombB.Delete(key); err != nil {
+						return err
+					}
+				}
 				// 2. Replay / rollback protection: version must increase
 				if v := polB.Get(key); v != nil {
 					existing := new(pb.PolicyRecord)

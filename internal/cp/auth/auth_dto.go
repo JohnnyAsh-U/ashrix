@@ -47,46 +47,54 @@ type ResetPasswordRequest struct {
 // ---- Response DTOs ----
 
 type RegisterResponse struct {
-	SetupToken string `json:"setup_token"`
+	SetupToken string    `json:"setup_token"`
 	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 type SetupOTPResponse struct {
-	Secret    string `json:"secret"`     // base32 TOTP secret
+	Secret    string `json:"secret"`      // base32 TOTP secret
 	QRCodeURL string `json:"qr_code_url"` // otpauth:// URI for QR rendering
 }
 
-type LoginAdminResponse struct {
-	Tokens TokenPair `json:"tokens"`
-	Admin MeResponse `json:"admin"`
+type FirstLoginTOTPSetupRequest struct {
+	OTPToken string `json:"otp_token" validate:"required"`
+}
 
+type VerifyFirstLoginTOTPRequest struct {
+	OTPToken string `json:"otp_token" validate:"required"`
+	OTPCode  string `json:"otp_code" validate:"required,len=6"`
+}
+
+type LoginAdminResponse struct {
+	Tokens TokenPair  `json:"tokens"`
+	Admin  MeResponse `json:"admin"`
 }
 
 type TokenPair struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string     `json:"refresh_token"`
-	RefreshTokenExpiresAt    time.Time `json:"expires_at"` // access token expiry
+	AccessToken           string    `json:"access_token"`
+	RefreshToken          string    `json:"refresh_token"`
+	RefreshTokenExpiresAt time.Time `json:"expires_at"` // access token expiry
 }
 
 // OTPRequiredResponse is returned by /login when OTP verification is needed.
 // The client must POST to /verify-otp with this token + the TOTP code.
 type OTPRequiredResponse struct {
-	OTPToken  string    `json:"otp_token"`
-	ExpiresAt time.Time `json:"expires_at"`
+	OTPToken          string    `json:"otp_token"`
+	ExpiresAt         time.Time `json:"expires_at"`
+	TOTPSetupRequired bool      `json:"totp_setup_required"`
 }
 
 type AdminResponse struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	OrgID     string    `json:"org_id"`
-	OTPEnabled bool     `json:"otp_enabled"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         string    `json:"id"`
+	Email      string    `json:"email"`
+	OrgID      string    `json:"org_id"`
+	OTPEnabled bool      `json:"otp_enabled"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
-
 type MeResponse struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	OrgID     string    `json:"org_id"`
-	OrgName string     `json:"org_name"`
+	ID      string `json:"id"`
+	Email   string `json:"email"`
+	OrgID   string `json:"org_id"`
+	OrgName string `json:"org_name"`
 }

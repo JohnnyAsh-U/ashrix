@@ -13,6 +13,10 @@ import (
 )
 
 func (c *Client) RenewCert(proof string, csrPEM string, gatewayID string) (*APIRenewResponse, error) {
+	return c.RenewCertContext(context.Background(), proof, csrPEM, gatewayID)
+}
+
+func (c *Client) RenewCertContext(parent context.Context, proof string, csrPEM string, gatewayID string) (*APIRenewResponse, error) {
 
 	body, err := json.Marshal(gen.GatewayRenewCertRequest{
 		Signature: proof,
@@ -25,7 +29,7 @@ func (c *Client) RenewCert(proof string, csrPEM string, gatewayID string) (*APIR
 		return nil, fmt.Errorf("Failed to encode bootstrap request %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 
 	defer cancel()
 

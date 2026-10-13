@@ -14,6 +14,7 @@ const (
 	CodeForbidden       ErrorCode = "FORBIDDEN"
 	CodeBadRequest      ErrorCode = "BAD_REQUEST"
 	CodeValidationError ErrorCode = "VALIDATION_ERROR"
+	CodeRateLimited     ErrorCode = "RATE_LIMITED"
 	CodeInternal        ErrorCode = "INTERNAL_ERROR"
 )
 

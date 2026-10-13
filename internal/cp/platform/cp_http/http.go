@@ -2,9 +2,11 @@ package cp_http
 
 import (
 	"context"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/app"
@@ -51,6 +53,7 @@ func InitializeHttpServer(
 	CASigner pki.CASigner,
 	gatewayRegistry *registry.GatewayRegistry,
 	bundleSigner crypto.BundleSigning,
+	frontendStaticFiles fs.FS,
 ) *Server {
 
 	//Mailer config
@@ -93,7 +96,7 @@ func InitializeHttpServer(
 	orgHandler := org.NewOrgHandler(orgService)
 
 	//IDP Routes
-	idpSession, err := identity.NewIDPSession(BaseDir, cfg.PKIConfig.PKIUnlockSecret, "ashrix", redisStore.Client(), log, bundleSigner)
+	idpSession, err := identity.NewIDPSession(BaseDir, redisStore.Client(), log, bundleSigner)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -132,7 +135,7 @@ func InitializeHttpServer(
 	connectorService := connector.NewService(respositories.Connector, respositories.PKICA, respositories.Event, respositories.Gateway, eventsDispatcher)
 	connectorHandler := connector.NewConnectorHandler(connectorService, CASigner)
 
-	updateStaleGatewayConnector(context.Background(), respositories.Gateway, respositories.Connector,respositories.App, log)
+	updateStaleGatewayConnector(context.Background(), respositories.Gateway, respositories.Connector, respositories.App, log)
 
 	// Policy routes
 	policyService := policy.NewService(respositories.Policy, policyDistributor)
@@ -155,8 +158,14 @@ func InitializeHttpServer(
 
 		r.Group(func(r chi.Router) {
 			r.Route("/auth", authHandler.Routes)
-			r.Route("/internal/gateways", gatewayHandler.WithoutAuthRoutes)
-			r.Route("/internal/connectors", connectorHandler.WithoutAuthRoutes)
+			r.Route("/internal/gateways", func(r chi.Router) {
+				r.Use(middleware.NodeAttemptRateLimit(redisStore.Client(), log, "gateway", gatewayNodeIDResolver(respositories.Gateway, redisStore.Client())))
+				gatewayHandler.WithoutAuthRoutes(r)
+			})
+			r.Route("/internal/connectors", func(r chi.Router) {
+				r.Use(middleware.NodeAttemptRateLimit(redisStore.Client(), log, "connector", connectorNodeIDResolver(respositories.Connector, redisStore.Client())))
+				connectorHandler.WithoutAuthRoutes(r)
+			})
 		})
 
 		r.Group(func(r chi.Router) {
@@ -172,6 +181,31 @@ func InitializeHttpServer(
 	})
 
 	r.Get("/healthz", handleHealth)
+
+	// Prepare embedded file system
+	distFS, err := fs.Sub(frontendStaticFiles, "ui")
+	if err != nil {
+		log.Warn("Failed to load embedded frontend: %v", err)
+	}
+
+	fileServer := http.FileServer(http.FS(distFS))
+
+	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+
+		f, err := distFS.Open(path)
+		if err != nil {
+			// Asset not found Fallback to index.html for tanstack router
+			r.URL.Path = "/"
+		} else {
+			_ = f.Close()
+		}
+
+		fileServer.ServeHTTP(w, r)
+	})
 
 	httpSrv := &http.Server{
 		Addr:         cfg.HTTPAddr,

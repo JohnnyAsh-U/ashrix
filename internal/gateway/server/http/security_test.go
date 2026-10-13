@@ -1,6 +1,5 @@
 package http_proxy
 
-
 import (
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +7,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestIdentityHeadersReplaceUntrustedHeaders(t *testing.T) {
+	incoming := make(http.Header)
+	incoming["x-ashrix-user-id"] = []string{"attacker"}
+	incoming.Set("X-Ashrix-User-Email", "spoofed@example.com")
+	incoming.Set("X-Other", "preserved")
+
+	outbound := identityHeaders(incoming, "user-123", "user@example.com", "app-456", "request-789")
+
+	assert.Equal(t, "user-123", outbound.Get("X-Ashrix-User-ID"))
+	assert.Equal(t, "user@example.com", outbound.Get("X-Ashrix-User-Email"))
+	assert.Equal(t, "app-456", outbound.Get("X-Ashrix-App-ID"))
+	assert.Equal(t, "request-789", outbound.Get("X-Ashrix-Request-ID"))
+	assert.Equal(t, "preserved", outbound.Get("X-Other"))
+	assert.Empty(t, incoming.Get("X-Ashrix-User-ID"))
+}
 
 func TestSecurityHeadersMiddleware_DefaultConfig(t *testing.T) {
 	cfg := DefaultSecurityConfig()
@@ -47,7 +62,6 @@ func TestSecurityHeadersMiddleware_DefaultConfig(t *testing.T) {
 		assert.Equal(t, "DENY", rr.Header().Get("X-Frame-Options"))
 	})
 }
-
 
 func TestSecurityHeadersMiddleware_CustomConfig(t *testing.T) {
 	cfg := SecurityConfig{

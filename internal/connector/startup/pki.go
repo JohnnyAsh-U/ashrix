@@ -12,6 +12,7 @@ import (
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
+	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	// pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 )
@@ -43,8 +44,9 @@ type PKIInitialiser struct {
 	context string
 	secret  string
 
-	stopCh chan struct{}
-	once   sync.Once
+	rotationCtx    context.Context
+	rotationCancel context.CancelFunc
+	once           sync.Once
 }
 
 // New builds a PKIInitialiser from already-loaded cert and key.
@@ -71,16 +73,18 @@ func NewPKIInitialiser(
 		Leaf:        cert,
 	}
 
+	rotationCtx, rotationCancel := context.WithCancel(context.Background())
 	return &PKIInitialiser{
-		tlscert:     &tlsCert,
-		leaf:        cert,
-		pool:        CertPool,
-		appStorage:  appStorage,
-		privKey:     privKey,
-		connectorID: connectorID,
-		cpURL:       cpURL,
-		log:         log,
-		stopCh:      make(chan struct{}),
+		tlscert:        &tlsCert,
+		leaf:           cert,
+		pool:           CertPool,
+		appStorage:     appStorage,
+		privKey:        privKey,
+		connectorID:    connectorID,
+		cpURL:          cpURL,
+		log:            log,
+		rotationCtx:    rotationCtx,
+		rotationCancel: rotationCancel,
 	}, nil
 }
 
@@ -157,7 +161,13 @@ func (p *PKIInitialiser) Renew(ctx context.Context, force bool) error {
 	)
 
 	// ── Call CP for new cert (no lock held — network I/O) ─────────
-	result, newKey, err := Renew(ctx, p.cpURL, p.connectorID, p.log, currentKey)
+	var result *gen.ConnectorEnrollResponse
+	var newKey *ecdsa.PrivateKey
+	err := retryWithBackoff(ctx, p.log, "certificate renewal", func() error {
+		var err error
+		result, newKey, err = Renew(ctx, p.cpURL, p.connectorID, p.log, currentKey)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("renew: %w", err)
 	}
@@ -221,7 +231,7 @@ func (p *PKIInitialiser) StartRotator() {
 
 // Stop shuts down the rotator. Safe to call multiple times.
 func (p *PKIInitialiser) Stop() {
-	p.once.Do(func() { close(p.stopCh) })
+	p.once.Do(p.rotationCancel)
 }
 
 func (p *PKIInitialiser) rotator() {
@@ -242,13 +252,13 @@ func (p *PKIInitialiser) rotator() {
 				"expires_at", p.leaf.NotAfter,
 			)
 
-			if err := p.Renew(context.Background(), false); err != nil {
+			if err := p.Renew(p.rotationCtx, false); err != nil {
 				p.log.Error("background renewal failed",
 					"error", err,
 				)
 			}
 
-		case <-p.stopCh:
+		case <-p.rotationCtx.Done():
 			p.log.Info("Certificate Rotator stopped")
 			return
 		}

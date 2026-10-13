@@ -40,6 +40,14 @@ func (cm *ConnectionManager) Ready() bool {
 	return cm.ready.Load()
 }
 
+func (cm *ConnectionManager) NeedsRefresh() bool {
+	conn := cm.CurrentConn()
+	if conn == nil {
+		return true
+	}
+	return conn.GetState() != connectivity.Ready
+}
+
 func (cm *ConnectionManager) RefreshConnection(ctx context.Context) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -54,7 +62,6 @@ func (cm *ConnectionManager) RefreshConnection(ctx context.Context) error {
 			PermitWithoutStream: false,
 		}),
 	}, cm.dialOpts...)
-
 
 	// grpc.NewClient is non-blocking. The connection starts in Idle.
 	newConn, err := grpc.NewClient(cm.target, opts...)
@@ -74,7 +81,6 @@ func (cm *ConnectionManager) RefreshConnection(ctx context.Context) error {
 	}
 
 	fmt.Println("Initializing gRPC Client Connection to CP...")
-
 
 	oldConn := cm.conn.Swap(newConn)
 	cm.ready.Store(true)

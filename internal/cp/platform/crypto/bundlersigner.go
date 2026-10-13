@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto/ed25519"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"log/slog"
@@ -22,20 +23,35 @@ type BundleSigning interface {
 	SignJWT(payload []byte) []byte
 	GetPublicKey() ed25519.PublicKey
 	GetPublicKeyString() (string, error)
+	GetPublicKeyBase64() (string, error)
 }
 
 type BundleSigner struct {
 	BundleSigningKey *ed25519.PrivateKey
 }
 
-var (
-	signingKeySecret  string = "SIGNINGASHRIX"
-	signingKeyContext string = "CPPLATFORM"
-)
+const signingKeyContext = "CPPLATFORM"
 
-func BundleSigningKeys(baseDir string, log *slog.Logger) (BundleSigning, error) {
+func BundleSigningKeys(baseDir, secret string, log *slog.Logger) (BundleSigning, error) {
+	if secret == "" {
+		return nil, fmt.Errorf("bundle signing key encryption secret is required")
+	}
+	keyPath := filepath.Join(baseDir, "cp", "bundle-signer.enc")
+	if _, err := os.Stat(keyPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("bundle signing key is missing; run 'ashrix-cp setup bundle-key': %w", err)
+		}
+		return nil, fmt.Errorf("checking bundle signing key: %w", err)
+	}
+	return loadBundleSigningKey(keyPath, secret, log)
+}
+
+func ProvisionBundleSigningKeys(baseDir, secret string, log *slog.Logger) (BundleSigning, error) {
+	if secret == "" {
+		return nil, fmt.Errorf("bundle signing key encryption secret is required")
+	}
 	log.Info("Initializing Bundle Signing Keys...")
-	CPPKIDir := filepath.Join(baseDir, "pki", "cp")
+	CPPKIDir := filepath.Join(baseDir, "cp")
 
 	if err := os.MkdirAll(CPPKIDir, 0700); err != nil {
 		return nil, fmt.Errorf("creating PKI directory: %w", err)
@@ -43,27 +59,25 @@ func BundleSigningKeys(baseDir string, log *slog.Logger) (BundleSigning, error) 
 
 	keyPath := filepath.Join(CPPKIDir, "bundle-signer.enc")
 
-	//Check if intermediateCAKey and Cert Exists on the filepath
+	// Provisioning creates the key only when it is absent.
 	keyexists, err := filehelper.FileExists(keyPath)
 	if err != nil {
 		return nil, err
 	}
 
 	if !keyexists {
-		if keyexists {
-			os.Remove(keyPath)
-		}
-		log.Info("→ Bundle Signing Key not found")
-		log.Info("Requesting one...")
-		//Generate Bundle Signing Key
-		_, err := pki.GenerateEd25519Key(keyPath, signingKeySecret, signingKeyContext)
+		log.Info("Generating bundle signing key")
+		_, err := pki.GenerateEd25519Key(keyPath, secret, signingKeyContext)
 		if err != nil {
 			return nil, err
 		}
 	}
+	return BundleSigningKeys(baseDir, secret, log)
+}
 
-	//Load the key from storage
-	SigningKey, err := pki.LoadEd25519Key(keyPath, signingKeySecret, signingKeyContext)
+func loadBundleSigningKey(keyPath, secret string, log *slog.Logger) (BundleSigning, error) {
+	log.Info("Loading Bundle Signing Key...")
+	SigningKey, err := pki.LoadEd25519Key(keyPath, secret, signingKeyContext)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +108,14 @@ func (b *BundleSigner) GetPublicKeyString() (string, error) {
 	})
 
 	return string(pubPEM), nil
+}
+
+func (b *BundleSigner) GetPublicKeyBase64() (string, error) {
+	pubDER, err := x509.MarshalPKIXPublicKey(b.GetPublicKey())
+	if err != nil {
+		return "", fmt.Errorf("marshal public key: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(pubDER), nil
 }
 
 //Signing Implementation

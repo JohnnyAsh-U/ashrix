@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
@@ -140,7 +141,11 @@ func (g *GatewayPKI) Stop() {
 // RenewNow forces an immediate renewal attempt
 // Used when the CP sends a rotation command
 func (g *GatewayPKI) RenewNow() error {
-	return g.renew(true)
+	return g.RenewNowContext(context.Background())
+}
+
+func (g *GatewayPKI) RenewNowContext(ctx context.Context) error {
+	return g.renew(ctx, true)
 }
 
 // Rotator checks expiry every 5mins and renews when < 30 days remain
@@ -157,7 +162,7 @@ func (g *GatewayPKI) rotator() {
 			if remaining < 30*24*time.Hour {
 				g.log.Info("certificate expiring soon", slog.Duration("remaining", remaining))
 
-				if err := g.renew(false); err != nil {
+				if err := g.renew(context.Background(), false); err != nil {
 					g.log.Error("cert renewal failed", slog.Any("err", err))
 				}
 			}
@@ -173,7 +178,7 @@ func (g *GatewayPKI) rotator() {
 // calls the CP, and hot-swaps the certificate
 // The write lock is held only during the final swap - not during the network call.
 // This means TLS handshakes are never blocked by a slow CP
-func (g *GatewayPKI) renew(force bool) error {
+func (g *GatewayPKI) renew(ctx context.Context, force bool) error {
 	// Step 1: Read current state (read lock, fast) ------------
 	g.mu.RLock()
 	remaining := time.Until(g.leaf.NotAfter)
@@ -217,7 +222,7 @@ func (g *GatewayPKI) renew(force bool) error {
 		return fmt.Errorf("build possession proof: %w", err)
 	}
 
-	apiResponse, err := g.cp.RenewCert(proof, string(csrPem), g.gatewayID)
+	apiResponse, err := g.cp.RenewCertContext(ctx, proof, string(csrPem), g.gatewayID)
 
 	if err != nil {
 		return err
@@ -266,7 +271,7 @@ func (g *GatewayPKI) renew(force bool) error {
 	}
 	configDir := filepath.Join(Home, "/.ashrix")
 
-	writeErr := utils.WriteConfig(g.cfg.CPURL, g.gatewayID, g.cfg.GatewayName,g.cfg.TenantId, g.cfg.GatewayUrl, g.cfg.DataDir, configDir, g.cfg.LogDir)
+	writeErr := utils.WriteConfig(g.cfg.CPURL,g.cfg.BundlePublicKey, g.gatewayID, g.cfg.GatewayName,g.cfg.TenantId, g.cfg.GatewayUrl, g.cfg.DataDir, configDir, g.cfg.LogDir)
 
 	if writeErr != nil {
 		return fmt.Errorf("write config failed: %w", writeErr)

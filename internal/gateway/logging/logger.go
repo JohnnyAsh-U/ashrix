@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	App   *slog.Logger
+	App *slog.Logger
 )
 
 type Config struct {
@@ -128,6 +128,14 @@ func Init(cfg Config) error {
 	default:
 		return initProd(cfg)
 	}
+}
+
+// AddHandler adds a handler to the active application logger.
+func AddHandler(handler slog.Handler) {
+	if App == nil || handler == nil {
+		return
+	}
+	App = slog.New(&MultiHandler{handlers: []slog.Handler{App.Handler(), handler}})
 }
 
 func initDev(cfg Config) error {

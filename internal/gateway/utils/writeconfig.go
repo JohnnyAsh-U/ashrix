@@ -7,7 +7,7 @@ import (
 )
 
 //Replace File if it exists, otherwise create a new file
-func WriteConfig(cpURL, gatewayID, gatewayName,tenant_id, gatewayUrl, dataDir, configDir, logDir string) error {
+func WriteConfig(cpURL,publicKey, gatewayID, gatewayName,tenant_id, gatewayUrl, dataDir, configDir, logDir string) error {
 
 	configPath := filepath.Join(configDir, "gateway.yaml")
 
@@ -18,6 +18,9 @@ func WriteConfig(cpURL, gatewayID, gatewayName,tenant_id, gatewayUrl, dataDir, c
 #
 # Control Plane URL — assigned by Ashrix
 cp_url: %s
+
+# Public key
+bundle_public_key: %s
 
 # Gateway ID — assigned by CP on registration, do not edit manually
 gateway_id: "%s"
@@ -36,7 +39,8 @@ tenant_id: "%s"
 data_dir: %s
 # Where the app stores its logs and audit logs
 log_dir: %s
-`, cpURL, gatewayID, gatewayName, gatewayUrl, tenant_id, dataDir, logDir,
+
+`, cpURL, publicKey, gatewayID, gatewayName, gatewayUrl, tenant_id, dataDir, logDir,
 	)
 
 	if err := os.MkdirAll(configDir, 0755); err != nil {

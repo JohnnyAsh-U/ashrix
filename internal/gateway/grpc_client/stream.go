@@ -52,6 +52,8 @@ type StreamManager struct {
 	startTime time.Time
 }
 
+var ErrMaxOfflinePeriodExceeded = errors.New("maximum control plane offline period exceeded")
+
 func NewStreamManager(
 	cm *ConnectionManager,
 	policyStore *store.BoltStore,
@@ -86,39 +88,55 @@ func NewStreamManager(
 	}
 }
 
-// Run blocks forever. It is the only function that should call runSession.
-func (sm *StreamManager) Run(ctx context.Context) {
-	// b := backoff.NewExponentialBackOff()
-	// b.MaxInterval = 1 * time.Minute
-	// b.MaxElapsedTime = 30 * time.Second // retry forever
-
-	// Max times before exit
-	// maxRetries := 3
-	// const retryInterval = 10 * time.Second
+// Run retries control-plane sessions until the gateway has been offline too long.
+func (sm *StreamManager) Run(ctx context.Context) error {
 	const (
-		retryInterval  = 5 * time.Second
-		recoveryWindow = 24 * time.Hour
+		retryInterval = 5 * time.Second
 	)
 
-	recoveryDeadline := time.Now().Add(recoveryWindow)
+	offlineSince := time.Now()
+	offlinePeriod := sm.cfg.MaxOfflinePeriod
 
 	for {
-		// Don't attempt anything after the recovery window.
-		if time.Now().After(recoveryDeadline) {
+		remaining := offlinePeriod - time.Since(offlineSince)
+		if remaining <= 0 {
 			sm.log.Error(
-				"control plane unavailable for recovery window — shutting down",
-				slog.Duration("recovery_window", recoveryWindow),
+				"maximum control plane offline period exceeded — shutting down",
+				slog.Duration("max_offline_period", offlinePeriod),
 			)
-			return
+			return ErrMaxOfflinePeriodExceeded
 		}
 
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		default:
 		}
 
-		err := sm.runSession(ctx)
+		if sm.cm.NeedsRefresh() {
+			connectTimeout := min(remaining, retryInterval)
+			connectCtx, connectCancel := context.WithTimeout(ctx, connectTimeout)
+			refreshErr := sm.cm.RefreshConnection(connectCtx)
+			connectCancel()
+			if ctx.Err() != nil {
+				return nil
+			}
+			if refreshErr != nil {
+				sm.log.Warn("control plane connection attempt failed", slog.Any("error", refreshErr))
+				if !waitForStreamRetry(ctx, min(retryInterval, remaining)) {
+					return nil
+				}
+				continue
+			}
+		}
+
+		connected, err := sm.runSession(ctx)
+		if ctx.Err() != nil {
+			return nil
+		}
+		if connected {
+			offlineSince = time.Now()
+		}
 		if err != nil && !errors.Is(err, context.Canceled) {
 			sm.log.Warn("stream session ended", slog.Any("error", err))
 		}
@@ -137,9 +155,10 @@ func (sm *StreamManager) Run(ctx context.Context) {
 		// ── Auth/cert error path ─────────────────────────────────────
 		if sm.isAuthError(err) {
 			sm.log.Warn("TLS/auth error detected — attempting cert renewal")
-			// renewCtx, renewCancel := context.WithTimeout(ctx, 30*time.Second)
-			renewErr := sm.pki.RenewNow()
-			// renewCancel()
+			remaining = offlinePeriod - time.Since(offlineSince)
+			renewCtx, renewCancel := context.WithTimeout(ctx, min(remaining, 30*time.Second))
+			renewErr := sm.pki.RenewNowContext(renewCtx)
+			renewCancel()
 
 			if renewErr != nil {
 				sm.log.Warn("cert renewal failed — retrying with backoff", slog.Any("err", renewErr))
@@ -150,7 +169,11 @@ func (sm *StreamManager) Run(ctx context.Context) {
 				if closeErr := sm.cm.Close(); closeErr != nil {
 					sm.log.Debug("old conn close error", slog.Any("err", closeErr))
 				}
-				if refreshErr := sm.cm.RefreshConnection(ctx); refreshErr != nil {
+				remaining = offlinePeriod - time.Since(offlineSince)
+				connectCtx, connectCancel := context.WithTimeout(ctx, min(remaining, retryInterval))
+				refreshErr := sm.cm.RefreshConnection(connectCtx)
+				connectCancel()
+				if refreshErr != nil {
 					sm.log.Error("failed to refresh connection after renewal", slog.Any("err", refreshErr))
 				} else {
 					sm.log.Info("reconnected with renewed cert — retrying stream immediately")
@@ -164,13 +187,13 @@ func (sm *StreamManager) Run(ctx context.Context) {
 		// Wait before next attempt
 		// ---------------------------------------------------------
 
-		remaining := time.Until(recoveryDeadline)
+		remaining = offlinePeriod - time.Since(offlineSince)
 
 		if remaining <= 0 {
 			sm.log.Error(
-				"control plane recovery window expired — shutting down",
+				"maximum control plane offline period exceeded — shutting down",
 			)
-			return
+			return ErrMaxOfflinePeriodExceeded
 		}
 
 		wait := min(remaining, retryInterval)
@@ -178,46 +201,47 @@ func (sm *StreamManager) Run(ctx context.Context) {
 		sm.log.Warn(
 			"control plane unavailable — waiting before retry",
 			slog.Duration("retry_after", wait),
-			slog.Duration("recovery_remaining", remaining),
+			slog.Duration("offline_remaining", remaining),
 		)
 
-		timer := time.NewTimer(wait)
-
-		select {
-		case <-ctx.Done():
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-			return
-
-		case <-timer.C:
+		if !waitForStreamRetry(ctx, wait) {
+			return nil
 		}
 	}
 }
 
-func (sm *StreamManager) runSession(ctx context.Context) error {
+func waitForStreamRetry(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func (sm *StreamManager) runSession(ctx context.Context) (bool, error) {
 	sessCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	conn := sm.cm.CurrentConn()
 	if conn == nil {
-		return errors.New("no control plane connection")
+		return false, errors.New("no control plane connection")
 	}
 
 	client := pb.NewControlPlaneServiceClient(conn)
 	stream, err := client.Connect(ctx)
 	if err != nil {
-		return fmt.Errorf("open bidi stream: %w", err)
+		return false, fmt.Errorf("open bidi stream: %w", err)
 	}
 
 	// ── 1. Hello payload (synchronous, must be first) ─────────────
 	// The server binds session state (identity, routing, rate-limits)
 	// to this specific stream. No other message may precede this.
 	if err := stream.Send(sm.makeHello(ctx)); err != nil {
-		return fmt.Errorf("hello payload: %w", err)
+		return false, fmt.Errorf("hello payload: %w", err)
 	}
 
 	// ── 2. Publish stream only after hello succeeds ───────────────
@@ -239,7 +263,7 @@ func (sm *StreamManager) runSession(ctx context.Context) error {
 	err = <-errCh
 	cancel()
 	<-errCh // drain the other side
-	return err
+	return true, err
 }
 
 func (sm *StreamManager) sendLoop(ctx context.Context, stream pb.ControlPlaneService_ConnectClient) error {
@@ -290,10 +314,8 @@ func (h *StreamManager) heartbeater(ctx context.Context) {
 					ActiveStreams: entry.ActiveStreams,
 				})
 			}
-
 			appHealth := h.registry.GetAllAppHealth()
 			uptimeSec := int64(time.Since(h.startTime).Seconds())
-
 			h.Send(&pb.GatewayEnvelope{
 				Payload: &pb.GatewayEnvelope_Heartbeat{
 					Heartbeat: &pb.HeartbeatMessage{

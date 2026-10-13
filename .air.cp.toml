@@ -6,9 +6,10 @@ testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = []
+  # args_bin = ["setup", "bootstrap", "--org-name Ashrix", "--org-slug ashrix", "--admin-email johnashimedua@gmail.com", "--domain-name ashrix.io"]
+  args_bin=["serve"]
   bin = "./tmp/cp"
-  cmd = "go build -o ./tmp/cp ./cmd/cp/main.go"
+  cmd = "go build -o ./tmp/cp ./cmd/cp"
   delay = 1000
   entrypoint = ["./tmp/cp"]
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "internal/gateway", "cmd/gateway", "internal/connector", "cmd/connector"]

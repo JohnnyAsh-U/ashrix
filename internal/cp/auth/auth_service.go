@@ -3,6 +3,9 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"time"
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/org"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/config"
@@ -13,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
-	"time"
 )
 
 type AccessClaims struct {
@@ -25,11 +27,6 @@ type AccessClaims struct {
 
 // OTPClaims is embedded in the otp_token returned after password-correct login.
 // It proves password was verified without granting full access.
-type OTPClaims struct {
-	AdminID string `json:"admin_id"`
-	jwt.RegisteredClaims
-}
-
 type Service struct {
 	repo     Repository
 	orgSvc   *org.Service
@@ -137,6 +134,77 @@ func (s *Service) SetupOTP(ctx context.Context, req SetupOTPRequest) (SetupOTPRe
 	}, nil
 }
 
+func (s *Service) SetupFirstLoginTOTP(ctx context.Context, req FirstLoginTOTPSetupRequest) (SetupOTPResponse, *dto.AppError) {
+	claims, err := s.jwtUtils.ParseOTPToken(req.OTPToken)
+	if err != nil || claims.Purpose != utils.OTPPurposeEnroll {
+		return SetupOTPResponse{}, dto.NewUnauthorizedError("TOTP enrollment challenge is invalid or expired")
+	}
+
+	adminID, err := uuid.Parse(claims.AdminID)
+	if err != nil {
+		return SetupOTPResponse{}, dto.NewUnauthorizedError("TOTP enrollment challenge is invalid")
+	}
+	admin, err := s.repo.GetAdminByID(ctx, adminID)
+	if err != nil || !admin.IsActive || admin.OtpEnabled {
+		return SetupOTPResponse{}, dto.NewUnauthorizedError("TOTP enrollment is not available for this account")
+	}
+
+	if admin.OtpSecret.Valid && admin.OtpSecret.String != "" {
+		return SetupOTPResponse{
+			Secret:    admin.OtpSecret.String,
+			QRCodeURL: firstLoginTOTPURL(admin.Email, admin.OtpSecret.String),
+		}, nil
+	}
+
+	key, err := totp.Generate(totp.GenerateOpts{Issuer: "Ashrix", AccountName: admin.Email})
+	if err != nil {
+		return SetupOTPResponse{}, dto.NewErrInternal(err)
+	}
+	if _, err := s.repo.UpdateAdminOTP(ctx, store.UpdateAdminOTPParams{
+		ID: admin.ID, OtpSecret: pgtype.Text{String: key.Secret(), Valid: true}, OtpEnabled: false,
+	}); err != nil {
+		return SetupOTPResponse{}, dto.NewErrInternal(err)
+	}
+	return SetupOTPResponse{Secret: key.Secret(), QRCodeURL: key.URL()}, nil
+}
+
+func firstLoginTOTPURL(email, secret string) string {
+	label := url.PathEscape("Ashrix:" + email)
+	query := url.Values{}
+	query.Set("secret", secret)
+	query.Set("issuer", "Ashrix")
+	query.Set("algorithm", "SHA1")
+	query.Set("digits", "6")
+	query.Set("period", "30")
+	return "otpauth://totp/" + label + "?" + query.Encode()
+}
+
+func (s *Service) VerifyFirstLoginTOTP(ctx context.Context, req VerifyFirstLoginTOTPRequest) (LoginAdminResponse, *dto.AppError) {
+	claims, err := s.jwtUtils.ParseOTPToken(req.OTPToken)
+	if err != nil || claims.Purpose != utils.OTPPurposeEnroll {
+		return LoginAdminResponse{}, dto.NewUnauthorizedError("TOTP enrollment challenge is invalid or expired")
+	}
+
+	adminID, err := uuid.Parse(claims.AdminID)
+	if err != nil {
+		return LoginAdminResponse{}, dto.NewUnauthorizedError("TOTP enrollment challenge is invalid")
+	}
+	admin, err := s.repo.GetAdminByID(ctx, adminID)
+	if err != nil || !admin.IsActive || admin.OtpEnabled || !admin.OtpSecret.Valid || admin.OtpSecret.String == "" {
+		return LoginAdminResponse{}, dto.NewUnauthorizedError("TOTP enrollment is not available for this account")
+	}
+	if !totp.Validate(req.OTPCode, admin.OtpSecret.String) {
+		return LoginAdminResponse{}, dto.NewBadRequestError("Invalid TOTP code")
+	}
+	admin, err = s.repo.EnableAdminOTPIfPending(ctx, store.EnableAdminOTPIfPendingParams{
+		ID: admin.ID, OtpSecret: pgtype.Text{String: admin.OtpSecret.String, Valid: true},
+	})
+	if err != nil {
+		return LoginAdminResponse{}, dto.NewErrInternal(err)
+	}
+	return s.issueAdminSession(ctx, admin)
+}
+
 // ---- Verify OTP (setup) ----
 
 // VerifyOTPSetup confirms the first TOTP code, activates the admin, creates the org,
@@ -231,24 +299,21 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (OTPRequiredRespo
 		return OTPRequiredResponse{}, dto.NewBadRequestError("Account Not Valid")
 	}
 
-	// Issue a short-lived OTP token. Full access is not granted yet.
+	// Password is verified, but full access is withheld until TOTP verification.
 	expiresAt := time.Now().Add(s.cfg.OtpTokenDuration)
-	claims := OTPClaims{
-		AdminID: admin.ID.String(),
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expiresAt),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
+	purpose := utils.OTPPurposeLogin
+	if !admin.OtpEnabled || !admin.OtpSecret.Valid || admin.OtpSecret.String == "" {
+		purpose = utils.OTPPurposeEnroll
 	}
-
-	otpToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(s.cfg.JwtAccessSecret))
+	otpToken, err := s.jwtUtils.IssueOTPToken(admin.ID, purpose, expiresAt)
 	if err != nil {
 		return OTPRequiredResponse{}, dto.NewBadRequestError(err)
 	}
 
 	return OTPRequiredResponse{
-		OTPToken:  otpToken,
-		ExpiresAt: expiresAt,
+		OTPToken:          otpToken,
+		ExpiresAt:         expiresAt,
+		TOTPSetupRequired: purpose == utils.OTPPurposeEnroll,
 	}, nil
 }
 
@@ -258,7 +323,7 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (OTPRequiredRespo
 // On success, issues the full access + refresh token pair.
 func (s *Service) VerifyOTPLogin(ctx context.Context, req VerifyOTPLoginRequest) (LoginAdminResponse, *dto.AppError) {
 	claims, err := s.jwtUtils.ParseOTPToken(req.OTPToken)
-	if err != nil {
+	if err != nil || claims.Purpose != utils.OTPPurposeLogin {
 		return LoginAdminResponse{}, dto.NewBadRequestError("OTP invalid")
 	}
 
@@ -272,11 +337,6 @@ func (s *Service) VerifyOTPLogin(ctx context.Context, req VerifyOTPLoginRequest)
 		return LoginAdminResponse{}, dto.NewBadRequestError("Admin Not Found")
 	}
 
-	OrgID, err := uuid.Parse(admin.OrgID.String())
-	if err != nil {
-		return LoginAdminResponse{}, dto.NewErrInternal(fmt.Errorf("invalid org id: %w", err))
-	}
-
 	if !admin.OtpEnabled || !admin.OtpSecret.Valid {
 		return LoginAdminResponse{}, dto.NewBadRequestError("OTP not configured")
 	}
@@ -285,7 +345,16 @@ func (s *Service) VerifyOTPLogin(ctx context.Context, req VerifyOTPLoginRequest)
 		return LoginAdminResponse{}, dto.NewBadRequestError("Invalide OTP code")
 	}
 
-	tokens, err := s.jwtUtils.IssueTokenPair(ctx, adminID, OrgID, admin.Role, admin.Email)
+	return s.issueAdminSession(ctx, admin)
+}
+
+func (s *Service) issueAdminSession(ctx context.Context, admin store.Admin) (LoginAdminResponse, *dto.AppError) {
+	adminID := admin.ID
+	orgID, err := uuid.Parse(admin.OrgID.String())
+	if err != nil {
+		return LoginAdminResponse{}, dto.NewErrInternal(fmt.Errorf("invalid org id: %w", err))
+	}
+	tokens, err := s.jwtUtils.IssueTokenPair(ctx, adminID, orgID, admin.Role, admin.Email)
 
 	if err != nil {
 		return LoginAdminResponse{}, dto.NewErrInternal("Internal Server")
@@ -293,7 +362,7 @@ func (s *Service) VerifyOTPLogin(ctx context.Context, req VerifyOTPLoginRequest)
 
 	_, err = s.repo.CreateSession(ctx, store.CreateSessionParams{
 		AdminID:      admin.ID,
-		OrgID:        admin.OrgID.Bytes,
+		OrgID:        orgID,
 		RefreshToken: utils.HashToken(tokens.RefreshToken),
 		ExpiresAt:    tokens.RefreshExpiresAt,
 	})
@@ -315,7 +384,7 @@ func (s *Service) VerifyOTPLogin(ctx context.Context, req VerifyOTPLoginRequest)
 		},
 		Admin: MeResponse{
 			ID:      admin.ID.String(),
-			OrgID:   admin.OrgID.String(),
+			OrgID:   orgID.String(),
 			OrgName: "Ashrix",
 			Email:   admin.Email,
 		},

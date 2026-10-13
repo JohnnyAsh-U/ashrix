@@ -55,6 +55,17 @@ func NewSigner(BasePath string, cfg *config.PKIConfig, pkicaRepo pkica.Repositor
 	}
 }
 
+func ProvisionSigner(basePath string, cfg *config.PKIConfig, pkicaRepo pkica.Repository, log *slog.Logger) (CASigner, error) {
+	switch cfg.Backend {
+	case config.BackendDisk:
+		return ProvisionDiskCASigner(basePath, cfg.PKIUnlockSecret, pkicaRepo, log)
+	case config.BackendKMS:
+		return ProvisionKMSCASigner(cfg.KMSToken, cfg.KMSUrl, basePath, cfg.PKIUnlockSecret, pkicaRepo, log)
+	default:
+		return nil, fmt.Errorf("unknown PKI backend: %q", cfg.Backend)
+	}
+}
+
 // Compile-time interface checks.
 // If a backend is missing a method, this fails the build immediately.
 var (

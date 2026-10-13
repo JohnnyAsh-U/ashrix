@@ -26,12 +26,18 @@ func init() {
 		"First Time Token",
 	)
 
+	registerCmd.Flags().String(
+		"bundle-public-key", "",
+		"Bundle Public Key",
+	)
+
 	// Token is intentionally NOT a flag — it would appear in ps aux and shell history.
 	// Operators must use the env var: ASHRIX_TOKEN=tok_xxx ashrix-gateway register
 	// This is enforced by the absence of a flag binding for token.
 
 	viper.BindPFlag("cp_url", registerCmd.Flags().Lookup("cp-url"))
 	viper.BindPFlag("token", registerCmd.Flags().Lookup("token"))
+	viper.BindPFlag("bundle_public_key", registerCmd.Flags().Lookup("bundle-public-key"))
 
 	rootCmd.AddCommand(registerCmd)
 }
@@ -76,6 +82,15 @@ func runRegister(cmd *cobra.Command, args []string) error {
 			"control plane URL required\n\n" +
 				"Set via flag\n" +
 				"ashrix-gateway register --cp-url=https://cp.ashrix.io\n",
+		)
+	}
+
+	bundlePublicKey := viper.GetString("bundle_public_key")
+	if bundlePublicKey == "" {
+		return fmt.Errorf(
+			"Bundle Public Key required\n\n" +
+				"Set via flag\n" +
+				"ashrix-gateway register --bundle_public_key=afiefkfekfelff=\n",
 		)
 	}
 
@@ -167,6 +182,7 @@ func runRegister(cmd *cobra.Command, args []string) error {
 
 	writeErr := utils.WriteConfig(
 		cfg.CPURL, 
+		bundlePublicKey,
 		apiResp.Data.GatewayId, 
 		apiResp.Data.GatewayName,
 		apiResp.Data.TenantId,

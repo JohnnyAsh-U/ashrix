@@ -184,6 +184,44 @@ func (q *Queries) DeleteExpiredAdminSessions(ctx context.Context) error {
 	return err
 }
 
+const enableAdminOTPIfPending = `-- name: EnableAdminOTPIfPending :one
+UPDATE admins
+SET otp_enabled = TRUE
+WHERE id = $1
+  AND is_active = TRUE
+  AND otp_enabled = FALSE
+  AND otp_secret = $2
+RETURNING id, org_id, email, password_hash, idp_subject, idp_config_id, sso_bound, sso_only, otp_secret, otp_enabled, is_active, role, invited_by, created_at, revoked_at
+`
+
+type EnableAdminOTPIfPendingParams struct {
+	ID        uuid.UUID   `json:"id"`
+	OtpSecret pgtype.Text `json:"otp_secret"`
+}
+
+func (q *Queries) EnableAdminOTPIfPending(ctx context.Context, arg EnableAdminOTPIfPendingParams) (Admin, error) {
+	row := q.db.QueryRow(ctx, enableAdminOTPIfPending, arg.ID, arg.OtpSecret)
+	var i Admin
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.IdpSubject,
+		&i.IdpConfigID,
+		&i.SsoBound,
+		&i.SsoOnly,
+		&i.OtpSecret,
+		&i.OtpEnabled,
+		&i.IsActive,
+		&i.Role,
+		&i.InvitedBy,
+		&i.CreatedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const getAdminByEmail = `-- name: GetAdminByEmail :one
 SELECT id, org_id, email, password_hash, idp_subject, idp_config_id, sso_bound, sso_only, otp_secret, otp_enabled, is_active, role, invited_by, created_at, revoked_at FROM admins
 WHERE email   = $1

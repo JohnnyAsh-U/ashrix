@@ -10,8 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-
-	// "time"
+	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/bootstrap"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
@@ -27,6 +26,8 @@ import (
 	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/version"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 
 	// proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/spf13/cobra"
@@ -76,6 +77,42 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 
 	log := logging.App
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if !cfg.OTelEnabled {
+		log.Info("OpenTelemetry disabled")
+	} else if cfg.OTelEndpoint == "" {
+		log.Warn("OpenTelemetry not started: OTEL_EXPORTER_OTLP_ENDPOINT is not set")
+	} else {
+		serviceVersion := cfg.OTelServiceVersion
+		if serviceVersion == "" {
+			serviceVersion = version.GetGatewayVersion()
+		}
+		provider, telemetryErr := telemetry.Bootstrap(ctx, telemetry.Config{
+			Endpoint:        cfg.OTelEndpoint,
+			Insecure:        cfg.OTelInsecure,
+			ServiceName:     cfg.OTelServiceName,
+			ServiceVersion:  serviceVersion,
+			MetricsInterval: cfg.OTelMetricsInterval,
+			GatewayID:       cfg.GatewayID,
+			Enabled:         true,
+		})
+		if telemetryErr != nil {
+			log.Warn("OpenTelemetry initialization failed; continuing without telemetry", slog.Any("error", telemetryErr))
+		} else {
+			logging.AddHandler(telemetry.NewSlogHandler(provider.LoggerProvider))
+			log = logging.App
+			defer func() {
+				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer shutdownCancel()
+				if shutdownErr := provider.Shutdown(shutdownCtx); shutdownErr != nil {
+					log.Warn("OpenTelemetry shutdown failed", slog.Any("error", shutdownErr))
+				}
+			}()
+			log.Info("OpenTelemetry initialized", slog.String("endpoint", cfg.OTelEndpoint))
+		}
+	}
 
 	//--------------------------REDIS------------------------------------------------//
 	redisStore, err := config.NewRedisStore(context.Background(), cfg)
@@ -168,8 +205,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
-	// Load CP public key (embedded in binary)
-	verifier, err := store.RootPublicKey()
+	// Load the CP bundle-signing public key from gateway configuration.
+	verifier, err := store.RootPublicKey(cfg.BundlePublicKey)
 	if err != nil {
 		log.Error("failed to open policy store", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -198,14 +235,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 	cpHost = strings.TrimSuffix(cpHost, "/")
 	cpHost = strings.NewReplacer(":8001", ":9443").Replace(cpHost)
 
-	// Context that lives until shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	//-------------------Session Initializing------------------------
 	activeStreams := registry.NewActiveStreamRegistry()
 
-	sessions, err := session.NewSessionManager(redisStore.Client(), cfg.SessionTTL, activeStreams, cfg.CookieSecure, cfg.GatewayID, cfg.TenantId)
+	sessions, err := session.NewSessionManager(redisStore.Client(), cfg.SessionTTL, activeStreams, cfg.CookieSecure, cfg.GatewayID, cfg.TenantId, verifier)
 	if err != nil {
 		log.Error("Session initialization failed", slog.Any("err", err))
 		os.Exit(1)
@@ -241,16 +274,14 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// 4. Safe Unary Client (for HTTP handlers that need CP)
 	grpcClient := gateway_grpc.NewSafeClient(cm)
 
-	// 5. Establish initial connection
-	if err := cm.RefreshConnection(ctx); err != nil {
-		log.Error("initial connection failed", slog.Any("err", err))
-	}
-
-	// 6. Background loops
-	go sm.Run(ctx)
+	// 5. Background loops. StreamManager owns bounded CP dial retries.
+	streamDone := make(chan error, 1)
+	go func() {
+		streamDone <- sm.Run(ctx)
+	}()
 	// go cm.HealthCheckLoop(ctx, 10*time.Second)
 
-	// 6. Start cert rotator after CP is confirmed alive
+	// 6. Start the certificate rotator
 	pki.StartRotator()
 	defer pki.Stop()
 
@@ -291,8 +322,16 @@ func runStart(cmd *cobra.Command, args []string) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
-	sig := <-quit
-	log.Info("shutdown signal received", slog.String("signal", sig.String()))
+	select {
+	case sig := <-quit:
+		log.Info("shutdown signal received", slog.String("signal", sig.String()))
+	case streamErr := <-streamDone:
+		if errors.Is(streamErr, gateway_grpc.ErrMaxOfflinePeriodExceeded) {
+			log.Error("maximum control plane offline period exceeded; shutting down gateway")
+		} else if streamErr != nil {
+			log.Error("control plane stream manager stopped", slog.Any("error", streamErr))
+		}
+	}
 
 	server.ShutdownServers(httpServer, grpcServer, quicServer, log)
 

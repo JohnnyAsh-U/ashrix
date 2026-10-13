@@ -26,6 +26,9 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 		userID = identity.UserId
 		userEmail = identity.Email
 	}
+	outboundHeaders := identityHeaders(r.Header, userID, userEmail, appID, requestID)
+	outboundRequest := r.Clone(r.Context())
+	outboundRequest.Header = outboundHeaders
 
 	streamCtx, cancel := context.WithCancel(ctx)
 	streamID := uuid.NewString()
@@ -40,8 +43,8 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	req := &proto.StreamFrame{
-		RequestId:    requestID,
-		FlowType:     proto.FlowType_USER_TO_APP,
+		RequestId: requestID,
+		FlowType:  proto.FlowType_USER_TO_APP,
 		// TenantId:     identity.TenantId,
 		SessionId:    sessionID,
 		SourceId:     userID,
@@ -51,8 +54,8 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 		ProtocolType: proto.ProtocolType_PROTOCOL_TCP,
 		Host:         r.Host,
 		Path:         r.URL.Path,
-		Query: r.URL.RawQuery,
-		Headers:      frame.HeadersToProto(r.Header),
+		Query:        r.URL.RawQuery,
+		Headers:      frame.HeadersToProto(outboundHeaders),
 		BodyLength:   r.ContentLength,
 		StreamType:   proto.RequestType_WS_REQUEST,
 	}
@@ -78,7 +81,7 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer clientConn.Close()
 
-	if err := r.Write(stream); err != nil {
+	if err := outboundRequest.Write(stream); err != nil {
 		return
 	}
 

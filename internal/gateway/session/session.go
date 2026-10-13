@@ -45,14 +45,13 @@ type SessionManager struct {
 }
 
 func NewSessionManager(
-	redis *redis.Client, 
-	ttl time.Duration, 
-	streamRegistry *registry.ActiveStreamRegistry, 
-	secure bool, gatewayID, tenantID string,
-	) (*SessionManager, error) {
-	rootKey, err := store.RootPublicKey()
-	if err != nil {
-		return nil, err
+	redis *redis.Client,
+	ttl time.Duration,
+	streamRegistry *registry.ActiveStreamRegistry,
+	secure bool, gatewayID, tenantID string, rootKey *store.RootKey,
+) (*SessionManager, error) {
+	if rootKey == nil || len(rootKey.PublicKey) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("valid policy verification key is required")
 	}
 	return &SessionManager{
 		redis:          redis,
@@ -100,18 +99,16 @@ func (sm *SessionManager) Get(r *http.Request) (*proto.NormalizedIdentity, strin
 		return nil, "", fmt.Errorf("session revoked")
 	}
 
-	
 	id := proto.NormalizedIdentity{
-		UserId: token.Subject, 
-		TenantId: token.TenantID, 
-		CpSessionId: token.SessionID, 
-		Groups: token.Groups,
-		Email: token.Email,
-		Name: token.Name,
-		ProviderId: token.ProviderID,
-		Provider: token.Provider,
+		UserId:      token.Subject,
+		TenantId:    token.TenantID,
+		CpSessionId: token.SessionID,
+		Groups:      token.Groups,
+		Email:       token.Email,
+		Name:        token.Name,
+		ProviderId:  token.ProviderID,
+		Provider:    token.Provider,
 	}
-
 
 	return &id, sessionKey(cookie.Value), nil
 }
@@ -179,14 +176,14 @@ func (sm *SessionManager) Create(w http.ResponseWriter, r *http.Request, session
 }
 
 type SessionClaims struct {
-	TenantID  string   `json:"tid"`
-	GatewayID string   `json:"gid"`
-	SessionID string   `json:"sid"`
-	ProviderID string `json:"pid"`
-	Provider string `json:"prov"`
-	Email string `json:"email"`
-	Name string `json:"name"`
-	Groups    []string `json:"groups"`
+	TenantID   string   `json:"tid"`
+	GatewayID  string   `json:"gid"`
+	SessionID  string   `json:"sid"`
+	ProviderID string   `json:"pid"`
+	Provider   string   `json:"prov"`
+	Email      string   `json:"email"`
+	Name       string   `json:"name"`
+	Groups     []string `json:"groups"`
 	jwt.RegisteredClaims
 }
 
@@ -204,7 +201,7 @@ func (sm *SessionManager) verifyToken(raw string) (*SessionClaims, error) {
 		jwt.WithIssuer("ashrix-cp"),
 		jwt.WithAudience("ashrix-gateway"),
 		jwt.WithValidMethods([]string{"EdDSA"}))
-		
+
 	if err != nil || !token.Valid {
 		return nil, fmt.Errorf("invalid CP session token")
 	}
@@ -318,7 +315,6 @@ func (sm *SessionManager) RevokeByCPSession(
 
 	return nil
 }
-
 
 func CookieDomain(host string) string {
 	host = strings.TrimSuffix(host, ".")

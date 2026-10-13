@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -26,24 +28,30 @@ import (
 
 // RateLimit defines a token bucket: Rate = sustained r/s, Burst = peak.
 type RateLimit struct {
-	Rate  float64       // tokens per second
-	Burst int           // bucket capacity (max burst)
+	Rate  float64 // tokens per second
+	Burst int     // bucket capacity (max burst)
 }
 
 type RateLimiterConfig struct {
-	Redis     *redis.Client
-	IP        RateLimit   // anonymous / pre-session traffic
-	User      RateLimit   // authenticated traffic
-	KeyPrefix string      // Redis key prefix (default "ratelimit")
-	NowFunc   func() time.Time // for tests; nil → time.Now
+	Redis          *redis.Client
+	IP             RateLimit        // anonymous / pre-session traffic
+	User           RateLimit        // authenticated traffic
+	CallbackIP     int              // auth callback requests per minute per IP
+	CallbackGlobal int              // auth callback requests per minute gateway-wide
+	CallbackScope  string           // gateway identity for shared-Redis deployments
+	KeyPrefix      string           // Redis key prefix (default "ratelimit")
+	NowFunc        func() time.Time // for tests; nil → time.Now
 }
 
 func DefaultRateLimiterConfig(rdb *redis.Client) RateLimiterConfig {
 	return RateLimiterConfig{
-		Redis:     rdb,
-		IP:        RateLimit{Rate: 10, Burst: 20},   // 10/s sustained, burst 20
-		User:      RateLimit{Rate: 100, Burst: 150}, // 100/s sustained, burst 150
-		KeyPrefix: "ratelimit",
+		Redis:          rdb,
+		IP:             RateLimit{Rate: 10, Burst: 20},   // 10/s sustained, burst 20
+		User:           RateLimit{Rate: 100, Burst: 150}, // 100/s sustained, burst 150
+		CallbackIP:     10,
+		CallbackGlobal: 100,
+		CallbackScope:  "gateway",
+		KeyPrefix:      "ratelimit",
 	}
 }
 
@@ -81,6 +89,37 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger, errorHand
 	`
 
 	script := redis.NewScript(luaTokenBucket)
+	const luaCallbackWindow = `
+		local now = tonumber(ARGV[1])
+		local member = ARGV[2]
+		local window = tonumber(ARGV[3])
+		local limits = {tonumber(ARGV[4]), tonumber(ARGV[5])}
+		local counts = {}
+		local allowed = 1
+		local retryAfter = 0
+
+		for i = 1, 2 do
+			redis.call('ZREMRANGEBYSCORE', KEYS[i], '-inf', now - window)
+			counts[i] = redis.call('ZCARD', KEYS[i])
+			if counts[i] >= limits[i] then
+				allowed = 0
+				local oldest = redis.call('ZRANGE', KEYS[i], 0, 0, 'WITHSCORES')
+				local wait = tonumber(oldest[2]) + window - now
+				if wait > retryAfter then
+					retryAfter = wait
+				end
+			end
+		end
+
+		if allowed == 1 then
+			for i = 1, 2 do
+				redis.call('ZADD', KEYS[i], now, member)
+				redis.call('PEXPIRE', KEYS[i], window * 2)
+			end
+		end
+		return {tostring(allowed), tostring(counts[1]), tostring(counts[2]), tostring(retryAfter)}
+	`
+	callbackScript := redis.NewScript(luaCallbackWindow)
 
 	nowFn := cfg.NowFunc
 	if nowFn == nil {
@@ -89,6 +128,67 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger, errorHand
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/_ashrix/auth/callback" {
+				clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+				if err != nil || clientIP == "" {
+					errorHandler.ErrorPage(w, http.StatusBadRequest, "Bad Request", "Unable to determine client IP address.", "")
+					return
+				}
+
+				ipLimit := cfg.CallbackIP
+				globalLimit := cfg.CallbackGlobal
+				if ipLimit <= 0 || globalLimit <= 0 {
+					next.ServeHTTP(w, r)
+					return
+				}
+
+				now := nowFn()
+				nowMillis := now.UnixMilli()
+				windowMillis := int64(time.Minute / time.Millisecond)
+				callbackScope := cfg.CallbackScope
+				if callbackScope == "" {
+					callbackScope = "gateway"
+				}
+				keys := []string{
+					fmt.Sprintf("%s:callback:{%s}:ip:%s", cfg.KeyPrefix, callbackScope, clientIP),
+					fmt.Sprintf("%s:callback:{%s}:global", cfg.KeyPrefix, callbackScope),
+				}
+				res, err := callbackScript.Run(r.Context(), cfg.Redis, keys,
+					nowMillis,
+					uuid.NewString(),
+					windowMillis,
+					ipLimit,
+					globalLimit,
+				).Result()
+				if err != nil {
+					logger.Warn("callback rate limiter redis error", slog.Any("error", err), slog.String("ip", clientIP))
+					next.ServeHTTP(w, r)
+					return
+				}
+
+				vals := res.([]interface{})
+				allowed := vals[0].(string) == "1"
+				ipCount, _ := strconv.Atoi(vals[1].(string))
+				w.Header().Set("X-RateLimit-Limit", strconv.Itoa(ipLimit))
+				remaining := ipLimit - ipCount
+				if allowed {
+					remaining--
+				}
+				w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(max(0, remaining)))
+				if !allowed {
+					retryMillis, _ := strconv.ParseInt(vals[3].(string), 10, 64)
+					retryAfter := int64(math.Ceil(float64(retryMillis) / 1000))
+					if retryAfter < 1 {
+						retryAfter = 1
+					}
+					w.Header().Set("Retry-After", strconv.FormatInt(retryAfter, 10))
+					errorHandler.ErrorPage(w, http.StatusTooManyRequests, "Rate Limit Exceeded", "You have exceeded the authentication callback rate limit. Please try again later.", "")
+					return
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			appIsPublic := session.AppIsPublicFromCtx(r.Context())
 			if isInternalPath(r.URL.Path) || appIsPublic {
 				next.ServeHTTP(w, r)
@@ -148,7 +248,7 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger, errorHand
 			w.Header().Set("X-RateLimit-Remaining", strconv.FormatInt(remaining, 10))
 
 			if remaining < int64(limit.Burst) {
-				resetAt := nowSec + float64(int64(limit.Burst) - remaining)/limit.Rate
+				resetAt := nowSec + float64(int64(limit.Burst)-remaining)/limit.Rate
 				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(int64(resetAt), 10))
 			} else {
 				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(int64(nowSec), 10))
@@ -160,7 +260,7 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger, errorHand
 					retryAfter = 1
 				}
 				w.Header().Set("Retry-After", strconv.FormatInt(retryAfter, 10))
-				
+
 				errorHandler.ErrorPage(w, http.StatusTooManyRequests, "Rate Limit Exceeded", "You have exceeded the rate limit for this application. Please try again later.", "")
 				return
 			}
@@ -169,7 +269,6 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger, errorHand
 		})
 	}
 }
-
 
 func isInternalPath(path string) bool {
 	return path == "/_ashrix/health" || path == "/_ashrix/logout" ||

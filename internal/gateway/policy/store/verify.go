@@ -1,11 +1,10 @@
 package store
 
 import (
-	// "crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"crypto/x509"
-	_ "embed"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/pem"
 	"fmt"
@@ -15,44 +14,40 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-//go:embed root.pub
-var rootPEM []byte
-
 type RootKey struct {
 	PublicKey ed25519.PublicKey
 }
 
-func RootPublicKey() (*RootKey, error) {
-
-	block, _ := pem.Decode(rootPEM)
-	if block == nil {
-		return nil, fmt.Errorf("invalid embedded root key")
-	}
-
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+func RootPublicKey(encoded string) (*RootKey, error) {
+	der, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		return nil, err
+		der, err = base64.RawStdEncoding.DecodeString(encoded)
 	}
-	
+	if err != nil {
+		return nil, fmt.Errorf("decode ASHRIX_POLICY_PUBLIC_KEY: %w", err)
+	}
+	return ParseRootPublicKey(der)
+}
+
+func ParseRootPublicKey(der []byte) (*RootKey, error) {
+	if block, _ := pem.Decode(der); block != nil {
+		if block.Type != "PUBLIC KEY" {
+			return nil, fmt.Errorf("policy verification key PEM must be PUBLIC KEY")
+		}
+		der = block.Bytes
+	}
+	pub, err := x509.ParsePKIXPublicKey(der)
+	if err != nil {
+		return nil, fmt.Errorf("parse policy verification public key: %w", err)
+	}
 	key, ok := pub.(ed25519.PublicKey)
-
-	//Debuging
-	// pubPEM := pem.EncodeToMemory(&pem.Block{
-	// 	Type:  "PUBLIC KEY",
-	// 	Bytes: block.Bytes,
-	// })
-
-	// fmt.Println(string(pubPEM))
-
 	if !ok {
-		return nil, fmt.Errorf("embedded key is not ed25519")
+		return nil, fmt.Errorf("policy verification key is not ed25519")
 	}
-
 	return &RootKey{
 		PublicKey: key,
 	}, nil
 }
-
 
 // canonicalRuleHash creates a deterministic hash of a PolicyRule.
 //
@@ -76,8 +71,6 @@ func canonicalRuleHash(rule *pb.PolicyRule) []byte {
 	return h.Sum(nil)
 }
 
-
-
 // RecordSigningPayload returns the exact bytes that must be signed for a PolicyRecord.
 // The record.signature field itself is EXCLUDED.
 func RecordSigningPayload(record *pb.PolicyRecord) []byte {
@@ -93,8 +86,6 @@ func RecordSigningPayload(record *pb.PolicyRecord) []byte {
 
 	return h.Sum(nil)
 }
-
-
 
 // BundleSigningPayload returns the exact bytes that must be signed for a PolicyBundle.
 // The bundle.signature field itself is EXCLUDED.

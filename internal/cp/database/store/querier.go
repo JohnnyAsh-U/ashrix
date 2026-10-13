@@ -99,6 +99,7 @@ type Querier interface {
 	DeletePolicyCondition(ctx context.Context, policyID uuid.UUID) error
 	DeletePolicyResources(ctx context.Context, policyID uuid.UUID) error
 	DeletePolicySubjects(ctx context.Context, policyID uuid.UUID) error
+	EnableAdminOTPIfPending(ctx context.Context, arg EnableAdminOTPIfPendingParams) (Admin, error)
 	EnrollConnector(ctx context.Context, tokenHash string) (Connector, error)
 	EnrollGateway(ctx context.Context, tokenHash string) (Gateway, error)
 	GetActiveCACert(ctx context.Context, arg GetActiveCACertParams) (GetActiveCACertRow, error)

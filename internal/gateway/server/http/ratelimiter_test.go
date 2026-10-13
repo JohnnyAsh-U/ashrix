@@ -153,7 +153,7 @@ func TestRateLimiterMiddleware_ExemptPaths(t *testing.T) {
 		})),
 	)
 
-	for _, path := range []string{"/healths", "/logout", "/_auth/callback"} {
+	for _, path := range []string{"/healths", "/logout", "/_ashrix/auth/other", "/_ashrix/static/app.js"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("X-Real-IP", "203.0.113.25")
 
@@ -161,6 +161,51 @@ func TestRateLimiterMiddleware_ExemptPaths(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 		assert.Equal(t, http.StatusOK, rr.Code, "path %s should be exempt", path)
 	}
+}
+
+func TestRateLimiterMiddleware_CallbackIPAndGlobalLimits(t *testing.T) {
+	s := miniredis.RunT(t)
+	defer s.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	now := time.Unix(1_000, 0)
+	cfg := RateLimiterConfig{
+		Redis:          rdb,
+		CallbackIP:     2,
+		CallbackGlobal: 3,
+		KeyPrefix:      "test",
+		NowFunc:        func() time.Time { return now },
+	}
+	handler := withClientIP(RateLimiterMiddleware(cfg, logger, web.NewErrorHandler())(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	))
+
+	serve := func(ip, forwardedIP string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/_ashrix/auth/callback", nil)
+		req.RemoteAddr = ip + ":54321"
+		req.Header.Set("X-Real-IP", forwardedIP)
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		return recorder
+	}
+
+	assert.Equal(t, http.StatusOK, serve("203.0.113.10", "198.51.100.1").Code)
+	assert.Equal(t, http.StatusOK, serve("203.0.113.10", "198.51.100.2").Code)
+	now = now.Add(30 * time.Second)
+	assert.Equal(t, http.StatusTooManyRequests, serve("203.0.113.10", "198.51.100.3").Code)
+	assert.Equal(t, http.StatusOK, serve("203.0.113.11", "198.51.100.4").Code)
+	assert.Equal(t, http.StatusTooManyRequests, serve("203.0.113.11", "198.51.100.5").Code)
+	now = now.Add(30 * time.Second)
+	assert.Equal(t, http.StatusOK, serve("203.0.113.11", "198.51.100.6").Code)
+}
+
+func TestDefaultRateLimiterConfig_CallbackQuotas(t *testing.T) {
+	cfg := DefaultRateLimiterConfig(nil)
+	assert.Equal(t, 10, cfg.CallbackIP)
+	assert.Equal(t, 100, cfg.CallbackGlobal)
 }
 
 func TestRateLimiterMiddleware_FailOpen(t *testing.T) {

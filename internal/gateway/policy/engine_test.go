@@ -135,7 +135,7 @@ func TestPolicyEngine(t *testing.T) {
 		Rule: &proto.PolicyRule{
 			PolicyId: "policy-allow-eng",
 			TenantId: "tenant-abc",
-			Version: 2,
+			Version:  2,
 			Sequence: 3,
 		},
 	}
@@ -251,7 +251,7 @@ func TestPolicyRollbackTombstone(t *testing.T) {
 		TenantId: "tenant-abc",
 		Effect:   proto.EffectEnum_EFFECT_ENUM_ALLOW,
 		Sequence: 10,
-		Version: 1,
+		Version:  1,
 	}
 
 	// 1. Upsert at sequence 10
@@ -277,8 +277,18 @@ func TestPolicyRollbackTombstone(t *testing.T) {
 	// 3. Try to replay sequence 10 (should fail due to rollback protection against tombstone)
 	rule.Sequence = 10
 	err = engine.UpdatePolicies(ctx, []*proto.PolicyRecord{rec1}, 10)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "stale policy sequence")
+
+	// A newer version may recreate the policy after the tombstone.
+	rule.Sequence = 12
+	rule.Version = 3
+	recRestore := &proto.PolicyRecord{
+		Operation: proto.OperationEnum_OPERATION_ENUM_UPSERT,
+		Timestamp: time.Now().UnixMilli(),
+		Rule:      rule,
+	}
+	require.NoError(t, engine.UpdatePolicies(ctx, []*proto.PolicyRecord{recRestore}, 12))
 }
 
 func TestPolicyEngineAuthenticity(t *testing.T) {

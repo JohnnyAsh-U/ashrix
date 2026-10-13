@@ -37,7 +37,6 @@ func init() {
 	rootCmd.PersistentFlags().String("redis-url", "redis://localhost:6379/1", "Redis Connection URL")
 	rootCmd.PersistentFlags().String("redis-password", "", "Redis Password")
 
-
 	viper.BindPFlag("data_dir", registerCmd.Flags().Lookup("data-dir"))
 	viper.BindPFlag("log_dir", registerCmd.Flags().Lookup("log-dir"))
 

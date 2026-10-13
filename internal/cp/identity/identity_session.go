@@ -3,25 +3,17 @@ package identity
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
-	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"time"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/cp/identity/oidc"
 	cpcrypto "github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
@@ -48,8 +40,6 @@ type StateEntry struct {
 }
 
 type IDPSession struct {
-	signingKey *ecdsa.PrivateKey
-	issuer     string
 	tokenTTL   time.Duration
 
 	jwtTokenTTL time.Duration
@@ -59,53 +49,9 @@ type IDPSession struct {
 	signer    cpcrypto.BundleSigning
 }
 
-func NewIDPSession(baseDir, encryptionSecret, issuer string, rdb *redis.Client, log *slog.Logger, signer cpcrypto.BundleSigning) (*IDPSession, error) {
-	log.Info("Initializing JWT PKI...")
-
-	jwtDir := filepath.Join(baseDir, "jwt")
-
-	// Ensure the directory exists
-	if err := os.MkdirAll(jwtDir, 0700); err != nil {
-		return nil, fmt.Errorf("creating JWT directory: %w", err)
-	}
-
-	jwtPrivateKeyPath := filepath.Join(jwtDir, "jwt.key.enc")
-	context := "jwt-signing-key"
-
-	var signingKey *ecdsa.PrivateKey
-
-	// Check if key exists
-	keyExists, err := filehelper.FileExists(jwtPrivateKeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("checking key existence: %w", err)
-	}
-
-	if keyExists {
-		// Load existing key
-		log.Info("→ Loading existing JWT signing key...")
-		signingKey, err = decryptAndLoadKey(jwtPrivateKeyPath, encryptionSecret, context)
-		if err != nil {
-			return nil, fmt.Errorf("loading JWT signing key: %w", err)
-		}
-		log.Info("✓ JWT signing key loaded successfully")
-	} else {
-		// Generate new key pair
-		log.Info("→ Generating new JWT signing key...")
-		signingKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			return nil, fmt.Errorf("generating JWT signing key: %w", err)
-		}
-
-		// Encrypt and write the key
-		if err := encryptAndWriteKey(jwtPrivateKeyPath, signingKey, encryptionSecret, context); err != nil {
-			return nil, fmt.Errorf("writing JWT signing key: %w", err)
-		}
-		log.Info("✓ JWT signing key generated and saved successfully")
-	}
+func NewIDPSession(baseDir string, rdb *redis.Client, log *slog.Logger, signer cpcrypto.BundleSigning) (*IDPSession, error) {
 
 	return &IDPSession{
-		signingKey: signingKey,
-		issuer:     issuer,
 		tokenTTL:   15 * time.Minute,
 		stateTTL:   10 * time.Minute,
 		jwtTokenTTL: 8 *time.Hour,
@@ -173,20 +119,6 @@ func (t *IDPSession) issueGatewaySessionToken(identity *proto.NormalizedIdentity
 	return signingInput + "." + encode(t.signer.SignJWT([]byte(signingInput))), nil
 }
 
-// For Gateway to verify; to be moved to gateway
-func (t *IDPSession) VerifySession(tokenString string) (*BrokerClaims, error) {
-	claims := &BrokerClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(tok *jwt.Token) (interface{}, error) {
-		return &t.signingKey.PublicKey, nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("verify session token: %w", err)
-	}
-	if !token.Valid {
-		return nil, fmt.Errorf("invalid session token")
-	}
-	return claims, nil
-}
 
 // Create Nonce and state
 func (s *IDPSession) CreateState(ctx context.Context, tenantID, providerID, gatewayID string) (state, code_challenge, nonce string, err error) {
@@ -251,48 +183,6 @@ func (s *IDPSession) ConsumeState(ctx context.Context, state string) (*StateEntr
 		return nil, fmt.Errorf("unmarshal state entry: %w", err)
 	}
 	return &entry, nil
-}
-
-// PublicKeyPEM should be exposed via a JWKS-style endpoint so
-// Ashrix CP (and anything else trusting broker tokens) can verify
-// signatures without a shared secret — same pattern as your CP's
-// own embedded-public-key model from the PKI architecture.
-
-// encryptAndWriteKey encrypts and writes an ECDSA private key to disk
-func encryptAndWriteKey(path string, key *ecdsa.PrivateKey, secret, context string) error {
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return fmt.Errorf("marshaling key: %w", err)
-	}
-	defer wipeBytes(keyDER)
-
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	defer wipeBytes(keyPEM)
-
-	encrypted, err := crypto.AesgcmEncrypt(keyPEM, secret, context)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, encrypted, 0600)
-}
-
-// decryptAndLoadKey decrypts and loads an ECDSA private key from disk
-func decryptAndLoadKey(path, secret, context string) (*ecdsa.PrivateKey, error) {
-	encrypted, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", path, err)
-	}
-	keyPEM, err := crypto.AesgcmDecrypt(encrypted, secret, context)
-	if err != nil {
-		return nil, err
-	}
-	defer wipeBytes(keyPEM)
-
-	block, _ := pem.Decode(keyPEM)
-	if block == nil {
-		return nil, errors.New("failed to decode decrypted key PEM")
-	}
-	return x509.ParseECPrivateKey(block.Bytes)
 }
 
 // wipeBytes securely wipes a byte slice by overwriting with zeros

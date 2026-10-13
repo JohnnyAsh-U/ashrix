@@ -53,19 +53,18 @@ func Run(ctx context.Context, cpurl string, log *slog.Logger, token string, appS
 
 		if remaining < 30*24*time.Hour {
 			log.Info("Credentials Loaded, Renewing...")
-			result, newkey, err := Renew(ctx, cpurl, ConnectorId, log, cred.PrivKey)
+			var result *gen.ConnectorEnrollResponse
+			var newkey = cred.PrivKey
+			err := retryWithBackoff(ctx, log, "certificate renewal", func() error {
+				var err error
+				result, newkey, err = Renew(ctx, cpurl, ConnectorId, log, cred.PrivKey)
+				return err
+			})
 			if err != nil {
-				// Renewal failed — wipe credentials, tell user to restart
-				log.Error("renewal failed — deleting credentials",
+				log.Error("certificate renewal interrupted",
 					"error", err,
-					"action", "restart connector to re-register",
 				)
-				appStorage.ClearCredential()
-				return nil, fmt.Errorf(
-					"cert renewal failed: %w\n"+
-						"Credentials deleted. Restart connector to re-register.",
-					err,
-				)
+				return nil, fmt.Errorf("cert renewal interrupted: %w", err)
 			}
 			if err := appStorage.SaveCredential(result, newkey); err != nil {
 				return nil, err
@@ -82,17 +81,17 @@ func Run(ctx context.Context, cpurl string, log *slog.Logger, token string, appS
 		log.Info("credentials loaded")
 
 		// ── Check status ──────────────────────────────────────────
-		status, err := FetchStatus(ctx, cpurl, cred.PrivKey, ConnectorId, log)
+		var status *gen.ConnectorStatusResponse
+		err = retryWithBackoff(ctx, log, "connector status check", func() error {
+			var err error
+			status, err = FetchStatus(ctx, cpurl, cred.PrivKey, ConnectorId, log)
+			return err
+		})
 		if err != nil {
-			log.Error("status check failed after renewal — deleting credentials",
+			log.Error("connector status check interrupted",
 				"error", err,
 			)
-			appStorage.ClearCredential()
-			return nil, fmt.Errorf(
-				"status check failed: %w\n"+
-					"Credentials deleted. Restart connector to re-register.",
-				err,
-			)
+			return nil, fmt.Errorf("status check interrupted: %w", err)
 		}
 		// ── Build PKIInitialiser ───────────────────────────────────
 		pkiInit, err := NewPKIInitialiser(
@@ -120,17 +119,17 @@ func Run(ctx context.Context, cpurl string, log *slog.Logger, token string, appS
 	}
 
 	// ── Check status ──────────────────────────────────────────
-	status, err := FetchStatus(ctx, cpurl, newKey, regResult.ConnectorId, log)
+	var status *gen.ConnectorStatusResponse
+	err = retryWithBackoff(ctx, log, "connector status check", func() error {
+		var err error
+		status, err = FetchStatus(ctx, cpurl, newKey, regResult.ConnectorId, log)
+		return err
+	})
 	if err != nil {
-		log.Error("status check failed after renewal — deleting credentials",
+		log.Error("connector status check interrupted",
 			"error", err,
 		)
-		appStorage.ClearCredential()
-		return nil, fmt.Errorf(
-			"status check failed: %w\n"+
-				"Credentials deleted. Restart connector to re-register.",
-			err,
-		)
+		return nil, fmt.Errorf("status check interrupted: %w", err)
 	}
 	// ── Save renewed cert + key ────────────────────────────────
 

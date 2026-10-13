@@ -28,9 +28,10 @@ type PKIConfig struct {
 
 	//Idp secret encrytion key
 	IDPSecretEncryptionKey string
+	BundleSigningSecret    string
 
 	//IdentityJWT Keys
-	
+
 }
 
 // Config holds all runtime configuration for the control plane.
@@ -75,11 +76,11 @@ type Config struct {
 	ResetTokenDuration time.Duration
 	SetupTokenDuration time.Duration
 	OtpTokenDuration   time.Duration
-	AppUrl string
+	AppUrl             string
 
 	//Redis
-	RedisAddr string
-	RedisDB int
+	RedisAddr     string
+	RedisDB       int
 	RedisPassword string
 	RedisPoolSize int
 
@@ -93,11 +94,19 @@ type Config struct {
 // Load reads config from environment and validates required fields.
 // Returns an error listing all missing/invalid values — not just the first.
 func Load() (*Config, []error) {
+	return load(true)
+}
+
+func LoadProvisioning() (*Config, []error) {
+	return load(false)
+}
+
+func load(requireRuntimeConfig bool) (*Config, []error) {
 	var errs []error
 
 	require := func(key string) string {
 		v := os.Getenv(key)
-		if v == "" {
+		if v == "" && requireRuntimeConfig {
 			errs = append(errs, fmt.Errorf("required env var %s is not set", key))
 		}
 		return v
@@ -127,45 +136,46 @@ func Load() (*Config, []error) {
 	}
 
 	pkiConfig := &PKIConfig{
-		Backend:         BackendType(optional("PKI_BACKEND", "disk")),
-		BasePath:        optional("PKI_BASE_PATH", "~/.ashrix/pki"),
-		PKIUnlockSecret: optional("PKI_UNLOCK_SECRET", "ashrix-pki-unlock-must-be-32-bytes-long"),
-		KMSToken:        optional("PKI_KMS_TOKEN", ""),
-		KMSUrl:          optional("PKI_KMS_URL", "http://localhost:8200"),
-		IDPSecretEncryptionKey: optional("IDP_SECRET_KEY", "ashrix-pki-unlock-must-be-32-bytes-long"),
+		Backend:                BackendType(optional("PKI_BACKEND", "disk")),
+		BasePath:               optional("PKI_BASE_PATH", "~/.ashrix/pki"),
+		PKIUnlockSecret:        require("PKI_UNLOCK_SECRET"),
+		KMSToken:               optional("PKI_KMS_TOKEN", ""),
+		KMSUrl:                 optional("PKI_KMS_URL", "http://localhost:8200"),
+		IDPSecretEncryptionKey: require("IDP_SECRET_KEY"),
+		BundleSigningSecret:    require("BUNDLE_SIGNING_SECRET"),
 	}
 
 	cfg := &Config{
-		HTTPAddr:         optional("HTTP_ADDR", "0.0.0.0:8080"),
-		GRPCAddr:         optional("GRPC_ADDR", "0.0.0.0:9443"),
-		ENV:              optional("ENV", "development"),
-		DatabaseURL:      require("DATABASE_URL"),
-		DatabaseMaxConn:  int32(mustInt(optional("DB_MAX_CONN", "15"))),
-		EncryptionKey:    require("ENCRYPTION_KEY"),
-		SessionTTL:       mustDuration(optional("SESSION_TTL", "8h")),
-		BaseDomain:       require("BASE_DOMAIN"),
-		SMTPHost:         optional("SMTP_HOST", ""),
-		SMTPUser:         optional("SMTP_USER", ""),
-		SMTPPassword:     optional("SMTP_PASSWORD", ""),
-		SMTPFrom:         optional("SMTP_FROM", "noreply@ashrix.io"),
-		SMTPPort:         int(mustInt(optional("SMTP_PORT", "587"))),
-		JwtAccessSecret:  require("JWT_ACCESS_SECRET"),
-		JwtAccessTTL:     mustDuration(optional("JWT_ACCESS_TTL", "100m")),
-		JwtRefreshSecret: require("JWT_REFRESH_SECRET"),
-		JwtRefreshTTL:    mustDuration(optional("JWT_REFRESH_TTL", "720h")),
+		HTTPAddr:           optional("HTTP_ADDR", "0.0.0.0:8080"),
+		GRPCAddr:           optional("GRPC_ADDR", "0.0.0.0:9443"),
+		ENV:                optional("ENV", "development"),
+		DatabaseURL:        require("DATABASE_URL"),
+		DatabaseMaxConn:    int32(mustInt(optional("DB_MAX_CONN", "15"))),
+		EncryptionKey:      require("ENCRYPTION_KEY"),
+		SessionTTL:         mustDuration(optional("SESSION_TTL", "8h")),
+		BaseDomain:         require("BASE_DOMAIN"),
+		SMTPHost:           optional("SMTP_HOST", ""),
+		SMTPUser:           optional("SMTP_USER", ""),
+		SMTPPassword:       optional("SMTP_PASSWORD", ""),
+		SMTPFrom:           optional("SMTP_FROM", "noreply@ashrix.io"),
+		SMTPPort:           int(mustInt(optional("SMTP_PORT", "587"))),
+		JwtAccessSecret:    require("JWT_ACCESS_SECRET"),
+		JwtAccessTTL:       mustDuration(optional("JWT_ACCESS_TTL", "100m")),
+		JwtRefreshSecret:   require("JWT_REFRESH_SECRET"),
+		JwtRefreshTTL:      mustDuration(optional("JWT_REFRESH_TTL", "720h")),
 		ResetTokenDuration: mustDuration(optional("RESET_TOKEN_DURATION", "1h")),
 		SetupTokenDuration: mustDuration(optional("SETUP_TOKEN_DURATION", "1h")),
 		OtpTokenDuration:   mustDuration(optional("OTP_TOKEN_DURATION", "5m")),
-		AppUrl: optional("APP_URL", "http://localhost:8080"),
+		AppUrl:             optional("APP_URL", "http://localhost:8080"),
 
-		RedisAddr: optional("REDIS_ADDR", "localhost:6379"),
-		RedisDB: int(mustInt(optional("REDIS_DB", "0"))),
+		RedisAddr:     optional("REDIS_ADDR", "localhost:6379"),
+		RedisDB:       int(mustInt(optional("REDIS_DB", "0"))),
 		RedisPassword: optional("REDIS_PASSWORD", ""),
 		RedisPoolSize: int(mustInt(optional("REDIS_POOL_SIZE", "2"))),
 
 		CPDomainUrl: optional("CP_DOMAIN_URL", "ashrix.io"),
 
-		PKIConfig:        pkiConfig,
+		PKIConfig: pkiConfig,
 	}
 
 	return cfg, errs

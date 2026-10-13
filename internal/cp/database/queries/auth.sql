@@ -35,6 +35,15 @@ SET otp_secret = $2,
 WHERE id = $1
 RETURNING *;
 
+-- name: EnableAdminOTPIfPending :one
+UPDATE admins
+SET otp_enabled = TRUE
+WHERE id = $1
+  AND is_active = TRUE
+  AND otp_enabled = FALSE
+  AND otp_secret = $2
+RETURNING *;
+
 
 -- name: ActivateAdmin :one
 -- Called at the end of /verify-otp during setup. Creates the org and links it.

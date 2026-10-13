@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"log/slog"
 	"os"
@@ -27,6 +28,9 @@ import (
 	"github.com/joho/godotenv"
 )
 
+//go:embed all:ui
+var frontendStaticFiles embed.FS
+
 // @title Ashrix Access API
 // @version 1.0
 // @description Secure Application Access
@@ -35,7 +39,7 @@ import (
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-func main() {
+func runServer() error {
 	fmt.Println("Starting Ashrix Control Plane...")
 	VersionBuildTime := fmt.Sprintf("Version: %s; BuildTime: %s", version.GetVersion(), version.GetBuildDate())
 	fmt.Println(VersionBuildTime)
@@ -47,7 +51,7 @@ func main() {
 	cfg, errs := config.Load()
 	if errs != nil {
 		fmt.Println("Error loading config:", errs)
-		os.Exit(1)
+		return fmt.Errorf("load config: %v", errs)
 	}
 
 	//Initializing Directory for Ashrix
@@ -105,19 +109,15 @@ func main() {
 		cfg.RedisPoolSize,
 	)
 
-	log.Info("Redis connected")
-
 	if err != nil {
-		log.Error("Failed to connect to Redis: %w", slog.String("err", err.Error()))
+		log.Error("Failed to connect to Redis", slog.String("err", err.Error()))
+		return fmt.Errorf("connect Redis: %w", err)
 	}
+	log.Info("Redis connected")
 	defer redisStore.Close()
 
 	BaseDir := filepath.Join(home, ".ashrix")
 	log.Info("Ashrix base directory Initialized")
-	if err := os.MkdirAll(BaseDir, 0700); err != nil {
-		log.Error("Creating JWT directory: %w", slog.String("err", err.Error()))
-		os.Exit(1) // Fail hard if Dir initialization fails
-	}
 
 	// Initializing PKI Root CA and Intermediate CA
 	// Pass db.Queries to the PKI signer for database-backed CA certificate management
@@ -138,13 +138,14 @@ func main() {
 
 	if cperr != nil {
 		log.Error("Failed to inintialize CP PKI", slog.String("err", cperr.Error()))
+		return fmt.Errorf("load Control Plane PKI: %w", cperr)
 	}
 
 	//Initialize Bundle Signing Keys
-	bundleSigner, err := crypto.BundleSigningKeys(BaseDir, log)
+	bundleSigner, err := crypto.BundleSigningKeys(BaseDir, cfg.PKIConfig.BundleSigningSecret, log)
 	if err != nil {
 		log.Error("Failed to Initialize Bundle Signing Keys", slog.String("err", err.Error()))
-		os.Exit(1)
+		return fmt.Errorf("load bundle signing key: %w", err)
 	}
 
 	//Initializing Gateway GRPC Connection Registry
@@ -172,6 +173,7 @@ func main() {
 		CASigner,
 		gatewayRegistry,
 		bundleSigner,
+		frontendStaticFiles,
 	)
 
 	// Build and start gRPC server
@@ -220,4 +222,5 @@ func main() {
 	log.Info("shutdown complete")
 
 	fmt.Println("Welcome to Ashrix Access")
+	return nil
 }

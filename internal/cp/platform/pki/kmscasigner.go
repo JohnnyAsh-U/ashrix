@@ -1,11 +1,12 @@
 package pki
 
 import (
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/pki"
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	pkica "github.com/JohnnyAsh-U/ashrix-api/internal/cp/pki_ca"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/filehelper"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
@@ -35,127 +37,45 @@ type KMSCASigner struct {
 }
 
 func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, pkica pkica.Repository, log *slog.Logger) (*KMSCASigner, error) {
-	println("Initializing PKI...")
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("getting home dir: %w", err)
-	}
-
-	if baseDir == "" {
-		baseDir = filepath.Join(home, ".ashrix", "pki")
-		println("→ Using default PKI base directory:", baseDir)
-	} else {
-		baseDir = filepath.Join(home, baseDir)
-	}
-	println("Connecting to Vault...")
-	config := api.DefaultConfig()
-	config.Address = VaultUrl
-	client, err := api.NewClient(config)
-
+	resolvedBaseDir, err := resolveKMSBaseDir(baseDir)
 	if err != nil {
 		return nil, err
 	}
-	client.SetToken(VaultToken)
-
-	_, err = client.Logical().Read("auth/token/lookup-self")
+	client, err := connectVault(VaultToken, VaultUrl)
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("Connected to Vault")
-
-	//Check if intermediate exist
 	exists, err := checkIntermediate(client, "pki")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("check Vault intermediate CA: %w", err)
 	}
-
-	rootKeyPath := filepath.Join(baseDir, "root-ca.key.enc")
-	rootCertPath := filepath.Join(baseDir, "root-ca.crt")
-
 	if !exists {
-		println("Generating Intermediate CA...")
-		println("Checking for Root CA...")
-
-		rootcaexists, err := filehelper.FileExists(rootKeyPath)
-		if err != nil {
-			return nil, err
-		}
-		rootcertexists, err := filehelper.FileExists(rootCertPath)
-		if err != nil {
-			return nil, err
-		}
-
-		if !rootcertexists && !rootcaexists {
-			fmt.Println("Root Key and Cert Not Found...")
-			fmt.Println("Generating RootCA")
-
-			rootKey, rootCert, err := generateRootCA(rootKeyPath, rootCertPath, rootUnlockSecret, "root", log)
-			if err != nil {
-				return nil, err
-			}
-
-			fmt.Println("Generating a New Intermediate CA and CSR...")
-
-			interCSR, err := generateIntermediateCAInVault(client, "pki")
-			if err != nil {
-				return nil, err
-			}
-			isSigned, err := SignWithRootCA(client, "pki", interCSR, rootCert, rootKey)
-			if err != nil {
-				return nil, err
-			}
-			if !isSigned {
-				return nil, fmt.Errorf("Unable to Signed Intermediate")
-			}
-			fmt.Println("Generated a New Intermediate CA")
-		} else if rootcaexists && rootcertexists {
-			fmt.Println("Root Key and Cert Found...")
-			fmt.Println("Generating a New Intermediate CA...")
-			rootKey, rootCert, err := pki.LoadKeyAndCert(rootKeyPath, rootCertPath, rootUnlockSecret, "root")
-			if err != nil {
-				return nil, err
-			}
-			interCSR, err := generateIntermediateCAInVault(client, "pki")
-			if err != nil {
-				return nil, err
-			}
-			isSigned, err := SignWithRootCA(client, "pki", interCSR, rootCert, rootKey)
-			if err != nil {
-				return nil, err
-			}
-			if !isSigned {
-				return nil, fmt.Errorf("Unable to Signed Intermediate")
-			}
-			fmt.Println("Generated a New Intermediate CA")
-		} else if !rootcaexists {
-			panic("Root CA KEY NOT FOUND")
-		} else if !rootcertexists {
-			panic("Root CA CERT NOT FOUND")
-		} else {
-			panic("UNKNOWN ERROR")
-		}
+		return nil, fmt.Errorf("Vault intermediate CA is not provisioned; run 'ashrix-cp setup pki'")
 	}
 
-	var intermediateCert *x509.Certificate
-	secret, err := client.Logical().Read("pki/cert/ca")
-	if err == nil && secret != nil && secret.Data["certificate"] != nil {
-		certPEM := secret.Data["certificate"].(string)
-		certBlock, _ := pem.Decode([]byte(certPEM))
-		if certBlock != nil {
-			intermediateCert, _ = x509.ParseCertificate(certBlock.Bytes)
-		}
-	}
-
+	rootCertPath := filepath.Join(resolvedBaseDir, "root-ca.crt")
 	rootCert, err := pki.LoadCert(rootCertPath)
+	if err != nil {
+		return nil, fmt.Errorf("load root CA certificate; run 'ashrix-cp setup pki' or restore %s: %w", rootCertPath, err)
+	}
+	intermediateCert, err := loadVaultIntermediateCert(client, "pki")
 	if err != nil {
 		return nil, err
 	}
+	if err := verifyChain(intermediateCert, rootCert); err != nil {
+		return nil, fmt.Errorf("Vault intermediate CA is not signed by the configured root: %w", err)
+	}
+	ctx := context.Background()
+	if err := verifyCACertRecord(ctx, pkica, "Ashrix Root CA", "root", rootCert); err != nil {
+		return nil, err
+	}
+	if err := verifyCACertRecord(ctx, pkica, "Ashrix Intermediate CA", "intermediate", intermediateCert); err != nil {
+		return nil, err
+	}
 
-	fmt.Println("PKI Intializing Done...")
 	return &KMSCASigner{
 		VaultClient:      client,
-		RootCAKeyEncPath: rootKeyPath,
+		RootCAKeyEncPath: filepath.Join(resolvedBaseDir, "root-ca.key.enc"),
 		RootCACertPath:   rootCertPath,
 		MountPath:        "pki",
 		rootCACert:       rootCert,
@@ -163,7 +83,114 @@ func NewKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, pkic
 	}, nil
 }
 
-func (s *KMSCASigner) IssueCert(csr *x509.CertificateRequest, validity time.Duration, CN,DNSName string) (*x509.Certificate, error) {
+func ProvisionKMSCASigner(VaultToken, VaultUrl, baseDir, rootUnlockSecret string, pkica pkica.Repository, log *slog.Logger) (*KMSCASigner, error) {
+	resolvedBaseDir, err := resolveKMSBaseDir(baseDir)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(resolvedBaseDir, 0700); err != nil {
+		return nil, fmt.Errorf("creating PKI directory: %w", err)
+	}
+	client, err := connectVault(VaultToken, VaultUrl)
+	if err != nil {
+		return nil, err
+	}
+	exists, err := checkIntermediate(client, "pki")
+	if err != nil {
+		return nil, fmt.Errorf("check Vault intermediate CA: %w", err)
+	}
+	rootKeyPath := filepath.Join(resolvedBaseDir, "root-ca.key.enc")
+	rootCertPath := filepath.Join(resolvedBaseDir, "root-ca.crt")
+
+	if !exists {
+		rootKeyExists, err := filehelper.FileExists(rootKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("check root CA key: %w", err)
+		}
+		rootCertExists, err := filehelper.FileExists(rootCertPath)
+		if err != nil {
+			return nil, fmt.Errorf("check root CA certificate: %w", err)
+		}
+		var rootKey *ecdsa.PrivateKey
+		var rootCert *x509.Certificate
+		switch {
+		case !rootKeyExists && !rootCertExists:
+			rootKey, rootCert, err = generateRootCA(rootKeyPath, rootCertPath, rootUnlockSecret, "root", log)
+		case rootKeyExists && rootCertExists:
+			rootKey, rootCert, err = pki.LoadKeyAndCert(rootKeyPath, rootCertPath, rootUnlockSecret, "root")
+			if err == nil {
+				err = pki.VerifyKeyAndCert(rootCert, rootKey)
+			}
+		default:
+			return nil, fmt.Errorf("incomplete root CA files at %s; refusing to recreate them", resolvedBaseDir)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("load or create root CA: %w", err)
+		}
+
+		csr, err := generateIntermediateCAInVault(client, "pki")
+		if err != nil {
+			return nil, fmt.Errorf("generate Vault intermediate CSR: %w", err)
+		}
+		signed, err := SignWithRootCA(client, "pki", csr, rootCert, rootKey)
+		if err != nil {
+			return nil, fmt.Errorf("sign Vault intermediate CA: %w", err)
+		}
+		if !signed {
+			return nil, fmt.Errorf("failed to sign Vault intermediate CA")
+		}
+	}
+
+	rootCert, err := pki.LoadCert(rootCertPath)
+	if err != nil {
+		return nil, fmt.Errorf("load provisioned root CA: %w", err)
+	}
+	intermediateCert, err := loadVaultIntermediateCert(client, "pki")
+	if err != nil {
+		return nil, err
+	}
+	if err := verifyChain(intermediateCert, rootCert); err != nil {
+		return nil, fmt.Errorf("Vault intermediate CA is not signed by the configured root: %w", err)
+	}
+	ctx := context.Background()
+	if err := ensureCACertRecord(ctx, pkica, "Ashrix Root CA", "root", rootCert); err != nil {
+		return nil, err
+	}
+	if err := ensureCACertRecord(ctx, pkica, "Ashrix Intermediate CA", "intermediate", intermediateCert); err != nil {
+		return nil, err
+	}
+	return NewKMSCASigner(VaultToken, VaultUrl, resolvedBaseDir, rootUnlockSecret, pkica, log)
+}
+
+func resolveKMSBaseDir(baseDir string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("getting home dir: %w", err)
+	}
+	if baseDir == "" {
+		baseDir = filepath.Join(home, ".ashrix", "pki")
+	} else if !filepath.IsAbs(baseDir) {
+		baseDir = filepath.Join(home, baseDir)
+	}
+	return baseDir, nil
+}
+
+func connectVault(token, vaultURL string) (*api.Client, error) {
+	config := api.DefaultConfig()
+	config.Address = vaultURL
+	client, err := api.NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("create Vault client: %w", err)
+	}
+	client.SetToken(token)
+	_, err = client.Logical().Read("auth/token/lookup-self")
+	if err != nil {
+		return nil, fmt.Errorf("authenticate to Vault: %w", err)
+	}
+	return client, nil
+}
+
+func (s *KMSCASigner) IssueCert(csr *x509.CertificateRequest, validity time.Duration, CN, DNSName string) (*x509.Certificate, error) {
 	//Issue with the vault intermediate ca
 	csrPEM := pki.MarshalCsr(csr)
 	resp, err := s.VaultClient.Logical().Write(s.MountPath+"/sign/ashrix",
@@ -208,7 +235,78 @@ func (d *KMSCASigner) TrustBundle() string {
 // GetCertPool returns a cached x509.CertPool containing all active CA certificates.
 // It refreshes the pool from the database if it's older than 5 minutes.
 func (d *KMSCASigner) GetCertPool() (*x509.CertPool, error) {
-	return nil,nil
+	if d.rootCACert == nil || d.intermediateCert == nil {
+		return nil, fmt.Errorf("KMS CA certificates are not loaded")
+	}
+	pool := x509.NewCertPool()
+	pool.AddCert(d.rootCACert)
+	pool.AddCert(d.intermediateCert)
+	return pool, nil
+}
+
+func ensureCACertRecord(ctx context.Context, repo pkica.Repository, name, certType string, cert *x509.Certificate) error {
+	if cert == nil {
+		return fmt.Errorf("%s certificate is missing", name)
+	}
+	active, err := repo.GetActiveCACert(ctx, store.GetActiveCACertParams{Name: name, Type: certType})
+	if err == nil {
+		if active.SerialNumber != cert.SerialNumber.String() {
+			return fmt.Errorf("active %s in database does not match configured CA", name)
+		}
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("load active %s record: %w", name, err)
+	}
+	_, err = repo.CreateCACert(ctx, store.InsertCACertParams{
+		Name: name, Type: certType, CertPem: string(pki.MarshalCert(cert)),
+		SerialNumber: cert.SerialNumber.String(), Subject: cert.Subject.CommonName,
+		IssuedAt: cert.NotBefore, ExpiresAt: cert.NotAfter,
+	})
+	if err != nil {
+		return fmt.Errorf("register %s in database: %w", name, err)
+	}
+	return nil
+}
+
+func verifyCACertRecord(ctx context.Context, repo pkica.Repository, name, certType string, cert *x509.Certificate) error {
+	if cert == nil {
+		return fmt.Errorf("%s certificate is missing", name)
+	}
+	active, err := repo.GetActiveCACert(ctx, store.GetActiveCACertParams{Name: name, Type: certType})
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("active %s is missing from the database; run 'ashrix-cp setup pki'", name)
+	}
+	if err != nil {
+		return fmt.Errorf("load active %s record: %w", name, err)
+	}
+	if active.SerialNumber != cert.SerialNumber.String() {
+		return fmt.Errorf("active %s in database does not match configured CA", name)
+	}
+	return nil
+}
+
+func loadVaultIntermediateCert(client *api.Client, mountPath string) (*x509.Certificate, error) {
+	secret, err := client.Logical().Read(mountPath + "/cert/ca")
+	if err != nil {
+		return nil, fmt.Errorf("read Vault intermediate CA certificate: %w", err)
+	}
+	if secret == nil || secret.Data["certificate"] == nil {
+		return nil, fmt.Errorf("Vault intermediate CA certificate is missing; run 'ashrix-cp setup pki'")
+	}
+	certPEM, ok := secret.Data["certificate"].(string)
+	if !ok {
+		return nil, fmt.Errorf("Vault intermediate CA certificate has an unexpected format")
+	}
+	certBlock, _ := pem.Decode([]byte(certPEM))
+	if certBlock == nil || certBlock.Type != "CERTIFICATE" {
+		return nil, fmt.Errorf("Vault intermediate CA certificate is not valid PEM")
+	}
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse Vault intermediate CA certificate: %w", err)
+	}
+	return cert, nil
 }
 
 func checkIntermediate(client *api.Client, mountPath string) (bool, error) {

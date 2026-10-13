@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/database/store"
 	"github.com/google/uuid"
 )
@@ -16,6 +17,7 @@ type Repository interface {
 	GetAdminByEmailWithOrg(ctx context.Context, params store.GetAdminByEmailWithOrgParams) (store.Admin, error)
 	GetAdminByID(ctx context.Context, id uuid.UUID) (store.Admin, error)
 	UpdateAdminOTP(ctx context.Context, params store.UpdateAdminOTPParams) (store.Admin, error)
+	EnableAdminOTPIfPending(ctx context.Context, params store.EnableAdminOTPIfPendingParams) (store.Admin, error)
 	ActivateAdmin(ctx context.Context, params store.ActivateAdminParams) (store.Admin, error)
 	UpdateAdminPassword(ctx context.Context, params store.UpdateAdminPasswordParams) error
 
@@ -62,6 +64,10 @@ func (r *postgresRepository) GetAdminByID(ctx context.Context, id uuid.UUID) (st
 
 func (r *postgresRepository) UpdateAdminOTP(ctx context.Context, params store.UpdateAdminOTPParams) (store.Admin, error) {
 	return r.q.UpdateAdminOTP(ctx, params)
+}
+
+func (r *postgresRepository) EnableAdminOTPIfPending(ctx context.Context, params store.EnableAdminOTPIfPendingParams) (store.Admin, error) {
+	return r.q.EnableAdminOTPIfPending(ctx, params)
 }
 
 func (r *postgresRepository) ActivateAdmin(ctx context.Context, params store.ActivateAdminParams) (store.Admin, error) {
@@ -119,7 +125,6 @@ func (r *postgresRepository) GetPasswordResetToken(ctx context.Context, tokenHas
 func (r *postgresRepository) MarkPasswordResetTokenUsed(ctx context.Context, id uuid.UUID) error {
 	return r.q.MarkPasswordResetTokenUsed(ctx, id)
 }
-
 
 // Ensure 1 hour session for setup/reset tokens
 var _ = time.Hour

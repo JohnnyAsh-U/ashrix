@@ -47,6 +47,78 @@ type DiskCASigner struct {
 }
 
 func NewDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository, log *slog.Logger) (*DiskCASigner, error) {
+	return loadDiskCASigner(baseDir, secret, pkicaRepo, log)
+}
+
+func ProvisionDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository, log *slog.Logger) (*DiskCASigner, error) {
+	return provisionDiskCASigner(baseDir, secret, pkicaRepo, log)
+}
+
+func loadDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository, log *slog.Logger) (*DiskCASigner, error) {
+	pkiDir := filepath.Join(baseDir, "pki")
+	if info, err := os.Stat(pkiDir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("PKI is not provisioned; run 'ashrix-cp setup pki' first: %w", err)
+		}
+		return nil, fmt.Errorf("checking PKI directory: %w", err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("PKI path %s is not a directory", pkiDir)
+	}
+
+	ctx := context.Background()
+	rootRecord, err := pkicaRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{Name: "Ashrix Root CA", Type: "root"})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("active root CA is missing; run 'ashrix-cp setup pki'")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load active root CA from database: %w", err)
+	}
+	rootCert, err := parseCertPEM([]byte(rootRecord.CertPem))
+	if err != nil {
+		return nil, fmt.Errorf("parse root CA certificate from database: %w", err)
+	}
+
+	intermediateRecord, err := pkicaRepo.GetActiveCACert(ctx, store.GetActiveCACertParams{Name: "Ashrix Intermediate CA", Type: "intermediate"})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("active intermediate CA is missing; run 'ashrix-cp setup pki'")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load active intermediate CA from database: %w", err)
+	}
+	intermediateCert, err := parseCertPEM([]byte(intermediateRecord.CertPem))
+	if err != nil {
+		return nil, fmt.Errorf("parse intermediate CA certificate from database: %w", err)
+	}
+	interKeyPath := filepath.Join(pkiDir, "intermediate-ca.key.enc")
+	intermediateKey, err := pki.LoadKey(interKeyPath, secret, "intermediate")
+	if err != nil {
+		return nil, fmt.Errorf("load intermediate CA key; run 'ashrix-cp setup pki' or restore the key: %w", err)
+	}
+	if err := pki.VerifyKeyAndCert(intermediateCert, intermediateKey); err != nil {
+		return nil, fmt.Errorf("intermediate CA key-certificate mismatch: %w", err)
+	}
+	if err := verifyChain(intermediateCert, rootCert); err != nil {
+		return nil, fmt.Errorf("intermediate CA not signed by root CA: %w", err)
+	}
+
+	d := &DiskCASigner{
+		RootCAKeyEncPath:       filepath.Join(pkiDir, "root-ca.key.enc"),
+		RootCACertPath:         filepath.Join(pkiDir, "root-ca.crt"),
+		IntermediateKeyEncPath: interKeyPath,
+		IntermediateCACertPath: filepath.Join(pkiDir, "intermediate-ca.crt"),
+		intermediateKey:        intermediateKey,
+		intermediateCert:       intermediateCert,
+		RootCACert:             rootCert,
+		pkicaRepo:              pkicaRepo,
+		log:                    log,
+	}
+	if err := d.refreshCertPool(ctx); err != nil {
+		return nil, fmt.Errorf("failed to initially refresh cert pool: %w", err)
+	}
+	return d, nil
+}
+
+func provisionDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository, log *slog.Logger) (*DiskCASigner, error) {
 	log.Info("Initializing PKI...")
 	PkiDir := filepath.Join(baseDir, "pki")
 	if err := os.MkdirAll(PkiDir, 0700); err != nil {
@@ -83,19 +155,28 @@ func NewDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository, log *sl
 		if err != nil {
 			return nil, fmt.Errorf("checking root cert existence: %w", err)
 		}
+		rootKeyExists, err := filehelper.FileExists(rootKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("checking root key existence: %w", err)
+		}
 
-		if rootCertExists {
+		if rootCertExists && rootKeyExists {
 			log.Info("→ Loading Root CA from disk.")
-			rootCert, err = pki.LoadCert(rootCertPath)
+			rootKey, rootCert, err = pki.LoadKeyAndCert(rootKeyPath, rootCertPath, secret, "root")
 			if err != nil {
-				return nil, fmt.Errorf("failed to load root CA cert from disk: %w", err)
+				return nil, fmt.Errorf("failed to load root CA key and cert from disk: %w", err)
 			}
-		} else {
+			if err := pki.VerifyKeyAndCert(rootCert, rootKey); err != nil {
+				return nil, fmt.Errorf("root CA key-certificate mismatch: %w", err)
+			}
+		} else if !rootCertExists && !rootKeyExists {
 			log.Info("→ Root CA not found on disk. Generating new Root CA...")
 			rootKey, rootCert, err = generateRootCA(rootKeyPath, rootCertPath, secret, "root", log)
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate root CA: %w", err)
 			}
+		} else {
+			return nil, fmt.Errorf("incomplete root CA files at %s; refusing to overwrite or recreate them", PkiDir)
 		}
 
 		// Insert the loaded/generated Root CA into the database
@@ -130,7 +211,7 @@ func NewDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository, log *sl
 		// Key is never stored in DB, must be on disk
 		intermediateKey, err = pki.LoadKey(interKeyPath, secret, "intermediate") // Assumes pki.LoadKey exists
 		if err != nil {
-			return nil, fmt.Errorf("failed to load intermediate CA key from disk: %w", err)
+			return nil, fmt.Errorf("failed to load intermediate CA key from disk; run 'ashrix-cp setup pki' first: %w", err)
 		}
 	} else { // Intermediate CA not in DB, check disk or generate
 		log.Info("→ Intermediate CA not found in database. Checking disk for existing files...")
@@ -149,7 +230,7 @@ func NewDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository, log *sl
 			if err != nil {
 				return nil, fmt.Errorf("failed to load intermediate CA from disk: %w", err)
 			}
-		} else {
+		} else if !interKeyExists && !interCertExists {
 			log.Info("→ Intermediate CA not found on disk. Generating new Intermediate CA...")
 
 			// Root key is strictly required for signing a new intermediate.
@@ -165,6 +246,8 @@ func NewDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository, log *sl
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate intermediate CA: %w", err)
 			}
+		} else {
+			return nil, fmt.Errorf("incomplete intermediate CA files at %s; refusing to overwrite or recreate them", PkiDir)
 		}
 
 		// Insert the loaded/generated Intermediate CA into the database
@@ -208,7 +291,7 @@ func NewDiskCASigner(baseDir, secret string, pkicaRepo pkica.Repository, log *sl
 		RootCACert:             rootCert,
 		pkicaRepo:              pkicaRepo,
 		certPoolMutex:          sync.RWMutex{},
-		log: log,
+		log:                    log,
 	}
 
 	// Initial refresh of the cert pool
@@ -393,15 +476,15 @@ func generateIntermediateCA(intermediateKeyPath, intermediateCertPath, secret st
 
 	now := time.Now().UTC()
 	template := &x509.Certificate{
-		SerialNumber:                serial,
-		Subject:                     pkix.Name{CommonName: "Ashrix Intermediate CA", Organization: []string{"Ashrix"}},
-		NotBefore:                   now.Add(-30 * time.Second),
-		NotAfter:                    now.Add(365 * 24 * time.Hour),
-		KeyUsage:                    x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-		BasicConstraintsValid:       true,
-		IsCA:                        true,
-		MaxPathLen:                  0,
-		MaxPathLenZero:              true,
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: "Ashrix Intermediate CA", Organization: []string{"Ashrix"}},
+		NotBefore:             now.Add(-30 * time.Second),
+		NotAfter:              now.Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLen:            0,
+		MaxPathLenZero:        true,
 		// PermittedDNSDomainsCritical: true,
 		// PermittedDNSDomains:         []string{".ashrix.internal", "ashrix.internal", "localhost"},
 	}

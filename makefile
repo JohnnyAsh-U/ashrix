@@ -52,7 +52,11 @@ reset-db:
 # ----- Development run using Air -------
 .PHONY: sqlc run-cp run-gateway
 
+run-ui:
+	cd web-cp && npm run dev
+
 run-cp:
+	cp -r web-cp/dist cmd/cp/ui
 	$(AIR) -c .air.cp.toml
 
 run-gateway:
@@ -100,6 +104,7 @@ docs: docs-cp docs-gateway
 .PHONY: build-cp
 build-cp:
 	@echo "Building with CP"
+	cp -r web-cp/dist cmd/cp/ui
 	go build $(CP_LDFLAGS) ./cmd/cp
 
 

@@ -10,10 +10,13 @@ tmp/
 *.out
 *.prof
 .vscode/
-docs/
+cmd/*/docs
 *.db
 *.sqlite
 *.sqlite3
 server.crt
 server.key
 build/
+vendor/
+web-cp/
+cmd/cp/ui

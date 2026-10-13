@@ -17,6 +17,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
@@ -42,15 +43,15 @@ func NewProxyServer(
 	accessLogger *logging.AccessLogger,
 ) *ProxyServer {
 
-	rateLimiter := session.NewRedisLimiter(redisClient, 10, time.Minute)
 	errHandler := web.NewErrorHandler()
 	staticFileHandler := web.NewStaticFileHandler()
+	rateLimiterConfig := DefaultRateLimiterConfig(redisClient)
+	rateLimiterConfig.CallbackScope = cfg.GatewayID
 
 	handler := NewHandler(
 		log,
 		connectorRegistry,
 		sessions,
-		rateLimiter,
 		redisClient,
 		grpcClient,
 		activeStreams,
@@ -75,7 +76,6 @@ func NewProxyServer(
 		"192.0.2.0/24", // Example blocked range
 	})
 
-
 	collector := posture.NewCollector(geoReader, torChecker, repDB)
 
 	r := chi.NewRouter()
@@ -87,7 +87,7 @@ func NewProxyServer(
 	r.Use(session.SessionMiddleware(connectorRegistry, sessions, redisClient, cfg, errHandler, log))
 	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig()))
 	r.Use(posture.PostureMiddleware(collector, log))
-	r.Use(RateLimiterMiddleware(DefaultRateLimiterConfig(redisClient), log, errHandler)) // ← after session
+	r.Use(RateLimiterMiddleware(rateLimiterConfig, log, errHandler)) // ← after session
 	r.Use(policy.PolicyMiddleware(engine, cfg, log, errHandler))
 
 	r.Handle("/_ashrix/static/*", staticFileHandler)
@@ -149,7 +149,7 @@ func NewProxyServer(
 	return &ProxyServer{
 		http: &http.Server{
 			Addr:              "",
-			Handler:           rootHandler,
+			Handler:           telemetry.HTTPMiddleware(cfg.GatewayID)(rootHandler),
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       120 * time.Second,
 		},

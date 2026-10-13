@@ -3,6 +3,8 @@ package store
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/x509"
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -10,6 +12,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRootPublicKeyFromEnvironmentValue(t *testing.T) {
+	publicKey, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKIXPublicKey(publicKey)
+	require.NoError(t, err)
+
+	verifier, err := RootPublicKey(base64.StdEncoding.EncodeToString(der))
+	require.NoError(t, err)
+	require.Equal(t, publicKey, verifier.PublicKey)
+
+	_, err = RootPublicKey("not-base64")
+	require.Error(t, err)
+
+	_, err = ParseRootPublicKey([]byte("not-DER"))
+	require.Error(t, err)
+}
 
 func TestVerifyRecord(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -21,7 +40,7 @@ func TestVerifyRecord(t *testing.T) {
 		PolicyId: "policy-1",
 		TenantId: "tenant-1",
 		Effect:   pb.EffectEnum_EFFECT_ENUM_ALLOW,
-		Sequence:  10,
+		Sequence: 10,
 	}
 
 	record := &pb.PolicyRecord{
@@ -73,7 +92,7 @@ func TestVerifyBundle(t *testing.T) {
 		PolicyId: "policy-1",
 		TenantId: "tenant-1",
 		Effect:   pb.EffectEnum_EFFECT_ENUM_ALLOW,
-		Sequence:  1,
+		Sequence: 1,
 	}
 	record1 := &pb.PolicyRecord{
 		Operation: pb.OperationEnum_OPERATION_ENUM_UPSERT,
@@ -88,7 +107,7 @@ func TestVerifyBundle(t *testing.T) {
 		PolicyId: "policy-2",
 		TenantId: "tenant-1",
 		Effect:   pb.EffectEnum_EFFECT_ENUM_DENY,
-		Sequence:  2,
+		Sequence: 2,
 	}
 	record2 := &pb.PolicyRecord{
 		Operation: pb.OperationEnum_OPERATION_ENUM_UPSERT,
@@ -100,9 +119,9 @@ func TestVerifyBundle(t *testing.T) {
 	record2.Signature = ed25519.Sign(priv, payload2)
 
 	bundle := &pb.PolicyBundle{
-		LastSequence:  2,
-		IssuedAt: time.Now().UnixMilli(),
-		Records:  []*pb.PolicyRecord{record1, record2},
+		LastSequence: 2,
+		IssuedAt:     time.Now().UnixMilli(),
+		Records:      []*pb.PolicyRecord{record1, record2},
 	}
 
 	// 1. Unsigned bundle should fail
@@ -135,8 +154,8 @@ func TestVerifyBundle(t *testing.T) {
 
 	bundleWithBadRecord := &pb.PolicyBundle{
 		LastSequence: 3,
-		IssuedAt: time.Now().UnixMilli(),
-		Records:  []*pb.PolicyRecord{record1, record3},
+		IssuedAt:     time.Now().UnixMilli(),
+		Records:      []*pb.PolicyRecord{record1, record3},
 	}
 	bundleWithBadRecord.Signature = ed25519.Sign(priv, BundleSigningPayload(bundleWithBadRecord))
 	err = verifier.VerifyBundle(bundleWithBadRecord)

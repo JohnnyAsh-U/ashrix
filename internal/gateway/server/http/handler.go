@@ -24,7 +24,6 @@ type Handler struct {
 	log            *slog.Logger
 	registry       *registry.Registry
 	session        *session.SessionManager
-	rateLimiter    *session.RedisLimiter
 	redisClient    *redis.Client
 	grpcClient     *gateway_grpc.SafeClient
 	cfg            *config.Config
@@ -38,7 +37,6 @@ func NewHandler(
 	log *slog.Logger,
 	registry *registry.Registry,
 	session *session.SessionManager,
-	limiter *session.RedisLimiter,
 	redisClient *redis.Client,
 	grpcClient *gateway_grpc.SafeClient,
 	streamRegistry *registry.ActiveStreamRegistry,
@@ -51,7 +49,6 @@ func NewHandler(
 		log:            log,
 		registry:       registry,
 		session:        session,
-		rateLimiter:    limiter,
 		redisClient:    redisClient,
 		grpcClient:     grpcClient,
 		cfg:            cfg,
@@ -73,12 +70,6 @@ func (h *Handler) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
-	clientIP := r.RemoteAddr
-	if !h.rateLimiter.Allow(r.Context(), clientIP) {
-		h.errorHandler.ErrorPage(w, http.StatusTooManyRequests, "Too Many Requests", "The server is currently experiencing a high volume of traffic. Please try again later.", "")
-		return
-	}
-
 	//Read the user cookie
 	stateCookie, err := r.Cookie("state")
 	if err != nil || stateCookie.Value == "" {

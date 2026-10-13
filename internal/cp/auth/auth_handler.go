@@ -76,6 +76,47 @@ func (h *AuthHandler) SetupOTP(w http.ResponseWriter, r *http.Request) {
 	dto.SendSuccess(w, http.StatusOK, resp)
 }
 
+func (h *AuthHandler) SetupFirstLoginTOTP(w http.ResponseWriter, r *http.Request) {
+	var req FirstLoginTOTPSetupRequest
+	if apiErr := dto.DecodeJSON(w, r, &req); apiErr != nil {
+		dto.SendError(w, apiErr)
+		return
+	}
+	if apiErr := dto.ValidateStruct(req); apiErr != nil {
+		dto.SendError(w, dto.NewBadRequestError(apiErr))
+		return
+	}
+	resp, err := h.svc.SetupFirstLoginTOTP(r.Context(), req)
+	if err != nil {
+		dto.SendError(w, err)
+		return
+	}
+	dto.SendSuccess(w, http.StatusOK, resp)
+}
+
+func (h *AuthHandler) VerifyFirstLoginTOTP(w http.ResponseWriter, r *http.Request) {
+	var req VerifyFirstLoginTOTPRequest
+	if apiErr := dto.DecodeJSON(w, r, &req); apiErr != nil {
+		dto.SendError(w, apiErr)
+		return
+	}
+	if apiErr := dto.ValidateStruct(req); apiErr != nil {
+		dto.SendError(w, dto.NewBadRequestError(apiErr))
+		return
+	}
+	resp, err := h.svc.VerifyFirstLoginTOTP(r.Context(), req)
+	if err != nil {
+		dto.SendError(w, err)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: "refresh_token", Value: resp.Tokens.RefreshToken, Path: "/",
+		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode,
+		Expires: resp.Tokens.RefreshTokenExpiresAt,
+	})
+	dto.SendSuccess(w, http.StatusOK, resp)
+}
+
 // @Summary VerifyOTPSetup
 // @Description Admin VerifyOTPSetup After Registration
 // @Tags Auth
@@ -368,7 +409,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} MeResponse
 // @Failure 400 {object} dto.AppError
 // @Router /auth/me [get]
-func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request){
+func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	adminID := middleware.AdminIDFromCtx(r.Context())
 	if adminID == "" {
 		dto.SendError(w, dto.NewUnauthorizedError("Not Authorized"))
@@ -393,9 +434,8 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request){
 
 func (h *AuthHandler) Routes(r chi.Router) {
 	// Public — no auth middleware
-	r.Post("/register", h.Register)
-	r.Post("/setup-otp", h.SetupOTP)
-	r.Post("/verify-otp/setup", h.VerifyOTPSetup)
+	r.Post("/first-login/totp/setup", h.SetupFirstLoginTOTP)
+	r.Post("/first-login/totp/verify", h.VerifyFirstLoginTOTP)
 	r.Post("/login", h.Login)
 	r.Post("/verify-otp/login", h.VerifyOTPLogin)
 	r.Post("/reset-password", h.RequestPasswordReset)

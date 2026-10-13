@@ -27,6 +27,9 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 		userID = Identity.UserId
 		userEmail = Identity.Email
 	}
+	outboundHeaders := identityHeaders(r.Header, userID, userEmail, AppID, requestID)
+	outboundRequest := r.Clone(r.Context())
+	outboundRequest.Header = outboundHeaders
 
 	streamCtx, cancel := context.WithCancel(ctx)
 	streamID := uuid.NewString()
@@ -41,21 +44,21 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	req := &proto.StreamFrame{
-		RequestId:   requestID,
-		FlowType: proto.FlowType_USER_TO_APP,
+		RequestId: requestID,
+		FlowType:  proto.FlowType_USER_TO_APP,
 		// TenantId: Identity.TenantId,
-		SessionId: sessionID,
-		SourceId: userID,
-		SourceEmail: userEmail,
-		DestAppId: AppID,
-		Method: r.Method,
+		SessionId:    sessionID,
+		SourceId:     userID,
+		SourceEmail:  userEmail,
+		DestAppId:    AppID,
+		Method:       r.Method,
 		ProtocolType: proto.ProtocolType_PROTOCOL_TCP,
-		Host: r.Host,
-		Path: r.URL.Path,
-		Query: r.URL.RawQuery,
-		Headers: frame.HeadersToProto(r.Header),
-		BodyLength:  r.ContentLength,
-		StreamType:  proto.RequestType_HTTP_REQUEST,
+		Host:         r.Host,
+		Path:         r.URL.Path,
+		Query:        r.URL.RawQuery,
+		Headers:      frame.HeadersToProto(outboundHeaders),
+		BodyLength:   r.ContentLength,
+		StreamType:   proto.RequestType_HTTP_REQUEST,
 	}
 
 	stream, err := h.router.Route(streamCtx, req, false)
@@ -66,7 +69,7 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer stream.Close()
 
-	if err := r.Write(stream); err != nil {
+	if err := outboundRequest.Write(stream); err != nil {
 		h.log.Error("failed to write request to stream", slog.Any("error", err))
 		h.errorHandler.ErrorPage(w, http.StatusBadGateway, "Bad Gateway", "The gateway encountered an unexpected error.", "")
 		return
