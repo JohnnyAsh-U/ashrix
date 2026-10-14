@@ -11,6 +11,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/cp_grpc/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
@@ -28,6 +29,7 @@ type GRPCServer struct {
 // InitializeGRPCServer sets up the gRPC server with TLS.
 func InitializeGRPCServer(
 	cfg *config.Config,
+	serviceName string,
 	cp crypto.ControlPlaneCrypto,
 	log *slog.Logger,
 	redisClient *redis.Client,
@@ -44,8 +46,10 @@ func InitializeGRPCServer(
 		grpc.Creds(creds),
 		grpc.ChainStreamInterceptor(
 			StreamIdentityInterceptor,
+			telemetry.StreamServerInterceptor(serviceName),
 		// 	interceptors.JwtInterceptor([]byte("secret")),
 		),
+		grpc.ChainUnaryInterceptor(telemetry.UnaryServerInterceptor(serviceName)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: 5 * time.Minute,
 			Time:              2 * time.Minute,

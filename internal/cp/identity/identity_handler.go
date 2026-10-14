@@ -412,7 +412,7 @@ func (h *IDPHandler) ListActiveUserSessionsHandler(w http.ResponseWriter, r *htt
 			UserEmail: session.UserEmail,
 			GatewayID: session.GatewayID.String(), 
 			IssuedAt: session.IssuedAt,
-			// GatewayName: session.Name,
+			GatewayName: session.Name,
 			ExpiresAt: session.ExpiresAt.Time,
 		})
 	}

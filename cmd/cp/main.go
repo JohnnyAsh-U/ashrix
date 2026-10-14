@@ -25,6 +25,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/version"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/logger"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 	"github.com/joho/godotenv"
 )
 
@@ -80,6 +81,37 @@ func runServer() error {
 
 	// Structured logger — JSON in production, text in dev
 	log := logger.LoggerApp
+
+	telemetryConfig, telemetryConfigErr := telemetry.ConfigFromEnv("ashrix-control-plane", version.GetVersion())
+	serviceName := "ashrix-control-plane"
+	if telemetryConfigErr != nil {
+		log.Warn("OpenTelemetry configuration invalid; continuing without telemetry", slog.Any("error", telemetryConfigErr))
+	} else {
+		serviceName = telemetryConfig.ServiceName
+		switch {
+		case !telemetryConfig.Enabled:
+			log.Info("OpenTelemetry disabled")
+		case telemetryConfig.Endpoint == "":
+			log.Warn("OpenTelemetry not started: OTEL_EXPORTER_OTLP_ENDPOINT is not set")
+		default:
+			telemetryCtx, telemetryCancel := context.WithCancel(context.Background())
+			defer telemetryCancel()
+			provider, telemetryErr := telemetry.Bootstrap(telemetryCtx, telemetryConfig)
+			if telemetryErr != nil {
+				log.Warn("OpenTelemetry initialization failed; continuing without telemetry", slog.Any("error", telemetryErr))
+			} else {
+				log = telemetry.AddSlogHandler(log, telemetry.NewSlogHandler(provider.LoggerProvider))
+				defer func() {
+					shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer shutdownCancel()
+					if err := provider.Shutdown(shutdownCtx); err != nil {
+						log.Warn("OpenTelemetry shutdown failed", slog.Any("error", err))
+					}
+				}()
+				log.Info("OpenTelemetry initialized", slog.String("endpoint", telemetryConfig.Endpoint))
+			}
+		}
+	}
 
 	// Connect to Postgres
 	db, err := database.Connect(context.Background(), cfg, log)
@@ -166,6 +198,7 @@ func runServer() error {
 	httpServer := cp_http.InitializeHttpServer(
 		BaseDir,
 		cfg,
+		serviceName,
 		repositories,
 		redisStore,
 		policyDistributor,
@@ -179,6 +212,7 @@ func runServer() error {
 	// Build and start gRPC server
 	grpcServer := cp_grpc.InitializeGRPCServer(
 		cfg,
+		serviceName,
 		cppki,
 		log,
 		redisStore.Client(),

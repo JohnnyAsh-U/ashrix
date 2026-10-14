@@ -1,13 +1,13 @@
 -- name: GetUserActiveSession :many
-SELECT sessions.* FROM user_sessions as sessions
--- JOIN gateways ON sessions.gateway_id = gateways.id
-WHERE org_id     = sqlc.arg('org_id')::uuid
+SELECT sessions.*, gateways.name FROM user_sessions as sessions
+JOIN gateways ON sessions.gateway_id = gateways.id
+WHERE sessions.org_id     = sqlc.arg('org_id')::uuid
   AND (sqlc.narg('user_id')::uuid IS NULL OR user_id = sqlc.narg('user_id')::uuid)
   AND (sqlc.narg('gateway_id')::uuid IS NULL OR gateway_id = sqlc.narg('gateway_id')::uuid)
   AND (sqlc.narg('user_email')::text IS NULL OR user_email ILIKE '%' || sqlc.narg('user_email')::text || '%')
-  AND expires_at > NOW()
-  AND revoked_at IS NULL
-ORDER BY issued_at DESC;
+  AND sessions.expires_at > NOW()
+  AND sessions.revoked_at IS NULL
+ORDER BY sessions.issued_at DESC;
 
 
 -- name: ListRevokedUserSessionByOrg :many

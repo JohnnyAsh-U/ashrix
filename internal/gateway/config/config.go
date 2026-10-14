@@ -61,7 +61,7 @@ func LoadFromViper() (*Config, error) {
 	viper.SetDefault("max_offline_period", "24h")
 
 	// OTel defaults
-	viper.SetDefault("otel_enabled", false)
+	viper.SetDefault("otel_enabled", true)
 	viper.SetDefault("otel_service_name", "ashrix-gateway")
 	viper.SetDefault("otel_metrics_interval", "15s")
 

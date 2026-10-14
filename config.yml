@@ -1,0 +1,18 @@
+https_port: "8443"
+grpc_port: "8443"
+quic_port: "8443"
+
+session_ttl: 8h
+is_prod_env: true
+max_offline_period: 24h
+cookie_secure: false
+
+# Set to the Control Plane's base64-encoded Ed25519 public key.
+bundle_public_key: ""
+
+otel_enabled: true
+otel_exporter_otlp_endpoint: "localhost:4317"
+otel_exporter_otlp_insecure: true
+otel_service_name: ashrix-gateway
+otel_service_version: ""
+otel_metrics_interval: 15s

@@ -591,7 +591,7 @@ func (s *IDPService) RevokeUserSession(ctx context.Context, sessionID uuid.UUID)
 	return session, nil
 }
 
-func (s *IDPService) ListActiveUserSessions(ctx context.Context, gatewayID, email string) ([]store.UserSession, error) {
+func (s *IDPService) ListActiveUserSessions(ctx context.Context, gatewayID, email string) ([]store.GetUserActiveSessionRow, error) {
 	orgID, err := uuid.Parse(middleware.OrgIDFromCtx(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("invalid organization ID format: %w", err)

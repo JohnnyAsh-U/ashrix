@@ -160,8 +160,7 @@ type Querier interface {
 	GetPolicySubjects(ctx context.Context, policyID uuid.UUID) ([]GetPolicySubjectsRow, error)
 	GetPolicyWithDetails(ctx context.Context, arg GetPolicyWithDetailsParams) (GetPolicyWithDetailsRow, error)
 	GetSetupToken(ctx context.Context, tokenHash string) (AdminSetupToken, error)
-	// JOIN gateways ON sessions.gateway_id = gateways.id
-	GetUserActiveSession(ctx context.Context, arg GetUserActiveSessionParams) ([]UserSession, error)
+	GetUserActiveSession(ctx context.Context, arg GetUserActiveSessionParams) ([]GetUserActiveSessionRow, error)
 	GetUserSessionByID(ctx context.Context, id uuid.UUID) (UserSession, error)
 	GetValidCompCert(ctx context.Context, arg GetValidCompCertParams) (GetValidCompCertRow, error)
 	InsertCACert(ctx context.Context, arg InsertCACertParams) (uuid.UUID, error)

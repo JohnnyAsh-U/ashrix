@@ -29,6 +29,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/redis"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/platform/utils"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/cp/policy"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -46,6 +47,7 @@ type Server struct {
 func InitializeHttpServer(
 	BaseDir string,
 	cfg *config.Config,
+	serviceName string,
 	respositories *repositories.Repositories,
 	redisStore *redis.RedisStore,
 	policyDistributor *policy.PolicyDistributor,
@@ -69,6 +71,7 @@ func InitializeHttpServer(
 	r := chi.NewRouter()
 
 	// ── Global middleware ──────────────────────────────────────
+	r.Use(telemetry.HTTPMiddlewareForService(serviceName, ""))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:5173"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -185,7 +188,7 @@ func InitializeHttpServer(
 	// Prepare embedded file system
 	distFS, err := fs.Sub(frontendStaticFiles, "ui")
 	if err != nil {
-		log.Warn("Failed to load embedded frontend: %v", err)
+		log.Warn("Failed to load embedded frontend", "error", err)
 	}
 
 	fileServer := http.FileServer(http.FS(distFS))

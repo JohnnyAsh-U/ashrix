@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+
 	// "net/http"
 	"os"
 	"os/signal"
@@ -20,6 +21,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/tunnel"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -94,6 +96,36 @@ func runStart() (err error) {
 	log := logger.LoggerApp
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	telemetryConfig, telemetryConfigErr := telemetry.ConfigFromEnv("ashrix-connector", "")
+	serviceName := "ashrix-connector"
+	if telemetryConfigErr != nil {
+		log.Warn("OpenTelemetry configuration invalid; continuing without telemetry", "error", telemetryConfigErr)
+	} else {
+		serviceName = telemetryConfig.ServiceName
+		switch {
+		case !telemetryConfig.Enabled:
+			log.Info("OpenTelemetry disabled")
+		case telemetryConfig.Endpoint == "":
+			log.Warn("OpenTelemetry not started: OTEL_EXPORTER_OTLP_ENDPOINT is not set")
+		default:
+			provider, telemetryErr := telemetry.Bootstrap(ctx, telemetryConfig)
+			if telemetryErr != nil {
+				log.Warn("OpenTelemetry initialization failed; continuing without telemetry", "error", telemetryErr)
+			} else {
+				log = telemetry.AddSlogHandler(log, telemetry.NewSlogHandler(provider.LoggerProvider))
+				defer func() {
+					shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer shutdownCancel()
+					if err := provider.Shutdown(shutdownCtx); err != nil {
+						log.Warn("OpenTelemetry shutdown failed", "error", err)
+					}
+				}()
+				log.Info("OpenTelemetry initialized", "endpoint", telemetryConfig.Endpoint)
+			}
+		}
+	}
 
 	//-------------------------Signal Handling---------------------------//
 
@@ -187,7 +219,7 @@ func runStart() (err error) {
 
 		//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
 		log.Info("Opening management stream with gateway", "addr", config.GatewayGRPCAddr, "is_secondary", currentTarget.IsSecondary, "attempt", attempt)
-		managementConn, err := management.OpenStream(ctx, config.GatewayGRPCAddr, connectorID, tenantID, tlsConfig, log, apps, result.PKI, appStorage)
+		managementConn, err := management.OpenStream(ctx, config.GatewayGRPCAddr, connectorID, tenantID, tlsConfig, serviceName, log, apps, result.PKI, appStorage)
 		if err != nil {
 			log.Error("Failed to open Gateway stream", "addr", config.GatewayGRPCAddr, "is_secondary", currentTarget.IsSecondary, "error", err)
 			select {

@@ -260,33 +260,49 @@ func slogSeverity(level slog.Level) otellog.Severity {
 
 // HTTPMiddleware records server spans and request metrics for the gateway ingress.
 func HTTPMiddleware(gatewayID string) func(http.Handler) http.Handler {
-	meter := otel.GetMeterProvider().Meter("ashrix-gateway")
+	return HTTPMiddlewareForService("ashrix-gateway", gatewayID)
+}
+
+// HTTPMiddlewareForService records server spans and request metrics for an HTTP service.
+func HTTPMiddlewareForService(serviceName, componentID string) func(http.Handler) http.Handler {
+	meter := otel.GetMeterProvider().Meter(serviceName)
 	requestCount, countErr := meter.Int64Counter("http.server.request.count",
-		metric.WithDescription("Number of requests handled by the gateway"),
+		metric.WithDescription("Number of requests handled by the service"),
 	)
 	requestDuration, durationErr := meter.Float64Histogram("http.server.request.duration",
 		metric.WithUnit("ms"),
 		metric.WithDescription("Gateway request duration"),
 	)
-	tracer := otel.Tracer("ashrix-gateway")
+	tracer := otel.Tracer(serviceName)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			parentCtx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+			spanAttrs := []attribute.KeyValue{
+				attribute.String("http.request.method", r.Method),
+				attribute.String("network.protocol.name", "http"),
+			}
+			if componentID != "" {
+				componentAttribute := "ashrix.component.id"
+				if serviceName == "ashrix-gateway" {
+					componentAttribute = "ashrix.gateway.id"
+				}
+				spanAttrs = append(spanAttrs, attribute.String(componentAttribute, componentID))
+			}
 			ctx, span := tracer.Start(parentCtx, "HTTP "+r.Method,
 				trace.WithSpanKind(trace.SpanKindServer),
-				trace.WithAttributes(
-					attribute.String("http.request.method", r.Method),
-					attribute.String("network.protocol.name", "http"),
-					attribute.String("ashrix.gateway.id", gatewayID),
-				),
+				trace.WithAttributes(spanAttrs...),
 			)
 			start := time.Now()
 			next.ServeHTTP(w, r.WithContext(ctx))
 			elapsed := float64(time.Since(start)) / float64(time.Millisecond)
-			attrs := []attribute.KeyValue{
-				attribute.String("http.request.method", r.Method),
-				attribute.String("ashrix.gateway.id", gatewayID),
+			attrs := []attribute.KeyValue{attribute.String("http.request.method", r.Method)}
+			if componentID != "" {
+				componentAttribute := "ashrix.component.id"
+				if serviceName == "ashrix-gateway" {
+					componentAttribute = "ashrix.gateway.id"
+				}
+				attrs = append(attrs, attribute.String(componentAttribute, componentID))
 			}
 			if countErr == nil {
 				requestCount.Add(ctx, 1, metric.WithAttributes(attrs...))

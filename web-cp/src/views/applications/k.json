@@ -1,0 +1,46 @@
+{
+    "json": {
+        "id": "41330c6d-f8fb-4f79-813d-3c402d16c2e4",
+        "org_id": "439d0ae2-1e52-4cf9-8d60-99d736fc169f",
+        "connector_id": "acf9b651-18b7-4189-bab9-55d0bfa7e9bb",
+        "connector_name": "Ashrix",
+        "gateway_name": "Ashrix",
+        "name": "Ashrix",
+        "subdomain": "s3",
+        "upstream": "localhost:9001",
+        "protocol": "http",
+        "is_public": true,
+        "enable_security_headers": false,
+        "sock_pass": "$2a$12$bZ9q41JluqKZhJTJcvIT.OgdD44lYThHI/W6NodBDiAzzJycKHLUq",
+       
+       
+        "check_health": false,
+        "check_interval": 60,
+        "health_endpoint": "health",
+
+        "health_status": "unknown",
+        "last_seen": "2026-09-12T12:04:40.383313Z",
+        
+        "number_of_traffic_today": 242,
+        "policies": [],
+        "number_of_users": 0,
+        "number_of_groups": 0,
+        "created_at": "2026-09-10T16:28:15.753078Z"
+    }
+}
+
+
+
+{
+  "check_health": true,
+  "check_interval": 0,
+  "connector_id": "string",
+  "enable_security_headers": true,
+  "health_endpoint": "string",
+  "is_public": true,
+  "name": "string",
+  "protocol": "http",
+  "sock_pass": "string",
+  "subdomain": "string",
+  "upstream": "string"
+}

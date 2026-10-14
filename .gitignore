@@ -18,5 +18,3 @@ server.crt
 server.key
 build/
 vendor/
-web-cp/
-cmd/cp/ui

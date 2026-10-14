@@ -50,12 +50,25 @@ func initConfig() {
 	viper.AddConfigPath("/etc/ashrix")
 	viper.AddConfigPath("$HOME/.ashrix/gateway")
 	viper.AddConfigPath(".")
-	viper.SetConfigName("gateway")
+	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 
 	viper.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err != nil {
+	err := viper.ReadInConfig()
+	_, configNotFound := err.(viper.ConfigFileNotFoundError)
+	if configNotFound {
+		viper.SetConfigName("gateway")
+		err = viper.ReadInConfig()
+	} else if err == nil {
+		viper.SetConfigName("gateway")
+		if mergeErr := viper.MergeInConfig(); mergeErr != nil {
+			if _, ok := mergeErr.(viper.ConfigFileNotFoundError); !ok {
+				err = mergeErr
+			}
+		}
+	}
+	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// No config file — not fatal.
 		} else {

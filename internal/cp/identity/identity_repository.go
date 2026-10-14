@@ -17,7 +17,7 @@ type Repository interface {
 
 	CreateUserSessionForGateway(ctx context.Context, params store.CreateUserSessionForGatewayParams) (store.UserSession, error)
 	GetUserSessionByID(ctx context.Context, id uuid.UUID) (store.UserSession, error)
-	GetUserSessionsByOrgAndUser(ctx context.Context, params store.GetUserActiveSessionParams) ([]store.UserSession, error)
+	GetUserSessionsByOrgAndUser(ctx context.Context, params store.GetUserActiveSessionParams) ([]store.GetUserActiveSessionRow, error)
 	RevokeUserSession(ctx context.Context, id uuid.UUID) (store.UserSession, error)
 
 	ListRevokedUserSessionByOrg(ctx context.Context, orgID uuid.UUID) ([]store.UserSession, error)
@@ -61,7 +61,7 @@ func (r *postgresRepository) CreateUserSessionForGateway(ctx context.Context, pa
 	return r.q.CreateUserSessionForGateway(ctx, params)
 }
 
-func (r *postgresRepository) GetUserSessionsByOrgAndUser(ctx context.Context, params store.GetUserActiveSessionParams) ([]store.UserSession, error) {
+func (r *postgresRepository) GetUserSessionsByOrgAndUser(ctx context.Context, params store.GetUserActiveSessionParams) ([]store.GetUserActiveSessionRow, error) {
 	return r.q.GetUserActiveSession(ctx, params)
 }
 

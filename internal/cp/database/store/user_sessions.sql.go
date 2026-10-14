@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -63,14 +64,15 @@ func (q *Queries) CreateUserSessionForGateway(ctx context.Context, arg CreateUse
 }
 
 const getUserActiveSession = `-- name: GetUserActiveSession :many
-SELECT sessions.id, sessions.org_id, sessions.user_id, sessions.user_email, sessions.gateway_id, sessions.issued_at, sessions.expires_at, sessions.revoked_at FROM user_sessions as sessions
-WHERE org_id     = $1::uuid
+SELECT sessions.id, sessions.org_id, sessions.user_id, sessions.user_email, sessions.gateway_id, sessions.issued_at, sessions.expires_at, sessions.revoked_at, gateways.name FROM user_sessions as sessions
+JOIN gateways ON sessions.gateway_id = gateways.id
+WHERE sessions.org_id     = $1::uuid
   AND ($2::uuid IS NULL OR user_id = $2::uuid)
   AND ($3::uuid IS NULL OR gateway_id = $3::uuid)
   AND ($4::text IS NULL OR user_email ILIKE '%' || $4::text || '%')
-  AND expires_at > NOW()
-  AND revoked_at IS NULL
-ORDER BY issued_at DESC
+  AND sessions.expires_at > NOW()
+  AND sessions.revoked_at IS NULL
+ORDER BY sessions.issued_at DESC
 `
 
 type GetUserActiveSessionParams struct {
@@ -80,8 +82,19 @@ type GetUserActiveSessionParams struct {
 	UserEmail pgtype.Text `json:"user_email"`
 }
 
-// JOIN gateways ON sessions.gateway_id = gateways.id
-func (q *Queries) GetUserActiveSession(ctx context.Context, arg GetUserActiveSessionParams) ([]UserSession, error) {
+type GetUserActiveSessionRow struct {
+	ID        uuid.UUID          `json:"id"`
+	OrgID     uuid.UUID          `json:"org_id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	UserEmail string             `json:"user_email"`
+	GatewayID uuid.UUID          `json:"gateway_id"`
+	IssuedAt  time.Time          `json:"issued_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+	Name      string             `json:"name"`
+}
+
+func (q *Queries) GetUserActiveSession(ctx context.Context, arg GetUserActiveSessionParams) ([]GetUserActiveSessionRow, error) {
 	rows, err := q.db.Query(ctx, getUserActiveSession,
 		arg.OrgID,
 		arg.UserID,
@@ -92,9 +105,9 @@ func (q *Queries) GetUserActiveSession(ctx context.Context, arg GetUserActiveSes
 		return nil, err
 	}
 	defer rows.Close()
-	items := []UserSession{}
+	items := []GetUserActiveSessionRow{}
 	for rows.Next() {
-		var i UserSession
+		var i GetUserActiveSessionRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrgID,
@@ -104,6 +117,7 @@ func (q *Queries) GetUserActiveSession(ctx context.Context, arg GetUserActiveSes
 			&i.IssuedAt,
 			&i.ExpiresAt,
 			&i.RevokedAt,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}

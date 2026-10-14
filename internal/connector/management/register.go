@@ -17,6 +17,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/health"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
+	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 )
 
 // managementConn holds the gRPC management stream.
@@ -36,7 +37,7 @@ type ManagementConn struct {
 	Checker    *health.Checker
 
 	// ... your existing struct fields ...
-	
+
 	// Add rotation guard fields
 	rotatingMu sync.Mutex
 	isRotating bool
@@ -52,6 +53,7 @@ func OpenStream(
 	gatewayUrl string,
 	connectorID, TenantID string,
 	tlsConfig *tls.Config,
+	serviceName string,
 	log *slog.Logger,
 	apps []*pb.ConnectorApps,
 	pki *startup.PKIInitialiser,
@@ -63,6 +65,8 @@ func OpenStream(
 
 	conn, err := grpc.NewClient(gatewayUrl,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithChainUnaryInterceptor(telemetry.UnaryClientInterceptor(serviceName)),
+		grpc.WithChainStreamInterceptor(telemetry.StreamClientInterceptor(serviceName)),
 	)
 
 	if err != nil {
@@ -102,8 +106,8 @@ func (c *ManagementConn) Register(ctx context.Context) error {
 				ConnectorId: c.ConnectorID,
 				Version:     "1.0.0",
 				Transport:   "grpc",
-				TenantId: c.TenantID,
-				Apps: c.Apps,
+				TenantId:    c.TenantID,
+				Apps:        c.Apps,
 			},
 		},
 	})
@@ -148,4 +152,3 @@ func (c *ManagementConn) Register(ctx context.Context) error {
 		return ctx.Err()
 	}
 }
-

@@ -56,7 +56,7 @@ run-ui:
 	cd web-cp && npm run dev
 
 run-cp:
-	cp -r web-cp/dist cmd/cp/ui
+	mkdir -p cmd/cp/ui && cp -r web-cp/dist/* cmd/cp/ui
 	$(AIR) -c .air.cp.toml
 
 run-gateway:
@@ -104,7 +104,8 @@ docs: docs-cp docs-gateway
 .PHONY: build-cp
 build-cp:
 	@echo "Building with CP"
-	cp -r web-cp/dist cmd/cp/ui
+	cd web-cp && npm run build && cd ..
+	mkdir -p cmd/cp/ui && make run-cp -r web-cp/dist/* cmd/cp/ui
 	go build $(CP_LDFLAGS) ./cmd/cp
 
 
