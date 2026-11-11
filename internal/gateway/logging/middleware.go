@@ -111,29 +111,9 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 			// ----------------------------------------------------
 
 			appID := accessCtx.AppID
-			userID := accessCtx.UserID
-			userEmail := accessCtx.UserEmail
-			tenantID := accessCtx.TenantID
-
-			policyID := accessCtx.PolicyMutationID
-			decisionEffect := accessCtx.Decision
-			denyReason := accessCtx.DenyReason
-
-			result := "allowed"
-			if lrw.statusCode >= 400 || decisionEffect == "DENY" {
-				result = "denied"
-				if denyReason == "" {
-					switch lrw.statusCode {
-					case http.StatusUnauthorized:
-						denyReason = "no_session"
-					case http.StatusForbidden:
-						denyReason = "policy_deny"
-					case http.StatusTooManyRequests:
-						denyReason = "rate_limit"
-					case http.StatusServiceUnavailable, http.StatusBadGateway:
-						denyReason = "app_offline"
-					}
-				}
+			result := "success"
+			if lrw.statusCode >= 400 {
+				result = "failure"
 			}
 
 			latency := time.Since(start)
@@ -142,7 +122,9 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 			attrs := []any{
 				"event", "http.access",
 				"gateway_id", gatewayID,
+				"connector_id", accessCtx.ConnectorID,
 				"app_id", appID,
+				"app_name", accessCtx.AppName,
 				"request_id", middleware.GetReqID(r.Context()),
 				"method", r.Method,
 				"path", r.URL.Path,
@@ -153,37 +135,13 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 				"bytes_out", bytesOut,
 				"latency", latency.Milliseconds(),
 				"user_agent", r.UserAgent(),
-				"user_id", userID,
-				"user_email", userEmail,
-				"tenant_id", tenantID,
 				"result", result,
-				"deny_reason", denyReason,
-				"policy_id", policyID,
 			}
 
-			protoEntry := BuildProtoAccessLogEntry(
-				gatewayID,
-				tenantID,
-				appID,  // app_id can be populated if available
-				userID, // user_id
-				userEmail,
-				r.Method,
-				r.URL.Path,
-				int32(lrw.statusCode),
-				int32(latency.Milliseconds()),
-				r.RemoteAddr,
-				"Access",
-				policyID,
-				bytesIn,
-				bytesOut,
-				result,
-				denyReason,
-			)
-
 			if accessLogger != nil {
-				accessLogger.Log(r.Context(), protoEntry, attrs...)
-				fallbackLogger.Info("http access", attrs...)
-			} else if fallbackLogger != nil {
+				accessLogger.Log(r.Context(), attrs...)
+			}
+			if fallbackLogger != nil {
 				switch {
 				case lrw.statusCode >= 500:
 					fallbackLogger.Error("http access", attrs...)

@@ -1,278 +1,92 @@
 package http_proxy
 
 import (
-	// "io"
-	// "log/slog"
 	"context"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
-	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"github.com/alicebob/miniredis/v2"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	// "go.uber.org/zap/zapcore"
 )
 
 func TestRateLimiterMiddleware_AllowThenDeny(t *testing.T) {
-	s := miniredis.RunT(t)
-	defer s.Close()
-
-	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
 	now := time.Now()
-	cfg := RateLimiterConfig{
-		Redis:     rdb,
-		IP:        RateLimit{Rate: 1, Burst: 1}, // 1 req/sec, burst 1
-		User:      RateLimit{Rate: 100, Burst: 100},
+	config := RateLimiterConfig{
+		IP:        RateLimit{Rate: 1, Burst: 1},
 		KeyPrefix: "test",
 		NowFunc:   func() time.Time { return now },
 	}
-	errHandler := web.NewErrorHandler()
-
-	mw := RateLimiterMiddleware(cfg, logger, errHandler)
-
-	handler := withClientIP(
-		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})),
-	)
-
-	// 1st request: consumes the only token
-	req1 := httptest.NewRequest(http.MethodGet, "/api/data", nil)
-
-	req1.Header.Set("X-Real-IP", "203.0.113.25")
-
-	rr1 := httptest.NewRecorder()
-	handler.ServeHTTP(rr1, req1)
-
-	assert.Equal(t, http.StatusOK, rr1.Code)
-	assert.Equal(t, "1", rr1.Header().Get("X-RateLimit-Limit"))
-	assert.Equal(t, "0", rr1.Header().Get("X-RateLimit-Remaining"))
-
-	// 2nd request: bucket empty → 429
-	req2 := httptest.NewRequest(http.MethodGet, "/api/data", nil)
-	req2.Header.Set("X-Real-IP", "203.0.113.25")
-
-	rr2 := httptest.NewRecorder()
-	handler.ServeHTTP(rr2, req2)
-
-	assert.Equal(t, http.StatusTooManyRequests, rr2.Code)
-	assert.NotEmpty(t, rr2.Header().Get("Retry-After"))
-
-	// Advance 1.1s: bucket refilled
-	now = now.Add(1100 * time.Millisecond)
-	req3 := httptest.NewRequest(http.MethodGet, "/api/data", nil)
-	req3.Header.Set("X-Real-IP", "203.0.113.25")
-
-	rr3 := httptest.NewRecorder()
-	handler.ServeHTTP(rr3, req3)
-
-	assert.Equal(t, http.StatusOK, rr3.Code)
-}
-
-func TestRateLimiterMiddleware_UserTier(t *testing.T) {
-	s := miniredis.RunT(t)
-	defer s.Close()
-
-	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	cfg := RateLimiterConfig{
-		Redis:     rdb,
-		IP:        RateLimit{Rate: 1, Burst: 1},
-		User:      RateLimit{Rate: 5, Burst: 5}, // generous user limit
-		KeyPrefix: "test",
-	}
-	errHandler := web.NewErrorHandler()
-
-	mw := RateLimiterMiddleware(cfg, logger, errHandler)
-
-	handler := withClientIP(
-		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})),
-	)
-
-	// Inject session into context (simulates SessionMiddleware upstream)
-	baseReq := httptest.NewRequest(http.MethodGet, "/api/data", nil)
-	baseReq.Header.Set("X-Real-IP", "203.0.113.25")
-
-	sess := proto.NormalizedIdentity{UserId: "user-123", TenantId: "t1"}
-	ctx := context.WithValue(
-		baseReq.Context(),
-		session.Identity,
-		&sess,
-	)
-	// ctx := context.WithValue(baseReq.Context(), "Identity", &sess)
-	req := baseReq.WithContext(ctx)
-
-	// Fire 5 requests: all should pass (user burst = 5)
-	for i := range 5 {
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
-		require.Equal(t, http.StatusOK, rr.Code, "request %d failed", i+1)
-		rem, _ := strconv.Atoi(rr.Header().Get("X-RateLimit-Remaining"))
-		assert.Equal(t, 4-i, rem)
-	}
-
-	// 6th request: exhausted
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
-}
-
-func TestRateLimiterMiddleware_ExemptPaths(t *testing.T) {
-	s := miniredis.RunT(t)
-	defer s.Close()
-
-	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	cfg := RateLimiterConfig{
-		Redis:     rdb,
-		IP:        RateLimit{Rate: 0, Burst: 0}, // zero = disabled, but exempt should skip anyway
-		KeyPrefix: "test",
-	}
-	errHandler := web.NewErrorHandler()
-
-	mw := RateLimiterMiddleware(cfg, logger, errHandler)
-	handler := withClientIP(
-		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})),
-	)
-
-	for _, path := range []string{"/healths", "/logout", "/_ashrix/auth/other", "/_ashrix/static/app.js"} {
-		req := httptest.NewRequest(http.MethodGet, path, nil)
-		req.Header.Set("X-Real-IP", "203.0.113.25")
-
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusOK, rr.Code, "path %s should be exempt", path)
-	}
-}
-
-func TestRateLimiterMiddleware_CallbackIPAndGlobalLimits(t *testing.T) {
-	s := miniredis.RunT(t)
-	defer s.Close()
-
-	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	now := time.Unix(1_000, 0)
-	cfg := RateLimiterConfig{
-		Redis:          rdb,
-		CallbackIP:     2,
-		CallbackGlobal: 3,
-		KeyPrefix:      "test",
-		NowFunc:        func() time.Time { return now },
-	}
-	handler := withClientIP(RateLimiterMiddleware(cfg, logger, web.NewErrorHandler())(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := withClientIP(RateLimiterMiddleware(config, logger, web.NewErrorHandler())(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	))
 
-	serve := func(ip, forwardedIP string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodGet, "/_ashrix/auth/callback", nil)
-		req.RemoteAddr = ip + ":54321"
-		req.Header.Set("X-Real-IP", forwardedIP)
+	serve := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/data", nil)
+		req.Header.Set("X-Real-IP", "203.0.113.25")
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, req)
 		return recorder
 	}
 
-	assert.Equal(t, http.StatusOK, serve("203.0.113.10", "198.51.100.1").Code)
-	assert.Equal(t, http.StatusOK, serve("203.0.113.10", "198.51.100.2").Code)
-	now = now.Add(30 * time.Second)
-	assert.Equal(t, http.StatusTooManyRequests, serve("203.0.113.10", "198.51.100.3").Code)
-	assert.Equal(t, http.StatusOK, serve("203.0.113.11", "198.51.100.4").Code)
-	assert.Equal(t, http.StatusTooManyRequests, serve("203.0.113.11", "198.51.100.5").Code)
-	now = now.Add(30 * time.Second)
-	assert.Equal(t, http.StatusOK, serve("203.0.113.11", "198.51.100.6").Code)
+	first := serve()
+	assert.Equal(t, http.StatusOK, first.Code)
+	assert.Equal(t, "1", first.Header().Get("X-RateLimit-Limit"))
+	assert.Equal(t, "0", first.Header().Get("X-RateLimit-Remaining"))
+	assert.Equal(t, http.StatusTooManyRequests, serve().Code)
+	now = now.Add(1100 * time.Millisecond)
+	assert.Equal(t, http.StatusOK, serve().Code)
 }
 
-func TestDefaultRateLimiterConfig_CallbackQuotas(t *testing.T) {
-	cfg := DefaultRateLimiterConfig(nil)
-	assert.Equal(t, 10, cfg.CallbackIP)
-	assert.Equal(t, 100, cfg.CallbackGlobal)
-}
-
-func TestRateLimiterMiddleware_FailOpen(t *testing.T) {
-	// Point Redis at a dead port to simulate outage
-	rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"})
+func TestRateLimiterMiddleware_ExemptPaths(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	config := RateLimiterConfig{IP: RateLimit{Rate: 0, Burst: 0}, KeyPrefix: "test"}
+	handler := withClientIP(RateLimiterMiddleware(config, logger, web.NewErrorHandler())(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	))
 
-	cfg := RateLimiterConfig{
-		Redis:     rdb,
+	for _, path := range []string{"/_ashrix/health", "/_ashrix/static/app.js"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("X-Real-IP", "203.0.113.25")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		assert.Equal(t, http.StatusOK, recorder.Code, "path %s should be exempt", path)
+	}
+}
+
+func TestRateLimiterMiddleware_SeparatesAppsForSameIP(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	config := RateLimiterConfig{
 		IP:        RateLimit{Rate: 1, Burst: 1},
 		KeyPrefix: "test",
 	}
-	errHandler := web.NewErrorHandler()
-
-	mw := RateLimiterMiddleware(cfg, logger, errHandler)
-	handler := withClientIP(
-		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := withClientIP(RateLimiterMiddleware(config, logger, web.NewErrorHandler())(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-		})),
-	)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/data", nil)
-	req.Header.Set("X-Real-IP", "203.0.113.25")
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	// Should NOT block traffic when Redis is down
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-func TestRateLimiterMiddleware_IPFallbackWhenNoSession(t *testing.T) {
-	s := miniredis.RunT(t)
-	defer s.Close()
-
-	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	errorHandler := web.NewErrorHandler()
-
-	cfg := RateLimiterConfig{
-		Redis:     rdb,
-		IP:        RateLimit{Rate: 2, Burst: 2},
-		User:      RateLimit{Rate: 100, Burst: 100},
-		KeyPrefix: "test",
+		}),
+	))
+	serve := func(appID string) int {
+		req := httptest.NewRequest(http.MethodGet, "/api/data", nil)
+		req.Header.Set("X-Real-IP", "203.0.113.25")
+		ctx := context.WithValue(req.Context(), session.AppID, appID)
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req.WithContext(ctx))
+		return recorder.Code
 	}
 
-	mw := RateLimiterMiddleware(cfg, logger, errorHandler)
-	handler := withClientIP(
-		mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})),
-	)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/data", nil)
-	req.Header.Set("X-Real-IP", "203.0.113.25")
-
-	// No session in context → falls back to IP limit (2 req burst)
-
-	for range 2 {
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusOK, rr.Code)
-	}
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+	assert.Equal(t, http.StatusOK, serve("app-one"))
+	assert.Equal(t, http.StatusTooManyRequests, serve("app-one"))
+	assert.Equal(t, http.StatusOK, serve("app-two"))
 }
 
 func withClientIP(handler http.Handler) http.Handler {

@@ -2,30 +2,24 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/bootstrap"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
-	gateway_grpc "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/grpc_client"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/version"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 
@@ -40,14 +34,8 @@ func init() {
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the Ashrix Gateway",
-	Long: `Start the Ashrix Gateway. The gateway must be registered first.
-
-Loads identity (private key + certificate) from the data directory.
-Connects to the Control Plane and begins policy sync.
-
-If the gateway is not registered, run:
-  ashrix-gateway register --cp-url=<url> (with ASHRIX_TOKEN set)`,
-	RunE: runStart,
+	Long:  `Start the self-hosted Ashrix application gateway using local connector and certificate configuration.`,
+	RunE:  runStart,
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
@@ -59,6 +47,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 	if err := config.Validate(cfg); err != nil {
 		return err
+	}
+	if err := os.MkdirAll(cfg.DataDir, 0700); err != nil {
+		return fmt.Errorf("create gateway data directory: %w", err)
 	}
 
 	//--------------Init logging-----------------------------------------
@@ -114,16 +105,6 @@ func runStart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	//--------------------------REDIS------------------------------------------------//
-	redisStore, err := config.NewRedisStore(context.Background(), cfg)
-
-	if err != nil {
-		log.Error("Failed to connect to Redis", slog.String("err", err.Error()))
-	}
-
-	log.Info("Redis connected")
-	defer redisStore.Close()
-
 	//--------------------------Check PID Exist----------------------------------------
 	// Refuse to start if another instance is already running.
 	// Prevents two gateways running simultaneously with the same identity —
@@ -153,137 +134,35 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	//---------------------GATEWAY PKI INITIALIZING-------------------------
 
-	client := bootstrap.NewClient(cfg.CPURL)
-
-	pki, err := crypto.NewGatewayPKI(
-		cfg.GatewayID,
-		cfg.DataDir,
-		"SECRET",
-		"GATEWAY",
-		logging.App,
-		client,
-		cfg,
-	)
+	pki, err := crypto.NewLocalGatewayPKI(cfg.DataDir, "SECRET", "GATEWAY")
 
 	if err != nil {
-		log.Error("failed to load gateway identity — is the gateway registered?",
-			slog.String("hint",
-				fmt.Sprintf("run: ashrix-gateway register --cp-url=%s", cfg.CPURL)),
-			slog.Any("err", err),
-		)
+		log.Error("failed to load local gateway identity", slog.Any("err", err))
 		os.Exit(1)
 	}
 
-	// -----------------Preflight cert check -------------------------
 	if err := pki.LoadAndVerify(); err != nil {
-		if errors.Is(err, crypto.ErrCertExpired) {
-			if renewErr := pki.PreflightRenew(context.Background()); renewErr != nil {
-				log.Error("Certificate Expired and renewal failed",
-					slog.String("hint", fmt.Sprintf(
-						"run: ashrix-gateway register --cp-url=%s", cfg.CPURL)),
-					slog.Any("err", renewErr))
-				os.Exit(1)
-			}
-		} else {
-			log.Error("Certifcate Invalid")
-			os.Exit(1)
-		}
+		log.Error("local gateway certificate is invalid", slog.Any("err", err))
+		os.Exit(1)
 	}
 
 	//---------------------------Initialize and Load Registry------------------------------//
 
 	reg := registry.New(log)
+	reg.SetCrlEntries(cfg.RevokedConnectorSerials)
+	authorizedConnectors := make(map[string]string, len(cfg.AuthorizedConnectors))
+	for _, connectorID := range cfg.AuthorizedConnectors {
+		authorizedConnectors[connectorID] = "active"
+	}
+	reg.SetAuthorizedConnectors(authorizedConnectors)
 
 	log.Info("Initialising Registry...")
 
-	//--------------------------Open Policy Store -----------------------------------------------//
-
-	log.Info("Initialising Policy Store And Engine...")
-	policyStore, err := store.OpenBoltStore(cfg.DataDir)
-	if err != nil {
-		log.Error("failed to open policy store", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-
-	// Load the CP bundle-signing public key from gateway configuration.
-	verifier, err := store.RootPublicKey(cfg.BundlePublicKey)
-	if err != nil {
-		log.Error("failed to open policy store", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-
-	//Policy Engine takes Store as args to load the policies into the engine
-	engine, err := policy.NewEngine(context.Background(), policyStore, verifier, cfg.GatewayID, log)
-	if err != nil {
-		log.Error("failed to initialize policy engine", slog.Any("err", err))
-	}
-
-	defer policyStore.Close()
-	log.Info("Initialising Policy And Engine Done...")
-
-	rtr := router.NewRouter(reg, engine, policyStore)
-
-	//-----------------------Load TLS and Open stream -----------------------------------------------
-	// This is the real liveness check - If CP is unreachable or
-	// rejects the cert, we check if connection is successful
-	// if cert expired we renew cert here
-
-	log.Info("connecting to Control Plane", slog.String("cp_url", cfg.CPURL))
-
-	cpHost := strings.TrimPrefix(cfg.CPURL, "http://")
-	cpHost = strings.TrimPrefix(cpHost, "https://")
-	cpHost = strings.TrimSuffix(cpHost, "/")
-	cpHost = strings.NewReplacer(":8001", ":9443").Replace(cpHost)
-
-	//-------------------Session Initializing------------------------
-	activeStreams := registry.NewActiveStreamRegistry()
-
-	sessions, err := session.NewSessionManager(redisStore.Client(), cfg.SessionTTL, activeStreams, cfg.CookieSecure, cfg.GatewayID, cfg.TenantId, verifier)
-	if err != nil {
-		log.Error("Session initialization failed", slog.Any("err", err))
-		os.Exit(1)
-	}
-	log.Info("Session Initialized")
-
-	// 1. Connection Manager
-	cm := gateway_grpc.NewConnectionManager(cpHost, pki.GetTLSConfig())
+	rtr := router.NewRouter(reg)
 
 	//2. Access Logger
-	accessLogger := logging.NewAccessLogger(cfg, nil)
+	accessLogger := logging.NewAccessLogger(cfg)
 	defer accessLogger.Close()
-
-	// ── 3. Stream Manager (bidi stream + hello handshake) ─────────
-	// var epochCounter atomic.Uint64
-	sm := gateway_grpc.NewStreamManager(
-		cm,
-		policyStore,
-		cfg,
-		engine,
-		log,
-		128,
-		pki,
-		reg,
-		redisStore.Client(),
-		sessions,
-		accessLogger,
-	)
-
-	// StreamManager implements LogSender.
-	accessLogger.SetSender(sm)
-
-	// 4. Safe Unary Client (for HTTP handlers that need CP)
-	grpcClient := gateway_grpc.NewSafeClient(cm)
-
-	// 5. Background loops. StreamManager owns bounded CP dial retries.
-	streamDone := make(chan error, 1)
-	go func() {
-		streamDone <- sm.Run(ctx)
-	}()
-	// go cm.HealthCheckLoop(ctx, 10*time.Second)
-
-	// 6. Start the certificate rotator
-	pki.StartRotator()
-	defer pki.Stop()
 
 	//--------------------Start Listeners--------------------
 	mtlsConfig := pki.GetTLSConfig()
@@ -293,13 +172,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 	grpcServer := grpc.NewGRPCServer(log, reg, mtlsConfig, cfg.GRPCPort == cfg.HTTPSPort)
 	httpServer := http_proxy.NewProxyServer(
 		cfg,
-		grpcClient,
 		reg,
-		redisStore.Client(),
-		sessions,
 		log,
-		activeStreams,
-		engine,
 		rtr,
 		grpcServer,
 		accessLogger,
@@ -325,26 +199,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 	select {
 	case sig := <-quit:
 		log.Info("shutdown signal received", slog.String("signal", sig.String()))
-	case streamErr := <-streamDone:
-		if errors.Is(streamErr, gateway_grpc.ErrMaxOfflinePeriodExceeded) {
-			log.Error("maximum control plane offline period exceeded; shutting down gateway")
-		} else if streamErr != nil {
-			log.Error("control plane stream manager stopped", slog.Any("error", streamErr))
-		}
 	}
 
 	server.ShutdownServers(httpServer, grpcServer, quicServer, log)
 
-	// Cancel context → StreamManager.Run exits.
 	cancel()
-
-	// Close the CP connection explicitly.
-	if err := cm.Close(); err != nil {
-		log.Error(
-			"failed to close CP connection",
-			slog.Any("err", err),
-		)
-	}
-
 	return nil
 }

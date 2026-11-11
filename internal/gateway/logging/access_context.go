@@ -8,15 +8,6 @@ type AccessContext struct {
 	AppID       string
 	AppName     string
 	ConnectorID string
-
-	UserID    string
-	UserEmail string
-	TenantID  string
-
-	PolicyID   string
-	PolicyMutationID   string
-	Decision   string
-	DenyReason string
 }
 
 func WithAccessContext(ctx context.Context) (context.Context, *AccessContext) {

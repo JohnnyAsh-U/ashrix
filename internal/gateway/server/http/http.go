@@ -8,10 +8,7 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
-	gateway_grpc "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/grpc_client"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/posture"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
@@ -20,7 +17,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
-	"github.com/redis/go-redis/v9"
 )
 
 // ProxyServer handles incoming user traffic and routes it to connectors.
@@ -31,13 +27,8 @@ type ProxyServer struct {
 
 func NewProxyServer(
 	cfg *config.Config,
-	grpcClient *gateway_grpc.SafeClient,
 	connectorRegistry *registry.Registry,
-	redisClient *redis.Client,
-	sessions *session.SessionManager,
 	log *slog.Logger,
-	activeStreams *registry.ActiveStreamRegistry,
-	engine *policy.PolicyEngine,
 	rtr *router.Router,
 	grpcServer *grpc.GRPCServer,
 	accessLogger *logging.AccessLogger,
@@ -45,38 +36,13 @@ func NewProxyServer(
 
 	errHandler := web.NewErrorHandler()
 	staticFileHandler := web.NewStaticFileHandler()
-	rateLimiterConfig := DefaultRateLimiterConfig(redisClient)
-	rateLimiterConfig.CallbackScope = cfg.GatewayID
+	rateLimiterConfig := DefaultRateLimiterConfig()
 
 	handler := NewHandler(
 		log,
-		connectorRegistry,
-		sessions,
-		redisClient,
-		grpcClient,
-		activeStreams,
-		cfg,
 		rtr,
 		errHandler,
 	)
-
-	// 1. Initialize posture dependencies
-	geoReader, err := posture.NewMaxMindReader("/home/johnnyash/Downloads/GeoLite2-City.mmdb")
-	if err != nil {
-		log.Error("Georeader DB ERROR:", slog.Any("error", err))
-	}
-
-	torChecker := posture.NewCachedTorChecker(
-		posture.NewDNSBasedTorChecker(),
-		1*time.Hour,
-	)
-
-	// Optional: static IP reputation list
-	repDB, _ := posture.NewStaticReputationDB([]string{
-		"192.0.2.0/24", // Example blocked range
-	})
-
-	collector := posture.NewCollector(geoReader, torChecker, repDB)
 
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
@@ -84,17 +50,13 @@ func NewProxyServer(
 	r.Use(logging.AccessLogMiddleware(accessLogger, cfg.GatewayID, log))
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
-	r.Use(session.SessionMiddleware(connectorRegistry, sessions, redisClient, cfg, errHandler, log))
+	r.Use(session.AppAccessMiddleware(connectorRegistry, cfg, errHandler, log))
 	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig()))
-	r.Use(posture.PostureMiddleware(collector, log))
-	r.Use(RateLimiterMiddleware(rateLimiterConfig, log, errHandler)) // ← after session
-	r.Use(policy.PolicyMiddleware(engine, cfg, log, errHandler))
+	r.Use(RateLimiterMiddleware(rateLimiterConfig, log, errHandler))
 
 	r.Handle("/_ashrix/static/*", staticFileHandler)
 
 	r.Get("/_ashrix/health", handler.Health)
-	r.Get("/_ashrix/logout", handler.Logout)
-	r.Get("/_ashrix/auth/callback", handler.Callback)
 	r.HandleFunc("/*", handler.ProxyHandler)
 
 	// ------------------------------------------------------------

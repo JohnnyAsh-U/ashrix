@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -19,12 +21,12 @@ var (
 // It has no RunE — running ashrix-connector alone prints help.
 var rootCmd = &cobra.Command{
 	Use:   "ashrix-connector",
-	Short: "Ashrix Connector — Secure tunnel management",
+	Short: "Ashrix outbound application connector",
 	Long: `Ashrix Connector connects your internal applications to the
-Ashrix Gateway, enabling secure access via your existing
-identity provider — no VPN required.
+Ashrix Gateway over an outbound QUIC tunnel.
 
-Run 'ashrix-connector start' to connect your internal application`,
+Configure connector identity, gateway endpoints, and apps in connector.yaml,
+then run 'ashrix-connector start'.`,
 	Version: version,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		initViper()
@@ -44,10 +46,6 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	rootCmd.PersistentFlags().StringP("token", "t", "", "Ephemeral token from Control Plane")
-
-	viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token"))
 }
 
 func initConfig() {
@@ -81,10 +79,20 @@ func initConfig() {
 	viper.Set("basedir", BaseDir)
 	viper.Set("certdir", certDir)
 	viper.Set("logdir", logDir)
+	viper.SetConfigName("connector")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(BaseDir)
+	viper.AddConfigPath(".")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			log.Fatalf("failed to read connector config: %v", err)
+		}
+	}
 }
 
 func initViper() {
-	viper.SetDefault("cp_url", "http://localhost:8001")
-	viper.SetDefault("connector.heartbeat_interval", 30)
-	viper.SetDefault("connector.reconnect_attempts", 5)
+	viper.SetDefault("connector.open_sock", false)
+	viper.SetDefault("socks_addr", "127.0.0.1:1080")
 }

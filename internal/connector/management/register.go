@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,8 +14,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/health"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/storage"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 )
 
@@ -32,15 +29,7 @@ type ManagementConn struct {
 	StartedAt   time.Time
 	log         *slog.Logger
 
-	PKI        *startup.PKIInitialiser
-	AppStorage storage.Storage
-	Checker    *health.Checker
-
-	// ... your existing struct fields ...
-
-	// Add rotation guard fields
-	rotatingMu sync.Mutex
-	isRotating bool
+	Checker *health.Checker
 	// Active stream count — reported in heartbeat
 	ActiveStreams atomic.Int64
 }
@@ -56,8 +45,6 @@ func OpenStream(
 	serviceName string,
 	log *slog.Logger,
 	apps []*pb.ConnectorApps,
-	pki *startup.PKIInitialiser,
-	appStorage storage.Storage,
 ) (*ManagementConn, error) {
 	log.Info("dialing management plane", "addr", gatewayUrl)
 
@@ -89,8 +76,6 @@ func OpenStream(
 		TenantID:    TenantID,
 		StartedAt:   now,
 		Apps:        apps,
-		PKI:         pki,
-		AppStorage:  appStorage,
 	}, nil
 }
 

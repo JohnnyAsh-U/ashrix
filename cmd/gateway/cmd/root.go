@@ -15,12 +15,8 @@ var DataDir = "./cmd/gateway/data"
 // It has no RunE — running ashrix-gateway alone prints help.
 var rootCmd = &cobra.Command{
 	Use:   "ashrix-gateway",
-	Short: "Ashrix Gateway — secure application access without VPNs",
-	Long: `Ashrix Gateway connects your internal applications to the
-Ashrix Control Plane, enabling secure access via your existing
-identity provider — no VPN required.
-
-Run 'ashrix-gateway register' first, then 'ashrix-gateway start'.`,
+	Short: "Ashrix self-hosted application access gateway",
+	Long:  `Ashrix accepts application requests and routes them through outbound QUIC connectors. Configure gateway.yaml and provision the gateway identity files before starting.`,
 }
 
 func Execute() {
@@ -30,18 +26,12 @@ func Execute() {
 }
 
 func init() {
-	// cobra.OnInitialize runs initConfig before ANY subcommand's RunE.
-	// This guarantees Viper is loaded before start, stop, status, or register fire.
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().String("redis-url", "redis://localhost:6379/1", "Redis Connection URL")
-	rootCmd.PersistentFlags().String("redis-password", "", "Redis Password")
-
-	viper.BindPFlag("data_dir", registerCmd.Flags().Lookup("data-dir"))
-	viper.BindPFlag("log_dir", registerCmd.Flags().Lookup("log-dir"))
-
-	viper.BindPFlag("redis_url", rootCmd.PersistentFlags().Lookup("redis-url"))
-	viper.BindPFlag("redis_password", rootCmd.PersistentFlags().Lookup("redis-password"))
+	rootCmd.PersistentFlags().String("data-dir", "./data", "Gateway identity and state directory")
+	rootCmd.PersistentFlags().String("log-dir", "./logs", "Gateway log directory")
+	_ = viper.BindPFlag("data_dir", rootCmd.PersistentFlags().Lookup("data-dir"))
+	_ = viper.BindPFlag("log_dir", rootCmd.PersistentFlags().Lookup("log-dir"))
 
 }
 

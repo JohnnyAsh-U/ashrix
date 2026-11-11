@@ -12,7 +12,6 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	pki_utils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 func init() {
@@ -58,7 +57,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	_, cert, err := pki_utils.LoadKeyAndCert(keyPath, certPath, "SECRET", "GATEWAY")
 
 	if err != nil {
-		fmt.Println("certificate or key: not found — run register")
+		fmt.Println("certificate or key: not found — provision gateway identity files")
+		return nil
 	}
 
 	// --- Certificate status ---
@@ -84,7 +84,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// --- Key status ---
 
-	info, _ := os.Stat(keyPath)
+	info, err := os.Stat(keyPath)
+	if err != nil {
+		fmt.Println("private key: not found")
+		return nil
+	}
 	mode := info.Mode().Perm()
 	if mode != 0600 {
 		// Key exists but wrong permissions — security warning
@@ -93,21 +97,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Println("private key: present (permissions OK)")
 	}
 
-	// --- Config status ---
-	gatewayID := viper.GetString("gateway_id")
-	cpURL := viper.GetString("cp_url")
-
-	if gatewayID == "" {
-		fmt.Println("gateway id: not registered")
-	} else {
-		fmt.Printf("gateway id: %s\n", gatewayID)
-	}
-
-	if cpURL == "" {
-		fmt.Println("control plane: not configured")
-	} else {
-		fmt.Printf("control plane: %s\n", cpURL)
-	}
+	// --- Local gateway status ---
+	fmt.Printf("gateway id: %s\n", cfg.GatewayID)
 
 	return nil
 }

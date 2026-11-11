@@ -18,16 +18,8 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	AppID := session.AppIDFromCtx(ctx)
-	Identity := session.IdentityFromCtx(ctx)
-	sessionID := session.SessionIDFromCtx(ctx)
 	requestID := uuid.NewString()
-
-	var userID, userEmail string
-	if Identity != nil {
-		userID = Identity.UserId
-		userEmail = Identity.Email
-	}
-	outboundHeaders := identityHeaders(r.Header, userID, userEmail, AppID, requestID)
+	outboundHeaders := identityHeaders(r.Header, AppID, requestID)
 	outboundRequest := r.Clone(r.Context())
 	outboundRequest.Header = outboundHeaders
 
@@ -35,21 +27,14 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	streamID := uuid.NewString()
 	h.log.Debug("Opening tunnel stream", slog.String("stream_id", streamID), slog.String("app_id", AppID))
 
-	h.streamRegistry.Register(sessionID, streamID, cancel)
-
 	defer func() {
 		cancel()
-		h.streamRegistry.Unregister(sessionID, streamID)
 		h.log.Debug("Tunnel stream closed", slog.String("stream_id", streamID), slog.String("app_id", AppID))
 	}()
 
 	req := &proto.StreamFrame{
-		RequestId: requestID,
-		FlowType:  proto.FlowType_USER_TO_APP,
-		// TenantId: Identity.TenantId,
-		SessionId:    sessionID,
-		SourceId:     userID,
-		SourceEmail:  userEmail,
+		RequestId:    requestID,
+		FlowType:     proto.FlowType_USER_TO_APP,
 		DestAppId:    AppID,
 		Method:       r.Method,
 		ProtocolType: proto.ProtocolType_PROTOCOL_TCP,
@@ -61,7 +46,7 @@ func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 		StreamType:   proto.RequestType_HTTP_REQUEST,
 	}
 
-	stream, err := h.router.Route(streamCtx, req, false)
+	stream, err := h.router.Route(streamCtx, req)
 	if err != nil {
 		h.log.Warn("Routing failed", slog.String("app_id", AppID), slog.Any("error", err))
 		h.errorHandler.ErrorPage(w, http.StatusBadGateway, "Bad Gateway", "The gateway encountered an unexpected error.", "")

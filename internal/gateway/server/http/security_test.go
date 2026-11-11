@@ -14,10 +14,10 @@ func TestIdentityHeadersReplaceUntrustedHeaders(t *testing.T) {
 	incoming.Set("X-Ashrix-User-Email", "spoofed@example.com")
 	incoming.Set("X-Other", "preserved")
 
-	outbound := identityHeaders(incoming, "user-123", "user@example.com", "app-456", "request-789")
+	outbound := identityHeaders(incoming, "app-456", "request-789")
 
-	assert.Equal(t, "user-123", outbound.Get("X-Ashrix-User-ID"))
-	assert.Equal(t, "user@example.com", outbound.Get("X-Ashrix-User-Email"))
+	assert.Empty(t, outbound.Get("X-Ashrix-User-ID"))
+	assert.Empty(t, outbound.Get("X-Ashrix-User-Email"))
 	assert.Equal(t, "app-456", outbound.Get("X-Ashrix-App-ID"))
 	assert.Equal(t, "request-789", outbound.Get("X-Ashrix-Request-ID"))
 	assert.Equal(t, "preserved", outbound.Get("X-Other"))

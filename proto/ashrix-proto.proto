@@ -2,322 +2,30 @@ syntax = "proto3";
 
 package proto;
 
-option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/gen;proto";
 import "google/protobuf/timestamp.proto";
 
-// =============================================================================
-// Gateway Bootstrap Proto Types
-// =============================================================================
-
-message GatewayEnrollRequest {
-  string                    token     = 1;
-  string                    csr_pem   = 2;
-  google.protobuf.Timestamp timestamp = 3;
-}
-
-message GatewayEnrollResponse {
-  string                    gateway_id   = 1;
-  string                    tenant_id    = 2;
-  string                    gateway_name = 3;
-  string                    gateway_url  = 4;
-  string                    certificate  = 5;
-  string                    trust_bundle = 6;
-  string                    cp_pub_key   = 7;
-  bool                      log_to_cp    = 8;
-  google.protobuf.Timestamp expires_at   = 9;
-}
-
-message GatewayRenewCertRequest {
-  string                    gateway_id = 1;
-  string                    signature  = 2;
-  string                    csr_pem    = 3;
-  google.protobuf.Timestamp timestamp  = 4;
-}
-
-message GatewayRenewCertResponse {
-  string                    gateway_id   = 1;
-  string                    certificate  = 2;
-  string                    trust_bundle = 3;
-  bool                      log_to_cp    = 4;
-  google.protobuf.Timestamp expires_at   = 5;
-}
-
-// =============================================================================
-// Control Plane Service
-// =============================================================================
-//This Exchange and connect
-service ControlPlaneService {
-  //Exchange
-  rpc ExchangeToken(ExchangeTokenRequest) returns (ExchangeTokenResponse);
-  //Connect
-  rpc Connect(stream GatewayEnvelope) returns (stream CPEnvelope);
-}
-
-// =============================================================================
-// Gateway Authentication Proto Types
-// =============================================================================
-
-//Exchangerequest
-message ExchangeTokenRequest {
-  string gateway_name = 1;
-  string token_hash   = 2;
-  string gateway_id   = 3;
-}
-
-message NormalizedIdentity {
-  string                    tenant_id     = 1;
-  string                    provider_id   = 2;
-  string                    user_id       = 3;
-  string                    email         = 4;
-  string                    name          = 5;
-  repeated string           groups        = 6;
-  string                    provider      = 7;
-  string                    cp_session_id = 8;
-  google.protobuf.Timestamp auth_time     = 9;
-}
-
-message ExchangeTokenResponse {
-  bool   valid         = 1;
-  string session_token = 2;
-  string error_message = 3;
-}
-
-// =============================================================================
-// Top Level Envelopes
-// =============================================================================
-
-//GatewayEnvelope - Gateway => CP
-message GatewayEnvelope {
-  string                    gateway_id = 1;
-  google.protobuf.Timestamp sent_at    = 2;
-
-  oneof payload {
-    HelloMessage     hello      = 10;
-    HeartbeatMessage heartbeat  = 11;
-    CommandAck       cmd_ack    = 12;
-    AccessLogBatch   log_batch  = 13;
-    PolicyAck        policy_ack = 14;
-  }
-}
-
-//CPEnvelope - CP => Gateway
-message CPEnvelope {
-  google.protobuf.Timestamp sent_at = 1;
-
-  oneof payload {
-    HelloAck     hello_ack     = 10;
-    PolicyBundle policy_bundle = 11;
-    Command      cmd           = 12;
-  }
-}
-
-message Command {
-  int64  seq      = 1;
-  string event_id = 2;
-  oneof payload {
-    RotateGatewayCertCmd   rotate_gateway_cert   = 3;
-    RevokeGatewayCertCmd   revoke_gateway_cert   = 4;
-    RevokeGatewayCmd       revoke_gateway        = 5;
-    RevokeSessionCmd       revoke_session        = 6;
-    DrainGatewayCmd        drain_gateway         = 7;
-    RevokeConnectorCmd     revoke_connector      = 8;
-    RotateConnectorCertCmd rotate_connector_cert = 9;
-    RevokeConnectorCertCmd revoke_connector_cert = 10;
-    CrlSyncCmd             crl_sync              = 11;
-    ConnectorSyncCmd       connector_sync        = 12;
-    ReloadConnectorCmd     reload_connector      = 13;
-  }
-}
-
-message RotateGatewayCertCmd {}
-
-message RevokeGatewayCertCmd {}
-
-message RevokeGatewayCmd {}
-
-message RevokeSessionCmd {
-  string                    session_id         = 1;
-  google.protobuf.Timestamp session_expires_at = 2;
-}
-
-message DrainGatewayCmd {}
-
-message RevokeConnectorCmd {
-  string connector_id = 1;
-}
-
-message RotateConnectorCertCmd {
-  string connector_id = 1;
-}
-
-message RevokeConnectorCertCmd {
-  string connector_id = 1;
-}
-
-message ReloadConnectorCmd {
-  string connector_id = 1;
-}
-
-message CrlSyncCmd {
-  repeated string revoked_serial_numbers = 1;
-}
-
-message ConnectorSyncCmd {
-  repeated ConnectorInfo connectors = 1;
-}
-
-message ConnectorInfo {
-  string id     = 1;
-  string status = 2;
-}
-
-// =============================================================================
-// Gateway to CP Messages
-// =============================================================================
-
-message HelloMessage {
-  string gateway_id     = 1;  // stable ID — never changes
-  string tenant_id      = 2;
-  string binary_version = 3;  // Ashrix binary version for compatibility checks
-  int64  policy_version = 4;  // policy bundle version currently applied
-  string quic_port      = 5;
-  string https_port     = 6;
-  string grpc_port      = 7;
-  int64  uptime         = 8;
-}
-
-message CommandAck {
-  string                    gateway_id            = 1;
-  int64                     processed_through_seq = 2;
-  google.protobuf.Timestamp time_stamp            = 3;
-
-}
-
-message PolicyAck {
-  string                    gateway_id = 1;
-  int64                     sequence   = 2;
-  google.protobuf.Timestamp time_stamp = 3;
-}
-
-message HeartbeatMessage {
-  int64                     seq              = 1; // full state snapshot — CP needs no separate query
-  string                    gateway_id       = 2;
-  int32                     active_sessions  = 3; // authenticated sessions
-  int32                     connector_count  = 4; // how many connectors currently connected
-  repeated ConnectorsStatus connector_status = 5;
-  repeated AppHealthStatus  app_health       = 6;
-  int64                     uptime           = 7;
-
-}
-
-message ConnectorsStatus {
-  string                    connector_id   = 1;
-  string                    status         = 2; //connected | disconnected
-  int64                     active_streams = 3;
-  google.protobuf.Timestamp last_checked   = 4;
-}
+option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/gen;proto";
 
 message AppHealthStatus {
-  string                    app_id        = 1;
-  string                    health_status = 2; // healthy | unhealthy | unknown
-  google.protobuf.Timestamp last_seen     = 3;
+  string app_id = 1;
+  string health_status = 2;
+  google.protobuf.Timestamp last_seen = 3;
 }
 
 // =============================================================================
-// CP to Gateway Messages
-// =============================================================================
-
-message HelloAck {
-  string                    server_version   = 1;
-  repeated ConnectorInfo    connectors       = 2;
-  repeated RevokedSessions  revoked_sessions = 3;
-  bool                      log_to_cp        = 4;
-  google.protobuf.Timestamp server_time      = 5;
-}
-
-message RevokedSessions {
-  string                    session_id = 1;
-  google.protobuf.Timestamp expires_at = 2;
-
-}
-
-message PolicyBundle {
-  int64 last_sequence   = 1;  // bundle protocol version
-  int64 issued_at = 2;  // epoch ms
-  // Delta or full snapshot — gateway unpacks these one by one
-  repeated PolicyRecord records = 3;
-
-  // Signs: H(version || issued_at || H(record[0]) || H(record[1]) || ...)
-  // where H(record[i]) is the hash of the *serialized* PolicyRecord bytes
-  bytes signature = 4;
-}
-
-// =============================================================================
-// Connecotor Bootstrap Proto Types
-// =============================================================================
-
-message ConnectorEnrollRequest {
-  string                    token     = 1;
-  string                    csr_pem   = 2;
-  google.protobuf.Timestamp timestamp = 3;
-}
-
-message ConnectorEnrollResponse {
-  string                    connector_id = 1;
-  string                    certificate  = 2;
-  string                    trust_bundle = 3;
-  bool                      open_sock    = 4;
-  google.protobuf.Timestamp expires_at   = 5;
-}
-
-message ConnectorRenewCertRequest {
-  string                    connector_id = 1;
-  string                    signature    = 2;
-  string                    csr_pem      = 3;
-  google.protobuf.Timestamp timestamp    = 4;
-}
-
-message ConnectorRenewCertResponse {
-  string                    connector_id = 1;
-  string                    certificate  = 2;
-  string                    trust_bundle = 3;
-  bool                      open_sock    = 4;
-  google.protobuf.Timestamp expires_at   = 5;
-}
-
-message ConnectorStatusResponse {
-  string                 connector_id          = 1;
-  string                 gateway_id            = 2;
-  string                 gateway_url           = 3;
-  string                 gateway_ip            = 4;
-  string                 grpc_port             = 5;
-  string                 https_port            = 6;
-  string                 quic_port             = 7;
-  string                 tenant_id             = 8;
-  bool                   open_sock             = 9;
-  repeated ConnectorApps apps                  = 10;
-  string                 secondary_gateway_id  = 11;
-  string                 secondary_gateway_url = 12;
-  string                 secondary_gateway_ip  = 13;
-  string                 secondary_grpc_port   = 14;
-  string                 secondary_https_port  = 15;
-  string                 secondary_quic_port   = 16;
-  repeated string        crl_entries           = 17;
-}
-
 message ConnectorApps {
-  string id                      = 1;
-  string name                    = 2;
-  string subdomain               = 3;
-  string upstream                = 4; //must be host:port
-  string protocol                = 5;
-  bool   is_public               = 6;
-  string sock_pass               = 7;
-  bool   check_health            = 8;
-  int32  check_interval          = 9;
-  string health_endpoint         = 10;
-  string health_status           = 11;
-  bool   enable_security_headers = 12;
+  string id = 1;
+  string name = 2;
+  string subdomain = 3;
+  string upstream = 4; //must be host:port
+  string protocol = 5;
+  bool is_public = 6;
+  string sock_pass = 7;
+  bool check_health = 8;
+  int32 check_interval = 9;
+  string health_endpoint = 10;
+  string health_status = 11;
+  bool enable_security_headers = 12;
 }
 
 // =============================================================================
@@ -332,42 +40,42 @@ message HeaderList {
 // 2. FrameType Enum
 enum RequestType {
   UNSPECIFIED_REQUEST = 0;
-  HTTP_REQUEST        = 1;
-  WS_REQUEST          = 3;
+  HTTP_REQUEST = 1;
+  WS_REQUEST = 3;
 }
 
 enum FlowType {
   UNSPECIFIED_TYPE = 0;
-  APP_TO_APP       = 1;
-  USER_TO_APP      = 2;
+  APP_TO_APP = 1;
+  USER_TO_APP = 2;
 }
 
 enum ProtocolType {
   UNSPECIFIED_PROTOCOL = 0;
-  PROTOCOL_TCP         = 1;
-  PROTOCOL_UDP         = 2;
+  PROTOCOL_TCP = 1;
+  PROTOCOL_UDP = 2;
 }
 
 // 3. Payload Messages
 
 message StreamFrame {
-  string                  request_id    = 1;
-  string                  session_id    = 2;
-  string                  tenant_id     = 3;
-  string                  source_id     = 4;
-  string                  source_email  = 5;
-  string                  dest_app_id   = 6;
-  string                  dest_app_name = 7;
-  string                  connector_id  = 8;
-  string                  method        = 9;
-  ProtocolType            protocol_type = 10;
-  string                  host          = 11;
-  string                  path          = 12;
-  string                  query         = 13;
-  map<string, HeaderList> headers       = 14;
-  int64                   body_length   = 15;
-  RequestType             stream_type   = 16;
-  FlowType                flow_type     = 17;
+  string request_id = 1;
+  string session_id = 2;
+  string tenant_id = 3;
+  string source_id = 4;
+  string source_email = 5;
+  string dest_app_id = 6;
+  string dest_app_name = 7;
+  string connector_id = 8;
+  string method = 9;
+  ProtocolType protocol_type = 10;
+  string host = 11;
+  string path = 12;
+  string query = 13;
+  map<string, HeaderList> headers = 14;
+  int64 body_length = 15;
+  RequestType stream_type = 16;
+  FlowType flow_type = 17;
 }
 
 //====================================================================================
@@ -380,185 +88,46 @@ service ConnectorService {
 }
 
 message ConnectorGatewayEnvelope {
-  string                    connector_id = 1;
-  google.protobuf.Timestamp sent_at      = 2;
+  string connector_id = 1;
+  google.protobuf.Timestamp sent_at = 2;
 
   oneof payload {
-    ConnectorHello     hello     = 3;
+    ConnectorHello hello = 3;
     ConnectorHeartbeat heartbeat = 4;
   }
 }
 
 message GatewayConnectorEnvelope {
-
   oneof payload {
     ConnectorHelloAck hello_ack = 1;
-    ConnectorReject   reject    = 2;
-    ConnectorCmd      cmd       = 3;
+    ConnectorReject reject = 2;
   }
 }
 
-message ConnectorCmd {
-  CommandType cmd     = 1;
-  string      payload = 2;
-}
-
-enum CommandType {
-  CMD_UNSPECIFIED           = 0;
-  CMD_ROTATE_CONNECTOR_CERT = 1;
-  CMD_REVOKE_CONNECTOR_CERT = 2;
-  CMD_REVOKE_CONNECTOR      = 3;
-  CMD_RELOAD_CONNECTOR      = 4;
-}
-
 message ConnectorHello {
-  string                 connector_id = 1;
-  string                 tenant_id    = 2;
-  string                 version      = 3;
-  repeated ConnectorApps apps         = 4;
-  string                 transport    = 5; //quic, grpc, websocket
+  string connector_id = 1;
+  string tenant_id = 2;
+  string version = 3;
+  repeated ConnectorApps apps = 4;
+  string transport = 5; //quic, grpc, websocket
 }
 
 message ConnectorHeartbeat {
-  int64                    seq              = 1;
-  string                   tunnel_state     = 2;
-  string                   tunnel_transport = 3;
-  int64                    active_streams   = 4;
-  int64                    uptime_seconds   = 5;
-  repeated AppHealthStatus app_health       = 6;
+  int64 seq = 1;
+  string tunnel_state = 2;
+  string tunnel_transport = 3;
+  int64 active_streams = 4;
+  int64 uptime_seconds = 5;
+  repeated AppHealthStatus app_health = 6;
 }
 
 message ConnectorHelloAck {
-  string session_id     = 1;
+  string session_id = 1;
   string server_version = 2;
 }
 
 message ConnectorReject {
-  string reason    = 1;
-  string code      = 2;
-  bool   permanent = 3;
-}
-
-// =============================================================================
-// Policy Messages
-// =============================================================================
-
-message ScheduleRule {
-  string day   = 1;
-  string start = 2;
-  string end   = 3;
-}
-
-message Schedule {
-  string                schedule_id = 1;
-  string                tenant_id   = 2;
-  string                name        = 3;
-  repeated ScheduleRule rules       = 4;
-}
-
-message TimeCondition {
-  string schedule_name = 1;
-}
-
-message DeviceCondition {
-  repeated string postures = 1;
-}
-
-message NetworkCondition {
-  repeated string allowed_countries = 1;
-  repeated string blocked_countries = 2;
-  repeated string allowed_cidrs     = 3;
-  repeated string blocked_cidrs     = 4;
-  bool            block_tor         = 5;
-}
-
-message MFACondition {
-  bool   required  = 1;
-  string min_level = 2;
-}
-
-message PolicyConditions {
-  MFACondition     mfa     = 1;
-  DeviceCondition  device  = 2;
-  NetworkCondition network = 3;
-  TimeCondition    time    = 4;
-}
-
-message SubjectSelector {
-  repeated string users  = 1;
-  repeated string groups = 2;
-  repeated string apps   = 3;
-}
-
-message ResourceSelector {
-  repeated string app_ids = 1;
-  repeated string paths   = 2;
-  repeated string methods = 3;
-}
-
-enum EffectEnum {
-  EFFECT_ENUM_UNSPECIFIED = 0;
-  EFFECT_ENUM_ALLOW       = 1;
-  EFFECT_ENUM_DENY        = 2;
-}
-
-enum OperationEnum {
-  OPERATION_ENUM_UNSPECIFIED = 0;
-  OPERATION_ENUM_UPSERT      = 1;
-  OPERATION_ENUM_DELETE      = 2;
-}
-
-message PolicyRule {
-  string                    policy_id   = 1;
-  string                    policy_mutation_id   = 2;
-  string                    tenant_id   = 3;
-  string                    name        = 4;
-  string                    description = 5;
-  EffectEnum                effect      = 6;
-  int32                     priority    = 7;
-  SubjectSelector           subject     = 8;
-  ResourceSelector          resource    = 9;
-  PolicyConditions          conditions  = 10;
-  bool                      enabled     = 11;
-  int64                     version     = 12;
-  int64                     sequence     = 13;
-  google.protobuf.Timestamp created_at  = 14;
-}
-
-message PolicyRecord {
-  // --- Envelope metadata (signed) ---
-  OperationEnum operation = 1;  // UPSERT, DELETE
-  int64         timestamp = 2;  // epoch ms
-
-  // --- Payload ---
-  // For DELETE, this can be a minimal rule with just policy_id + tenant_id,
-  // or the last known rule. The signature still covers it.
-  PolicyRule rule = 3;
-
-  // Signs: H(sequence || operation || timestamp || canonical_hash(rule))
-  bytes signature = 4;
-}
-
-message AccessLogEntry {
-  string                    gateway_id  = 1;
-  string                    org_id      = 2;
-  string                    app_id      = 3;
-  string                    user_id     = 4;
-  string                    user_email  = 5;
-  string                    method      = 6;
-  string                    path        = 7;
-  int32                     status      = 8;
-  int32                     latency_ms  = 9;
-  string                    ip          = 10;
-  string                    action      = 11;
-  string                    policy_id   = 12;
-  int64                     bytes_in    = 13;
-  int64                     bytes_out   = 14;
-  string                    result      = 15;
-  string                    deny_reason = 16;
-  google.protobuf.Timestamp created_at  = 17;
-}
-
-message AccessLogBatch {
-  repeated AccessLogEntry entries = 1;
+  string reason = 1;
+  string code = 2;
+  bool permanent = 3;
 }

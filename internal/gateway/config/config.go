@@ -9,25 +9,16 @@ import (
 )
 
 type Config struct {
-	CPURL            string
-	Token            string
-	GatewayID        string
-	GatewayName      string
-	GatewayUrl       string
-	TenantId         string
-	DataDir          string
-	LogDir           string
-	PIDFile          string
-	HTTPSPort        string
-	GRPCPort         string
-	QUICPort         string
-	RedisAddr        string
-	RedisPassword    string
-	SessionTTL       time.Duration
-	CookieSecure     bool
-	IsProdEnv        bool
-	BundlePublicKey  string
-	MaxOfflinePeriod time.Duration
+	GatewayID               string
+	DataDir                 string
+	LogDir                  string
+	PIDFile                 string
+	HTTPSPort               string
+	GRPCPort                string
+	QUICPort                string
+	AppTokenHashes          map[string]string
+	AuthorizedConnectors    []string
+	RevokedConnectorSerials []string
 
 	// ── OpenTelemetry ─────────────────────────────────────────────────────────
 	// OTelEnabled controls whether OTel is initialised. Set OTEL_ENABLED=false
@@ -55,11 +46,6 @@ func LoadFromViper() (*Config, error) {
 	viper.SetDefault("https_port", "8443")
 	viper.SetDefault("grpc_port", "8443")
 	viper.SetDefault("quic_port", "8443")
-	viper.SetDefault("session_ttl", "8h")
-	viper.SetDefault("is_prod_env", true)
-	viper.SetDefault("cookie_secure", "false")
-	viper.SetDefault("max_offline_period", "24h")
-
 	// OTel defaults
 	viper.SetDefault("otel_enabled", true)
 	viper.SetDefault("otel_service_name", "ashrix-gateway")
@@ -71,25 +57,16 @@ func LoadFromViper() (*Config, error) {
 	}
 
 	cfg := &Config{
-		CPURL:            viper.GetString("cp_url"),
-		Token:            viper.GetString("token"),
-		GatewayID:        viper.GetString("gateway_id"),
-		GatewayName:      viper.GetString("gateway_name"),
-		GatewayUrl:       viper.GetString("gateway_url"),
-		TenantId:         viper.GetString("tenant_id"),
-		LogDir:           viper.GetString("log_dir"),
-		DataDir:          viper.GetString("data_dir"),
-		PIDFile:          filepath.Join(viper.GetString("data_dir"), "gateway.pid"),
-		HTTPSPort:        viper.GetString("https_port"),
-		GRPCPort:         viper.GetString("grpc_port"),
-		QUICPort:         viper.GetString("quic_port"),
-		RedisAddr:        viper.GetString("redis_url"),
-		RedisPassword:    viper.GetString("redis_password"),
-		SessionTTL:       viper.GetDuration("session_ttl"),
-		CookieSecure:     viper.GetBool("cookie_secure"),
-		IsProdEnv:        viper.GetBool("is_prod_env"),
-		BundlePublicKey:  viper.GetString("bundle_public_key"),
-		MaxOfflinePeriod: viper.GetDuration("max_offline_period"),
+		GatewayID:               viper.GetString("gateway_id"),
+		LogDir:                  viper.GetString("log_dir"),
+		DataDir:                 viper.GetString("data_dir"),
+		PIDFile:                 filepath.Join(viper.GetString("data_dir"), "gateway.pid"),
+		HTTPSPort:               viper.GetString("https_port"),
+		GRPCPort:                viper.GetString("grpc_port"),
+		QUICPort:                viper.GetString("quic_port"),
+		AppTokenHashes:          viper.GetStringMapString("app_token_hashes"),
+		AuthorizedConnectors:    viper.GetStringSlice("authorized_connectors"),
+		RevokedConnectorSerials: viper.GetStringSlice("revoked_connector_serials"),
 		// OTel
 		OTelEnabled:         viper.GetBool("otel_enabled"),
 		OTelEndpoint:        viper.GetString("otel_exporter_otlp_endpoint"),
@@ -103,24 +80,14 @@ func LoadFromViper() (*Config, error) {
 }
 
 func Validate(cfg *Config) error {
-	if cfg.MaxOfflinePeriod <= 0 {
-		return fmt.Errorf("max_offline_period must be greater than zero")
-	}
-	if cfg.CPURL == "" {
-		return fmt.Errorf(
-			"cp_url is required\n\n" +
-				"Set via flag:    --cp-url=https://cp.ashrix.io\n",
-		)
-	}
-
 	if cfg.GatewayID == "" {
-		return fmt.Errorf(
-			"gateway is not registered\n\n" +
-				"Run: ashrix-gateway register --cp-url=<url> --token=<string>",
-		)
+		return fmt.Errorf("gateway_id is required")
 	}
-	if cfg.BundlePublicKey == "" {
-		return fmt.Errorf("BundlePublicKey is required to verify Control Plane policy signatures")
+	if cfg.DataDir == "" || cfg.LogDir == "" {
+		return fmt.Errorf("data_dir and log_dir are required")
+	}
+	if len(cfg.AuthorizedConnectors) == 0 {
+		return fmt.Errorf("authorized_connectors must contain at least one connector ID")
 	}
 
 	return nil

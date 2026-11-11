@@ -5,10 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/policy/store"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/flow"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
@@ -17,7 +14,6 @@ import (
 var (
 	ErrInvalidFlow       = errors.New("invalid flow")
 	ErrUnauthorized      = errors.New("unauthorized")
-	ErrPolicyDenied      = errors.New("access denied by policy")
 	ErrAppNotFound       = errors.New("application not found")
 	ErrConnectorNotFound = errors.New("connector not found")
 	ErrConnectorOffline  = errors.New("connector offline")
@@ -25,19 +21,15 @@ var (
 
 type Router struct {
 	registry *registry.Registry
-	policy   *policy.PolicyEngine
-	store    *store.BoltStore
 }
 
-func NewRouter(registry *registry.Registry, policy *policy.PolicyEngine, store *store.BoltStore) *Router {
+func NewRouter(registry *registry.Registry) *Router {
 	return &Router{
 		registry: registry,
-		policy:   policy,
-		store:    store,
 	}
 }
 
-func (r *Router) Route(ctx context.Context, req *pb.StreamFrame, evalPolicy bool) (flow.Stream, error) {
+func (r *Router) Route(ctx context.Context, req *pb.StreamFrame) (flow.Stream, error) {
 
 	// 2. Resolve destination application and connector.
 	var destApp *pb.ConnectorApps
@@ -75,28 +67,6 @@ func (r *Router) Route(ctx context.Context, req *pb.StreamFrame, evalPolicy bool
 
 	if !destConnector.IsRoutable() {
 		return nil, ErrConnectorOffline
-	}
-
-	authCtx := policy.AuthorizationContext{
-		Principal: policy.Principal{
-			UserID: req.SourceId, // App ID
-			Name:   req.SourceEmail,
-		},
-		Resource: policy.Resource{
-			AppID:  req.DestAppId,
-			Path:   req.Path,
-			Method: req.Method,
-		},
-		Time:     time.Now(),
-		TenantID: req.TenantId,
-	}
-
-	//  Evaluate policy when it is app to app, user to app policy happens at middleware.
-	if evalPolicy {
-		decision := r.policy.Evaluate(authCtx)
-		if decision.Denied() {
-			return nil, fmt.Errorf("%w: %s", ErrPolicyDenied, decision.Reason)
-		}
 	}
 
 	// 8. Open a stream to the destination connector.

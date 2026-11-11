@@ -17,16 +17,8 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	appID := session.AppIDFromCtx(ctx)
-	identity := session.IdentityFromCtx(ctx)
-	sessionID := session.SessionIDFromCtx(ctx)
 	requestID := uuid.NewString()
-
-	var userID, userEmail string
-	if identity != nil {
-		userID = identity.UserId
-		userEmail = identity.Email
-	}
-	outboundHeaders := identityHeaders(r.Header, userID, userEmail, appID, requestID)
+	outboundHeaders := identityHeaders(r.Header, appID, requestID)
 	outboundRequest := r.Clone(r.Context())
 	outboundRequest.Header = outboundHeaders
 
@@ -34,21 +26,14 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 	streamID := uuid.NewString()
 	h.log.Debug("Opening tunnel stream", slog.String("stream_id", streamID), slog.String("app_id", appID))
 
-	h.streamRegistry.Register(sessionID, streamID, cancel)
-
 	defer func() {
 		cancel()
-		h.streamRegistry.Unregister(sessionID, streamID)
 		h.log.Debug("Tunnel stream closed", slog.String("stream_id", streamID), slog.String("app_id", appID))
 	}()
 
 	req := &proto.StreamFrame{
-		RequestId: requestID,
-		FlowType:  proto.FlowType_USER_TO_APP,
-		// TenantId:     identity.TenantId,
-		SessionId:    sessionID,
-		SourceId:     userID,
-		SourceEmail:  userEmail,
+		RequestId:    requestID,
+		FlowType:     proto.FlowType_USER_TO_APP,
 		DestAppId:    appID,
 		Method:       r.Method,
 		ProtocolType: proto.ProtocolType_PROTOCOL_TCP,
@@ -60,7 +45,7 @@ func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 		StreamType:   proto.RequestType_WS_REQUEST,
 	}
 
-	stream, err := h.router.Route(streamCtx, req, false)
+	stream, err := h.router.Route(streamCtx, req)
 	if err != nil {
 		h.log.Warn("Routing failed", slog.String("app_id", appID), slog.Any("error", err))
 		h.errorHandler.ErrorPage(w, http.StatusBadGateway, "Bad Gateway", "The gateway encountered an unexpected error.", "")

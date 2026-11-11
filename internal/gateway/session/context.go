@@ -2,9 +2,6 @@ package session
 
 import (
 	"context"
-
-	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-
 )
 
 // ============================================================
@@ -18,10 +15,7 @@ var (
 	AppID                    contextKey = "AppID"
 	AppIsPublic              contextKey = "AppIsPublic"
 	AppEnableSecurityHeaders contextKey = "AppEnableSecurityHeaders"
-	Identity                 contextKey = "Identity"
-	SessionID                contextKey = "SessionID"
 )
-
 
 func ConnectorIDFromCtx(ctx context.Context) string {
 	id, _ := ctx.Value(ConnectorID).(string)
@@ -41,14 +35,4 @@ func AppIsPublicFromCtx(ctx context.Context) bool {
 func AppEnableSecurityHeadersFromCtx(ctx context.Context) (bool, bool) {
 	enableSec, ok := ctx.Value(AppEnableSecurityHeaders).(bool)
 	return enableSec, ok
-}
-
-func IdentityFromCtx(ctx context.Context) *gen.NormalizedIdentity {
-	id, _ := ctx.Value(Identity).(*gen.NormalizedIdentity)
-	return id
-}
-
-func SessionIDFromCtx(ctx context.Context) string {
-	id, _ := ctx.Value(SessionID).(string)
-	return id
 }

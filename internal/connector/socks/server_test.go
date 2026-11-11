@@ -60,7 +60,6 @@ func (m *mockStream) CloseWrite() error {
 	return nil
 }
 
-
 func TestSocksAuthenticationAndRelay(t *testing.T) {
 	credStore, err := socks.NewCredentialStore()
 	if err != nil {
@@ -91,9 +90,12 @@ func TestSocksAuthenticationAndRelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("net.Listen failed: %v", err)
 	}
-	defer ln.Close()
+	addr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("failed to release test address: %v", err)
+	}
 
-	srv := socks.NewServer(ln.Addr().String(), credStore, sess, logger)
+	srv := socks.NewServer(addr, credStore, sess, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -138,10 +140,7 @@ func TestSocksAuthenticationAndRelay(t *testing.T) {
 	}()
 
 	// 2. Client connects to SOCKS proxy
-	clientConn, err := net.DialTimeout("tcp", ln.Addr().String(), 2*time.Second)
-	if err != nil {
-		t.Fatalf("failed to dial SOCKS server: %v", err)
-	}
+	clientConn := dialSocksServer(t, addr)
 	defer clientConn.Close()
 
 	// Step A: Negotiate (SOCKS5, User/Pass auth method 0x02)
@@ -221,20 +220,20 @@ func TestSocksInvalidAuthRejection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("net.Listen failed: %v", err)
 	}
-	defer ln.Close()
+	addr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("failed to release test address: %v", err)
+	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := socks.NewServer(ln.Addr().String(), credStore, &mockSession{}, logger)
+	srv := socks.NewServer(addr, credStore, &mockSession{}, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() { _ = srv.ListenAndServe(ctx) }()
 
-	clientConn, err := net.DialTimeout("tcp", ln.Addr().String(), 2*time.Second)
-	if err != nil {
-		t.Fatalf("failed to dial SOCKS server: %v", err)
-	}
+	clientConn := dialSocksServer(t, addr)
 	defer clientConn.Close()
 
 	// Negotiate
@@ -255,5 +254,24 @@ func TestSocksInvalidAuthRejection(t *testing.T) {
 	_, err = io.ReadFull(clientConn, authReply)
 	if err != nil || authReply[1] == 0x00 {
 		t.Fatalf("server accepted invalid password! authReply=%v", authReply)
+	}
+}
+
+func dialSocksServer(t *testing.T, addr string) net.Conn {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		if err == nil {
+			if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				conn.Close()
+				t.Fatalf("failed to set client deadline: %v", err)
+			}
+			return conn
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("failed to dial SOCKS server: %v", err)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

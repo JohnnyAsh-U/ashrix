@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
+	connector_config "github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/health"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/logger"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
@@ -61,15 +61,20 @@ func runStart() (err error) {
 		os.Exit(1)
 	}
 
-	token := viper.GetString("token")
-	baseDir := viper.GetString("basedir")
-	logDir := viper.GetString("logdir")
-	CPURL := viper.GetString("cp_url")
+	connectorConfig, err := connector_config.LoadFromViper()
+	if err != nil {
+		return err
+	}
+	if err := connector_config.Validate(connectorConfig); err != nil {
+		return err
+	}
+	baseDir := connectorConfig.DataDir
+	logDir := connectorConfig.LogDir
 
 	//-----------------------PID Checker----------------------------------
 	fmt.Println("Checking and Creating PID")
 
-	locker := config.NewPID(baseDir)
+	locker := connector_config.NewPID(baseDir)
 	if err := locker.Acquire(); err != nil {
 		fmt.Fprintln(os.Stderr, "Exit", err) //Another process is running
 		os.Exit(1)
@@ -137,6 +142,47 @@ func runStart() (err error) {
 		cancel()
 	}()
 
+	credential, err := appStorage.LoadCredential()
+	if err != nil {
+		return fmt.Errorf("load local connector credentials: %w", err)
+	}
+	if credential.Cert.Subject.CommonName != connectorConfig.ConnectorID {
+		return fmt.Errorf("configured connector ID %q does not match certificate identity %q", connectorConfig.ConnectorID, credential.Cert.Subject.CommonName)
+	}
+	if time.Now().After(credential.Cert.NotAfter) {
+		return fmt.Errorf("connector certificate expired; provision a renewed certificate and trust bundle")
+	}
+
+	pki, err := startup.NewLocalPKIInitialiser(credential.Cert, credential.PrivKey, credential.Bundle)
+	if err != nil {
+		return fmt.Errorf("initialize local connector identity: %w", err)
+	}
+	connectorID := connectorConfig.ConnectorID
+	tenantID := connectorConfig.TenantID
+	apps := make([]*pb.ConnectorApps, 0, len(connectorConfig.Apps))
+	for _, app := range connectorConfig.Apps {
+		apps = append(apps, &pb.ConnectorApps{
+			Id:                    app.ID,
+			Name:                  app.Name,
+			Subdomain:             app.Subdomain,
+			Upstream:              app.Upstream,
+			Protocol:              app.Protocol,
+			IsPublic:              app.IsPublic,
+			EnableSecurityHeaders: app.EnableSecurityHeaders,
+			CheckHealth:           app.CheckHealth,
+			CheckInterval:         app.CheckInterval,
+			HealthEndpoint:        app.HealthEndpoint,
+		})
+	}
+
+	transportConfig := transport.Config{
+		GatewayQUICAddr: connectorConfig.GatewayQUICAddr,
+		GatewayGRPCAddr: connectorConfig.GatewayGRPCAddr,
+		ConnectorID:     connectorID,
+		OpenSock:        connectorConfig.OpenSock,
+		TLSConfig:       pki.TLSConfig(),
+	}
+
 	attempt := 0
 	for {
 		if ctx.Err() != nil {
@@ -144,84 +190,11 @@ func runStart() (err error) {
 		}
 		attempt++
 
-		//-------------------------Startup Workflow---------------------------//
-		//Check Cert -> renew or register
-		log.Info("Running startup workflow and connecting with CP", "cp_url", CPURL)
-
-		result, err := startup.Run(ctx, CPURL, log, token, appStorage)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "\nFATAL: %s\n\n", err.Error())
-			os.Exit(1)
-		}
-
-		result.PKI.StartRotator()
-		defer result.PKI.Stop()
-
-		log.Info("Startup Complete",
-			"connector_id", result.Status.ConnectorId,
-			"gateway_id", result.Status.GatewayId,
-			"gateway_url", result.Status.GatewayUrl,
-			"apps", len(result.Status.Apps),
-		)
-
-		//------------------------ Build Transport targets from status response-------------------------//
-		tlsConfig := result.PKI.TLSConfigWithCRL(result.Status.GetCrlEntries())
-		connectorID := result.Status.ConnectorId
-		tenantID := result.Status.TenantId
-		apps := result.Status.Apps
-
-		type GatewayTarget struct {
-			Ip          string
-			GrpcPort    string
-			QuicPort    string
-			IsSecondary bool
-		}
-
-		var targets []GatewayTarget
-		if result.Status.GatewayIp != "" {
-			targets = append(targets, GatewayTarget{
-				Ip:          result.Status.GatewayIp,
-				GrpcPort:    result.Status.GrpcPort,
-				QuicPort:    result.Status.QuicPort,
-				IsSecondary: false,
-			})
-		}
-		if result.Status.SecondaryGatewayIp != "" {
-			targets = append(targets, GatewayTarget{
-				Ip:          result.Status.SecondaryGatewayIp,
-				GrpcPort:    result.Status.SecondaryGrpcPort,
-				QuicPort:    result.Status.SecondaryQuicPort,
-				IsSecondary: true,
-			})
-		}
-
-		if len(targets) == 0 {
-			log.Error("Gateway address is empty / invalid")
-			os.Exit(1)
-		}
-
-		currentTarget := targets[(attempt-1)%len(targets)]
-		log.Info("Selecting Gateway target",
-			"target_ip", currentTarget.Ip,
-			"is_secondary", currentTarget.IsSecondary,
-			"attempt", attempt,
-		)
-
-		//---------------------------Config for selected Transport Target---------------------------------------------//
-		config := transport.Config{
-			GatewayQUICAddr: currentTarget.Ip + ":" + currentTarget.QuicPort,
-			GatewayGRPCAddr: currentTarget.Ip + ":" + currentTarget.GrpcPort,
-			GatewayWSURL:    "wss://" + currentTarget.Ip + "/ws",
-			ConnectorID:     connectorID,
-			OpenSock:        result.Status.OpenSock,
-			TLSConfig:       tlsConfig,
-		}
-
 		//-----------------------Build the Management Stream & Tunnel Loop------------------------------//
-		log.Info("Opening management stream with gateway", "addr", config.GatewayGRPCAddr, "is_secondary", currentTarget.IsSecondary, "attempt", attempt)
-		managementConn, err := management.OpenStream(ctx, config.GatewayGRPCAddr, connectorID, tenantID, tlsConfig, serviceName, log, apps, result.PKI, appStorage)
+		log.Info("Opening management stream with gateway", "addr", transportConfig.GatewayGRPCAddr, "attempt", attempt)
+		managementConn, err := management.OpenStream(ctx, transportConfig.GatewayGRPCAddr, connectorID, tenantID, transportConfig.TLSConfig, serviceName, log, apps)
 		if err != nil {
-			log.Error("Failed to open Gateway stream", "addr", config.GatewayGRPCAddr, "is_secondary", currentTarget.IsSecondary, "error", err)
+			log.Error("Failed to open Gateway stream", "addr", transportConfig.GatewayGRPCAddr, "error", err)
 			select {
 			case <-time.After(reconnectDelay(attempt)):
 				continue
@@ -235,7 +208,7 @@ func runStart() (err error) {
 		err = managementConn.Register(helloCtx)
 		helloCancel()
 		if err != nil {
-			log.Error("Failed to register management stream", "addr", config.GatewayGRPCAddr, "error", err)
+			log.Error("Failed to register management stream", "addr", transportConfig.GatewayGRPCAddr, "error", err)
 			managementConn.Conn.Close()
 			select {
 			case <-time.After(reconnectDelay(attempt)):
@@ -245,7 +218,7 @@ func runStart() (err error) {
 			}
 		}
 
-		log.Info("connector management stream ready", "connector_id", connectorID, "app_addr", config.GatewayGRPCAddr, "is_secondary", currentTarget.IsSecondary)
+		log.Info("connector management stream ready", "connector_id", connectorID, "app_addr", transportConfig.GatewayGRPCAddr)
 
 		//--------------------Mangement Receiver, HeartBeat, and Tunnel Loop ---------------------------//
 		sessionCtx, sessionCancel := context.WithCancel(ctx)
@@ -282,7 +255,7 @@ func runStart() (err error) {
 					errCh <- fmt.Errorf("tunnel loop panic: %v", r)
 				}
 			}()
-			errCh <- runTunnelLoop(sessionCtx, config, log, apps, managementConn)
+			errCh <- runTunnelLoop(sessionCtx, transportConfig, log, apps, managementConn)
 		}()
 
 		// go func() {

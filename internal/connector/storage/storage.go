@@ -4,14 +4,13 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"fmt"
-	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"runtime"
 	"time"
 )
 
-//For key encryption
+// For key encryption
 var (
-	secret = "SECRET"
+	secret  = "SECRET"
 	context = "CONNECTOR"
 )
 
@@ -22,7 +21,6 @@ type Cred struct {
 }
 
 type Storage interface {
-	SaveCredential(regResult *gen.ConnectorEnrollResponse, newKey *ecdsa.PrivateKey) error
 	LoadCredential() (*Cred, error)
 	ClearCredential() error
 	CredentialExists() bool
@@ -42,4 +40,3 @@ func NewStorage() (Storage, error) {
 func (c *Cred) IsExpired() bool {
 	return time.Now().After(c.Cert.NotAfter)
 }
-

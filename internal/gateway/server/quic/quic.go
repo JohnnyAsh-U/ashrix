@@ -26,7 +26,7 @@ type QUICServer struct {
 }
 
 func NewQUICServer(cfg *config.Config, tlsConfig *tls.Config, log *slog.Logger, registry *registry.Registry, rtr *router.Router) *QUICServer {
-	
+
 	quicTLS := tlsConfig.Clone()
 
 	// Connector authentication.
@@ -158,7 +158,7 @@ func (s *QUICServer) handleIncomingConnectorStream(ctx context.Context, srcConne
 
 	startTime := time.Now()
 
-	destStream, err := s.router.Route(ctx, &streamFrame, false)
+	destStream, err := s.router.Route(ctx, &streamFrame)
 	if err != nil {
 		s.log.Warn("routing/policy rejected for incoming connector stream",
 			slog.String("flow_id", streamFrame.RequestId),
