@@ -18,9 +18,6 @@ type Config struct {
 	// TLS — nil in dev (insecure), set in prod
 	TLSConfig *tls.Config
 
-	OpenSock bool
-
-	SockPass string
 }
 
 // Negotiate tries transports in order: QUIC → gRPC → WebSocket.

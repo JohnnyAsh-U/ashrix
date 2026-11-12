@@ -65,7 +65,7 @@ func (c *ConnectorTunnel) AcceptLoop(
 		}
 
 		// c.managementConn.ActiveStreams.Add(1)
-
+		
 		// Handle in goroutine — accept loop never blocks
 		// 100 concurrent users = 100 goroutines = fine
 		go c.handleRequestStream(ctx, stream)

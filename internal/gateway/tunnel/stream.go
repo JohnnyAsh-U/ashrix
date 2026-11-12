@@ -1,20 +1,30 @@
-package quic
+package tunnel
 
 import (
 	"context"
 	"fmt"
+	"io"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/flow"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/quic-go/quic-go"
 )
 
+
+type Stream interface {
+	io.Reader
+	io.Writer
+	Close() error
+	CloseRead() error
+	CloseWrite() error
+	Context() context.Context
+}
+
 type quicTunnelSession struct {
 	conn *quic.Conn
 }
 
-func (s *quicTunnelSession) OpenStream(ctx context.Context, req *proto.StreamFrame) (flow.Stream, error) {
+func (s *quicTunnelSession) OpenStream(ctx context.Context, req *proto.StreamFrame) (Stream, error) {
 	stream, err := s.conn.OpenStreamSync(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Open Tunnel Stream: %w", err)

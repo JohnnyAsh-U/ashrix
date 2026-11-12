@@ -1,4 +1,4 @@
-package flow
+package tunnel
 
 import (
 	"context"
@@ -7,14 +7,6 @@ import (
 	"sync"
 )
 
-type Stream interface {
-	io.Reader
-	io.Writer
-	Close() error
-	CloseRead() error
-	CloseWrite() error
-	Context() context.Context
-}
 
 type RelayResult struct {
 	BytesAToB int64

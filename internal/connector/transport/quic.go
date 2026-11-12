@@ -34,8 +34,8 @@ func DialQUIC(
 	log.Info("trying QUIC transport", "addr", addr)
 
 	conn, err := quic.DialAddr(ctx, addr, tlsConfig, &quic.Config{
-		KeepAlivePeriod: 15 * time.Second,
-		MaxIdleTimeout:  30 * time.Second,
+		KeepAlivePeriod: 5 * time.Second,
+		MaxIdleTimeout:  10 * time.Second,
 		// Allow many concurrent streams per connection
 		// Each user request = one stream
 		MaxIncomingStreams:    1000,

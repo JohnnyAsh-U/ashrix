@@ -22,7 +22,7 @@ func (c *ConnectorTunnel) handleHTTPRequest(ctx context.Context, stream transpor
 	//===============Getting the app from the applist using requestheader app id================//
 	var requestApp *gen.ConnectorApps
 	for i := range c.apps {
-		if c.apps[i].Id == request.DestAppId {
+		if c.apps[i].Id == request.AppId {
 			requestApp = c.apps[i]
 			break
 		}
@@ -36,7 +36,6 @@ func (c *ConnectorTunnel) handleHTTPRequest(ctx context.Context, stream transpor
 	c.log.Debug("proxying request",
 		"method", request.Method,
 		"path", request.Path,
-		"user", request.SourceEmail,
 		"appName", requestApp.Name,
 	)
 
@@ -67,19 +66,3 @@ func (c *ConnectorTunnel) handleHTTPRequest(ctx context.Context, stream transpor
 
 }
 
-// func (c *ConnectorTunnel) writeError(stream transport.Stream, requestID string, code int, msg string) {
-// 	body := []byte(msg)
-// 	header := gen.HTTPResponse{
-// 		RequestId:  requestID,
-// 		StatusCode: int32(code),
-// 		BodyLength: int64(len(body)),
-// 		Headers:    frame.HeadersToProto(nil),
-// 	}
-// 	if err := frame.WriteFrame(stream, proto.FrameType_FRAME_TYPE_HTTP_RESPONSE, &header); err != nil {
-// 		c.log.Error("failed to write error envelope", zap.Error(err))
-// 		return
-// 	}
-// 	if _, err := stream.Write(body); err != nil {
-// 		c.log.Error("failed to write error body", zap.Error(err))
-// 	}
-// }

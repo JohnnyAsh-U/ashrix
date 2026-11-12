@@ -11,11 +11,12 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/proxy"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server"
-	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
+
+	// http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/tunnel"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/pki"
 )
 
@@ -40,7 +41,7 @@ func RunGateway(ctx context.Context, config *config.Config, log *slog.Logger) er
 
 	// 	//---------------------------Initialize and Load Registry------------------------------//
 
-	reg := registry.New(log)
+	reg := tunnel.NewTunnelRegistry(log)
 	authorizedConnectors := make(map[string]string, len(config.Connectors))
 	for _, connector := range config.Connectors {
 		authorizedConnectors[connector.ID] = "active"
@@ -48,8 +49,6 @@ func RunGateway(ctx context.Context, config *config.Config, log *slog.Logger) er
 	reg.SetAuthorizedConnectors(authorizedConnectors)
 
 	log.Info("Initialising Registry...")
-
-	rtr := router.NewRouter(reg)
 
 	// 	//2. Access Logger
 	accessLogger := logging.NewAccessLogger(config)
@@ -60,20 +59,18 @@ func RunGateway(ctx context.Context, config *config.Config, log *slog.Logger) er
 
 	log.Info("initializing Gateway servers")
 
-	httpServer := http_proxy.NewProxyServer(
+	httpServer := proxy.NewProxyServer(
 		config,
-		reg,
 		log,
-		rtr,
+		reg,
 		accessLogger,
 	)
 
-	quicServer := quic.NewQUICServer(
+	quicServer := tunnel.NewQUICServer(
 		config,
 		mtlsConfig,
 		log,
 		reg,
-		rtr,
 	)
 
 	if err := server.StartServers(config, mtlsConfig, ctx, log, httpServer, quicServer); err != nil {

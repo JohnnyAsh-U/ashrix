@@ -111,10 +111,7 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 			// ----------------------------------------------------
 
 			appID := accessCtx.AppID
-			result := "success"
-			if lrw.statusCode >= 400 {
-				result = "failure"
-			}
+			
 
 			latency := time.Since(start)
 
@@ -135,7 +132,6 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 				"bytes_out", bytesOut,
 				"latency", latency.Milliseconds(),
 				"user_agent", r.UserAgent(),
-				"result", result,
 			}
 
 			if accessLogger != nil {
@@ -158,51 +154,4 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 func shouldSkipAccessLog(r *http.Request) bool {
 	path := r.URL.Path
 	return strings.HasPrefix(path, "/_ashrix")
-}
-
-func IsStaticAsset(r *http.Request) bool {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		return false
-	}
-
-	accept := r.Header.Get("Accept")
-
-	// Browser explicitly asking for an image/font/style/script.
-	if strings.Contains(accept, "text/css") ||
-		strings.Contains(accept, "javascript") ||
-		strings.Contains(accept, "image/") ||
-		strings.Contains(accept, "font/") {
-		return true
-	}
-
-	// Common asset extensions as a fallback.
-	path := strings.ToLower(r.URL.Path)
-
-	extensions := []string{
-		".css",
-		".js",
-		".mjs",
-		".map",
-		".png",
-		".jpg",
-		".jpeg",
-		".gif",
-		".svg",
-		".ico",
-		".webp",
-		".avif",
-		".woff",
-		".woff2",
-		".ttf",
-		".otf",
-		".eot",
-	}
-
-	for _, ext := range extensions {
-		if strings.HasSuffix(path, ext) {
-			return true
-		}
-	}
-
-	return false
 }

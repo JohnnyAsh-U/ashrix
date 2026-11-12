@@ -8,12 +8,16 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+
 	// "net/http/pprof"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/proxy"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/tunnel"
+
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
-	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
-	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
+	// http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
+	// quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/tlsconfig"
 )
 
@@ -22,8 +26,8 @@ func StartServers(
 	tlsConfig *tls.Config,
 	ctx context.Context,
 	log *slog.Logger,
-	httpServer *http_proxy.ProxyServer,
-	quicServer *quic_server.QUICServer,
+	httpServer *proxy.ProxyServer,
+	quicServer *tunnel.QUICServer,
 ) error {
 
 	// ---------------------------------------------------------
@@ -121,8 +125,8 @@ func StartServers(
 }
 
 func ShutdownServers(
-	httpServer *http_proxy.ProxyServer,
-	quicServer *quic_server.QUICServer,
+	httpServer *proxy.ProxyServer,
+	quicServer *tunnel.QUICServer,
 	log *slog.Logger,
 ) {
 

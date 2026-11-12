@@ -15,7 +15,7 @@ func (c *ConnectorTunnel) handleWebSocketStream(ctx context.Context, stream tran
 	//===============Getting the app from the applist using requestheader app id================//
 	var requestApp *proto.ConnectorApps
 	for i := range c.apps {
-		if c.apps[i].Id == request.DestAppId {
+		if c.apps[i].Id == request.AppId {
 			requestApp = c.apps[i]
 			break
 		}
@@ -34,7 +34,6 @@ func (c *ConnectorTunnel) handleWebSocketStream(ctx context.Context, stream tran
 
 	c.log.Debug("proxying websocket",
 		"path", request.Path,
-		"user", request.SourceId,
 		"appName", requestApp.Name,
 	)
 

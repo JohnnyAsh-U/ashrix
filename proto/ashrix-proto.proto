@@ -6,11 +6,6 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/gen;proto";
 
-message AppHealthStatus {
-  string app_id = 1;
-  string health_status = 2;
-  google.protobuf.Timestamp last_seen = 3;
-}
 
 // =============================================================================
 message ConnectorApps {
@@ -35,90 +30,19 @@ enum RequestType {
   WS_REQUEST = 3;
 }
 
-enum FlowType {
-  UNSPECIFIED_TYPE = 0;
-  APP_TO_APP = 1;
-  USER_TO_APP = 2;
-}
-
-enum ProtocolType {
-  UNSPECIFIED_PROTOCOL = 0;
-  PROTOCOL_TCP = 1;
-  PROTOCOL_UDP = 2;
-}
 
 // 3. Payload Messages
 
 message StreamFrame {
   string request_id = 1;
-  string session_id = 2;
-  string tenant_id = 3;
-  string source_id = 4;
-  string source_email = 5;
-  string dest_app_id = 6;
-  string dest_app_name = 7;
-  string connector_id = 8;
-  string method = 9;
-  ProtocolType protocol_type = 10;
-  string host = 11;
-  string path = 12;
-  string query = 13;
-  map<string, HeaderList> headers = 14;
-  int64 body_length = 15;
-  RequestType stream_type = 16;
-  FlowType flow_type = 17;
-}
-
-//====================================================================================
-//  Management Service to gateway
-//==========================================================================================
-//Sends Heartbeat to gateway, send hello to gateway
-service ConnectorService {
-  //GRPC Tunnel
-  rpc Connect(stream ConnectorGatewayEnvelope) returns (stream GatewayConnectorEnvelope);
-}
-
-message ConnectorGatewayEnvelope {
-  string connector_id = 1;
-  google.protobuf.Timestamp sent_at = 2;
-
-  oneof payload {
-    ConnectorHello hello = 3;
-    ConnectorHeartbeat heartbeat = 4;
-  }
-}
-
-message GatewayConnectorEnvelope {
-  oneof payload {
-    ConnectorHelloAck hello_ack = 1;
-    ConnectorReject reject = 2;
-  }
-}
-
-message ConnectorHello {
-  string connector_id = 1;
-  string tenant_id = 2;
-  string version = 3;
-  repeated ConnectorApps apps = 4;
-  string transport = 5; //quic, grpc, websocket
-}
-
-message ConnectorHeartbeat {
-  int64 seq = 1;
-  string tunnel_state = 2;
-  string tunnel_transport = 3;
-  int64 active_streams = 4;
-  int64 uptime_seconds = 5;
-  repeated AppHealthStatus app_health = 6;
-}
-
-message ConnectorHelloAck {
-  string session_id = 1;
-  string server_version = 2;
-}
-
-message ConnectorReject {
-  string reason = 1;
-  string code = 2;
-  bool permanent = 3;
+  string app_id = 2;
+  string app_name = 3;
+  string connector_id = 4;
+  string method = 5;
+  string host = 6;
+  string path = 7;
+  string query = 8;
+  map<string, HeaderList> headers = 9;
+  int64 body_length = 10;
+  RequestType stream_type = 11;
 }

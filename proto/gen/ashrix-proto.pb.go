@@ -9,7 +9,7 @@ package proto
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	_ "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -72,164 +72,6 @@ func (RequestType) EnumDescriptor() ([]byte, []int) {
 	return file_ashrix_proto_proto_rawDescGZIP(), []int{0}
 }
 
-type FlowType int32
-
-const (
-	FlowType_UNSPECIFIED_TYPE FlowType = 0
-	FlowType_APP_TO_APP       FlowType = 1
-	FlowType_USER_TO_APP      FlowType = 2
-)
-
-// Enum value maps for FlowType.
-var (
-	FlowType_name = map[int32]string{
-		0: "UNSPECIFIED_TYPE",
-		1: "APP_TO_APP",
-		2: "USER_TO_APP",
-	}
-	FlowType_value = map[string]int32{
-		"UNSPECIFIED_TYPE": 0,
-		"APP_TO_APP":       1,
-		"USER_TO_APP":      2,
-	}
-)
-
-func (x FlowType) Enum() *FlowType {
-	p := new(FlowType)
-	*p = x
-	return p
-}
-
-func (x FlowType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (FlowType) Descriptor() protoreflect.EnumDescriptor {
-	return file_ashrix_proto_proto_enumTypes[1].Descriptor()
-}
-
-func (FlowType) Type() protoreflect.EnumType {
-	return &file_ashrix_proto_proto_enumTypes[1]
-}
-
-func (x FlowType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use FlowType.Descriptor instead.
-func (FlowType) EnumDescriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{1}
-}
-
-type ProtocolType int32
-
-const (
-	ProtocolType_UNSPECIFIED_PROTOCOL ProtocolType = 0
-	ProtocolType_PROTOCOL_TCP         ProtocolType = 1
-	ProtocolType_PROTOCOL_UDP         ProtocolType = 2
-)
-
-// Enum value maps for ProtocolType.
-var (
-	ProtocolType_name = map[int32]string{
-		0: "UNSPECIFIED_PROTOCOL",
-		1: "PROTOCOL_TCP",
-		2: "PROTOCOL_UDP",
-	}
-	ProtocolType_value = map[string]int32{
-		"UNSPECIFIED_PROTOCOL": 0,
-		"PROTOCOL_TCP":         1,
-		"PROTOCOL_UDP":         2,
-	}
-)
-
-func (x ProtocolType) Enum() *ProtocolType {
-	p := new(ProtocolType)
-	*p = x
-	return p
-}
-
-func (x ProtocolType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ProtocolType) Descriptor() protoreflect.EnumDescriptor {
-	return file_ashrix_proto_proto_enumTypes[2].Descriptor()
-}
-
-func (ProtocolType) Type() protoreflect.EnumType {
-	return &file_ashrix_proto_proto_enumTypes[2]
-}
-
-func (x ProtocolType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ProtocolType.Descriptor instead.
-func (ProtocolType) EnumDescriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{2}
-}
-
-type AppHealthStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AppId         string                 `protobuf:"bytes,1,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	HealthStatus  string                 `protobuf:"bytes,2,opt,name=health_status,json=healthStatus,proto3" json:"health_status,omitempty"`
-	LastSeen      *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_seen,json=lastSeen,proto3" json:"last_seen,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AppHealthStatus) Reset() {
-	*x = AppHealthStatus{}
-	mi := &file_ashrix_proto_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AppHealthStatus) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AppHealthStatus) ProtoMessage() {}
-
-func (x *AppHealthStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AppHealthStatus.ProtoReflect.Descriptor instead.
-func (*AppHealthStatus) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *AppHealthStatus) GetAppId() string {
-	if x != nil {
-		return x.AppId
-	}
-	return ""
-}
-
-func (x *AppHealthStatus) GetHealthStatus() string {
-	if x != nil {
-		return x.HealthStatus
-	}
-	return ""
-}
-
-func (x *AppHealthStatus) GetLastSeen() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSeen
-	}
-	return nil
-}
-
 // =============================================================================
 type ConnectorApps struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -242,7 +84,7 @@ type ConnectorApps struct {
 
 func (x *ConnectorApps) Reset() {
 	*x = ConnectorApps{}
-	mi := &file_ashrix_proto_proto_msgTypes[1]
+	mi := &file_ashrix_proto_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -254,7 +96,7 @@ func (x *ConnectorApps) String() string {
 func (*ConnectorApps) ProtoMessage() {}
 
 func (x *ConnectorApps) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[1]
+	mi := &file_ashrix_proto_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -267,7 +109,7 @@ func (x *ConnectorApps) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorApps.ProtoReflect.Descriptor instead.
 func (*ConnectorApps) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{1}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ConnectorApps) GetId() string {
@@ -301,7 +143,7 @@ type HeaderList struct {
 
 func (x *HeaderList) Reset() {
 	*x = HeaderList{}
-	mi := &file_ashrix_proto_proto_msgTypes[2]
+	mi := &file_ashrix_proto_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -313,7 +155,7 @@ func (x *HeaderList) String() string {
 func (*HeaderList) ProtoMessage() {}
 
 func (x *HeaderList) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[2]
+	mi := &file_ashrix_proto_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -326,7 +168,7 @@ func (x *HeaderList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeaderList.ProtoReflect.Descriptor instead.
 func (*HeaderList) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{2}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *HeaderList) GetValues() []string {
@@ -339,29 +181,23 @@ func (x *HeaderList) GetValues() []string {
 type StreamFrame struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	TenantId      string                 `protobuf:"bytes,3,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	SourceId      string                 `protobuf:"bytes,4,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
-	SourceEmail   string                 `protobuf:"bytes,5,opt,name=source_email,json=sourceEmail,proto3" json:"source_email,omitempty"`
-	DestAppId     string                 `protobuf:"bytes,6,opt,name=dest_app_id,json=destAppId,proto3" json:"dest_app_id,omitempty"`
-	DestAppName   string                 `protobuf:"bytes,7,opt,name=dest_app_name,json=destAppName,proto3" json:"dest_app_name,omitempty"`
-	ConnectorId   string                 `protobuf:"bytes,8,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
-	Method        string                 `protobuf:"bytes,9,opt,name=method,proto3" json:"method,omitempty"`
-	ProtocolType  ProtocolType           `protobuf:"varint,10,opt,name=protocol_type,json=protocolType,proto3,enum=proto.ProtocolType" json:"protocol_type,omitempty"`
-	Host          string                 `protobuf:"bytes,11,opt,name=host,proto3" json:"host,omitempty"`
-	Path          string                 `protobuf:"bytes,12,opt,name=path,proto3" json:"path,omitempty"`
-	Query         string                 `protobuf:"bytes,13,opt,name=query,proto3" json:"query,omitempty"`
-	Headers       map[string]*HeaderList `protobuf:"bytes,14,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	BodyLength    int64                  `protobuf:"varint,15,opt,name=body_length,json=bodyLength,proto3" json:"body_length,omitempty"`
-	StreamType    RequestType            `protobuf:"varint,16,opt,name=stream_type,json=streamType,proto3,enum=proto.RequestType" json:"stream_type,omitempty"`
-	FlowType      FlowType               `protobuf:"varint,17,opt,name=flow_type,json=flowType,proto3,enum=proto.FlowType" json:"flow_type,omitempty"`
+	AppId         string                 `protobuf:"bytes,2,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	AppName       string                 `protobuf:"bytes,3,opt,name=app_name,json=appName,proto3" json:"app_name,omitempty"`
+	ConnectorId   string                 `protobuf:"bytes,4,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
+	Method        string                 `protobuf:"bytes,5,opt,name=method,proto3" json:"method,omitempty"`
+	Host          string                 `protobuf:"bytes,6,opt,name=host,proto3" json:"host,omitempty"`
+	Path          string                 `protobuf:"bytes,7,opt,name=path,proto3" json:"path,omitempty"`
+	Query         string                 `protobuf:"bytes,8,opt,name=query,proto3" json:"query,omitempty"`
+	Headers       map[string]*HeaderList `protobuf:"bytes,9,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	BodyLength    int64                  `protobuf:"varint,10,opt,name=body_length,json=bodyLength,proto3" json:"body_length,omitempty"`
+	StreamType    RequestType            `protobuf:"varint,11,opt,name=stream_type,json=streamType,proto3,enum=proto.RequestType" json:"stream_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *StreamFrame) Reset() {
 	*x = StreamFrame{}
-	mi := &file_ashrix_proto_proto_msgTypes[3]
+	mi := &file_ashrix_proto_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -373,7 +209,7 @@ func (x *StreamFrame) String() string {
 func (*StreamFrame) ProtoMessage() {}
 
 func (x *StreamFrame) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[3]
+	mi := &file_ashrix_proto_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -386,7 +222,7 @@ func (x *StreamFrame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamFrame.ProtoReflect.Descriptor instead.
 func (*StreamFrame) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{3}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *StreamFrame) GetRequestId() string {
@@ -396,44 +232,16 @@ func (x *StreamFrame) GetRequestId() string {
 	return ""
 }
 
-func (x *StreamFrame) GetSessionId() string {
+func (x *StreamFrame) GetAppId() string {
 	if x != nil {
-		return x.SessionId
+		return x.AppId
 	}
 	return ""
 }
 
-func (x *StreamFrame) GetTenantId() string {
+func (x *StreamFrame) GetAppName() string {
 	if x != nil {
-		return x.TenantId
-	}
-	return ""
-}
-
-func (x *StreamFrame) GetSourceId() string {
-	if x != nil {
-		return x.SourceId
-	}
-	return ""
-}
-
-func (x *StreamFrame) GetSourceEmail() string {
-	if x != nil {
-		return x.SourceEmail
-	}
-	return ""
-}
-
-func (x *StreamFrame) GetDestAppId() string {
-	if x != nil {
-		return x.DestAppId
-	}
-	return ""
-}
-
-func (x *StreamFrame) GetDestAppName() string {
-	if x != nil {
-		return x.DestAppName
+		return x.AppName
 	}
 	return ""
 }
@@ -450,13 +258,6 @@ func (x *StreamFrame) GetMethod() string {
 		return x.Method
 	}
 	return ""
-}
-
-func (x *StreamFrame) GetProtocolType() ProtocolType {
-	if x != nil {
-		return x.ProtocolType
-	}
-	return ProtocolType_UNSPECIFIED_PROTOCOL
 }
 
 func (x *StreamFrame) GetHost() string {
@@ -501,555 +302,42 @@ func (x *StreamFrame) GetStreamType() RequestType {
 	return RequestType_UNSPECIFIED_REQUEST
 }
 
-func (x *StreamFrame) GetFlowType() FlowType {
-	if x != nil {
-		return x.FlowType
-	}
-	return FlowType_UNSPECIFIED_TYPE
-}
-
-type ConnectorGatewayEnvelope struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	ConnectorId string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
-	SentAt      *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=sent_at,json=sentAt,proto3" json:"sent_at,omitempty"`
-	// Types that are valid to be assigned to Payload:
-	//
-	//	*ConnectorGatewayEnvelope_Hello
-	//	*ConnectorGatewayEnvelope_Heartbeat
-	Payload       isConnectorGatewayEnvelope_Payload `protobuf_oneof:"payload"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ConnectorGatewayEnvelope) Reset() {
-	*x = ConnectorGatewayEnvelope{}
-	mi := &file_ashrix_proto_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ConnectorGatewayEnvelope) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ConnectorGatewayEnvelope) ProtoMessage() {}
-
-func (x *ConnectorGatewayEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ConnectorGatewayEnvelope.ProtoReflect.Descriptor instead.
-func (*ConnectorGatewayEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *ConnectorGatewayEnvelope) GetConnectorId() string {
-	if x != nil {
-		return x.ConnectorId
-	}
-	return ""
-}
-
-func (x *ConnectorGatewayEnvelope) GetSentAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.SentAt
-	}
-	return nil
-}
-
-func (x *ConnectorGatewayEnvelope) GetPayload() isConnectorGatewayEnvelope_Payload {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-func (x *ConnectorGatewayEnvelope) GetHello() *ConnectorHello {
-	if x != nil {
-		if x, ok := x.Payload.(*ConnectorGatewayEnvelope_Hello); ok {
-			return x.Hello
-		}
-	}
-	return nil
-}
-
-func (x *ConnectorGatewayEnvelope) GetHeartbeat() *ConnectorHeartbeat {
-	if x != nil {
-		if x, ok := x.Payload.(*ConnectorGatewayEnvelope_Heartbeat); ok {
-			return x.Heartbeat
-		}
-	}
-	return nil
-}
-
-type isConnectorGatewayEnvelope_Payload interface {
-	isConnectorGatewayEnvelope_Payload()
-}
-
-type ConnectorGatewayEnvelope_Hello struct {
-	Hello *ConnectorHello `protobuf:"bytes,3,opt,name=hello,proto3,oneof"`
-}
-
-type ConnectorGatewayEnvelope_Heartbeat struct {
-	Heartbeat *ConnectorHeartbeat `protobuf:"bytes,4,opt,name=heartbeat,proto3,oneof"`
-}
-
-func (*ConnectorGatewayEnvelope_Hello) isConnectorGatewayEnvelope_Payload() {}
-
-func (*ConnectorGatewayEnvelope_Heartbeat) isConnectorGatewayEnvelope_Payload() {}
-
-type GatewayConnectorEnvelope struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Payload:
-	//
-	//	*GatewayConnectorEnvelope_HelloAck
-	//	*GatewayConnectorEnvelope_Reject
-	Payload       isGatewayConnectorEnvelope_Payload `protobuf_oneof:"payload"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GatewayConnectorEnvelope) Reset() {
-	*x = GatewayConnectorEnvelope{}
-	mi := &file_ashrix_proto_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GatewayConnectorEnvelope) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GatewayConnectorEnvelope) ProtoMessage() {}
-
-func (x *GatewayConnectorEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GatewayConnectorEnvelope.ProtoReflect.Descriptor instead.
-func (*GatewayConnectorEnvelope) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *GatewayConnectorEnvelope) GetPayload() isGatewayConnectorEnvelope_Payload {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-func (x *GatewayConnectorEnvelope) GetHelloAck() *ConnectorHelloAck {
-	if x != nil {
-		if x, ok := x.Payload.(*GatewayConnectorEnvelope_HelloAck); ok {
-			return x.HelloAck
-		}
-	}
-	return nil
-}
-
-func (x *GatewayConnectorEnvelope) GetReject() *ConnectorReject {
-	if x != nil {
-		if x, ok := x.Payload.(*GatewayConnectorEnvelope_Reject); ok {
-			return x.Reject
-		}
-	}
-	return nil
-}
-
-type isGatewayConnectorEnvelope_Payload interface {
-	isGatewayConnectorEnvelope_Payload()
-}
-
-type GatewayConnectorEnvelope_HelloAck struct {
-	HelloAck *ConnectorHelloAck `protobuf:"bytes,1,opt,name=hello_ack,json=helloAck,proto3,oneof"`
-}
-
-type GatewayConnectorEnvelope_Reject struct {
-	Reject *ConnectorReject `protobuf:"bytes,2,opt,name=reject,proto3,oneof"`
-}
-
-func (*GatewayConnectorEnvelope_HelloAck) isGatewayConnectorEnvelope_Payload() {}
-
-func (*GatewayConnectorEnvelope_Reject) isGatewayConnectorEnvelope_Payload() {}
-
-type ConnectorHello struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
-	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	Apps          []*ConnectorApps       `protobuf:"bytes,4,rep,name=apps,proto3" json:"apps,omitempty"`
-	Transport     string                 `protobuf:"bytes,5,opt,name=transport,proto3" json:"transport,omitempty"` //quic, grpc, websocket
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ConnectorHello) Reset() {
-	*x = ConnectorHello{}
-	mi := &file_ashrix_proto_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ConnectorHello) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ConnectorHello) ProtoMessage() {}
-
-func (x *ConnectorHello) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ConnectorHello.ProtoReflect.Descriptor instead.
-func (*ConnectorHello) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *ConnectorHello) GetConnectorId() string {
-	if x != nil {
-		return x.ConnectorId
-	}
-	return ""
-}
-
-func (x *ConnectorHello) GetTenantId() string {
-	if x != nil {
-		return x.TenantId
-	}
-	return ""
-}
-
-func (x *ConnectorHello) GetVersion() string {
-	if x != nil {
-		return x.Version
-	}
-	return ""
-}
-
-func (x *ConnectorHello) GetApps() []*ConnectorApps {
-	if x != nil {
-		return x.Apps
-	}
-	return nil
-}
-
-func (x *ConnectorHello) GetTransport() string {
-	if x != nil {
-		return x.Transport
-	}
-	return ""
-}
-
-type ConnectorHeartbeat struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Seq             int64                  `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"`
-	TunnelState     string                 `protobuf:"bytes,2,opt,name=tunnel_state,json=tunnelState,proto3" json:"tunnel_state,omitempty"`
-	TunnelTransport string                 `protobuf:"bytes,3,opt,name=tunnel_transport,json=tunnelTransport,proto3" json:"tunnel_transport,omitempty"`
-	ActiveStreams   int64                  `protobuf:"varint,4,opt,name=active_streams,json=activeStreams,proto3" json:"active_streams,omitempty"`
-	UptimeSeconds   int64                  `protobuf:"varint,5,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
-	AppHealth       []*AppHealthStatus     `protobuf:"bytes,6,rep,name=app_health,json=appHealth,proto3" json:"app_health,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *ConnectorHeartbeat) Reset() {
-	*x = ConnectorHeartbeat{}
-	mi := &file_ashrix_proto_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ConnectorHeartbeat) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ConnectorHeartbeat) ProtoMessage() {}
-
-func (x *ConnectorHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ConnectorHeartbeat.ProtoReflect.Descriptor instead.
-func (*ConnectorHeartbeat) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *ConnectorHeartbeat) GetSeq() int64 {
-	if x != nil {
-		return x.Seq
-	}
-	return 0
-}
-
-func (x *ConnectorHeartbeat) GetTunnelState() string {
-	if x != nil {
-		return x.TunnelState
-	}
-	return ""
-}
-
-func (x *ConnectorHeartbeat) GetTunnelTransport() string {
-	if x != nil {
-		return x.TunnelTransport
-	}
-	return ""
-}
-
-func (x *ConnectorHeartbeat) GetActiveStreams() int64 {
-	if x != nil {
-		return x.ActiveStreams
-	}
-	return 0
-}
-
-func (x *ConnectorHeartbeat) GetUptimeSeconds() int64 {
-	if x != nil {
-		return x.UptimeSeconds
-	}
-	return 0
-}
-
-func (x *ConnectorHeartbeat) GetAppHealth() []*AppHealthStatus {
-	if x != nil {
-		return x.AppHealth
-	}
-	return nil
-}
-
-type ConnectorHelloAck struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	ServerVersion string                 `protobuf:"bytes,2,opt,name=server_version,json=serverVersion,proto3" json:"server_version,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ConnectorHelloAck) Reset() {
-	*x = ConnectorHelloAck{}
-	mi := &file_ashrix_proto_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ConnectorHelloAck) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ConnectorHelloAck) ProtoMessage() {}
-
-func (x *ConnectorHelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ConnectorHelloAck.ProtoReflect.Descriptor instead.
-func (*ConnectorHelloAck) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *ConnectorHelloAck) GetSessionId() string {
-	if x != nil {
-		return x.SessionId
-	}
-	return ""
-}
-
-func (x *ConnectorHelloAck) GetServerVersion() string {
-	if x != nil {
-		return x.ServerVersion
-	}
-	return ""
-}
-
-type ConnectorReject struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Reason        string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
-	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
-	Permanent     bool                   `protobuf:"varint,3,opt,name=permanent,proto3" json:"permanent,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ConnectorReject) Reset() {
-	*x = ConnectorReject{}
-	mi := &file_ashrix_proto_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ConnectorReject) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ConnectorReject) ProtoMessage() {}
-
-func (x *ConnectorReject) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ConnectorReject.ProtoReflect.Descriptor instead.
-func (*ConnectorReject) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *ConnectorReject) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-func (x *ConnectorReject) GetCode() string {
-	if x != nil {
-		return x.Code
-	}
-	return ""
-}
-
-func (x *ConnectorReject) GetPermanent() bool {
-	if x != nil {
-		return x.Permanent
-	}
-	return false
-}
-
 var File_ashrix_proto_proto protoreflect.FileDescriptor
 
 const file_ashrix_proto_proto_rawDesc = "" +
 	"\n" +
-	"\x12ashrix-proto.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x86\x01\n" +
-	"\x0fAppHealthStatus\x12\x15\n" +
-	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12#\n" +
-	"\rhealth_status\x18\x02 \x01(\tR\fhealthStatus\x127\n" +
-	"\tlast_seen\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"O\n" +
+	"\x12ashrix-proto.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\"O\n" +
 	"\rConnectorApps\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
 	"\bupstream\x18\x03 \x01(\tR\bupstream\"$\n" +
 	"\n" +
 	"HeaderList\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\tR\x06values\"\xad\x05\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\"\xb7\x03\n" +
 	"\vStreamFrame\x12\x1d\n" +
 	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1d\n" +
-	"\n" +
-	"session_id\x18\x02 \x01(\tR\tsessionId\x12\x1b\n" +
-	"\ttenant_id\x18\x03 \x01(\tR\btenantId\x12\x1b\n" +
-	"\tsource_id\x18\x04 \x01(\tR\bsourceId\x12!\n" +
-	"\fsource_email\x18\x05 \x01(\tR\vsourceEmail\x12\x1e\n" +
-	"\vdest_app_id\x18\x06 \x01(\tR\tdestAppId\x12\"\n" +
-	"\rdest_app_name\x18\a \x01(\tR\vdestAppName\x12!\n" +
-	"\fconnector_id\x18\b \x01(\tR\vconnectorId\x12\x16\n" +
-	"\x06method\x18\t \x01(\tR\x06method\x128\n" +
-	"\rprotocol_type\x18\n" +
-	" \x01(\x0e2\x13.proto.ProtocolTypeR\fprotocolType\x12\x12\n" +
-	"\x04host\x18\v \x01(\tR\x04host\x12\x12\n" +
-	"\x04path\x18\f \x01(\tR\x04path\x12\x14\n" +
-	"\x05query\x18\r \x01(\tR\x05query\x129\n" +
-	"\aheaders\x18\x0e \x03(\v2\x1f.proto.StreamFrame.HeadersEntryR\aheaders\x12\x1f\n" +
-	"\vbody_length\x18\x0f \x01(\x03R\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x15\n" +
+	"\x06app_id\x18\x02 \x01(\tR\x05appId\x12\x19\n" +
+	"\bapp_name\x18\x03 \x01(\tR\aappName\x12!\n" +
+	"\fconnector_id\x18\x04 \x01(\tR\vconnectorId\x12\x16\n" +
+	"\x06method\x18\x05 \x01(\tR\x06method\x12\x12\n" +
+	"\x04host\x18\x06 \x01(\tR\x04host\x12\x12\n" +
+	"\x04path\x18\a \x01(\tR\x04path\x12\x14\n" +
+	"\x05query\x18\b \x01(\tR\x05query\x129\n" +
+	"\aheaders\x18\t \x03(\v2\x1f.proto.StreamFrame.HeadersEntryR\aheaders\x12\x1f\n" +
+	"\vbody_length\x18\n" +
+	" \x01(\x03R\n" +
 	"bodyLength\x123\n" +
-	"\vstream_type\x18\x10 \x01(\x0e2\x12.proto.RequestTypeR\n" +
-	"streamType\x12,\n" +
-	"\tflow_type\x18\x11 \x01(\x0e2\x0f.proto.FlowTypeR\bflowType\x1aM\n" +
+	"\vstream_type\x18\v \x01(\x0e2\x12.proto.RequestTypeR\n" +
+	"streamType\x1aM\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12'\n" +
-	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01\"\xe7\x01\n" +
-	"\x18ConnectorGatewayEnvelope\x12!\n" +
-	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x123\n" +
-	"\asent_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06sentAt\x12-\n" +
-	"\x05hello\x18\x03 \x01(\v2\x15.proto.ConnectorHelloH\x00R\x05hello\x129\n" +
-	"\theartbeat\x18\x04 \x01(\v2\x19.proto.ConnectorHeartbeatH\x00R\theartbeatB\t\n" +
-	"\apayload\"\x90\x01\n" +
-	"\x18GatewayConnectorEnvelope\x127\n" +
-	"\thello_ack\x18\x01 \x01(\v2\x18.proto.ConnectorHelloAckH\x00R\bhelloAck\x120\n" +
-	"\x06reject\x18\x02 \x01(\v2\x16.proto.ConnectorRejectH\x00R\x06rejectB\t\n" +
-	"\apayload\"\xb2\x01\n" +
-	"\x0eConnectorHello\x12!\n" +
-	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12\x1b\n" +
-	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\x12(\n" +
-	"\x04apps\x18\x04 \x03(\v2\x14.proto.ConnectorAppsR\x04apps\x12\x1c\n" +
-	"\ttransport\x18\x05 \x01(\tR\ttransport\"\xf9\x01\n" +
-	"\x12ConnectorHeartbeat\x12\x10\n" +
-	"\x03seq\x18\x01 \x01(\x03R\x03seq\x12!\n" +
-	"\ftunnel_state\x18\x02 \x01(\tR\vtunnelState\x12)\n" +
-	"\x10tunnel_transport\x18\x03 \x01(\tR\x0ftunnelTransport\x12%\n" +
-	"\x0eactive_streams\x18\x04 \x01(\x03R\ractiveStreams\x12%\n" +
-	"\x0euptime_seconds\x18\x05 \x01(\x03R\ruptimeSeconds\x125\n" +
-	"\n" +
-	"app_health\x18\x06 \x03(\v2\x16.proto.AppHealthStatusR\tappHealth\"Y\n" +
-	"\x11ConnectorHelloAck\x12\x1d\n" +
-	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\x12%\n" +
-	"\x0eserver_version\x18\x02 \x01(\tR\rserverVersion\"[\n" +
-	"\x0fConnectorReject\x12\x16\n" +
-	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x12\n" +
-	"\x04code\x18\x02 \x01(\tR\x04code\x12\x1c\n" +
-	"\tpermanent\x18\x03 \x01(\bR\tpermanent*H\n" +
+	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01*H\n" +
 	"\vRequestType\x12\x17\n" +
 	"\x13UNSPECIFIED_REQUEST\x10\x00\x12\x10\n" +
 	"\fHTTP_REQUEST\x10\x01\x12\x0e\n" +
 	"\n" +
-	"WS_REQUEST\x10\x03*A\n" +
-	"\bFlowType\x12\x14\n" +
-	"\x10UNSPECIFIED_TYPE\x10\x00\x12\x0e\n" +
-	"\n" +
-	"APP_TO_APP\x10\x01\x12\x0f\n" +
-	"\vUSER_TO_APP\x10\x02*L\n" +
-	"\fProtocolType\x12\x18\n" +
-	"\x14UNSPECIFIED_PROTOCOL\x10\x00\x12\x10\n" +
-	"\fPROTOCOL_TCP\x10\x01\x12\x10\n" +
-	"\fPROTOCOL_UDP\x10\x022c\n" +
-	"\x10ConnectorService\x12O\n" +
-	"\aConnect\x12\x1f.proto.ConnectorGatewayEnvelope\x1a\x1f.proto.GatewayConnectorEnvelope(\x010\x01B3Z1github.com/JohnnyAsh-U/ashrix-api/proto/gen;protob\x06proto3"
+	"WS_REQUEST\x10\x03B3Z1github.com/JohnnyAsh-U/ashrix-api/proto/gen;protob\x06proto3"
 
 var (
 	file_ashrix_proto_proto_rawDescOnce sync.Once
@@ -1063,46 +351,24 @@ func file_ashrix_proto_proto_rawDescGZIP() []byte {
 	return file_ashrix_proto_proto_rawDescData
 }
 
-var file_ashrix_proto_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_ashrix_proto_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_ashrix_proto_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_ashrix_proto_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_ashrix_proto_proto_goTypes = []any{
-	(RequestType)(0),                 // 0: proto.RequestType
-	(FlowType)(0),                    // 1: proto.FlowType
-	(ProtocolType)(0),                // 2: proto.ProtocolType
-	(*AppHealthStatus)(nil),          // 3: proto.AppHealthStatus
-	(*ConnectorApps)(nil),            // 4: proto.ConnectorApps
-	(*HeaderList)(nil),               // 5: proto.HeaderList
-	(*StreamFrame)(nil),              // 6: proto.StreamFrame
-	(*ConnectorGatewayEnvelope)(nil), // 7: proto.ConnectorGatewayEnvelope
-	(*GatewayConnectorEnvelope)(nil), // 8: proto.GatewayConnectorEnvelope
-	(*ConnectorHello)(nil),           // 9: proto.ConnectorHello
-	(*ConnectorHeartbeat)(nil),       // 10: proto.ConnectorHeartbeat
-	(*ConnectorHelloAck)(nil),        // 11: proto.ConnectorHelloAck
-	(*ConnectorReject)(nil),          // 12: proto.ConnectorReject
-	nil,                              // 13: proto.StreamFrame.HeadersEntry
-	(*timestamppb.Timestamp)(nil),    // 14: google.protobuf.Timestamp
+	(RequestType)(0),      // 0: proto.RequestType
+	(*ConnectorApps)(nil), // 1: proto.ConnectorApps
+	(*HeaderList)(nil),    // 2: proto.HeaderList
+	(*StreamFrame)(nil),   // 3: proto.StreamFrame
+	nil,                   // 4: proto.StreamFrame.HeadersEntry
 }
 var file_ashrix_proto_proto_depIdxs = []int32{
-	14, // 0: proto.AppHealthStatus.last_seen:type_name -> google.protobuf.Timestamp
-	2,  // 1: proto.StreamFrame.protocol_type:type_name -> proto.ProtocolType
-	13, // 2: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
-	0,  // 3: proto.StreamFrame.stream_type:type_name -> proto.RequestType
-	1,  // 4: proto.StreamFrame.flow_type:type_name -> proto.FlowType
-	14, // 5: proto.ConnectorGatewayEnvelope.sent_at:type_name -> google.protobuf.Timestamp
-	9,  // 6: proto.ConnectorGatewayEnvelope.hello:type_name -> proto.ConnectorHello
-	10, // 7: proto.ConnectorGatewayEnvelope.heartbeat:type_name -> proto.ConnectorHeartbeat
-	11, // 8: proto.GatewayConnectorEnvelope.hello_ack:type_name -> proto.ConnectorHelloAck
-	12, // 9: proto.GatewayConnectorEnvelope.reject:type_name -> proto.ConnectorReject
-	4,  // 10: proto.ConnectorHello.apps:type_name -> proto.ConnectorApps
-	3,  // 11: proto.ConnectorHeartbeat.app_health:type_name -> proto.AppHealthStatus
-	5,  // 12: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
-	7,  // 13: proto.ConnectorService.Connect:input_type -> proto.ConnectorGatewayEnvelope
-	8,  // 14: proto.ConnectorService.Connect:output_type -> proto.GatewayConnectorEnvelope
-	14, // [14:15] is the sub-list for method output_type
-	13, // [13:14] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	4, // 0: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
+	0, // 1: proto.StreamFrame.stream_type:type_name -> proto.RequestType
+	2, // 2: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_proto_proto_init() }
@@ -1110,23 +376,15 @@ func file_ashrix_proto_proto_init() {
 	if File_ashrix_proto_proto != nil {
 		return
 	}
-	file_ashrix_proto_proto_msgTypes[4].OneofWrappers = []any{
-		(*ConnectorGatewayEnvelope_Hello)(nil),
-		(*ConnectorGatewayEnvelope_Heartbeat)(nil),
-	}
-	file_ashrix_proto_proto_msgTypes[5].OneofWrappers = []any{
-		(*GatewayConnectorEnvelope_HelloAck)(nil),
-		(*GatewayConnectorEnvelope_Reject)(nil),
-	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_proto_proto_rawDesc), len(file_ashrix_proto_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   11,
+			NumEnums:      1,
+			NumMessages:   4,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   0,
 		},
 		GoTypes:           file_ashrix_proto_proto_goTypes,
 		DependencyIndexes: file_ashrix_proto_proto_depIdxs,

@@ -1,4 +1,4 @@
-package http_proxy
+package proxy
 
 import (
 	"context"
@@ -8,7 +8,9 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/tunnel"
+
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	// "github.com/JohnnyAsh-U/ashrix-api/pkg/crypto"
@@ -16,7 +18,7 @@ import (
 )
 
 // Middleware for the Auth
-func AppAccessMiddleware(registry *registry.Registry, cfg *config.Config, logger *slog.Logger) func(http.Handler) http.Handler {
+func AppAccessMiddleware(registry *tunnel.Registry, cfg *config.Config, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 

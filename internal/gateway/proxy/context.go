@@ -1,4 +1,4 @@
-package http_proxy
+package proxy
 
 import (
 	"context"
@@ -13,8 +13,6 @@ type contextKey string
 var (
 	ConnectorID              contextKey = "ConnectorID"
 	AppID                    contextKey = "AppID"
-	AppIsPublic              contextKey = "AppIsPublic"
-	AppEnableSecurityHeaders contextKey = "AppEnableSecurityHeaders"
 )
 
 func ConnectorIDFromCtx(ctx context.Context) string {
@@ -27,12 +25,4 @@ func AppIDFromCtx(ctx context.Context) string {
 	return id
 }
 
-func AppIsPublicFromCtx(ctx context.Context) bool {
-	isPublic, _ := ctx.Value(AppIsPublic).(bool)
-	return isPublic
-}
 
-func AppEnableSecurityHeadersFromCtx(ctx context.Context) (bool, bool) {
-	enableSec, ok := ctx.Value(AppEnableSecurityHeaders).(bool)
-	return enableSec, ok
-}
