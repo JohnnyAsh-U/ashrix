@@ -18,13 +18,13 @@ type Handler struct {
 func NewHandler(
 	log *slog.Logger,
 	rtr *router.Router,
-	errHandler *web.ErrorHandler,
+	// errHandler *web.ErrorHandler,
 ) *Handler {
 
 	return &Handler{
 		log:          log,
 		router:       rtr,
-		errorHandler: errHandler,
+		// errorHandler: errHandler,
 	}
 }
 

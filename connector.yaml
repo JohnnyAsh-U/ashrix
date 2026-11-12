@@ -1,0 +1,26 @@
+connector:
+  id: office-01
+
+  gateway:
+    address: gateway.example.com:443
+
+  identity:
+    certificate: /etc/ashrix/certs/connector.crt
+    private_key: /etc/ashrix/certs/connector.key
+    ca: /etc/ashrix/certs/ca.crt
+
+applications:
+  - name: grafana
+    target: 192.168.1.10:3000
+
+  - name: internal-api
+    target: 192.168.1.20:8080
+
+# Observability
+metrics:
+  enabled: true
+  listen: "127.0.0.1:9091"
+
+logging:
+  level: info
+  format: json

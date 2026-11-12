@@ -196,11 +196,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
-	select {
-	case sig := <-quit:
-		log.Info("shutdown signal received", slog.String("signal", sig.String()))
-	}
 
+	sig := <-quit
+	log.Info("shutdown signal received", slog.String("signal", sig.String()))
+	
 	server.ShutdownServers(httpServer, grpcServer, quicServer, log)
 
 	cancel()

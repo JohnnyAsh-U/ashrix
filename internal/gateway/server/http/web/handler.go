@@ -1,9 +1,9 @@
 package web
 
 import (
-	"embed"
+	// "embed"
 	"html/template"
-	"io/fs"
+	// "io/fs"
 	"net/http"
 )
 
@@ -58,26 +58,26 @@ var (
 	}
 )
 
-//go:embed *
-var idpTemplateFS embed.FS
+
+// var idpTemplateFS embed.FS
 
 type ErrorHandler struct {
 	templates  *template.Template
 }
 
-func NewErrorHandler() *ErrorHandler {
+// func NewErrorHandler() *ErrorHandler {
 
-	tmpl := template.Must(
-		template.New("error").ParseFS(
-			idpTemplateFS,
-			"templates/error.html",
-		),
-	)
+// 	tmpl := template.Must(
+// 		template.New("error").ParseFS(
+// 			idpTemplateFS,
+// 			"templates/error.html",
+// 		),
+// 	)
 
-	return &ErrorHandler{
-		templates:  tmpl,
-	}
-}
+// 	return &ErrorHandler{
+// 		templates:  tmpl,
+// 	}
+// }
 
 // ErrorPage renders an HTML error page.
 func (h *ErrorHandler) ErrorPage(w http.ResponseWriter, statusCode int, title, message, requestID string) {
@@ -103,11 +103,11 @@ func (h *ErrorHandler) ErrorPage(w http.ResponseWriter, statusCode int, title, m
 //Static File Server
 
 
-func NewStaticFileHandler() http.Handler {
-	staticFS, err := fs.Sub(idpTemplateFS, "static")
-	if err != nil {
-		panic(err)
-	}
+// func NewStaticFileHandler() http.Handler {
+// 	staticFS, err := fs.Sub(idpTemplateFS, "static")
+// 	if err != nil {
+// 		panic(err)
+// 	}
 	
-	return http.StripPrefix("/_ashrix/static/",http.FileServer(http.FS(staticFS)))
-}	
+// 	return http.StripPrefix("/_ashrix/static/",http.FileServer(http.FS(staticFS)))
+// }	

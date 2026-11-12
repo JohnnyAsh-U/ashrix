@@ -29,9 +29,9 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
@@ -113,10 +113,10 @@ func newProxyHarness(tb testing.TB, apps []*proto.ConnectorApps) *proxyHarness {
 	handler := NewHandler(
 		logger,
 		router.NewRouter(connectorRegistry),
-		web.NewErrorHandler(),
+		// web.NewErrorHandler(),
 	)
 	proxy := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), session.AppID, r.Header.Get("X-Test-App-ID"))
+		ctx := context.WithValue(r.Context(), AppID, r.Header.Get("X-Test-App-ID"))
 		handler.ProxyHandler(w, r.WithContext(ctx))
 	}))
 

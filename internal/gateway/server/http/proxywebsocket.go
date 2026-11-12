@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/google/uuid"
@@ -16,7 +16,7 @@ import (
 func (h *Handler) proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	appID := session.AppIDFromCtx(ctx)
+	appID := AppIDFromCtx(ctx)
 	requestID := uuid.NewString()
 	outboundHeaders := identityHeaders(r.Header, appID, requestID)
 	outboundRequest := r.Clone(r.Context())

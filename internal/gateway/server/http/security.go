@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 )
 
 // ============================================================
@@ -75,7 +75,7 @@ func SecurityHeadersMiddleware(cfg SecurityConfig) func(http.Handler) http.Handl
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if enableSec, ok := session.AppEnableSecurityHeadersFromCtx(r.Context()); ok && !enableSec {
+			if enableSec, ok := AppEnableSecurityHeadersFromCtx(r.Context()); ok && !enableSec {
 				next.ServeHTTP(w, r)
 				return
 			}

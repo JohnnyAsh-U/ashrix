@@ -1,0 +1,60 @@
+gateway:
+  id: gateway-01
+
+listeners:
+  http:
+    address: "0.0.0.0:80"
+
+  https:
+    address: "0.0.0.0:443"
+    certificate: /etc/ashrix-gateway/certs/server.crt
+    private_key: /etc/ashrix-gateway/certs/server.key
+
+  quic:
+    address: "0.0.0.0:8443"
+
+pki:
+  ca_certificate: /etc/ashrix-gateway/pki/ca.crt
+  ca_private_key: /etc/ashrix-gateway/pki/ca.key
+
+connectors:
+  - id: office-01
+    enabled: true
+    certificate_serial: "04A7B2C9"
+
+applications:
+  - name: grafana
+    domain: grafana.example.com
+    connector: office-01
+    target_name: grafana
+
+admin:
+  address: "127.0.0.1:9090"
+
+logging:
+  level: info
+  format: json
+
+
+
+ashrix-gateway init-ca
+
+ashrix-gateway test-config
+
+ashrix-gateway create-connector
+  --connector office-01 \
+  --csr connector.csr
+
+ashrix-gateway renew-connector
+  --connector office-01 \
+  --csr connector.csr
+
+ashrix-gateway list-connectors
+
+ashrix-gateway start
+ashrix-gateway stop
+ashrix-gateway status
+ashrix-gateway config
+ashrix-gateway reload
+ashrix-gateway version
+

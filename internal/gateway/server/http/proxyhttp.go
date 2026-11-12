@@ -8,7 +8,7 @@ import (
 	"maps"
 	"net/http"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/google/uuid"
@@ -17,7 +17,7 @@ import (
 func (h *Handler) proxyHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	AppID := session.AppIDFromCtx(ctx)
+	AppID := AppIDFromCtx(ctx)
 	requestID := uuid.NewString()
 	outboundHeaders := identityHeaders(r.Header, AppID, requestID)
 	outboundRequest := r.Clone(r.Context())

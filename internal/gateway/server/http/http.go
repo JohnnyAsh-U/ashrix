@@ -12,8 +12,8 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
 	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -34,14 +34,14 @@ func NewProxyServer(
 	accessLogger *logging.AccessLogger,
 ) *ProxyServer {
 
-	errHandler := web.NewErrorHandler()
-	staticFileHandler := web.NewStaticFileHandler()
-	rateLimiterConfig := DefaultRateLimiterConfig()
+	// errHandler := web.NewErrorHandler()
+	// staticFileHandler := web.NewStaticFileHandler()
+	// rateLimiterConfig := DefaultRateLimiterConfig()
 
 	handler := NewHandler(
 		log,
 		rtr,
-		errHandler,
+		// errHandler,
 	)
 
 	r := chi.NewRouter()
@@ -50,11 +50,10 @@ func NewProxyServer(
 	r.Use(logging.AccessLogMiddleware(accessLogger, cfg.GatewayID, log))
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
-	r.Use(session.AppAccessMiddleware(connectorRegistry, cfg, errHandler, log))
+	// r.Use(session.AppAccessMiddleware(connectorRegistry, cfg, errHandler, log))
 	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig()))
-	r.Use(RateLimiterMiddleware(rateLimiterConfig, log, errHandler))
 
-	r.Handle("/_ashrix/static/*", staticFileHandler)
+	// r.Handle("/_ashrix/static/*", staticFileHandler)
 
 	r.Get("/_ashrix/health", handler.Health)
 	r.HandleFunc("/*", handler.ProxyHandler)

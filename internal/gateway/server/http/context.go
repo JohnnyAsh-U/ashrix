@@ -1,4 +1,4 @@
-package session
+package http_proxy
 
 import (
 	"context"
