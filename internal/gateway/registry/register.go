@@ -167,6 +167,9 @@ func (r *Registry) AttachTunnel(
 	entry.tunnelAttached = true
 	entry.quicCert = cert
 
+	r.rebuildRoutingLocked(entry)
+
+
 	// Displace old tunnel session outside lock
 	if oldTunnel != nil && oldTunnel != session {
 		r.log.Info("Displacing old tunnel session",

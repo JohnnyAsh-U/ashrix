@@ -50,7 +50,7 @@ func NewProxyServer(
 	r.Use(logging.AccessLogMiddleware(accessLogger, cfg.Gateway.ID, log))
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
-	// r.Use(session.AppAccessMiddleware(connectorRegistry, cfg, errHandler, log))
+	r.Use(AppAccessMiddleware(connectorRegistry, cfg, log))
 	r.Use(SecurityHeadersMiddleware(DefaultSecurityConfig()))
 
 	// r.Handle("/_ashrix/static/*", staticFileHandler)
