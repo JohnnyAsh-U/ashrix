@@ -13,16 +13,16 @@ import (
 	"time"
 )
 
-func (ca *CA) IssueConnectorCertificate(
-	connectorID string,
+func (ca *CA) IssueCertificate(
+	ID string,
 	csrPEM []byte,
 	validity time.Duration,
 ) ([]byte, *x509.Certificate, error) {
 	if ca == nil || ca.Certificate == nil || ca.PrivateKey == nil {
 		return nil, nil, fmt.Errorf("CA is not initialized")
 	}
-	if connectorID == "" {
-		return nil, nil, fmt.Errorf("connector ID is required")
+	if ID == "" {
+		return nil, nil, fmt.Errorf("ID is required")
 	}
 	if validity <= 0 {
 		return nil, nil, fmt.Errorf("certificate validity must be positive")
@@ -50,7 +50,7 @@ func (ca *CA) IssueConnectorCertificate(
 	// Do not copy the CSR subject, SANs, or extensions.
 	// The gateway defines the connector identity.
 	identity, err := url.Parse(
-		"spiffe://ashrix.example/connectors/" + connectorID,
+		"spiffe://ashrix/" + ID,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("construct connector identity: %w", err)
@@ -72,7 +72,7 @@ func (ca *CA) IssueConnectorCertificate(
 
 	template := &x509.Certificate{
 		SerialNumber:          serial,
-		Subject:               pkixName(connectorID),
+		Subject:               pkixName(ID),
 		NotBefore:             now.Add(-5 * time.Minute),
 		NotAfter:              notAfter,
 		BasicConstraintsValid: true,
@@ -80,6 +80,10 @@ func (ca *CA) IssueConnectorCertificate(
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageClientAuth,
+			x509.ExtKeyUsageServerAuth,
+		},
+		DNSNames: []string{
+			"localhost",
 		},
 		URIs: []*url.URL{identity},
 	}
@@ -108,6 +112,6 @@ func (ca *CA) IssueConnectorCertificate(
 	return result, cert, nil
 }
 
-func pkixName(connectorID string) pkix.Name {
-	return pkix.Name{CommonName: connectorID}
+func pkixName(ID string) pkix.Name {
+	return pkix.Name{CommonName: ID}
 }

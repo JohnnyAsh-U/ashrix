@@ -1,14 +1,14 @@
 package crypto
 
 import (
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
-
-	pkiutils "github.com/JohnnyAsh-U/ashrix-api/pkg/pki"
 )
 
 var ErrLocalCertExpired = fmt.Errorf("gateway certificate expired")
@@ -19,26 +19,72 @@ type LocalGatewayPKI struct {
 	certPool    *x509.CertPool
 }
 
-func NewLocalGatewayPKI(dataDir, secret, encryptionContext string) (*LocalGatewayPKI, error) {
-	keyPath := filepath.Join(dataDir, "gateway.key.enc")
-	certPath := filepath.Join(dataDir, "gateway.crt")
-	trustPath := filepath.Join(dataDir, "bundle.crt")
-	privateKey, cert, err := pkiutils.LoadKeyAndCert(keyPath, certPath, secret, encryptionContext)
+func NewLocalGatewayPKI(certPath, keyPath string, CACert *x509.Certificate) (*LocalGatewayPKI, error) {
+	keyPem, err := os.ReadFile(keyPath)
 	if err != nil {
-		return nil, fmt.Errorf("load local gateway identity: %w", err)
+		return nil, fmt.Errorf("reading %s: %w", keyPath, err)
 	}
-	trustBundle, err := os.ReadFile(trustPath)
+	block, _ := pem.Decode(keyPem)
+	if block == nil {
+		return nil, errors.New("failed to load key PEM")
+	}
+	key, err := x509.ParseECPrivateKey(block.Bytes)
+
 	if err != nil {
-		return nil, fmt.Errorf("read local gateway trust bundle: %w", err)
+		return nil, fmt.Errorf("Failed to load cert : %w", err)
 	}
+
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", certPath, err)
+	}
+	block, _ = pem.Decode(certPEM)
+	if block == nil {
+		return nil, fmt.Errorf("invalid cert PEM: %s", keyPath)
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load key : %w", err)
+	}
+
+	// Verify the key and cert
+	//Verify public key
+	certPub, ok := cert.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("Public Key Invalid")
+	}
+
+	//Verify if key and public matches
+	if !certPub.Equal(&key.PublicKey) {
+		return nil, fmt.Errorf("Public Key and Cert Doesn't match")
+	}
+
 	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(trustBundle) {
-		return nil, fmt.Errorf("parse local gateway trust bundle")
+	pool.AddCert(CACert)
+
+	now := time.Now()
+	if now.Before(cert.NotBefore) {
+		return nil, fmt.Errorf("gateway certificate is not valid before %s", cert.NotBefore)
 	}
+	if now.After(cert.NotAfter) {
+		return nil, fmt.Errorf("gateway certificate expired %s", cert.NotBefore)
+
+	}
+	_, err = cert.Verify(x509.VerifyOptions{
+		Roots:       pool,
+		CurrentTime: now,
+		KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("e: %w", err)
+	}
+
 	return &LocalGatewayPKI{
 		certificate: &tls.Certificate{
 			Certificate: [][]byte{cert.Raw},
-			PrivateKey:  privateKey,
+			PrivateKey:  key,
 			Leaf:        cert,
 		},
 		leaf:     cert,
@@ -48,24 +94,6 @@ func NewLocalGatewayPKI(dataDir, secret, encryptionContext string) (*LocalGatewa
 
 func (g *LocalGatewayPKI) Cert() *x509.Certificate { return g.leaf }
 
-func (g *LocalGatewayPKI) LoadAndVerify() error {
-	now := time.Now()
-	if now.Before(g.leaf.NotBefore) {
-		return fmt.Errorf("gateway certificate is not valid before %s", g.leaf.NotBefore)
-	}
-	if now.After(g.leaf.NotAfter) {
-		return ErrLocalCertExpired
-	}
-	_, err := g.leaf.Verify(x509.VerifyOptions{
-		Roots:       g.certPool,
-		CurrentTime: now,
-		KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-	})
-	if err != nil {
-		return fmt.Errorf("verify local gateway certificate: %w", err)
-	}
-	return nil
-}
 
 func (g *LocalGatewayPKI) GetTLSConfig() *tls.Config {
 	return &tls.Config{

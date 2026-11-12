@@ -1,9 +1,10 @@
 package main
 
-
-import "github.com/JohnnyAsh-U/ashrix-api/cmd/connector/cmd"
+import "os"
 
 
 func main() {
-	cmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }

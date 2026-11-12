@@ -10,8 +10,8 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/flow"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/flow"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/quic-go/quic-go"
 )
@@ -39,7 +39,7 @@ func NewQUICServer(cfg *config.Config, tlsConfig *tls.Config, log *slog.Logger, 
 	}
 
 	return &QUICServer{
-		addr:     fmt.Sprintf(":%s", cfg.QUICPort),
+		addr:     fmt.Sprintf("%s", cfg.Listeners.QUIC.Address),
 		tlsConf:  quicTLS,
 		log:      log,
 		registry: registry,
@@ -71,7 +71,7 @@ func (s *QUICServer) Start(ctx context.Context) error {
 			continue
 		}
 
-		s.log.Debug("QUIC connection accepted", slog.String("remote_addr", conn.RemoteAddr().String()))
+		s.log.Info("QUIC connection accepted", slog.String("remote_addr", conn.RemoteAddr().String()))
 
 		go s.handleQUICConnection(ctx, conn)
 	}
@@ -112,14 +112,14 @@ func (s *QUICServer) handleQUICConnection(ctx context.Context, conn *quic.Conn) 
 		return
 	}
 
-	if _, exists := s.registry.GetByConnectorID(connectorID); !exists {
-		s.log.Warn("QUIC tunnel attempted before a management registration", slog.String("connector_id", connectorID))
-		conn.CloseWithError(2, "register management plane first")
-		return
-	}
+	// if _, exists := s.registry.GetByConnectorID(connectorID); !exists {
+	// 	s.log.Warn("QUIC tunnel attempted before a management registration", slog.String("connector_id", connectorID))
+	// 	conn.CloseWithError(2, "register management plane first")
+	// 	return
+	// }
 
 	tunnelSession := &quicTunnelSession{conn: conn}
-	s.registry.AttachTunnel(connectorID, tunnelSession, cert, "quic")
+	s.registry.AttachTunnel(connectorID, tunnelSession, cert, "quic", []*proto.ConnectorApps{{Id: "s3",Name: "s3",Upstream: "localhost:9000"}})
 	defer s.registry.DetachTunnel(connectorID, tunnelSession)
 
 	s.log.Info("Tunnel plane attached via quic", slog.String("Connector_id", connectorID))

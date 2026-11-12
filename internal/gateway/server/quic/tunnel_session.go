@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/flow"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/flow"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/quic-go/quic-go"
 )

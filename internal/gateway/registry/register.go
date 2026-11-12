@@ -152,6 +152,7 @@ func (r *Registry) AttachTunnel(
 	session TunnelSession,
 	cert *x509.Certificate,
 	transport string,
+	apps []*pb.ConnectorApps,
 ) *ConnectorEntry {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -159,6 +160,7 @@ func (r *Registry) AttachTunnel(
 	entry := r.getOrCreateLocked(connectorID)
 	oldTunnel := entry.TunnelSession
 
+	entry.Apps = apps
 	entry.TunnelSession = session
 	entry.TunnelTransport = transport
 	entry.TunnelConnAt = time.Now()
@@ -216,14 +218,14 @@ func (r *Registry) removeIfFullyDetachedLocked(connectorID string, entry *Connec
 		return
 	}
 	for _, app := range entry.Apps {
-		delete(r.routing, app.Subdomain)
+		delete(r.routing, app.Name)
 	}
 	delete(r.connectors, connectorID)
 }
 
 func (r *Registry) rebuildRoutingLocked(entry *ConnectorEntry) {
 	for _, app := range entry.Apps {
-		r.routing[app.Subdomain] = entry.ConnectorID
+		r.routing[app.Name] = entry.ConnectorID
 	}
 }
 

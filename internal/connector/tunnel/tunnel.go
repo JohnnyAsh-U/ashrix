@@ -7,7 +7,6 @@ import (
 	"time"
 
 	// "go.uber.org/zap"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
@@ -18,15 +17,13 @@ type ConnectorTunnel struct {
 	startedAt time.Time
 
 	apps []*pb.ConnectorApps
-	managementConn *management.ManagementConn
 }
 
-func NewTunnel(log *slog.Logger, apps []*pb.ConnectorApps, managementConn *management.ManagementConn) *ConnectorTunnel {
+func NewTunnel(log *slog.Logger, apps []*pb.ConnectorApps) *ConnectorTunnel {
 	return &ConnectorTunnel{
 		log:       log,
 		startedAt: time.Now(),
 		apps: apps,
-		managementConn: managementConn,
 	}
 }
 
@@ -67,7 +64,7 @@ func (c *ConnectorTunnel) AcceptLoop(
 			}
 		}
 
-		c.managementConn.ActiveStreams.Add(1)
+		// c.managementConn.ActiveStreams.Add(1)
 
 		// Handle in goroutine — accept loop never blocks
 		// 100 concurrent users = 100 goroutines = fine

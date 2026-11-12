@@ -1,4 +1,4 @@
-cmd/cp/docs/
+*.csr
 cmd/gateway/docs/
 .env
 tmp/

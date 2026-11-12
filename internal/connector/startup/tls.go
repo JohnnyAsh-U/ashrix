@@ -16,10 +16,16 @@ func NewLocalPKIInitialiser(cert *x509.Certificate, privateKey *ecdsa.PrivateKey
 	if cert == nil || privateKey == nil {
 		return nil, fmt.Errorf("connector certificate and private key are required")
 	}
-	trustRoots := x509.NewCertPool()
-	if !trustRoots.AppendCertsFromPEM([]byte(trustBundle)) {
+	// Parse the cert
+	ca, err := x509.ParseCertificate([]byte(trustBundle))
+	if err != nil {
 		return nil, fmt.Errorf("connector trust bundle contains no certificates")
 	}
+	
+	trustRoots := x509.NewCertPool()
+
+	trustRoots.AddCert(ca)
+	
 	return &PKIInitialiser{
 		certificate: tls.Certificate{
 			Certificate: [][]byte{cert.Raw},

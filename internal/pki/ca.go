@@ -1,6 +1,5 @@
 package pki
 
-
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -8,6 +7,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -20,12 +20,66 @@ type CA struct {
 	PrivateKey  *ecdsa.PrivateKey
 }
 
-func GenerateCA(commonName string, validity time.Duration) (*CA, error) {
+func LoadCA(certPath, keyPath string) (*CA, error) {
+	keyPem, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", keyPath, err)
+	}
+	block, _ := pem.Decode(keyPem)
+	if block == nil {
+		return nil, errors.New("failed to load key PEM")
+	}
+	caKey, err := x509.ParseECPrivateKey(block.Bytes)
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load cert : %w", err)
+	}
+
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", certPath, err)
+	}
+	block, _ = pem.Decode(certPEM)
+	if block == nil {
+		return nil, fmt.Errorf("invalid cert PEM: %s", keyPath)
+	}
+	caCert, err := x509.ParseCertificate(block.Bytes)
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load key : %w", err)
+	}
+
+	// Verify the key and cert
+	//Verify public key
+	certPub, ok := caCert.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("Public Key Invalid")
+	}
+
+	//Verify if key and public matches
+	if !certPub.Equal(&caKey.PublicKey) {
+		return nil, fmt.Errorf("Public Key and Cert Doesn't match")
+	}
+
+	//Verify the validity
+	now := time.Now()
+	if now.Before(caCert.NotBefore) {
+		return nil, fmt.Errorf("ca certificate is not valid before %s", caCert.NotBefore)
+	}
+	if now.After(caCert.NotAfter) {
+		return nil, fmt.Errorf("ca certificate is not valid after %s", caCert.NotBefore)
+
+	}
+
+	return &CA{
+		PrivateKey:  caKey,
+		Certificate: caCert,
+	}, nil
+}
+
+func GenerateCA(commonName string) (*CA, error) {
 	if commonName == "" {
 		return nil, fmt.Errorf("CA common name is required")
-	}
-	if validity <= 0 {
-		return nil, fmt.Errorf("CA validity must be positive")
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -44,7 +98,7 @@ func GenerateCA(commonName string, validity time.Duration) (*CA, error) {
 		SerialNumber:          serial,
 		Subject:               pkix.Name{CommonName: commonName},
 		NotBefore:             now.Add(-5 * time.Minute),
-		NotAfter:              now.Add(validity),
+		NotAfter:              now.Add(365 * 24 * time.Hour), //1 year
 		IsCA:                  true,
 		BasicConstraintsValid: true,
 		KeyUsage: x509.KeyUsageCertSign |
@@ -78,65 +132,65 @@ func SaveCA(ca *CA, certPath, keyPath string) error {
 		return fmt.Errorf("incomplete CA")
 	}
 
-	if err := os.MkdirAll(filepath.Dir(certPath), 0700); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(keyPath), 0700); err != nil {
-		return err
-	}
-
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: ca.Certificate.Raw,
-	})
-
-	keyDER, err := x509.MarshalPKCS8PrivateKey(ca.PrivateKey)
+	//Key
+	dir := filepath.Dir(certPath)
+	certdata := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Certificate.Raw})
+	certmode := os.FileMode(0644)
+	tmp, err := os.CreateTemp(dir, ".tmp-*")
 	if err != nil {
-		return fmt.Errorf("marshal CA private key: %w", err)
+		fmt.Println("HHHHH", dir)
+		return fmt.Errorf("temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.Write(certdata); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("writing cert: %w", err)
+	}
+	if err := tmp.Chmod(certmode); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("chmod: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("close: %w", err)
+	}
+	if err := os.Rename(tmpPath, certPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("rename to %s: %w", certPath, err)
 	}
 
-	keyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: keyDER,
-	})
-
-	// O_EXCL prevents accidental replacement of existing CA material.
-	if err := writeExclusive(certPath, certPEM, 0644); err != nil {
-		return fmt.Errorf("save CA certificate: %w", err)
-	}
-
-	if err := writeExclusive(keyPath, keyPEM, 0600); err != nil {
-		// Do not silently leave a half-created CA.
-		_ = os.Remove(certPath)
-		return fmt.Errorf("save CA private key: %w", err)
-	}
-
-	return nil
-}
-
-func writeExclusive(path string, data []byte, mode os.FileMode) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	//Key
+	dir = filepath.Dir(keyPath)
+	keyDER, err := x509.MarshalECPrivateKey(ca.PrivateKey)
+	keydata := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	keymode := os.FileMode(0600)
+	tmp, err = os.CreateTemp(dir, ".tmp-*")
 	if err != nil {
-		return err
+		return fmt.Errorf("temp file: %w", err)
 	}
+	tmpPath = tmp.Name()
 
-	_, writeErr := f.Write(data)
-	syncErr := f.Sync()
-	closeErr := f.Close()
-
-	if writeErr != nil {
-		_ = os.Remove(path)
-		return writeErr
+	if _, err := tmp.Write(keydata); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("writing key: %w", err)
 	}
-	if syncErr != nil {
-		_ = os.Remove(path)
-		return syncErr
+	if err := tmp.Chmod(keymode); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("chmod: %w", err)
 	}
-	if closeErr != nil {
-		_ = os.Remove(path)
-		return closeErr
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("close: %w", err)
 	}
-
+	if err := os.Rename(tmpPath, keyPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("rename to %s: %w", keyPath, err)
+	}
 	return nil
 }
 

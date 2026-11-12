@@ -1,13 +1,13 @@
 connector:
   id: office-01
 
-  gateway:
-    address: gateway.example.com:443
+  certificate: /etc/ashrix/certs/connector.crt
+  private_key: /etc/ashrix/certs/connector.key
+  ca: /etc/ashrix/certs/ca.crt
 
-  identity:
-    certificate: /etc/ashrix/certs/connector.crt
-    private_key: /etc/ashrix/certs/connector.key
-    ca: /etc/ashrix/certs/ca.crt
+gateway:
+  address: gateway.example.com:443
+    
 
 applications:
   - name: grafana
@@ -22,5 +22,6 @@ metrics:
   listen: "127.0.0.1:9091"
 
 logging:
+  dir: /etc/ashrix-gateway/pki
   level: info
   format: json

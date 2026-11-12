@@ -23,10 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/management"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/tunnel"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
@@ -79,16 +79,14 @@ func newTestApp(tb testing.TB, appID string) (*proto.ConnectorApps, *httptest.Se
 	return &proto.ConnectorApps{
 		Id:        appID,
 		Name:      appID,
-		Subdomain: appID,
 		Upstream:  strings.TrimPrefix(upstream.URL, "http://"),
-		Protocol:  "http",
 	}, upstream
 }
 
 func newProxyHarness(tb testing.TB, apps []*proto.ConnectorApps) *proxyHarness {
 	tb.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	serverTLS, clientTLS, clientCert := testQUICCertificates(tb)
+	_, clientTLS, clientCert := testQUICCertificates(tb)
 	port := reserveUDPPort(tb)
 
 	connectorRegistry := registry.New(logger)
@@ -101,14 +99,14 @@ func newProxyHarness(tb testing.TB, apps []*proto.ConnectorApps) *proxyHarness {
 		"active",
 	)
 
-	cfg := &config.Config{QUICPort: strconv.Itoa(port)}
-	quicServer := quic_server.NewQUICServer(cfg, serverTLS, logger, connectorRegistry,
-		router.NewRouter(connectorRegistry))
-	ctx, cancel := context.WithCancel(context.Background())
-	serverDone := make(chan error, 1)
-	go func() {
-		serverDone <- quicServer.Start(ctx)
-	}()
+	// cfg := &config.Config{QUICPort: strconv.Itoa(port)}
+	// quicServer := quic_server.NewQUICServer(cfg, serverTLS, logger, connectorRegistry,
+	// 	router.NewRouter(connectorRegistry))
+	// ctx, cancel := context.WithCancel(context.Background())
+	// serverDone := make(chan error, 1)
+	// go func() {
+	// 	serverDone <- quicServer.Start(ctx)
+	// }()
 
 	handler := NewHandler(
 		logger,
@@ -121,10 +119,10 @@ func newProxyHarness(tb testing.TB, apps []*proto.ConnectorApps) *proxyHarness {
 	}))
 
 	h := &proxyHarness{
-		ctx:           ctx,
-		quicServer:    quicServer,
-		gatewayCancel: cancel,
-		gatewayDone:   serverDone,
+		// ctx:           ctx,
+		// quicServer:    quicServer,
+		// gatewayCancel: cancel,
+		// gatewayDone:   serverDone,
 		connectorAddr: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
 		clientTLS:     clientTLS,
 		registry:      connectorRegistry,
@@ -172,7 +170,7 @@ func (h *proxyHarness) connectConnector() error {
 
 	connectorCtx, cancel := context.WithCancel(h.ctx)
 	connectorDone := make(chan error, 1)
-	connectorTunnel := tunnel.NewTunnel(h.logger, h.apps, &management.ManagementConn{})
+	connectorTunnel := tunnel.NewTunnel(h.logger, h.apps)
 	go func() {
 		connectorDone <- connectorTunnel.AcceptLoop(connectorCtx, connector)
 	}()

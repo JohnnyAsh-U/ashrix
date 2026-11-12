@@ -11,10 +11,10 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/router"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http/web"
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/telemetry"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/telemetry"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -30,7 +30,7 @@ func NewProxyServer(
 	connectorRegistry *registry.Registry,
 	log *slog.Logger,
 	rtr *router.Router,
-	grpcServer *grpc.GRPCServer,
+	// grpcServer *grpc.GRPCServer,
 	accessLogger *logging.AccessLogger,
 ) *ProxyServer {
 
@@ -47,7 +47,7 @@ func NewProxyServer(
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.ClientIPFromHeader("X-Real-IP"))
-	r.Use(logging.AccessLogMiddleware(accessLogger, cfg.GatewayID, log))
+	r.Use(logging.AccessLogMiddleware(accessLogger, cfg.Gateway.ID, log))
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	// r.Use(session.AppAccessMiddleware(connectorRegistry, cfg, errHandler, log))
@@ -58,59 +58,59 @@ func NewProxyServer(
 	r.Get("/_ashrix/health", handler.Health)
 	r.HandleFunc("/*", handler.ProxyHandler)
 
-	// ------------------------------------------------------------
-	// Shared HTTP + gRPC handler
-	// ------------------------------------------------------------
+	// // ------------------------------------------------------------
+	// // Shared HTTP + gRPC handler
+	// // ------------------------------------------------------------
 
-	rootHandler := http.HandlerFunc(
-		func(w http.ResponseWriter, req *http.Request) {
+	// rootHandler := http.HandlerFunc(
+	// 	func(w http.ResponseWriter, req *http.Request) {
 
-			// ----------------------------------------------------
-			// gRPC
-			// ----------------------------------------------------
+	// 		// ----------------------------------------------------
+	// 		// gRPC
+	// 		// ----------------------------------------------------
 
-			if grpcServer.IsGRPCRequest(req) {
-				// Defense in depth.
+	// 		if grpcServer.IsGRPCRequest(req) {
+	// 			// Defense in depth.
 
-				// Even though "grpc-mtls" caused the TLS layer
-				// to require a client certificate, we still
-				// explicitly verify it here.
-				if !grpcServer.HasVerifiedClientCertificate(req) {
-					log.Warn("gRPC request rejected: missing verified client certificate", slog.String("remote_addr", req.RemoteAddr))
-					http.Error(w, "mTLS client certificate required", http.StatusUnauthorized)
-					return
-				}
-				// IMPORTANT:
-				//
-				// Do NOT run the normal Chi middleware chain.
-				//
-				// gRPC has its own protocol semantics and
-				// long-lived HTTP/2 streams.
-				// TLS was performed by net/http.
-				//
-				// grpc-go therefore doesn't automatically have
-				// credentials.TLSInfo in peer.AuthInfo.
-				//
-				// Inject it into the request context.
-				ctx := grpcServer.ContextWithTLSInfo(req.Context(), req.TLS)
+	// 			// Even though "grpc-mtls" caused the TLS layer
+	// 			// to require a client certificate, we still
+	// 			// explicitly verify it here.
+	// 			if !grpcServer.HasVerifiedClientCertificate(req) {
+	// 				log.Warn("gRPC request rejected: missing verified client certificate", slog.String("remote_addr", req.RemoteAddr))
+	// 				http.Error(w, "mTLS client certificate required", http.StatusUnauthorized)
+	// 				return
+	// 			}
+	// 			// IMPORTANT:
+	// 			//
+	// 			// Do NOT run the normal Chi middleware chain.
+	// 			//
+	// 			// gRPC has its own protocol semantics and
+	// 			// long-lived HTTP/2 streams.
+	// 			// TLS was performed by net/http.
+	// 			//
+	// 			// grpc-go therefore doesn't automatically have
+	// 			// credentials.TLSInfo in peer.AuthInfo.
+	// 			//
+	// 			// Inject it into the request context.
+	// 			ctx := grpcServer.ContextWithTLSInfo(req.Context(), req.TLS)
 
-				req = req.WithContext(ctx)
-				grpcServer.Handler().ServeHTTP(w, req)
-				return
-			}
+	// 			req = req.WithContext(ctx)
+	// 			grpcServer.Handler().ServeHTTP(w, req)
+	// 			return
+	// 		}
 
-			// ----------------------------------------------------
-			// Normal HTTPS application traffic
-			// ----------------------------------------------------
+	// 		// ----------------------------------------------------
+	// 		// Normal HTTPS application traffic
+	// 		// ----------------------------------------------------
 
-			r.ServeHTTP(w, req)
-		},
-	)
+	// 		r.ServeHTTP(w, req)
+	// 	},
+	// )
 
 	return &ProxyServer{
 		http: &http.Server{
 			Addr:              "",
-			Handler:           telemetry.HTTPMiddleware(cfg.GatewayID)(rootHandler),
+			Handler:           telemetry.HTTPMiddleware(cfg.Gateway.ID)(r),
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       120 * time.Second,
 		},

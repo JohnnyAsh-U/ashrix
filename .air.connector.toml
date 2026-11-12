@@ -6,9 +6,9 @@ testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = ["start", "--token=6Aeu7X"]
+  args_bin = ["start"]
   bin = "./tmp/ashrix-connector"
-  cmd = "go build -o ./tmp/ashrix-connector ./cmd/connector/main.go"
+  cmd = "go build -o ./tmp/ashrix-connector ./cmd/connector"
   delay = 1000
   entrypoint = ["./tmp/ashrix-connector"]
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "internal/gateway", "cmd/gateway", "internal/cp", "cmd/cp"]

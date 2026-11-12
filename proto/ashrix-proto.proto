@@ -16,16 +16,7 @@ message AppHealthStatus {
 message ConnectorApps {
   string id = 1;
   string name = 2;
-  string subdomain = 3;
-  string upstream = 4; //must be host:port
-  string protocol = 5;
-  bool is_public = 6;
-  string sock_pass = 7;
-  bool check_health = 8;
-  int32 check_interval = 9;
-  string health_endpoint = 10;
-  string health_status = 11;
-  bool enable_security_headers = 12;
+  string upstream = 3; //must be host:port
 }
 
 // =============================================================================

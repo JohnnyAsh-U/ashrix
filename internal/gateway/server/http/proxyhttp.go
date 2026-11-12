@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/session"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	"github.com/google/uuid"
 )

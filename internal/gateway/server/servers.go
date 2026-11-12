@@ -11,8 +11,7 @@ import (
 	// "net/http/pprof"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
-	grpc_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
+	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/grpc"
 	http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
 	quic_server "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/tlsconfig"
@@ -23,7 +22,6 @@ func StartServers(
 	tlsConfig *tls.Config,
 	ctx context.Context,
 	log *slog.Logger,
-	grpcServer *grpc_server.GRPCServer,
 	httpServer *http_proxy.ProxyServer,
 	quicServer *quic_server.QUICServer,
 ) error {
@@ -62,39 +60,6 @@ func StartServers(
 	// 4. Start HTTP / HTTPS / gRPC
 	// ---------------------------------------------------------
 
-	samePorts := false
-	if cfg.GRPCPort == cfg.HTTPSPort {
-		samePorts = true
-	}
-
-	if samePorts {
-
-		// =====================================================
-		// Production path
-		//
-		// If Same Port
-		//
-		// HTTPS + gRPC mTLS
-		// =====================================================
-		// When Same Port for http and grpc the TLS Is Handled HERE
-
-		rawListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.HTTPSPort))
-		if err != nil {
-			return fmt.Errorf("listen HTTPS %s: %w", cfg.HTTPSPort, err)
-		}
-
-		gatewayTLS := tlsconfig.NewGatewayTLSConfig(mtlsConfig, publicTLS)
-
-		tlsListener := tls.NewListener(rawListener, gatewayTLS.Shared)
-
-		go func() {
-			log.Info("Gateway HTTPS/gRPC listener started", "addr", cfg.HTTPSPort)
-			if err := httpServer.Start(tlsListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				log.Error("HTTPS server stopped", "error", err)
-			}
-		}()
-
-	} else {
 
 		// =====================================================
 		//
@@ -103,35 +68,23 @@ func StartServers(
 		// The HTTP tls is handled here
 		// =====================================================
 
-		httpListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.HTTPSPort))
+		httpListener, err := net.Listen("tcp", fmt.Sprintf("%s", cfg.Listeners.HTTPS.Address))
 		if err != nil {
-			return fmt.Errorf("listen HTTP %s: %w", cfg.HTTPSPort, err)
+			return fmt.Errorf("listen HTTP %s: %w", cfg.Listeners.HTTPS.Address, err)
 		}
 
 		gatewayTLS := tlsconfig.NewGatewayTLSConfig(mtlsConfig, publicTLS)
 		tlsListener := tls.NewListener(httpListener, gatewayTLS.Shared)
 
 		go func() {
-			log.Info("Gateway running with HTTP", "addr", cfg.HTTPSPort)
+			log.Info("Gateway running with HTTP", "addr", cfg.Listeners.HTTPS.Address)
 			if err := httpServer.Start(tlsListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Error("HTTP server stopped", "error", err)
 			}
 		}()
 
-		//grpc tls is handled in the grpc server
-
-		grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.GRPCPort))
-		if err != nil {
-			return fmt.Errorf("listen gRPC %s: %w", cfg.GRPCPort, err)
-		}
-
-		go func() {
-			log.Info("Gateway gRPC mTLS listener started", "addr", cfg.GRPCPort)
-			if err := grpcServer.Serve(grpcListener); err != nil {
-				log.Error("gRPC server stopped", "error", err)
-			}
-		}()
-	}
+	
+	
 
 	// ---------------------------------------------------------
 	// 5. Local pprof / diagnostics
@@ -158,7 +111,7 @@ func StartServers(
 	// ---------------------------------------------------------
 
 	go func() {
-		log.Info("Gateway QUIC listener started", "addr", cfg.QUICPort)
+		log.Info("Gateway QUIC listener started", "addr", cfg.Listeners.QUIC.Address)
 		if err := quicServer.Start(ctx); err != nil {
 			log.Error("QUIC server stopped", "error", err)
 		}
@@ -169,14 +122,12 @@ func StartServers(
 
 func ShutdownServers(
 	httpServer *http_proxy.ProxyServer,
-	grpcServer *grpc.GRPCServer,
 	quicServer *quic_server.QUICServer,
 	log *slog.Logger,
 ) {
 
 	// Stop accepting new QUIC connections first.
 	quicServer.Stop()
-	grpcServer.Stop()
 
 	// Stop listeners gracefully.
 	if err := httpServer.Stop(); err != nil {

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/registry"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/flow"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/flow"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
@@ -53,7 +53,7 @@ func (r *Router) Route(ctx context.Context, req *pb.StreamFrame) (flow.Stream, e
 		if connEntry, ok := r.registry.GetBySubdomain(subDomain); ok {
 			destConnector = connEntry
 			for _, app := range connEntry.Apps {
-				if app.Subdomain == subDomain {
+				if app.Name == subDomain {
 					destApp = app
 					break
 				}

@@ -12,12 +12,6 @@ type Config struct {
 	// QUIC — primary
 	GatewayQUICAddr string // "gateway.ashrix.io:9445"
 
-	// gRPC/HTTP2 — fallback 1
-	GatewayGRPCAddr string // "gateway.ashrix.io:443"
-
-	// WebSocket — fallback 2 (DPI environments)
-	GatewayWSURL string // "wss://gateway.ashrix.io/tunnel"
-
 	// Auth
 	ConnectorID string
 
@@ -65,45 +59,10 @@ func Negotiate(
 		)
 	}
 
-	// ── 3. WebSocket — Bike with a motor ──────────────────────────
-	// Last resort. TCP 443 WebSocket survives most DPI.
-	// Blocked by: almost nothing.
-	// {
-	// 	wsCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	// 	defer cancel()
-
-	// 	tlsCfg := cfg.TLSConfig
-	// 	if tlsCfg == nil {
-	// 		tlsCfg = &tls.Config{
-	// 			InsecureSkipVerify: true, // dev only
-	// 		}
-	// 	}
-
-	// 	session, err := DialWebSocket(
-	// 		wsCtx,
-	// 		cfg.GatewayWSURL,
-	// 		cfg.ConnectorID,
-	// 		"kf",
-	// 		tlsCfg,
-	// 		log,
-	// 	)
-	// 	if err == nil {
-	// 		log.Info("transport negotiated: WebSocket",
-	// 			zap.String("url", cfg.GatewayWSURL),
-	// 			zap.String("note", "gRPC blocked — possible DPI"),
-	// 		)
-	// 		return session, nil
-	// 	}
-	// 	log.Warn("WebSocket unavailable", zap.Error(err))
-	// }
-
+	
 	return nil, fmt.Errorf(
 		"all transports failed — check network connectivity\n"+
-			"  QUIC:      %s\n"+
-			"  gRPC:      %s\n"+
-			"  WebSocket: %s",
+			"  QUIC:      %s\n",
 		cfg.GatewayQUICAddr,
-		cfg.GatewayGRPCAddr,
-		cfg.GatewayWSURL,
 	)
 }

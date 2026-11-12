@@ -4,7 +4,7 @@ import (
 	"context"
 
 	gen "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/flow"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/flow"
 )
 
 // DisconnectReason categorizes operational terminations for structured auditing.

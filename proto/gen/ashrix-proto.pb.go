@@ -232,21 +232,12 @@ func (x *AppHealthStatus) GetLastSeen() *timestamppb.Timestamp {
 
 // =============================================================================
 type ConnectorApps struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	Id                    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name                  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Subdomain             string                 `protobuf:"bytes,3,opt,name=subdomain,proto3" json:"subdomain,omitempty"`
-	Upstream              string                 `protobuf:"bytes,4,opt,name=upstream,proto3" json:"upstream,omitempty"` //must be host:port
-	Protocol              string                 `protobuf:"bytes,5,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	IsPublic              bool                   `protobuf:"varint,6,opt,name=is_public,json=isPublic,proto3" json:"is_public,omitempty"`
-	SockPass              string                 `protobuf:"bytes,7,opt,name=sock_pass,json=sockPass,proto3" json:"sock_pass,omitempty"`
-	CheckHealth           bool                   `protobuf:"varint,8,opt,name=check_health,json=checkHealth,proto3" json:"check_health,omitempty"`
-	CheckInterval         int32                  `protobuf:"varint,9,opt,name=check_interval,json=checkInterval,proto3" json:"check_interval,omitempty"`
-	HealthEndpoint        string                 `protobuf:"bytes,10,opt,name=health_endpoint,json=healthEndpoint,proto3" json:"health_endpoint,omitempty"`
-	HealthStatus          string                 `protobuf:"bytes,11,opt,name=health_status,json=healthStatus,proto3" json:"health_status,omitempty"`
-	EnableSecurityHeaders bool                   `protobuf:"varint,12,opt,name=enable_security_headers,json=enableSecurityHeaders,proto3" json:"enable_security_headers,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Upstream      string                 `protobuf:"bytes,3,opt,name=upstream,proto3" json:"upstream,omitempty"` //must be host:port
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConnectorApps) Reset() {
@@ -293,74 +284,11 @@ func (x *ConnectorApps) GetName() string {
 	return ""
 }
 
-func (x *ConnectorApps) GetSubdomain() string {
-	if x != nil {
-		return x.Subdomain
-	}
-	return ""
-}
-
 func (x *ConnectorApps) GetUpstream() string {
 	if x != nil {
 		return x.Upstream
 	}
 	return ""
-}
-
-func (x *ConnectorApps) GetProtocol() string {
-	if x != nil {
-		return x.Protocol
-	}
-	return ""
-}
-
-func (x *ConnectorApps) GetIsPublic() bool {
-	if x != nil {
-		return x.IsPublic
-	}
-	return false
-}
-
-func (x *ConnectorApps) GetSockPass() string {
-	if x != nil {
-		return x.SockPass
-	}
-	return ""
-}
-
-func (x *ConnectorApps) GetCheckHealth() bool {
-	if x != nil {
-		return x.CheckHealth
-	}
-	return false
-}
-
-func (x *ConnectorApps) GetCheckInterval() int32 {
-	if x != nil {
-		return x.CheckInterval
-	}
-	return 0
-}
-
-func (x *ConnectorApps) GetHealthEndpoint() string {
-	if x != nil {
-		return x.HealthEndpoint
-	}
-	return ""
-}
-
-func (x *ConnectorApps) GetHealthStatus() string {
-	if x != nil {
-		return x.HealthStatus
-	}
-	return ""
-}
-
-func (x *ConnectorApps) GetEnableSecurityHeaders() bool {
-	if x != nil {
-		return x.EnableSecurityHeaders
-	}
-	return false
 }
 
 // 1. Wrapper for map[string][]string
@@ -1040,21 +968,11 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"\x0fAppHealthStatus\x12\x15\n" +
 	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12#\n" +
 	"\rhealth_status\x18\x02 \x01(\tR\fhealthStatus\x127\n" +
-	"\tlast_seen\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"\x93\x03\n" +
+	"\tlast_seen\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"O\n" +
 	"\rConnectorApps\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
-	"\tsubdomain\x18\x03 \x01(\tR\tsubdomain\x12\x1a\n" +
-	"\bupstream\x18\x04 \x01(\tR\bupstream\x12\x1a\n" +
-	"\bprotocol\x18\x05 \x01(\tR\bprotocol\x12\x1b\n" +
-	"\tis_public\x18\x06 \x01(\bR\bisPublic\x12\x1b\n" +
-	"\tsock_pass\x18\a \x01(\tR\bsockPass\x12!\n" +
-	"\fcheck_health\x18\b \x01(\bR\vcheckHealth\x12%\n" +
-	"\x0echeck_interval\x18\t \x01(\x05R\rcheckInterval\x12'\n" +
-	"\x0fhealth_endpoint\x18\n" +
-	" \x01(\tR\x0ehealthEndpoint\x12#\n" +
-	"\rhealth_status\x18\v \x01(\tR\fhealthStatus\x126\n" +
-	"\x17enable_security_headers\x18\f \x01(\bR\x15enableSecurityHeaders\"$\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
+	"\bupstream\x18\x03 \x01(\tR\bupstream\"$\n" +
 	"\n" +
 	"HeaderList\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\"\xad\x05\n" +

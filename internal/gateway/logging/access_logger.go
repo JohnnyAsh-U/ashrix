@@ -3,7 +3,6 @@ package logging
 import (
 	"context"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"sync"
 
@@ -18,12 +17,9 @@ type AccessLogger struct {
 }
 
 func NewAccessLogger(cfg *config.Config) *AccessLogger {
-	if cfg.LogDir != "" {
-		_ = os.MkdirAll(cfg.LogDir, 0750)
-	}
 
 	accessWriter := &lumberjack.Logger{
-		Filename:   filepath.Join(cfg.LogDir, "access.log"),
+		Filename:   filepath.Join(cfg.Logging.Dir, "access.log"),
 		MaxSize:    100, // MB
 		MaxAge:     30,  // days
 		MaxBackups: 10,

@@ -1,5 +1,8 @@
 gateway:
   id: gateway-01
+  certificate: /etc/ashrix/certs/connector.crt
+  private_key: /etc/ashrix/certs/connector.key
+
 
 listeners:
   http:
@@ -19,7 +22,6 @@ pki:
 
 connectors:
   - id: office-01
-    enabled: true
     certificate_serial: "04A7B2C9"
 
 applications:
@@ -32,6 +34,7 @@ admin:
   address: "127.0.0.1:9090"
 
 logging:
+  dir: /etc/ashrix-gateway/pki
   level: info
   format: json
 
@@ -41,7 +44,7 @@ ashrix-gateway init-ca
 
 ashrix-gateway test-config
 
-ashrix-gateway create-connector
+ashrix-gateway sign-csr
   --connector office-01 \
   --csr connector.csr
 

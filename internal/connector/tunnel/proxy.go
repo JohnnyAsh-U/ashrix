@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
-	"github.com/JohnnyAsh-U/ashrix-api/pkg/frame"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/frame"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
@@ -17,7 +17,7 @@ func (c *ConnectorTunnel) handleRequestStream(ctx context.Context, stream transp
 		if r := recover(); r != nil {
 			c.log.Error("panic in handleRequestStream", "panic", r)
 		}
-		c.managementConn.ActiveStreams.Add(-1)
+		// c.managementConn.ActiveStreams.Add(-1)
 		stream.Close()
 	}()
 
