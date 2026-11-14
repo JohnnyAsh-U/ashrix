@@ -1,8 +1,6 @@
+# Security Model
 
-
-Security Model
-
-1. Overview
+## 1. Overview
 
 Ashrix establishes authenticated outbound QUIC tunnels between a public gateway and connectors deployed inside private networks.
 
@@ -12,7 +10,7 @@ Ashrix is designed to reduce the need for inbound firewall access to private net
 
 It does not replace application authentication, authorization, endpoint security, or organizational network security policies.
 
-2. Security objectives
+## 2. Security objectives
 
 Ashrix aims to provide:
 
@@ -25,11 +23,11 @@ Ashrix aims to provide:
 - Bounded resource consumption.
 - Safe connection and stream lifecycle handling.
 
-3. Trust boundaries
+## 3. Trust boundaries
 
 There are three principal trust boundaries.
 
-External client to gateway
+### External client to gateway
 
 The gateway is exposed to external network traffic.
 
@@ -37,7 +35,7 @@ Its public HTTP/HTTPS listener must be treated as an untrusted input boundary.
 
 The gateway should enforce appropriate request limits, timeouts, and routing validation.
 
-Gateway to connector
+### Gateway to connector
 
 The gateway and connector communicate over QUIC with mutual TLS.
 
@@ -45,7 +43,7 @@ The gateway authenticates the connector certificate.
 
 The connector validates the gateway's certificate and expected server identity.
 
-Connector to local application
+### Connector to local application
 
 The connector forwards traffic to explicitly configured local TCP services.
 
@@ -53,7 +51,7 @@ The connector should only dial destinations defined in its local configuration.
 
 It must not allow external requests to select arbitrary IP addresses or ports.
 
-4. Connector authentication
+## 4. Connector authentication
 
 The connector presents a client certificate during the QUIC TLS handshake.
 
@@ -70,7 +68,7 @@ Connector identity must be derived from the verified TLS peer certificate.
 
 An identity field inside an application message must never override the authenticated identity.
 
-5. Gateway authentication
+## 5. Gateway authentication
 
 The connector validates the gateway's certificate.
 
@@ -83,7 +81,7 @@ Validation includes:
 
 Disabling certificate verification is not an acceptable production workaround.
 
-6. Application routing
+## 6. Application routing
 
 Application routing is configured on the gateway.
 
@@ -97,7 +95,8 @@ A public HTTP request must not be able to supply an arbitrary TCP target.
 
 The connector must enforce its own local application mapping even if the gateway is compromised.
 
-7. End-user authentication
+
+## 7. End-user authentication
 
 Ashrix authenticates connectors, not external users.
 
@@ -114,7 +113,7 @@ Applications exposed through Ashrix must implement their own authentication and 
 
 An authenticated tunnel does not make an unauthenticated application safe to expose publicly.
 
-8. Network security
+## 8. Network security
 
 The connector initiates outbound QUIC connections.
 
@@ -126,7 +125,7 @@ The gateway must be reachable over the configured public network path.
 
 UDP restrictions, NAT behavior, DNS failures, and network instability can affect availability.
 
-9. Resource exhaustion
+## 9. Resource exhaustion
 
 Both gateway and connector process untrusted network traffic.
 
@@ -146,7 +145,7 @@ Resource limits must be enforced in the application, not assumed from operating-
 
 Unbounded goroutines and unbounded buffering are unacceptable.
 
-10. Configuration security
+## 10. Configuration security
 
 Configuration files determine public routing, trusted identities, and private TCP destinations.
 
@@ -156,7 +155,7 @@ Use restrictive file permissions and ensure only trusted operators can modify th
 
 A malicious configuration change could expose unintended services or disrupt application routing.
 
-11. Private-key security
+## 11. Private-key security
 
 Private keys must remain local to the component that owns them.
 
@@ -170,28 +169,15 @@ Never:
 - Include private keys in public release archives.
 - Expose private-key paths through public diagnostics unnecessarily.
 
-12. Administrative access
 
-Ashrix uses local configuration and operator-managed PKI operations.
-
-Administrative access to the gateway and connector hosts is therefore security-sensitive.
-
-Protect:
-
-- Operating-system accounts.
-- Configuration files.
-- PKI commands.
-- Certificate and key files.
-- Service management permissions.
-- Logs and diagnostic data.
-
-13. Threat model
+## 12. Threat model
 
 Ashrix is designed to reduce risks associated with direct inbound access to private application networks.
 
 It does not eliminate the following risks:
 
-Threat| Security consideration
+| Threat| Security consideration|
+|---|---|
 Compromised gateway| May affect public routing and tunnel traffic
 Compromised connector| May expose services accessible to that connector
 Stolen connector key| May allow unauthorized connector authentication until rejected
@@ -202,19 +188,11 @@ Blocked outbound UDP| Can prevent tunnel establishment
 
 A compromised connector must be treated as a compromise of the private-network host where it runs.
 
-14. Security limitations
+## 13. Security limitations
 
 Ashrix is not a complete Zero Trust Network Access platform.
 
 It does not provide centralized user identity, device posture, application-level authorization, or general network segmentation.
 
 Its security boundary is primarily the authenticated gateway-to-connector tunnel and the connector's explicit local destination mappings.
-
-15. Reporting vulnerabilities
-
-Do not publish sensitive vulnerability details in public issues.
-
-Follow the instructions in the repository's "SECURITY.md" file.
-
-Include reproducible steps, affected versions, impact, and relevant logs without exposing private keys or confidential information.
 

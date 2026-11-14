@@ -1,6 +1,6 @@
-Benchmarking Ashrix
+# Benchmarking Ashrix
 
-1. Purpose
+## 1. Purpose
 
 This document describes the methodology used to evaluate Ashrix performance, resource consumption, and behavior under load.
 
@@ -18,7 +18,7 @@ Benchmarking should answer:
 
 Performance claims must be supported by reproducible measurements.
 
-2. Benchmarking principles
+## 2. Benchmarking principles
 
 All benchmarks should:
 
@@ -34,10 +34,10 @@ All benchmarks should:
 
 Never publish an isolated maximum throughput result without its test conditions.
 
-3. Test topology
+## 3. Test topology
 
 Use three logical components:
-
+```
 +------------------+
 | Load Generator   |
 +------------------+
@@ -59,12 +59,12 @@ Use three logical components:
 +------------------+
 | Test Application |
 +------------------+
-
+```
 The load generator should run outside the connector's private network.
 
 The test application should run on the connector side.
 
-4. Baseline measurements
+## 4. Baseline measurements
 
 Establish a direct TCP/HTTP baseline before measuring Ashrix.
 
@@ -77,9 +77,9 @@ Keep the application, payload, test duration, and network conditions identical.
 
 This provides a basis for estimating tunnel overhead.
 
-5. Performance dimensions
+## 5. Performance dimensions
 
-5.1 Throughput
+### 5.1 Throughput
 
 Measure:
 
@@ -102,7 +102,7 @@ Payload| Purpose
 
 Record both application-level throughput and transport-level throughput where possible.
 
-5.2 Latency
+### 5.2 Latency
 
 Measure:
 
@@ -118,7 +118,7 @@ Report the baseline latency alongside Ashrix latency.
 
 Do not interpret average latency as sufficient evidence of performance.
 
-5.3 Concurrency
+### 5.3 Concurrency
 
 Evaluate different levels of concurrent activity.
 
@@ -137,7 +137,7 @@ These are experimental targets, not guaranteed capacity claims. Adjust them to t
 
 Observe throughput, latency, CPU, memory, goroutines, and failures as concurrency increases.
 
-5.4 Resource consumption
+### 5.4 Resource consumption
 
 Measure separately on gateway and connector:
 
@@ -164,7 +164,7 @@ Useful runtime profiling includes:
 - Goroutine profiles.
 - Execution traces.
 
-5.5 Connection establishment
+### 5.5 Connection establishment
 
 Measure:
 
@@ -176,7 +176,7 @@ Measure:
 
 Separate cold connection establishment from requests over an established connection.
 
-6. Network impairment tests
+## 6. Network impairment tests
 
 Test Ashrix under realistic network conditions.
 
@@ -203,7 +203,7 @@ Run these experiments in an isolated test environment. Traffic control affects t
 
 Record the actual network conditions with every result.
 
-7. Failure and recovery tests
+## 7. Failure and recovery tests
 
 Performance testing must include failure scenarios.
 
@@ -231,7 +231,7 @@ Measure:
 
 A system that performs well but leaks resources after failures is not production-ready.
 
-8. Load testing
+## 8. Load testing
 
 Load testing should evaluate the complete system rather than isolated Go functions.
 
@@ -263,12 +263,12 @@ Record:
 
 Do not confuse offered load with successfully completed throughput.
 
-9. Go microbenchmarks
+## 9. Go microbenchmarks
 
 Use Go benchmarks to measure individual components.
 
 Example:
-
+```go
 func BenchmarkForwardingCopy(b *testing.B) {
     src := make([]byte, 32*1024)
     dst := make([]byte, 32*1024)
@@ -281,7 +281,7 @@ func BenchmarkForwardingCopy(b *testing.B) {
         copy(dst, src)
     }
 }
-
+```
 Run:
 
 go test ./... -bench=. -benchmem
@@ -296,7 +296,7 @@ Use microbenchmarks for isolated operations such as:
 
 Microbenchmarks do not replace end-to-end tests.
 
-10. Benchmark methodology
+## 10. Benchmark methodology
 
 For each experiment:
 
@@ -315,11 +315,12 @@ Avoid running unrelated workloads on benchmark hosts.
 
 Repeat experiments to identify variance.
 
-11. Result reporting
+## 11. Result reporting
 
 Use a consistent report format.
 
 Metric| Direct baseline| Ashrix| Difference
+|---|---|---|---|
 Throughput| TBD| TBD| TBD
 p50 latency| TBD| TBD| TBD
 p95 latency| TBD| TBD| TBD
@@ -332,7 +333,7 @@ These are placeholders, not measured results.
 
 Include the complete test environment and workload configuration alongside every published table.
 
-12. Performance optimization
+## 12. Performance optimization
 
 Optimization should follow measurement.
 
@@ -364,7 +365,7 @@ Pay particular attention to:
 
 Correctness and bounded resource consumption take priority over marginal throughput gains.
 
-13. Publishing benchmark results
+## 13. Publishing benchmark results
 
 Every public benchmark report should include:
 
@@ -382,12 +383,13 @@ Every public benchmark report should include:
 
 Never present synthetic or estimated results as measured results.
 
-14. Benchmark history
+## 14. Benchmark history
 
 Keep historical benchmark results so performance changes can be compared across releases.
 
 A possible structure:
 
+```
 benchmarks/
 ├── README.md
 ├── methodology.md
@@ -399,10 +401,11 @@ benchmarks/
     ├── run-throughput.sh
     ├── run-latency.sh
     └── run-load.sh
+```
 
 Keep benchmark scripts and workload definitions version-controlled where practical.
 
-15. Engineering objective
+## 15. Engineering objective
 
 The objective is not to claim that Ashrix is faster than every alternative.
 

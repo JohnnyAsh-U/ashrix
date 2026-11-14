@@ -32,7 +32,6 @@ var configCmd = &cobra.Command{
 		fmt.Printf("PKI CA Certificate: %s\n", appConfig.PKI.CACertificate)
 		fmt.Printf("PKI CA Private Key: %s\n", appConfig.PKI.CAPrivateKey)
 
-		fmt.Printf("Admin API Addr: %s\n", appConfig.Admin.Address)
 		fmt.Printf("Logging: %s;%s\n", appConfig.Logging.Level, appConfig.Logging.Format)
 
 		fmt.Println("=== Connectors ===")
@@ -78,7 +77,6 @@ var validateConfigCmd = &cobra.Command{
 		fmt.Printf("PKI CA Certificate: %s\n", appConfig.PKI.CACertificate)
 		fmt.Printf("PKI CA Private Key: %s\n", appConfig.PKI.CAPrivateKey)
 
-		fmt.Printf("Admin API Addr: %s\n", appConfig.Admin.Address)
 		fmt.Printf("Logging: %s;%s\n", appConfig.Logging.Level, appConfig.Logging.Format)
 
 		fmt.Println("=== Connectors ===")

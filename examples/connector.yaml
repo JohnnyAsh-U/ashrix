@@ -16,11 +16,6 @@ applications:
   - name: internal-api
     target: 192.168.1.20:8080
 
-# Observability
-metrics:
-  enabled: true
-  listen: "127.0.0.1:9091"
-
 logging:
   dir: /etc/ashrix-gateway/pki
   level: info

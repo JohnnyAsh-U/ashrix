@@ -4,7 +4,6 @@ type Config struct {
     Connector    Connector     `yaml:"connector" mapstructure:"connector"`
     Gateway      Gateway       `yaml:"gateway" mapstructure:"gateway"`
     Applications []Application `yaml:"applications" mapstructure:"applications"`
-    Metrics      Metrics       `yaml:"metrics" mapstructure:"metrics"`
     Logging      Logging       `yaml:"logging" mapstructure:"logging"`
 }
 
@@ -25,10 +24,6 @@ type Application struct {
     Target string `yaml:"target" mapstructure:"target"`
 }
 
-type Metrics struct {
-    Enabled bool   `yaml:"enabled" mapstructure:"enabled"`
-    Listen  string `yaml:"listen" mapstructure:"listen"`
-}
 
 type Logging struct {
     Level  string `yaml:"level" mapstructure:"level"`

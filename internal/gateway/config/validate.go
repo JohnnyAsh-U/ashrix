@@ -25,7 +25,6 @@ func (c Config) Validate() error {
 		"listeners.http.address":  c.Listeners.HTTP.Address,
 		"listeners.https.address": c.Listeners.HTTPS.Address,
 		"listeners.quic.address":  c.Listeners.QUIC.Address,
-		"admin.address":           c.Admin.Address,
 	}
 
 	seenAddresses := make(map[string]string)

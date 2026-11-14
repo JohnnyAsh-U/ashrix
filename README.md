@@ -6,32 +6,33 @@ Ashrix is a lightweight, self-hosted application access gateway written in Go. I
 
 No inbound tunnel connections. No centralized control plane. Just a gateway, connectors, YAML configuration, and certificates.
 
-How it works
+## How it works
 
-       External Client
-              |
-              | HTTPS
-              v
-       +--------------+
-       |    Gateway   |
-       +--------------+
-              |
-         QUIC + mTLS
-       (outbound tunnel)
-              |
-       +--------------+
-       |  Connector   |
-       +--------------+
-              |
-           TCP
-              |
-       +--------------+
-       | Private App  |
-       +--------------+
+```
+External Client
+
+HTTPS
+v
++--------------+
+|   Gateway    |
++--------------+
+
+QUIC + mTLS (outbound tunnel)
+v
++--------------+
+|  Connector   |
++--------------+
+
+TCP
+v
++--------------+
+| Private App  |
++--------------+
+```
 
 The connector initiates the tunnel from inside the private network. The gateway uses that connection to forward external application traffic to locally configured services.
 
-Features
+## Features
 
 - Outbound QUIC tunnels.
 - Mutual TLS connector authentication.
@@ -42,86 +43,281 @@ Features
 - Self-hosted deployment.
 - No centralized control plane.
 
-Quick start
+## Quick start
 
-This example assumes you have already installed the gateway and connector binaries and provisioned their certificates.
+This is the full flow from empty machines to a working app.
 
-1. Configure the gateway
+### 1. On the gateway: initialize the CA and gateway identity
 
-Create "/etc/ashrix/gateway.yaml":
+```bash
+ashrix-gateway init --name gateway_name
+```
+This generates:
 
-gateway:
-  listen: ":443"
+- Gateway config: `~/.ashrix/gateway.yaml`
+- Root CA certificate: `~/.ashrix/pki/ca_crt.crt`
+- Root CA private key: `~/.ashrix/pki/ca_key.key`
+- Gateway leaf certificate: `~/.ashrix/pki/gateway.crt`
+- Gateway leaf private key: `~/.ashrix/pki/gateway.key`
 
-quic:
-  listen: ":8443"
+You do not need to hand-write the gateway YAML or generate certificates with `openssl`. `init` does it for you.
 
-tls:
-  certificate: /etc/ashrix/certs/gateway.crt
-  private_key: /etc/ashrix/certs/gateway.key
-  client_ca: /etc/ashrix/pki/ca.crt
+To inspect the CA you just created:
+```
+ashrix-gateway show-ca
+```
+This shows the CA subject, serial, validity, and paths, so you can verify what you are about to trust.
 
-connectors:
-  - id: office-01
-    enabled: true
 
+
+### 1b. On the gateway: provide the public HTTPS certificate
+
+`init` does *not* create your public HTTPS certificate. That certificate is what browsers validate when they open `https://grafana.example.com`.
+
+You must put the HTTPS certificate and private key in the exact paths configured in the gateway YAML under 
+
+`listeners.https`:
+```
+listeners:
+  https:
+    address: "0.0.0.0:443"
+    certificate: ~/.ashrix/server.crt
+    private_key: ~/.ashrix/server.key
+
+```
+
+In the example file `examples/gateway.yaml`, those paths are:
+
+certificate: /etc/ashrix-gateway/certs/server.crt
+
+private_key: /etc/ashrix-gateway/certs/server.key
+
+
+So for a user-directory install, place your files at:
+~/.ashrix/server.crt
+~/.ashrix/server.key
+
+For a system install, place them at the paths in your `gateway.yaml`.
+
+You can get them from any source you trust, for example Let's Encrypt, your company CA, or a self-signed cert for testing:
+
+```
+cp /path/to/your/fullchain.pem ~/.ashrix/server.crt
+cp /path/to/your/privkey.pem ~/.ashrix/server.key
+
+chmod 0640 ~/.ashrix/server.crt
+chmod 0600 ~/.ashrix/server.key
+```
+
+Rules:
+
+1. `certificate` must match `private_key`. If they do not pair, the HTTPS listener will fail to start.
+2. `certificate` must be valid for the public domain the client uses, e.g. `grafana.example.com`. The gateway leaf cert in `~/.ashrix/pki/gateway.crt` is *not* used for this. It is only for gateway-to-connector mTLS.
+3. If the files are missing or unreadable, HTTPS will not start. HTTP on `:80` and QUIC may still start depending on your config, but `https://<your-app>` will not work.
+4. If you change the paths in `gateway.yaml`, you must put the files at the new paths. The gateway only reads what is configured, it does not search for them.
+
+
+### 2. On the connector: initialize the connector
+```bash
+ashrix-connector init --name connector_name
+```
+
+This generates:
+
+- Connector config: `~/.ashrix/connector/connector.yaml`
+- Connector private key: `~/.ashrix/connector/connector.key`
+- Connector certificate signing request: `~/.ashrix/connector/connector.csr`
+
+The connector does not have a signed certificate yet. It only has a key and a CSR to be signed by the gateway CA.
+
+
+### 3. On the gateway: sign the connector and register it
+
+Copy the CSR from the connector to the gateway, then run:
+
+```bash
+ashrix-gateway add-connector --csr /path/to/connector.csr
+```
+
+This does three things:
+
+1. Signs the CSR with the gateway CA.
+2. Adds the connector to the gateway configuration file (`~/.ashrix/gateway.yaml`).
+3. Creates the signed certificate bundle for that connector.
+
+The bundle contains the connector leaf certificate plus the root CA, so the connector can trust the gateway and prove its own identity.
+
+
+### 4. On the connector: install the signed certificate
+
+Copy the signed certificate bundle back to the connector, then run:
+```bash
+ashrix-connector install --cert /path/to/connector-signed.crt
+```
+This installs the root CA and the connector node certificate into the paths configured in the connector YAML. After this step, the connector has everything it needs to authenticate to the gateway with mTLS.
+
+### 5. Add the application to the gateway config
+
+Edit `~/.ashrix/gateway.yaml` and add the application:
+```yaml
 applications:
-  - name: grafana
+    - name: grafana
     domain: grafana.example.com
     connector: office-01
-    target_name: grafana
+```
 
-2. Configure the connector
+Rules for routing:
 
-Create "/etc/ashrix/connector.yaml":
+1. The application must reference a connector that exists in the gateway config. `applications[].connector` must equal an `id` in `connectors[]`.
+2. The application name in the gateway must match the application name in the connector. Gateway `name: grafana` only routes if the connector also has `name: grafana`.
 
-connector:
-  id: office-01
+If either rule fails, there is no route. The gateway will not fall back to another connector or a default target.
 
-gateway:
-  address: gateway.example.com:8443
-  server_name: gateway.example.com
 
-identity:
-  certificate: /etc/ashrix/certs/connector.crt
-  private_key: /etc/ashrix/certs/connector.key
-  ca_certificate: /etc/ashrix/pki/ca.crt
+### 6. Add the application to the connector config
 
+Edit `~/.ashrix/connector/connector.yaml` and add the same application name with its local destination:
+
+```yaml
 applications:
-  - name: grafana
+    - name: grafana
     target: 192.168.1.10:3000
+```
 
-3. Start the gateway
+The gateway never defines a TCP destination. Only the connector maps an application name to a local `target`. The connector must never accept an arbitrary destination from an external request.
 
-ashrix-gateway -config /etc/ashrix/gateway.yaml
 
-4. Start the connector
 
-ashrix-connector -config /etc/ashrix/connector.yaml
+### 7. Start both sides
 
-5. Access your application
+On the gateway:
+```bash
+ashrix-gateway start
+```
+On the connector:
+```bash
+ashrix-connector start
+```
+
+The connector dials out to the gateway over QUIC + mTLS. No inbound port needs to be opened on the connector network.
+
+
+### 8. Access your application
 
 Configure DNS:
-
+```yaml
 grafana.example.com -> YOUR_GATEWAY_PUBLIC_IP
-
+```
 Open:
 
+```
 https://grafana.example.com
+```
 
 The gateway forwards the request through the connector's established QUIC tunnel to the local Grafana service.
 
-Important: The YAML fields and CLI flags above are illustrative. Use the exact schema and commands supported by the current release.
 
-Installation
 
-Download the appropriate Linux binaries from "GitHub Releases" (https://github.com/ashrixlabs/ashrix/releases).
 
-Verify the release checksums before installation.
+## Configuration
 
-See "Deployment" (docs/deployment.md) for complete installation instructions.
+Gateway config — `~/.ashrix/gateway.yaml` — matches `examples/gateway.yaml`:
 
-Requirements
+```yaml
+gateway:
+  id: gateway-01
+  certificate: /etc/ashrix/certs/connector.crt
+  private_key: /etc/ashrix/certs/connector.key
+
+listeners:
+  http:
+    address: "0.0.0.0:80"
+  https:
+    address: "0.0.0.0:443"
+    certificate: /etc/ashrix-gateway/certs/server.crt
+    private_key: /etc/ashrix-gateway/certs/server.key
+  quic:
+    address: "0.0.0.0:8443"
+
+pki:
+  ca_certificate: /etc/ashrix-gateway/pki/ca.crt
+  ca_private_key: /etc/ashrix-gateway/pki/ca.key
+
+connectors:
+    - id: office-01
+    certificate_serial: "04A7B2C9"
+
+applications:
+    - name: grafana
+    domain: grafana.example.com
+    connector: office-01
+
+logging:
+  dir: /etc/ashrix-gateway/pki
+  level: info
+  format: json
+```
+
+
+  
+Connector config — `~/.ashrix/connector/connector.yaml` — matches `examples/connector.yaml`:
+
+```yaml
+connector:
+  id: office-01
+  certificate: /etc/ashrix/certs/connector.crt
+  private_key: /etc/ashrix/certs/connector.key
+  ca: /etc/ashrix/certs/ca.crt
+
+gateway:
+  address: gateway.example.com:443
+
+applications:
+    - name: grafana
+    target: 192.168.1.10:3000
+    - name: internal-api
+    target: 192.168.1.20:8080
+
+logging:
+  dir: /etc/ashrix-gateway/pki
+  level: info
+  format: json
+```
+
+
+### Application routing
+
+Gateway:
+```yaml
+applications:
+    - name: grafana
+    domain: grafana.example.com
+    connector: office-01
+```
+
+```yaml
+Connector:
+applications:
+    - name: grafana
+    target: 192.168.1.10:3000
+```
+|Gateway app	|Gateway connector	|Connector exists?	|Connector has same app name?	|Result|
+|---|---|---|---|---|
+`grafana` / `grafana.example.com` | `office-01`	|	Yes	| Yes, `grafana -> 192.168.1.10:3000`|	Routed
+`grafana` / `grafana.example.com` | `office-99`	|	No |	N/A	 |Rejected, no such connector |
+`internal-api` / `api.example.com` | `office-01`	|	Yes	|Yes, `internal-api -> 192.168.1.20:8080`	| Routed
+`wiki` / `wiki.example.com` | `office-01`	|	Yes	|No, connector has no `wiki`	|Rejected, no such app on connector
+
+See [Configuration](docs/configuration.md) for full validation and reload rules.
+
+
+
+## Installation
+
+Download the appropriate Linux binaries from https://github.com/ashrixlabs/ashrix/releases. Verify the release checksums before installation.
+
+
+## Requirements
 
 - Linux gateway host.
 - Linux connector host.
@@ -130,49 +326,46 @@ Requirements
 - Valid gateway and connector certificates.
 - DNS pointing application hostnames to the gateway.
 
-Documentation
+## Documentation
+Document	Description
+[Architecture](docs/architecture.md)	How Ashrix works
+[Configuration](docs/configuration.md)	Gateway and connector YAML
+[PKI](docs/pki.md)	Certificate management
+[Security](docs/security.md)	Security model and limitations
+[Deployment](docs/deployment.md)	Installation and deployment
+[Operations](docs/operations.md)	Operating and maintaining Ashrix
+[Benchmarking](docs/benchmarking.md)	Performance testing methodology
 
-Document| Description
-"Architecture" (docs/architecture.md)| How Ashrix works
-"Configuration" (docs/configuration.md)| Gateway and connector YAML
-"PKI" (docs/pki.md)| Certificate management
-"Security" (docs/security.md)| Security model and limitations
-"Deployment" (docs/deployment.md)| Installation and deployment
-"Operations" (docs/operations.md)| Operating and maintaining Ashrix
-"Benchmarking" (docs/benchmarking.md)| Performance testing methodology
 
-Development
+## Development
 
 Build:
-
+```
 go build ./...
+```
 
 Test:
-
+```
 go test ./...
+```
 
 Race detection:
-
+```
 go test -race ./...
+```
+See [Development](docs/development.md) for contributor instructions.
 
-See "Development" (docs/development.md) for contributor instructions.
+## Security
 
-Security
+Ashrix authenticates connectors using mTLS. It does not provide end-user authentication, SSO, or application-level authorization. Your applications remain responsible for their own access control.
 
-Ashrix authenticates connectors using mTLS. It does not provide end-user authentication, SSO, or application-level authorization.
+For security reports, see [SECURITY.md](SECURITY.md).
 
-Your applications remain responsible for their own access control.
+## Project status
 
-For security reports, see "SECURITY.md" (SECURITY.md).
+Ashrix is an open-source infrastructure project under active development. The focus is reliable tunneling, secure application forwarding, predictable resource consumption, and straightforward deployment.
 
-Project status
+## License
 
-Ashrix is an open-source infrastructure project under active development.
-
-The focus is reliable tunneling, secure application forwarding, predictable resource consumption, and straightforward deployment.
-
-License
-
-See "LICENSE" (LICENSE).
-
+See [LICENSE](LICENSE).
 

@@ -7,7 +7,6 @@ type Config struct {
 	PKI         PKI           `yaml:"pki"`
 	Connectors  []Connector   `yaml:"connectors"`
 	Applications []Application `yaml:"applications"`
-	Admin       Admin         `yaml:"admin"`
 	Logging     Logging       `yaml:"logging"`
 }
 

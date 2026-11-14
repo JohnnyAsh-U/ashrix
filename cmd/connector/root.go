@@ -67,10 +67,6 @@ gateway:
 
 applications:
 
-metrics:
-  enabled: true
-  listen: "localhost:9090"
-
 logging:
   dir: "%s"
   level: info
