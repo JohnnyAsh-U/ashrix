@@ -48,7 +48,6 @@ var configCmd = &cobra.Command{
 			fmt.Printf("Name: %s\n", app.Name)
 			fmt.Printf("Domain: %v\n", app.Domain)
 			fmt.Printf("Connector: %v\n", app.Connector)
-			fmt.Printf("TargetName: %v\n", app.TargetName)
 		}
 
 		if err != nil {
@@ -95,7 +94,6 @@ var validateConfigCmd = &cobra.Command{
 			fmt.Printf("Name: %s\n", app.Name)
 			fmt.Printf("Domain: %v\n", app.Domain)
 			fmt.Printf("Connector: %v\n", app.Connector)
-			fmt.Printf("TargetName: %v\n", app.TargetName)
 		}
 
 		if err := appConfig.Validate(); err != nil {

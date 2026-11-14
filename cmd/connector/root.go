@@ -39,7 +39,16 @@ then run 'ashrix-connector start'.`,
 			}
 
 			configDir := filepath.Join(home, ".ashrix" , "connector")
+			logDir := filepath.Join(configDir, "logs")
 			defaultPath := filepath.Join(configDir, "connector.yaml")
+
+			if err := os.MkdirAll(configDir, 0o750); err != nil {
+				return fmt.Errorf("Failed to create- config direactory %q: %w", configDir, err)
+			}
+
+			if err := os.MkdirAll(logDir, 0o750); err != nil {
+				return fmt.Errorf("Failed to create- log direactory %q: %w", logDir, err)
+			}
 			
 
 			if _, err := os.Stat(defaultPath); os.IsNotExist(err) {
@@ -71,7 +80,7 @@ logging:
 					filepath.Join(configDir, "connector.crt"),
 					filepath.Join(configDir, "connector.key"),
 					filepath.Join(configDir, "bundle.crt"),
-					configDir,
+					filepath.Join(configDir, ""),
 				)
 				if err := os.WriteFile(defaultPath, []byte(defaultGatewayConfig), 0o600); err != nil {
 					return fmt.Errorf("failed to write config %q: %w", defaultPath, err)

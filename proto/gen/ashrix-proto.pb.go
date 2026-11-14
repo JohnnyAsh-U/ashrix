@@ -22,6 +22,56 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// =========================================================
+type MsgType int32
+
+const (
+	MsgType_REGISTER      MsgType = 0
+	MsgType_HEARTBEAT     MsgType = 1
+	MsgType_HEARTBEAT_ACK MsgType = 2
+)
+
+// Enum value maps for MsgType.
+var (
+	MsgType_name = map[int32]string{
+		0: "REGISTER",
+		1: "HEARTBEAT",
+		2: "HEARTBEAT_ACK",
+	}
+	MsgType_value = map[string]int32{
+		"REGISTER":      0,
+		"HEARTBEAT":     1,
+		"HEARTBEAT_ACK": 2,
+	}
+)
+
+func (x MsgType) Enum() *MsgType {
+	p := new(MsgType)
+	*p = x
+	return p
+}
+
+func (x MsgType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MsgType) Descriptor() protoreflect.EnumDescriptor {
+	return file_ashrix_proto_proto_enumTypes[0].Descriptor()
+}
+
+func (MsgType) Type() protoreflect.EnumType {
+	return &file_ashrix_proto_proto_enumTypes[0]
+}
+
+func (x MsgType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MsgType.Descriptor instead.
+func (MsgType) EnumDescriptor() ([]byte, []int) {
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{0}
+}
+
 // 2. FrameType Enum
 type RequestType int32
 
@@ -56,11 +106,11 @@ func (x RequestType) String() string {
 }
 
 func (RequestType) Descriptor() protoreflect.EnumDescriptor {
-	return file_ashrix_proto_proto_enumTypes[0].Descriptor()
+	return file_ashrix_proto_proto_enumTypes[1].Descriptor()
 }
 
 func (RequestType) Type() protoreflect.EnumType {
-	return &file_ashrix_proto_proto_enumTypes[0]
+	return &file_ashrix_proto_proto_enumTypes[1]
 }
 
 func (x RequestType) Number() protoreflect.EnumNumber {
@@ -69,7 +119,67 @@ func (x RequestType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RequestType.Descriptor instead.
 func (RequestType) EnumDescriptor() ([]byte, []int) {
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{1}
+}
+
+type ControlMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MsgType       MsgType                `protobuf:"varint,1,opt,name=msg_type,json=msgType,proto3,enum=proto.MsgType" json:"msg_type,omitempty"`
+	ConnectorId   string                 `protobuf:"bytes,2,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
+	ConnectorApps []*ConnectorApps       `protobuf:"bytes,3,rep,name=connector_apps,json=connectorApps,proto3" json:"connector_apps,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlMessage) Reset() {
+	*x = ControlMessage{}
+	mi := &file_ashrix_proto_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlMessage) ProtoMessage() {}
+
+func (x *ControlMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_ashrix_proto_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlMessage.ProtoReflect.Descriptor instead.
+func (*ControlMessage) Descriptor() ([]byte, []int) {
 	return file_ashrix_proto_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ControlMessage) GetMsgType() MsgType {
+	if x != nil {
+		return x.MsgType
+	}
+	return MsgType_REGISTER
+}
+
+func (x *ControlMessage) GetConnectorId() string {
+	if x != nil {
+		return x.ConnectorId
+	}
+	return ""
+}
+
+func (x *ControlMessage) GetConnectorApps() []*ConnectorApps {
+	if x != nil {
+		return x.ConnectorApps
+	}
+	return nil
 }
 
 // =============================================================================
@@ -84,7 +194,7 @@ type ConnectorApps struct {
 
 func (x *ConnectorApps) Reset() {
 	*x = ConnectorApps{}
-	mi := &file_ashrix_proto_proto_msgTypes[0]
+	mi := &file_ashrix_proto_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -96,7 +206,7 @@ func (x *ConnectorApps) String() string {
 func (*ConnectorApps) ProtoMessage() {}
 
 func (x *ConnectorApps) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[0]
+	mi := &file_ashrix_proto_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -109,7 +219,7 @@ func (x *ConnectorApps) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectorApps.ProtoReflect.Descriptor instead.
 func (*ConnectorApps) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{0}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ConnectorApps) GetId() string {
@@ -143,7 +253,7 @@ type HeaderList struct {
 
 func (x *HeaderList) Reset() {
 	*x = HeaderList{}
-	mi := &file_ashrix_proto_proto_msgTypes[1]
+	mi := &file_ashrix_proto_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -155,7 +265,7 @@ func (x *HeaderList) String() string {
 func (*HeaderList) ProtoMessage() {}
 
 func (x *HeaderList) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[1]
+	mi := &file_ashrix_proto_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -168,7 +278,7 @@ func (x *HeaderList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeaderList.ProtoReflect.Descriptor instead.
 func (*HeaderList) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{1}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *HeaderList) GetValues() []string {
@@ -197,7 +307,7 @@ type StreamFrame struct {
 
 func (x *StreamFrame) Reset() {
 	*x = StreamFrame{}
-	mi := &file_ashrix_proto_proto_msgTypes[2]
+	mi := &file_ashrix_proto_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -209,7 +319,7 @@ func (x *StreamFrame) String() string {
 func (*StreamFrame) ProtoMessage() {}
 
 func (x *StreamFrame) ProtoReflect() protoreflect.Message {
-	mi := &file_ashrix_proto_proto_msgTypes[2]
+	mi := &file_ashrix_proto_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -222,7 +332,7 @@ func (x *StreamFrame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamFrame.ProtoReflect.Descriptor instead.
 func (*StreamFrame) Descriptor() ([]byte, []int) {
-	return file_ashrix_proto_proto_rawDescGZIP(), []int{2}
+	return file_ashrix_proto_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *StreamFrame) GetRequestId() string {
@@ -306,7 +416,11 @@ var File_ashrix_proto_proto protoreflect.FileDescriptor
 
 const file_ashrix_proto_proto_rawDesc = "" +
 	"\n" +
-	"\x12ashrix-proto.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\"O\n" +
+	"\x12ashrix-proto.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x01\n" +
+	"\x0eControlMessage\x12)\n" +
+	"\bmsg_type\x18\x01 \x01(\x0e2\x0e.proto.MsgTypeR\amsgType\x12!\n" +
+	"\fconnector_id\x18\x02 \x01(\tR\vconnectorId\x12;\n" +
+	"\x0econnector_apps\x18\x03 \x03(\v2\x14.proto.ConnectorAppsR\rconnectorApps\"O\n" +
 	"\rConnectorApps\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -332,7 +446,11 @@ const file_ashrix_proto_proto_rawDesc = "" +
 	"streamType\x1aM\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12'\n" +
-	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01*H\n" +
+	"\x05value\x18\x02 \x01(\v2\x11.proto.HeaderListR\x05value:\x028\x01*9\n" +
+	"\aMsgType\x12\f\n" +
+	"\bREGISTER\x10\x00\x12\r\n" +
+	"\tHEARTBEAT\x10\x01\x12\x11\n" +
+	"\rHEARTBEAT_ACK\x10\x02*H\n" +
 	"\vRequestType\x12\x17\n" +
 	"\x13UNSPECIFIED_REQUEST\x10\x00\x12\x10\n" +
 	"\fHTTP_REQUEST\x10\x01\x12\x0e\n" +
@@ -351,24 +469,28 @@ func file_ashrix_proto_proto_rawDescGZIP() []byte {
 	return file_ashrix_proto_proto_rawDescData
 }
 
-var file_ashrix_proto_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_ashrix_proto_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_ashrix_proto_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_ashrix_proto_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_ashrix_proto_proto_goTypes = []any{
-	(RequestType)(0),      // 0: proto.RequestType
-	(*ConnectorApps)(nil), // 1: proto.ConnectorApps
-	(*HeaderList)(nil),    // 2: proto.HeaderList
-	(*StreamFrame)(nil),   // 3: proto.StreamFrame
-	nil,                   // 4: proto.StreamFrame.HeadersEntry
+	(MsgType)(0),           // 0: proto.MsgType
+	(RequestType)(0),       // 1: proto.RequestType
+	(*ControlMessage)(nil), // 2: proto.ControlMessage
+	(*ConnectorApps)(nil),  // 3: proto.ConnectorApps
+	(*HeaderList)(nil),     // 4: proto.HeaderList
+	(*StreamFrame)(nil),    // 5: proto.StreamFrame
+	nil,                    // 6: proto.StreamFrame.HeadersEntry
 }
 var file_ashrix_proto_proto_depIdxs = []int32{
-	4, // 0: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
-	0, // 1: proto.StreamFrame.stream_type:type_name -> proto.RequestType
-	2, // 2: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	0, // 0: proto.ControlMessage.msg_type:type_name -> proto.MsgType
+	3, // 1: proto.ControlMessage.connector_apps:type_name -> proto.ConnectorApps
+	6, // 2: proto.StreamFrame.headers:type_name -> proto.StreamFrame.HeadersEntry
+	1, // 3: proto.StreamFrame.stream_type:type_name -> proto.RequestType
+	4, // 4: proto.StreamFrame.HeadersEntry.value:type_name -> proto.HeaderList
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_ashrix_proto_proto_init() }
@@ -381,8 +503,8 @@ func file_ashrix_proto_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ashrix_proto_proto_rawDesc), len(file_ashrix_proto_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   4,
+			NumEnums:      2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

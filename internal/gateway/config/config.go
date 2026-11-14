@@ -52,7 +52,6 @@ type Application struct {
 	Name       string `yaml:"name"`
 	Domain     string `yaml:"domain"`
 	Connector  string `yaml:"connector"`
-	TargetName string `yaml:"target_name" mapstructure:"target_name" `
 }
 
 type Admin struct {

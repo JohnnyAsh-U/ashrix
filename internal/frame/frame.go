@@ -15,19 +15,6 @@ const (
 	MaxFrameSize          = 16 << 20 // 16 MiB control frame
 )
 
-// type FrameType uint8
-
-// const (
-// 	FrameHTTPRequest FrameType = iota + 1
-// 	FrameHTTPResponse
-// 	FrameWSOpen
-// 	FrameWSOpenResponse
-// 	FrameWSData
-// 	FrameWSPing
-// 	FrameWSPong
-// 	FrameWSClose
-// 	FrameError
-// )
 
 
 func WriteFrame(w io.Writer, payload proto.Message) error {

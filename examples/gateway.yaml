@@ -28,7 +28,6 @@ applications:
   - name: grafana
     domain: grafana.example.com
     connector: office-01
-    target_name: grafana
 
 admin:
   address: "127.0.0.1:9090"

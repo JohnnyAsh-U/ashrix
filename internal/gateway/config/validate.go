@@ -107,13 +107,6 @@ func (c Config) Validate() error {
 			)
 		}
 
-		if app.TargetName == "" {
-			return fmt.Errorf(
-				"application %s has an empty target name",
-				app.Name,
-			)
-		}
-
 		if _, exists := connectorIDs[app.Connector]; !exists {
 			return fmt.Errorf(
 				"application %s references unknown connector %s",

@@ -1,277 +1,178 @@
-# 🛡️ Ashrix
-
-> **ALPHA / EXPERIMENTAL — WORK IN PROGRESS**
+# Ashrix
 
-Ashrix is an experimental **Zero Trust Network Access (ZTNA)** platform for securely publishing and controlling access to internal applications without exposing those applications directly to the public internet.
+Expose private applications without opening inbound firewall ports.
 
-The project is being developed as a practical exploration of **zero-trust access, secure networking, identity-aware authorization, distributed systems, and high-performance network transport in Go**.
+Ashrix is a lightweight, self-hosted application access gateway written in Go. It connects private applications to a public gateway through outbound QUIC tunnels secured with mutual TLS (mTLS).
 
-> ⚠️ **Security & production disclaimer**
->
-> Ashrix is currently an experimental alpha project and **must not be used to protect production systems**. APIs, protocols, security mechanisms, and deployment procedures are subject to change. The project has not undergone an independent security audit or formal production-readiness review.
+No inbound tunnel connections. No centralized control plane. Just a gateway, connectors, YAML configuration, and certificates.
 
----
+How it works
 
-## 🧭 Architecture
+       External Client
+              |
+              | HTTPS
+              v
+       +--------------+
+       |    Gateway   |
+       +--------------+
+              |
+         QUIC + mTLS
+       (outbound tunnel)
+              |
+       +--------------+
+       |  Connector   |
+       +--------------+
+              |
+           TCP
+              |
+       +--------------+
+       | Private App  |
+       +--------------+
 
-Ashrix separates **control-plane responsibilities** from the **data plane**.
+The connector initiates the tunnel from inside the private network. The gateway uses that connection to forward external application traffic to locally configured services.
 
-```text
-                         ┌──────────────────────────┐
-                         │      Ashrix Control      │
-                         │          Plane           │
-                         │                          │
-                         │  Identity / Policies     │
-                         │  Gateway Registry        │
-                         │  Audit / Management      │
-                         │  PostgreSQL              │
-                         └────────────┬─────────────┘
-                                      │
-                              mTLS / gRPC
-                                      │
-                    ┌─────────────────┴─────────────────┐
-                    │                                   │
-             ┌──────▼──────┐                     ┌──────▼──────┐
-             │   Gateway   │                     │   Gateway   │
-             │ Enforcement │                     │ Enforcement │
-             │    Node     │                     │    Node     │
-             └──────┬──────┘                     └──────┬──────┘
-                    │                                   │
-                 QUIC                              QUIC
-              mTLS tunnel                        mTLS tunnel
-                    │                                   │
-          ┌─────────▼─────────┐               ┌─────────▼─────────┐
-          │    Connector      │               │    Connector      │
-          │                    │               │                    │
-          │ Internal Network   │               │ Internal Network   │
-          └─────────┬─────────┘               └─────────┬─────────┘
-                    │                                   │
-              Internal Apps                        Internal Apps
-```
+Features
 
-### Control Plane
+- Outbound QUIC tunnels.
+- Mutual TLS connector authentication.
+- HTTP application routing.
+- TCP application forwarding.
+- YAML-based configuration.
+- Lightweight Go binaries.
+- Self-hosted deployment.
+- No centralized control plane.
 
-The control plane is responsible for centralized management and coordination:
+Quick start
 
-* Identity provider configuration
-* Users and groups
-* Application registration
-* Access policies
-* Gateway and connector registration
-* Policy distribution
-* Component revocation
-* Security and access events
-* Persistent state in PostgreSQL
+This example assumes you have already installed the gateway and connector binaries and provisioned their certificates.
 
-The control plane is **not intended to carry application traffic**.
+1. Configure the gateway
 
-### Gateway
+Create "/etc/ashrix/gateway.yaml":
 
-The gateway is the primary enforcement point.
+gateway:
+  listen: ":443"
 
-It:
+quic:
+  listen: ":8443"
 
-* Authenticates incoming sessions
-* Evaluates access policies
-* Routes traffic to the appropriate connector
-* Maintains connections with the control plane
-* Maintains connector management and transport sessions
-* Enforces component and session revocation
-* Provides the data-plane entry point for protected applications
+tls:
+  certificate: /etc/ashrix/certs/gateway.crt
+  private_key: /etc/ashrix/certs/gateway.key
+  client_ca: /etc/ashrix/pki/ca.crt
 
-Gateways maintain cached, cryptographically verified policy state so that application traffic does not need to traverse the control plane.
+connectors:
+  - id: office-01
+    enabled: true
 
-### Connector
+applications:
+  - name: grafana
+    domain: grafana.example.com
+    connector: office-01
+    target_name: grafana
 
-Connectors run inside the network containing the protected applications.
+2. Configure the connector
 
-A connector establishes **outbound connections** to an Ashrix gateway rather than requiring inbound connectivity from the public internet.
+Create "/etc/ashrix/connector.yaml":
 
-This allows protected applications to remain isolated behind existing network boundaries without requiring public inbound firewall rules for each application.
+connector:
+  id: office-01
 
-### Data Plane
+gateway:
+  address: gateway.example.com:8443
+  server_name: gateway.example.com
 
-Application traffic is transported through **multiplexed QUIC tunnels secured with mutual TLS**.
+identity:
+  certificate: /etc/ashrix/certs/connector.crt
+  private_key: /etc/ashrix/certs/connector.key
+  ca_certificate: /etc/ashrix/pki/ca.crt
 
-The current transport implementation supports experimentation with:
+applications:
+  - name: grafana
+    target: 192.168.1.10:3000
 
-* HTTP
-* WebSocket
-* Raw TCP streams
-* Application-to-application connectivity
+3. Start the gateway
 
-The data plane is designed to remain independent from the control plane.
+ashrix-gateway -config /etc/ashrix/gateway.yaml
 
----
+4. Start the connector
 
-## 🔐 Security Model
+ashrix-connector -config /etc/ashrix/connector.yaml
 
-Ashrix is being developed around several zero-trust security principles.
+5. Access your application
 
-### Mutual Authentication
+Configure DNS:
 
-Internal Ashrix components authenticate each other using a private PKI and mutual TLS.
+grafana.example.com -> YOUR_GATEWAY_PUBLIC_IP
 
-The architecture currently includes authenticated communication between:
+Open:
 
-* Control Plane ↔ Gateway
-* Gateway ↔ Connector
+https://grafana.example.com
 
-### Signed Policy Distribution
+The gateway forwards the request through the connector's established QUIC tunnel to the local Grafana service.
 
-Authorization state can be distributed to gateways as cryptographically signed policy bundles.
+Important: The YAML fields and CLI flags above are illustrative. Use the exact schema and commands supported by the current release.
 
-Gateways verify bundles before applying them and maintain the last trusted policy state locally.
+Installation
 
-Policy updates are applied atomically to avoid partially applied authorization state.
+Download the appropriate Linux binaries from "GitHub Releases" (https://github.com/ashrixlabs/ashrix/releases).
 
-### Revocation
+Verify the release checksums before installation.
 
-The architecture includes mechanisms for revoking:
+See "Deployment" (docs/deployment.md) for complete installation instructions.
 
-* Gateway credentials
-* Connector credentials
-* User sessions
-* Other security-sensitive identities
+Requirements
 
-Revocation state is propagated to enforcement components so that access can be terminated without requiring the control plane to become part of the application data path.
+- Linux gateway host.
+- Linux connector host.
+- Publicly reachable gateway.
+- Outbound UDP connectivity from connector to gateway.
+- Valid gateway and connector certificates.
+- DNS pointing application hostnames to the gateway.
 
-### Fail-Closed Authorization
+Documentation
 
-Ashrix is designed so that loss of connectivity with the control plane does not automatically mean loss of authorization guarantees.
+Document| Description
+"Architecture" (docs/architecture.md)| How Ashrix works
+"Configuration" (docs/configuration.md)| Gateway and connector YAML
+"PKI" (docs/pki.md)| Certificate management
+"Security" (docs/security.md)| Security model and limitations
+"Deployment" (docs/deployment.md)| Installation and deployment
+"Operations" (docs/operations.md)| Operating and maintaining Ashrix
+"Benchmarking" (docs/benchmarking.md)| Performance testing methodology
 
-Gateways can continue enforcing their last trusted policy state for a bounded period while preventing unauthorized policy rollback or indefinite offline operation.
+Development
 
----
+Build:
 
-## ⚙️ Current Capabilities
+go build ./...
 
-The project is actively evolving, but the current implementation includes experimentation with:
+Test:
 
-* [x] Control Plane ↔ Gateway synchronization
-* [x] Gateway ↔ Connector synchronization
-* [x] User and group based authorization
-* [x] Application access policies
-* [x] Signed policy bundles
-* [x] Policy version enforcement
-* [x] Component certificate revocation
-* [x] Session revocation
-* [x] mTLS authentication
-* [x] QUIC-based application transport
-* [x] HTTP forwarding
-* [x] WebSocket forwarding
-* [x] Raw TCP forwarding
-* [x] Application-to-application connectivity
-* [ ] SSH access
-* [ ] Database access
-* [ ] Browser-based terminal
-* [ ] OIDC/identity integrations
-* [ ] Advanced audit and observability
-* [ ] High-availability gateway deployment
+go test ./...
 
-> The checklist describes development status, not production readiness.
+Race detection:
 
----
+go test -race ./...
 
-## 🛠️ Technology
+See "Development" (docs/development.md) for contributor instructions.
 
-### Core
+Security
 
-* **Go** — control plane, gateway, and connector
-* **PostgreSQL** — persistent control-plane state
-* **Redis / Valkey** — session and ephemeral state
-* **bbolt** — local trusted state
-* **gRPC** — control and management communication
-* **QUIC** — application data transport
-* **mTLS / private PKI** — component authentication
+Ashrix authenticates connectors using mTLS. It does not provide end-user authentication, SSO, or application-level authorization.
 
-### Infrastructure
+Your applications remain responsible for their own access control.
 
-* Podman
-* Ansible
-* Linux
-* OpenTelemetry
+For security reports, see "SECURITY.md" (SECURITY.md).
 
----
+Project status
 
-## 🗺️ Roadmap
+Ashrix is an open-source infrastructure project under active development.
 
-### Access
+The focus is reliable tunneling, secure application forwarding, predictable resource consumption, and straightforward deployment.
 
-* [ ] SSH access
-* [ ] Browser-based SSH terminal
-* [ ] Short-lived SSH certificates
-* [ ] Database access
-* [ ] RDP access
+License
 
-### Identity
+See "LICENSE" (LICENSE).
 
-* [ ] OIDC provider integrations
-* [ ] Microsoft Entra ID
-* [ ] Keycloak
-* [ ] Google
-* [ ] Additional enterprise identity providers
 
-### Security
-
-* [ ] More granular authorization policies
-* [ ] Improved session revocation
-* [ ] Security event pipeline
-* [ ] Expanded audit logging
-* [ ] Security hardening
-* [ ] Independent security review
-
-### Infrastructure
-
-* [ ] Gateway high availability
-* [ ] Connector failover
-* [ ] Multi-region control plane
-* [ ] Production deployment tooling
-* [ ] Performance and scale testing
-
----
-
-## 🚀 Deployment
-
-Deployment tooling is currently experimental and primarily reflects the development environment used to build and test Ashrix.
-
-Generic deployment workflows using containers and infrastructure automation will be documented as the architecture stabilizes.
-
----
-
-## 🧪 Why This Project Exists
-
-Ashrix is primarily a systems and security engineering project.
-
-It is an attempt to explore how a modern application-access platform can combine:
-
-* Zero Trust authorization
-* Identity-aware access control
-* Private networking
-* Mutual TLS
-* Cryptographic policy distribution
-* Distributed state synchronization
-* QUIC-based transport
-* High-concurrency networking in Go
-
-The project is intentionally being developed in the open so that the architecture, implementation decisions, limitations, and security assumptions can be reviewed and challenged.
-
----
-
-## 🤝 Contributing
-
-Ashrix is currently undergoing active architectural development, so the API and internal protocols may change significantly.
-
-Pull requests are not currently guaranteed to be accepted.
-
-However, **architectural discussions, bug reports, security reviews, threat-model feedback, and implementation critiques are welcome.**
-
-If you identify a potential security issue, please avoid publishing sensitive exploitation details in a public issue. A private security-reporting process will be documented as the project matures.
-
----
-
-## 📜 License
-
-License: **TBD**
-
-The licensing model will be finalized before the project moves beyond its experimental stage.

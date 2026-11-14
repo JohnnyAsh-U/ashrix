@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -12,10 +11,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/proxy"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server"
-
-	// http_proxy "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/http"
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/gateway/server/quic"
+	
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/tunnel"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/pki"
 )
@@ -39,55 +35,54 @@ func RunGateway(ctx context.Context, config *config.Config, log *slog.Logger) er
 		return err
 	}
 
-	// 	//---------------------------Initialize and Load Registry------------------------------//
-
-	reg := tunnel.NewTunnelRegistry(log)
-	authorizedConnectors := make(map[string]string, len(config.Connectors))
-	for _, connector := range config.Connectors {
-		authorizedConnectors[connector.ID] = "active"
-	}
-	reg.SetAuthorizedConnectors(authorizedConnectors)
-
-	log.Info("Initialising Registry...")
-
 	// 	//2. Access Logger
 	accessLogger := logging.NewAccessLogger(config)
 	defer accessLogger.Close()
 
-	//--------------------Start Listeners--------------------
 	mtlsConfig := pki.GetTLSConfig()
 
-	log.Info("initializing Gateway servers")
+	log.Info("initializing Quic Tunnel server")
 
-	httpServer := proxy.NewProxyServer(
+	// Tunnel
+	quicTunnel, err := tunnel.NewQuicTunnel(
 		config,
+		mtlsConfig.Clone(),
 		log,
-		reg,
-		accessLogger,
 	)
 
-	quicServer := tunnel.NewQUICServer(
+	// Proxy handler
+	proxyHandler := proxy.NewProxyHandler(config, log, quicTunnel, accessLogger)
+
+	//Proxy server - HTTP and HTTPS
+	proxyServers := proxy.NewProxyServers(
 		config,
-		mtlsConfig,
 		log,
-		reg,
+		proxyHandler,
 	)
 
-	if err := server.StartServers(config, mtlsConfig, ctx, log, httpServer, quicServer); err != nil {
-		log.Error(err.Error())
-		return fmt.Errorf("Erro: %w", err)
+
+	if err := proxyServers.StartProxyServers(); err != nil {
+		log.Warn("Error starting http/https proxy servers", slog.Any("err", err))
 	}
 
+	if err := quicTunnel.Start(ctx); err != nil {
+		log.Warn("Error starting quic server", slog.Any("err", err))
+	}
 
 	// 	// Block until SIGTERM or SIGINT (Ctrl+C / systemd stop / our stop command).
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
-
 	sig := <-quit
 	log.Info("shutdown signal received", slog.String("signal", sig.String()))
-	
-	server.ShutdownServers(httpServer, quicServer, log)
+
+	// Stop QUIC connections.
+	quicTunnel.Stop()
+
+	// Stop listeners gracefully.
+	if err := proxyServers.ShutdownProxyServers(ctx); err != nil {
+		log.Error("failed to stop HTTP/HTTPS server",slog.Any("err", err))
+	}
 
 	return nil
 

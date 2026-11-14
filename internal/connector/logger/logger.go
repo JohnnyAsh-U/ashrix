@@ -154,7 +154,7 @@ func initProd(cfg LoggerConfig) error {
 
 	// File logging (JSON)
 	appWriter := &lumberjack.Logger{
-		Filename:   cfg.LogDir + "/gateway.log",
+		Filename:   cfg.LogDir + "/connector.log",
 		MaxSize:    cfg.MaxSizeMB,
 		MaxAge:     cfg.MaxAgeDays,
 		MaxBackups: cfg.MaxBackups,

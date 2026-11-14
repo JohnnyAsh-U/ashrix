@@ -6,11 +6,24 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/JohnnyAsh-U/ashrix-api/proto/gen;proto";
 
+// =========================================================
+enum MsgType {
+  REGISTER      = 0;
+  HEARTBEAT     = 1;
+  HEARTBEAT_ACK = 2;
+}
+
+message ControlMessage {
+  MsgType       msg_type       = 1;
+  string        connector_id   = 2;
+  repeated ConnectorApps connector_apps = 3;
+
+}
 
 // =============================================================================
 message ConnectorApps {
-  string id = 1;
-  string name = 2;
+  string id       = 1;
+  string name     = 2;
   string upstream = 3; //must be host:port
 }
 
@@ -26,23 +39,22 @@ message HeaderList {
 // 2. FrameType Enum
 enum RequestType {
   UNSPECIFIED_REQUEST = 0;
-  HTTP_REQUEST = 1;
-  WS_REQUEST = 3;
+  HTTP_REQUEST        = 1;
+  WS_REQUEST          = 3;
 }
-
 
 // 3. Payload Messages
 
 message StreamFrame {
-  string request_id = 1;
-  string app_id = 2;
-  string app_name = 3;
-  string connector_id = 4;
-  string method = 5;
-  string host = 6;
-  string path = 7;
-  string query = 8;
-  map<string, HeaderList> headers = 9;
-  int64 body_length = 10;
-  RequestType stream_type = 11;
+  string                  request_id   = 1;
+  string                  app_id       = 2;
+  string                  app_name     = 3;
+  string                  connector_id = 4;
+  string                  method       = 5;
+  string                  host         = 6;
+  string                  path         = 7;
+  string                  query        = 8;
+  map<string, HeaderList> headers      = 9;
+  int64                   body_length  = 10;
+  RequestType             stream_type  = 11;
 }
