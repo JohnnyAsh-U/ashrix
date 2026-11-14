@@ -30,11 +30,6 @@ func (cfg Config) Validate() error {
 		return errors.New("gateway server_name is required")
 	}
 
-
-	if len(cfg.Applications) == 0 {
-		return errors.New("at least one application is required")
-	}
-
 	names := make(map[string]struct{}, len(cfg.Applications))
 
 	for _, app := range cfg.Applications {

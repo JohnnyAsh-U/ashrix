@@ -69,3 +69,18 @@ func ParseCSR(data []byte) (*x509.CertificateRequest, error) {
 	return csr, nil
 }
 
+
+func ParseCert(data []byte) (*x509.Certificate, error) {
+	block, _ := pem.Decode(data)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return nil, errors.New("invalid CERT PEM")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse Cert: %w", err)
+	}
+
+	return cert, nil
+}
+

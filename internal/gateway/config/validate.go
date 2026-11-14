@@ -56,7 +56,6 @@ func (c Config) Validate() error {
 		return fmt.Errorf("PKI paths are required")
 	}
 
-
 	connectorIDs := make(map[string]struct{})
 
 	for _, connector := range c.Connectors {
@@ -76,15 +75,8 @@ func (c Config) Validate() error {
 
 		connectorIDs[connector.ID] = struct{}{}
 
-		if connector.CertificateSerial != "" {
-			if err := validateSerial(
-				connector.CertificateSerial,
-			); err != nil {
-				return fmt.Errorf(
-					"connector %s: %w",
-					connector.ID, err,
-				)
-			}
+		if connector.CertificateSerial == "" {
+			return fmt.Errorf("connector serial missing")
 		}
 	}
 
@@ -193,22 +185,3 @@ func validDomain(domain string) bool {
 
 	return true
 }
-
-func validateSerial(serial string) error {
-	serial = strings.ReplaceAll(serial, ":", "")
-
-	if serial == "" || len(serial)%2 != 0 {
-		return fmt.Errorf("invalid certificate serial")
-	}
-
-	for _, r := range serial {
-		if !((r >= '0' && r <= '9') ||
-			(r >= 'a' && r <= 'f') ||
-			(r >= 'A' && r <= 'F')) {
-			return fmt.Errorf("invalid certificate serial")
-		}
-	}
-
-	return nil
-}
-

@@ -4,15 +4,17 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
-	// "go.uber.org/zap"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
+	ashrixerrors "github.com/JohnnyAsh-U/ashrix-api/internal/errors"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 	proto "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/quic-go/quic-go"
 )
 
@@ -44,9 +46,18 @@ func NewTunnel(ctx context.Context, cfg *config.Config, tlsConfig *tls.Config, l
 }
 
 func (t *TunnelClient) Run(ctx context.Context) error {
-	for {
+
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 1 * time.Second
+	expBackoff.MaxInterval = 30 * time.Second
+	expBackoff.Multiplier = 2
+	expBackoff.RandomizationFactor = 0.5
+	expBackoff.Reset()
+
+	operation := func() (bool, error) {
+		// for {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return false, ctx.Err()
 		}
 
 		t.log.Info("dialing edge server...", "addr", t.config.Gateway.Address)
@@ -61,16 +72,37 @@ func (t *TunnelClient) Run(ctx context.Context) error {
 		})
 
 		if err != nil {
+			err = fromQUICError(err)
+			if ashrixerrors.IsPermanent(err) {
+				t.log.Error("permanent error, stopping", "code", ashrixerrors.CodeOf(err), "err", err)
+				return false, backoff.Permanent(err)
+			}
 			t.log.Error("failed to dial edge server", "err", err)
-			time.Sleep(2 * time.Second)
-			continue
+			return false, err
 		}
 		t.log.Info("connected to gateway server, initializing management stream")
 		if err := t.handleSession(ctx, conn); err != nil {
+			err = fromQUICError(err)
+			if ashrixerrors.IsPermanent(err) {
+				t.log.Error("permanent error, stopping", "code", ashrixerrors.CodeOf(err), "err", err)
+				return false, backoff.Permanent(err)
+			}
 			t.log.Warn("session terminated", "err", err)
+			return false, err
 		}
-		_ = conn.CloseWithError(0x00, "reconnecting")
+		t.log.Info("Session ended cleanly")
+		return true, nil
 	}
+	
+	notify := func(err error, next time.Duration) {
+		t.log.Warn("retrying", "err", err, "retry_in", next)
+	}
+
+	_, err := backoff.Retry(ctx, operation,
+		backoff.WithBackOff(expBackoff),
+		backoff.WithNotify(notify),
+	)
+	return err
 }
 
 func (t *TunnelClient) handleSession(ctx context.Context, conn *quic.Conn) error {
@@ -139,4 +171,16 @@ func (t *TunnelClient) handleSession(ctx context.Context, conn *quic.Conn) error
 		t.log.Warn("some data stream goroutines did not exit cleanly before reconnecting")
 	}
 	return sessionErr
+}
+
+// fromQUICError converts gateway CloseWithError back to typed error
+func fromQUICError(err error) error {
+	var appErr *quic.ApplicationError
+	if errors.As(err, &appErr) {
+		return &ashrixerrors.Error{
+			Code: ashrixerrors.Code(appErr.ErrorCode),
+			Msg:  appErr.ErrorMessage,
+		}
+	}
+	return err
 }

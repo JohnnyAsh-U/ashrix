@@ -70,56 +70,9 @@ This shows the CA subject, serial, validity, and paths, so you can verify what y
 
 
 
-### 1b. On the gateway: provide the public HTTPS certificate
-
-`init` does *not* create your public HTTPS certificate. That certificate is what browsers validate when they open `https://grafana.example.com`.
-
-You must put the HTTPS certificate and private key in the exact paths configured in the gateway YAML under 
-
-`listeners.https`:
-```
-listeners:
-  https:
-    address: "0.0.0.0:443"
-    certificate: ~/.ashrix/server.crt
-    private_key: ~/.ashrix/server.key
-
-```
-
-In the example file `examples/gateway.yaml`, those paths are:
-
-certificate: /etc/ashrix-gateway/certs/server.crt
-
-private_key: /etc/ashrix-gateway/certs/server.key
-
-
-So for a user-directory install, place your files at:
-~/.ashrix/server.crt
-~/.ashrix/server.key
-
-For a system install, place them at the paths in your `gateway.yaml`.
-
-You can get them from any source you trust, for example Let's Encrypt, your company CA, or a self-signed cert for testing:
-
-```
-cp /path/to/your/fullchain.pem ~/.ashrix/server.crt
-cp /path/to/your/privkey.pem ~/.ashrix/server.key
-
-chmod 0640 ~/.ashrix/server.crt
-chmod 0600 ~/.ashrix/server.key
-```
-
-Rules:
-
-1. `certificate` must match `private_key`. If they do not pair, the HTTPS listener will fail to start.
-2. `certificate` must be valid for the public domain the client uses, e.g. `grafana.example.com`. The gateway leaf cert in `~/.ashrix/pki/gateway.crt` is *not* used for this. It is only for gateway-to-connector mTLS.
-3. If the files are missing or unreadable, HTTPS will not start. HTTP on `:80` and QUIC may still start depending on your config, but `https://<your-app>` will not work.
-4. If you change the paths in `gateway.yaml`, you must put the files at the new paths. The gateway only reads what is configured, it does not search for them.
-
-
 ### 2. On the connector: initialize the connector
 ```bash
-ashrix-connector init --name connector_name
+ashrix-connector init --name connector_name --quic-addr ipaddress:port
 ```
 
 This generates:
@@ -215,6 +168,53 @@ https://grafana.example.com
 ```
 
 The gateway forwards the request through the connector's established QUIC tunnel to the local Grafana service.
+
+
+### 9. For HTTPS On the gateway: provide the public HTTPS certificate
+
+`init` does *not* create your public HTTPS certificate. That certificate is what browsers validate when they open `https://grafana.example.com`.
+
+You must put the HTTPS certificate and private key in the exact paths configured in the gateway YAML under 
+
+`listeners.https`:
+```
+listeners:
+  https:
+    address: "0.0.0.0:443"
+    certificate: ~/.ashrix/server.crt
+    private_key: ~/.ashrix/server.key
+
+```
+
+In the example file `examples/gateway.yaml`, those paths are:
+
+certificate: /etc/ashrix-gateway/certs/server.crt
+
+private_key: /etc/ashrix-gateway/certs/server.key
+
+
+So for a user-directory install, place your files at:
+~/.ashrix/server.crt
+~/.ashrix/server.key
+
+For a system install, place them at the paths in your `gateway.yaml`.
+
+You can get them from any source you trust, for example Let's Encrypt, your company CA, or a self-signed cert for testing:
+
+```
+cp /path/to/your/fullchain.pem ~/.ashrix/server.crt
+cp /path/to/your/privkey.pem ~/.ashrix/server.key
+
+chmod 0640 ~/.ashrix/server.crt
+chmod 0600 ~/.ashrix/server.key
+```
+
+Rules:
+
+1. `certificate` must match `private_key`. If they do not pair, the HTTPS listener will fail to start.
+2. `certificate` must be valid for the public domain the client uses, e.g. `grafana.example.com`. The gateway leaf cert in `~/.ashrix/pki/gateway.crt` is *not* used for this. It is only for gateway-to-connector mTLS.
+3. If the files are missing or unreadable, HTTPS will not start. HTTP on `:80` and QUIC may still start depending on your config, but `https://<your-app>` will not work.
+4. If you change the paths in `gateway.yaml`, you must put the files at the new paths. The gateway only reads what is configured, it does not search for them.
 
 
 

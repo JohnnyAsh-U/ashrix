@@ -24,6 +24,10 @@ func (c *TunnelClient) handleDataTunnel(ctx context.Context, stream *quic.Stream
 		}
 	}()
 
+	if stream == nil {
+		return
+	}
+
 	if ctx.Err() != nil {
 		c.log.Info("Context Cancelled")
 		return
@@ -41,8 +45,6 @@ func (c *TunnelClient) handleDataTunnel(ctx context.Context, stream *quic.Stream
 		c.log.Error("failed to decode connector response", "error", err)
 		return
 	}
-
-	fmt.Println(req.AppId)
 
 	//===============Getting the app from the applist using requestheader app id================//
 	var requestApp *proto.ConnectorApps

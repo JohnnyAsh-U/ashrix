@@ -19,26 +19,28 @@ import (
 )
 
 var (
-	connectorID      string
 	connectorCSRPath string
 	connectorOutPath string
 	connectorDays    int
+	gatewayID string
 )
 
 func init() {
-	createConnectorCmd.Flags().StringVar(&connectorID, "connector", "", "Connector ID, e.g. office-01")
 	createConnectorCmd.Flags().StringVar(&connectorCSRPath, "csr", "", "Path to connector CSR PEM file")
 	createConnectorCmd.Flags().StringVar(&connectorOutPath, "out", "", "Path to write issued certificate (default: <pki-dir>/connectors/<id>.crt)")
 	createConnectorCmd.Flags().IntVar(&connectorDays, "days", 365, "Certificate validity in days")
+	initCACmd.Flags().StringVar(&gatewayID, "name", "", "Gateway Name")
 
 	rootCmd.AddCommand(initCACmd)
 	rootCmd.AddCommand(showCACmd)
 	rootCmd.AddCommand(createConnectorCmd)
+
+	_ = initCACmd.MarkFlagRequired("name")
 }
 
 var initCACmd = &cobra.Command{
-	Use:   "init-ca",
-	Short: "Init Ashrix Gateway CA",
+	Use:   "init",
+	Short: "Init Ashrix Gateway",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var appConfig config.Config
 		err := viper.Unmarshal(&appConfig)
@@ -81,7 +83,6 @@ var initCACmd = &cobra.Command{
 		)
 
 		if err != nil {
-			fmt.Println(err)
 			// If fails, then generate key and csr
 			key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 			if err != nil {
@@ -110,13 +111,23 @@ var initCACmd = &cobra.Command{
 				appConfig.Gateway.PrivateKey,
 				ca.Certificate,
 			)
-			fmt.Println(string(ca.Certificate.RawSubject))
 
 			if err != nil {
 				return fmt.Errorf("%w", err)
 			}
 		}
 
+		// Update the gateway ID in the yaml file
+		appConfig.Gateway.ID = gatewayID
+		out, err := yaml.Marshal(&appConfig)
+		if err != nil {
+			return fmt.Errorf("marshal config: %w", err)
+		}
+		if err := os.WriteFile(viper.ConfigFileUsed(), out, 0o644); err != nil {
+			return fmt.Errorf("write config: %w", err)
+		}
+
+		fmt.Println("Gateway:", gatewayID)
 		fmt.Println("Root CA and Gateway Cert Loaded")
 		fmt.Println("Gateway CERT Validity", gatewayCA.Cert().NotBefore, gatewayCA.Cert().NotAfter)
 		return nil
@@ -162,14 +173,32 @@ var createConnectorCmd = &cobra.Command{
 			return fmt.Errorf("couldn't load config: %w", err)
 		}
 
-		if connectorID == "" {
-			return fmt.Errorf("--connector is required")
-		}
 		if connectorCSRPath == "" {
 			return fmt.Errorf("--csr is required")
 		}
 		if connectorDays <= 0 {
 			return fmt.Errorf("--days must be positive")
+		}
+
+		// Get Connector ID from CSR
+		// Open the file
+		csrPEM, err := os.ReadFile(connectorCSRPath)
+		if err != nil {
+			return fmt.Errorf("read csr: %w", err)
+		}
+
+		// Parse the CSR
+		csr, err := pki.ParseCSR(csrPEM)
+
+		if err != nil {
+			return fmt.Errorf("error with csr: %w", err)
+		}
+
+		connectorID := csr.Subject.CommonName
+
+		//Check the ConnectorID
+		if connectorID == "" {
+			return fmt.Errorf("Connector ID Missing in CSR")
 		}
 
 		// 1. Don't duplicate
@@ -189,12 +218,6 @@ var createConnectorCmd = &cobra.Command{
 			return fmt.Errorf("load CA: %w", err)
 		}
 
-		// 3. Read CSR + issue cert
-		csrPEM, err := os.ReadFile(connectorCSRPath)
-		if err != nil {
-			return fmt.Errorf("read CSR: %w", err)
-		}
-
 		certPEM, cert, err := ca.IssueCertificate(
 			connectorID,
 			csrPEM,
@@ -207,10 +230,7 @@ var createConnectorCmd = &cobra.Command{
 
 		// 4. Write cert to disk
 		if connectorOutPath == "" {
-			connectorOutPath = filepath.Join(
-				filepath.Dir(appConfig.PKI.CACertificate),
-				connectorID+".crt",
-			)
+			connectorOutPath = filepath.Join(connectorID + ".crt")
 		}
 
 		if err := os.MkdirAll(filepath.Dir(connectorOutPath), 0o755); err != nil {

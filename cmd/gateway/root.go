@@ -9,11 +9,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
-
-func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Path to custom config file(disables auto-creation")
-}
 
 // rootCmd is the parent of all subcommands.
 // It has no RunE — running ashrix-gateway alone prints help.
@@ -22,12 +17,6 @@ var rootCmd = &cobra.Command{
 	Short: "Ashrix self-hosted application access gateway",
 	Long:  `Ashrix accepts application requests and routes them through outbound QUIC connectors. Configure gateway.yaml and provision the gateway identity files before starting.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if cfgFile != "" {
-			viper.SetConfigFile(cfgFile)
-			if err := viper.ReadInConfig(); err != nil {
-				return fmt.Errorf("Failed to read specified config %q: %w", cfgFile, err)
-			}
-		} else {
 			home, err := os.UserHomeDir()
 			if err != nil {
 				return fmt.Errorf("Could not determine user home directory: %w", err)
@@ -101,9 +90,9 @@ logging:
 
 			viper.SetConfigFile(defaultPath)
 			if err := viper.ReadInConfig(); err != nil {
-				return fmt.Errorf("Failed to read specified config %q: %w", cfgFile, err)
+				return fmt.Errorf("Failed to read specified config %q: %w", defaultPath, err)
 			}
-		}
+		
 		return nil
 	},
 }

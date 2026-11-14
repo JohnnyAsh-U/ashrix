@@ -57,7 +57,7 @@ func runStart(cmd *cobra.Command, args []string) (err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if err := connector.RunConnector(ctx, &appConfig, log); err != nil {
-		log.Error("Connector ERror", slog.Any("err", err))
+		log.Error("Connector Error", slog.Any("err", err))
 		os.Exit(1)
 	}
 
