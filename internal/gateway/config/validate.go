@@ -16,9 +16,15 @@ var applicationNamePattern = regexp.MustCompile(
 	`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$`,
 )
 
+var certificateSerialPattern = regexp.MustCompile(`^[0-9a-fA-F]+$`)
+
 func (c Config) Validate() error {
 	if !connectorIDPattern.MatchString(c.Gateway.ID) {
 		return fmt.Errorf("invalid gateway.id")
+	}
+
+	if !validServerName(c.Gateway.ServerName) {
+		return fmt.Errorf("invalid gateway.server_name")
 	}
 
 	addresses := map[string]string{
@@ -75,8 +81,9 @@ func (c Config) Validate() error {
 
 		connectorIDs[connector.ID] = struct{}{}
 
-		if connector.CertificateSerial == "" {
-			return fmt.Errorf("connector serial missing")
+		serial := strings.ReplaceAll(strings.TrimSpace(connector.CertificateSerial), ":", "")
+		if !certificateSerialPattern.MatchString(serial) {
+			return fmt.Errorf("invalid certificate serial for connector %q", connector.ID)
 		}
 	}
 
@@ -184,4 +191,14 @@ func validDomain(domain string) bool {
 	}
 
 	return true
+}
+
+func validServerName(name string) bool {
+	if name == "" || strings.TrimSpace(name) != name {
+		return false
+	}
+	if net.ParseIP(name) != nil {
+		return true
+	}
+	return validDomain(name)
 }

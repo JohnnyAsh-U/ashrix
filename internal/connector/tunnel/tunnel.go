@@ -35,7 +35,7 @@ type ConnectorTunnel struct {
 	apps []*pb.ConnectorApps
 }
 
-func NewTunnel(ctx context.Context, cfg *config.Config, tlsConfig *tls.Config, log *slog.Logger, apps []*pb.ConnectorApps) *TunnelClient {
+func NewTunnel(cfg *config.Config, tlsConfig *tls.Config, log *slog.Logger, apps []*pb.ConnectorApps) *TunnelClient {
 	return &TunnelClient{
 		log:       log,
 		startedAt: time.Now(),

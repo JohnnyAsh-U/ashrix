@@ -18,3 +18,4 @@ server.crt
 server.key
 build/
 vendor/
+Ashrix-defect-fixes/

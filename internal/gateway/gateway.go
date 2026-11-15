@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -11,54 +12,43 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/logging"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/proxy"
-	
+
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/tunnel"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/pki"
 )
 
-func RunGateway(ctx context.Context, config *config.Config, log *slog.Logger) error {
-	log.Info("Starting Gateway...")
+func RunGateway(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+	log.Info("Starting Ashrix gateway")
 
 	// PKI Initializing
-	PKICA, err := pki.LoadCA(config.PKI.CACertificate, config.PKI.CAPrivateKey)
+	ca, err := pki.LoadCA(cfg.PKI.CACertificate, cfg.PKI.CAPrivateKey)
 
 	if err != nil {
 		log.Error("failed to load pki", slog.Any("err", err))
-		return err
+		return fmt.Errorf("load gateway CA: %w", err)
 	}
 
 	//Gateway CA
-	pki, err := crypto.NewLocalGatewayPKI(config.Gateway.Certificate, config.Gateway.PrivateKey, PKICA.Certificate)
-
+	gatewayPKI, err := crypto.NewLocalGatewayPKI(cfg.Gateway.Certificate, cfg.Gateway.PrivateKey, ca.Certificate, cfg.Gateway.ServerName)
 	if err != nil {
 		log.Error("failed to load gateway cert", slog.Any("err", err))
-		return err
+		return fmt.Errorf("load gateway certificate: %w", err)
 	}
 
 	// 	//2. Access Logger
-	accessLogger := logging.NewAccessLogger(config)
+	accessLogger := logging.NewAccessLogger(cfg)
 	defer accessLogger.Close()
-
-	mtlsConfig := pki.GetTLSConfig()
-
-	log.Info("initializing Quic Tunnel server")
 
 	// Tunnel
 	quicTunnel, err := tunnel.NewQuicTunnel(
-		config,
-		mtlsConfig.Clone(),
+		cfg,
+		gatewayPKI.GetTLSConfig().Clone(),
 		log,
 	)
+	proxyHandler := proxy.NewProxyHandler(cfg, log, quicTunnel, accessLogger)
 
-	// Proxy handler
-	proxyHandler := proxy.NewProxyHandler(config, log, quicTunnel, accessLogger)
-
-	//Proxy server - HTTP and HTTPS
-	proxyServers := proxy.NewProxyServers(
-		config,
-		log,
-		proxyHandler,
-	)
+	// //Proxy server - HTTP and HTTPS
+	proxyServers := proxy.NewProxyServers(cfg,log,proxyHandler)
 
 
 	if err := proxyServers.StartProxyServers(); err != nil {

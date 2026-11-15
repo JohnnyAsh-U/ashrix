@@ -1,5 +1,6 @@
 gateway:
   id: gateway-01
+  server_name: gateway.example.com
   certificate: /etc/ashrix/certs/connector.crt
   private_key: /etc/ashrix/certs/connector.key
 
@@ -31,30 +32,6 @@ applications:
 
 
 logging:
-  dir: /etc/ashrix-gateway/pki
+  dir: /etc/ashrix-gateway
   level: info
   format: json
-
-
-
-ashrix-gateway init-ca
-
-ashrix-gateway test-config
-
-ashrix-gateway sign-csr
-  --connector office-01 \
-  --csr connector.csr
-
-ashrix-gateway renew-connector
-  --connector office-01 \
-  --csr connector.csr
-
-ashrix-gateway list-connectors
-
-ashrix-gateway start
-ashrix-gateway stop
-ashrix-gateway status
-ashrix-gateway config
-ashrix-gateway reload
-ashrix-gateway version
-

@@ -1,7 +1,7 @@
 package identity
 
-
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -40,14 +40,14 @@ func LoadPrivateKey(path string) (*ecdsa.PrivateKey, error) {
 		return nil, fmt.Errorf("read private key: %w", err)
 	}
 
-	block, _ := pem.Decode(data)
+	block, rest := pem.Decode(data)
 	if block == nil || block.Type != "PRIVATE KEY" {
 		return nil, errors.New("invalid private key PEM")
 	}
 
-	// if len(trimSpace(rest)) != 0 {
-	// 	return nil, errors.New("unexpected data after private key")
-	// }
+	if len(bytes.TrimSpace(rest)) != 0 {
+		return nil, errors.New("unexpected data after private key PEM")
+	}
 
 	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {

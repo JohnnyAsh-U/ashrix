@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	gateway "github.com/JohnnyAsh-U/ashrix-api/internal/gateway"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
@@ -51,14 +53,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	log := logger.App
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	//Run Gateway
 	if err := gateway.RunGateway(ctx, &appConfig, log); err != nil {
 		log.Error("Gateway Error", slog.Any("err", err))
-		os.Exit(1)
+		return err
 	}
-	cancel()
 	return nil
 }

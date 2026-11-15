@@ -12,6 +12,8 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+
+	// "path/filepath"
 	"time"
 )
 
@@ -46,7 +48,11 @@ func LoadCA(certPath, keyPath string) (*CA, error) {
 	caCert, err := x509.ParseCertificate(block.Bytes)
 
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load key : %w", err)
+		return nil, fmt.Errorf("parse CA certificate: %w", err)
+	}
+
+	if !caCert.IsCA || caCert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return nil, errors.New("configured certificate is not a signing CA")
 	}
 
 	// Verify the key and cert
@@ -67,8 +73,7 @@ func LoadCA(certPath, keyPath string) (*CA, error) {
 		return nil, fmt.Errorf("ca certificate is not valid before %s", caCert.NotBefore)
 	}
 	if now.After(caCert.NotAfter) {
-		return nil, fmt.Errorf("ca certificate is not valid after %s", caCert.NotBefore)
-
+		return nil, fmt.Errorf("ca certificate expired at %s", caCert.NotAfter)
 	}
 
 	return &CA{
@@ -132,66 +137,70 @@ func SaveCA(ca *CA, certPath, keyPath string) error {
 		return fmt.Errorf("incomplete CA")
 	}
 
-	//Key
-	dir := filepath.Dir(certPath)
-	certdata := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Certificate.Raw})
-	certmode := os.FileMode(0644)
-	tmp, err := os.CreateTemp(dir, ".tmp-*")
-	if err != nil {
-		fmt.Println("HHHHH", dir)
-		return fmt.Errorf("temp file: %w", err)
-	}
-	tmpPath := tmp.Name()
-
-	if _, err := tmp.Write(certdata); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("writing cert: %w", err)
-	}
-	if err := tmp.Chmod(certmode); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("chmod: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("close: %w", err)
-	}
-	if err := os.Rename(tmpPath, certPath); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("rename to %s: %w", certPath, err)
+	if certPath == keyPath {
+		return fmt.Errorf("CA certificate and private key paths must differ")
 	}
 
 	//Key
-	dir = filepath.Dir(keyPath)
+	certData := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Certificate.Raw})
 	keyDER, err := x509.MarshalECPrivateKey(ca.PrivateKey)
-	keydata := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	keymode := os.FileMode(0600)
-	tmp, err = os.CreateTemp(dir, ".tmp-*")
 	if err != nil {
-		return fmt.Errorf("temp file: %w", err)
+		return fmt.Errorf("marshal CA private key: %w", err)
 	}
-	tmpPath = tmp.Name()
+	// tmpPath := tmp.Name()
 
-	if _, err := tmp.Write(keydata); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("writing key: %w", err)
+	keyData := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	if err := writeExclusive(certPath, certData, 0o644); err != nil {
+		return fmt.Errorf("save CA certificate: %w", err)
 	}
-	if err := tmp.Chmod(keymode); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("chmod: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("close: %w", err)
-	}
-	if err := os.Rename(tmpPath, keyPath); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("rename to %s: %w", keyPath, err)
+
+	if err := writeExclusive(keyPath, keyData, 0o600); err != nil {
+		_ = os.Remove(certPath) // roll back the first file if the pair cannot be completed
+		return fmt.Errorf("save CA private key: %w", err)
 	}
 	return nil
+}
+
+// writeExclusive writes through a temporary file in the destination directory,
+// then links it into place. Unlike Rename, Link never replaces an existing key.
+func writeExclusive(path string, data []byte, mode os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(dir, ".ashrix-ca-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if err := tmp.Chmod(mode); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Link(tmpPath, path); err != nil {
+		return err
+	}
+	d, err := os.Open(dir)
+	if err != nil {
+		_ = os.Remove(path)
+		return err
+	}
+	defer d.Close()
+	return d.Sync()
 }
 
 func randomSerial() (*big.Int, error) {

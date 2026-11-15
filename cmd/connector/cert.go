@@ -21,9 +21,10 @@ func init() {
 
 func newCSRCommand() *cobra.Command {
 	var (
-		connectorID string
-		gatewayQuicAddr     string
-		csrOut      string
+		connectorID       string
+		gatewayQuicAddr   string
+		gatewayServerName string
+		csrOut            string
 	)
 
 	cmd := &cobra.Command{
@@ -37,12 +38,11 @@ func newCSRCommand() *cobra.Command {
 			}
 
 			if csrOut == "" {
-				csrOut = appConfig.Connector.ID + ".csr"
+				csrOut = connectorID + ".csr"
 			}
 
 			if err := identity.CreateKeyAndCSR(
 				appConfig.Connector.PrivateKey,
-				appConfig.Connector.Certificate,
 				connectorID,
 				csrOut,
 			); err != nil {
@@ -52,6 +52,7 @@ func newCSRCommand() *cobra.Command {
 			// Update the connector ID in the yaml file
 			appConfig.Connector.ID = connectorID
 			appConfig.Gateway.Address = gatewayQuicAddr
+			appConfig.Gateway.ServerName = gatewayServerName
 			out, err := yaml.Marshal(&appConfig)
 			if err != nil {
 				return fmt.Errorf("marshal config: %w", err)
@@ -80,10 +81,12 @@ func newCSRCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&connectorID, "name", "", "Connector ID")
 	cmd.Flags().StringVar(&csrOut, "out", "", "Where to write CSR (default: <id>.csr)")
-	cmd.Flags().StringVar(&gatewayQuicAddr, "quic-addr", "", "Gateway QUIC Address (ex: localhost:8444)")
+	cmd.Flags().StringVar(&gatewayQuicAddr, "quic-addr", "", "Gateway QUIC address (ex: gateway.example.com:8443)")
+	cmd.Flags().StringVar(&gatewayServerName, "server-name", "", "Gateway TLS server name (DNS name or IP address)")
 
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("quic-addr")
+	cmd.MarkFlagRequired("server-name")
 
 	return cmd
 }

@@ -1,4 +1,3 @@
-
 package config
 
 import (
@@ -26,8 +25,11 @@ func (cfg Config) Validate() error {
 		return fmt.Errorf("invalid gateway address: %w", err)
 	}
 
-	if strings.TrimSpace(cfg.Gateway.Address) == "" {
-		return errors.New("gateway server_name is required")
+	if strings.TrimSpace(cfg.Gateway.ServerName) == "" {
+		return errors.New("gateway.server_name is required")
+	}
+	if !validServerName(cfg.Gateway.ServerName) {
+		return errors.New("gateway.server_name must be a valid DNS name or IP address without a port")
 	}
 
 	names := make(map[string]struct{}, len(cfg.Applications))
@@ -64,4 +66,27 @@ func (cfg Config) Validate() error {
 	}
 
 	return nil
+}
+
+func validServerName(name string) bool {
+	if name == "" || strings.TrimSpace(name) != name {
+		return false
+	}
+	if net.ParseIP(name) != nil {
+		return true
+	}
+	if len(name) > 253 || strings.ContainsAny(name, "/\\:") {
+		return false
+	}
+	for _, label := range strings.Split(name, ".") {
+		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, r := range label {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-') {
+				return false
+			}
+		}
+	}
+	return true
 }

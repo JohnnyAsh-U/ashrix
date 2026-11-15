@@ -27,11 +27,11 @@ var rootCmd = &cobra.Command{
 			logsDir := filepath.Join(configDir, "logs")
 
 			if err := os.MkdirAll(pkiDir, 0o750); err != nil {
-				return fmt.Errorf("Failed to create- config direactory %q: %w", configDir, err)
+				return fmt.Errorf("Failed to create- config directory %q: %w", configDir, err)
 			}
 
 			if err := os.MkdirAll(logsDir, 0o750); err != nil {
-				return fmt.Errorf("Failed to create- config direactory %q: %w", logsDir, err)
+				return fmt.Errorf("Failed to create- config directory %q: %w", logsDir, err)
 			}
 			
 			defaultPath := filepath.Join(configDir, "gateway.yaml")
@@ -43,6 +43,7 @@ var rootCmd = &cobra.Command{
 
 				defaultGatewayConfig := fmt.Sprintf(`gateway:
   id: gateway-01
+  server_name: gateway.example.com
   certificate: "%s"
   private_key: "%s"
 

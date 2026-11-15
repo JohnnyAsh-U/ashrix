@@ -24,6 +24,7 @@ type ConnectorSession struct {
 	ConnectorID string
 	CertSerial  string
 	Conn        *quic.Conn
+	// Apps           []*pb.ConnectorApps
 	MgmtStream        *quic.Stream
 	LastSeen          time.Time
 	tunnelAttached    bool
@@ -161,13 +162,11 @@ func (r *QuicTunnel) GetConnectorSessionBySubdomain(subdomain string) (*Connecto
 }
 
 func (e *QuicTunnel) IsConnectorTunnelAttached(connectorID string) bool {
+	e.mu.RLock()
 	defer e.mu.RUnlock()
 
 	entry, ok := e.connectors[connectorID]
-	if !ok {
-		return false
-	}
-	return entry.Conn != nil
+	return ok && entry.Conn != nil
 }
 
 func (r *QuicTunnel) GetConnectorTunnel(connectorID string) (*quic.Conn, bool) {
@@ -175,10 +174,10 @@ func (r *QuicTunnel) GetConnectorTunnel(connectorID string) (*quic.Conn, bool) {
 	defer r.mu.RUnlock()
 
 	entry, ok := r.connectors[connectorID]
-	if !ok {
+	if !ok || entry.Conn == nil {
 		return nil, false
 	}
-	return entry.Conn, entry.Conn != nil
+	return entry.Conn, true
 }
 
 func (r *QuicTunnel) AttachTunnel(
@@ -187,37 +186,50 @@ func (r *QuicTunnel) AttachTunnel(
 	mgmtStream *quic.Stream,
 ) *ConnectorSession {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	entry, ok := r.connectors[connectorID]
 
 	if !ok {
+		r.mu.Unlock()
 		return nil
 	}
 
+	oldConn := entry.Conn
 	entry.tunnelConnectedAt = time.Now()
 	entry.tunnelAttached = true
 	entry.Conn = quicConn
 	entry.tunnelAttached = true
 	entry.MgmtStream = mgmtStream
+	entry.LastSeen = entry.tunnelConnectedAt
+	snapshot := *entry
+	r.mu.Unlock()
 
-	return entry
+	if oldConn != nil && oldConn != quicConn {
+		_ = oldConn.CloseWithError(0, "connector session replaced")
+	}
+
+	return &snapshot
 }
 
 // DetachTunnel is called when the QUIC connection dies.
 func (r *QuicTunnel) DetachTunnel(connectorID string, quicConn *quic.Conn) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	entry, ok := r.connectors[connectorID]
 	if !ok || entry.Conn != quicConn {
-		return // Ignore stale detach from a displaced session
+		// Ignore stale detach from a displaced session
+		r.mu.Unlock()
+		return
 	}
 
+	mgmtStream := entry.MgmtStream
 	entry.Conn = nil
 	entry.tunnelAttached = false
-	entry.MgmtStream.Close()
 	entry.MgmtStream = nil
+	r.mu.Unlock()
+	if mgmtStream != nil {
+		_ = mgmtStream.Close()
+	}
 }
 
 func (s *QuicTunnel) Stop() {
@@ -233,7 +245,7 @@ func (r *QuicTunnel) VerifyConnectorConn(quicConn *quic.Conn, connectorID string
 	if len(tlsState.PeerCertificates) == 0 {
 		r.logger.Error("No Client cert on QUIC Conn")
 		err := ashrixerrors.NoCert(nil)
-		quicConn.CloseWithError(quic.ApplicationErrorCode(err.Code), err.Msg)
+		_ = quicConn.CloseWithError(quic.ApplicationErrorCode(err.Code), err.Msg)
 		return err
 	}
 
@@ -242,24 +254,38 @@ func (r *QuicTunnel) VerifyConnectorConn(quicConn *quic.Conn, connectorID string
 	if CertconnectorID == "" {
 		r.logger.Error("Cert ConnectorID missing")
 		err := ashrixerrors.IDMismatch(leaf.Subject.CommonName, connectorID)
-		quicConn.CloseWithError(quic.ApplicationErrorCode(err.Code), err.Msg)
+		_ = quicConn.CloseWithError(quic.ApplicationErrorCode(err.Code), err.Msg)
 		return err
 	}
 
 	if connectorID != CertconnectorID {
 		r.logger.Error("ConnectorID Mismatch")
 		err := ashrixerrors.IDMismatch(leaf.Subject.CommonName, connectorID)
-		quicConn.CloseWithError(quic.ApplicationErrorCode(err.Code), err.Msg)
+		_ = quicConn.CloseWithError(quic.ApplicationErrorCode(err.Code), err.Msg)
 		return err
 	}
 
-	serialNumberNormalized := pki.SerialString(leaf.SerialNumber)
-
-	if serialNumberNormalized != serialNumber {
-		r.logger.Error("Connector Serial Number Mismatch")
-		err := ashrixerrors.SerialMismatch(CertconnectorID, connectorID)
-		quicConn.CloseWithError(quic.ApplicationErrorCode(err.Code), err.Msg)
-		return fmt.Errorf("Connector Serial Number Mismatch")
+	if len(leaf.URIs) != 1 || leaf.URIs[0].String() != pki.ConnectorIdentityURI(connectorID) {
+		err := ashrixerrors.IDMismatch("certificate URI identity", connectorID)
+		_ = quicConn.CloseWithError(quic.ApplicationErrorCode(err.Code), err.Msg)
 	}
+
+	// serialNumberNormalized := pki.SerialString(leaf.SerialNumber)
+
+	expectedSerial, err := pki.NormalizeSerial(serialNumber)
+	if err != nil {
+		serialErr := ashrixerrors.SerialMismatch(serialNumber, pki.SerialString(leaf.SerialNumber))
+		_ = quicConn.CloseWithError(quic.ApplicationErrorCode(serialErr.Code), serialErr.Msg)
+		return serialErr
+	}
+	actualSerial, err := pki.NormalizeSerial(pki.SerialString(leaf.SerialNumber))
+
+	if err != nil || actualSerial != expectedSerial {
+		r.logger.Error("Connector Serial Number Mismatch")
+		serialErr := ashrixerrors.SerialMismatch(pki.SerialString(leaf.SerialNumber), serialNumber)
+		_ = quicConn.CloseWithError(quic.ApplicationErrorCode(serialErr.Code), serialErr.Msg)
+		return serialErr
+	}
+
 	return nil
 }

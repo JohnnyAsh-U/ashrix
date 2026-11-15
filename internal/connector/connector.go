@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	// "math/rand"
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/identity"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
-	// "github.com/JohnnyAsh-U/ashrix-api/internal/connector/transport"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/tunnel"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/pki"
 	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
@@ -35,14 +34,25 @@ func RunConnector(ctx context.Context, appConfig *config.Config, log *slog.Logge
 		return fmt.Errorf("load local connector credentials: %w", err)
 	}
 
-	if cert.Subject.CommonName != appConfig.Connector.ID {
-		return fmt.Errorf("configured connector ID %q does not match certificate identity %q", appConfig.Connector.ID, cert.Subject.CommonName)
+	now := time.Now()
+	if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
+		return fmt.Errorf("connector certificate is not currently valid; provision a valid certificate")
 	}
 	if time.Now().After(cert.NotAfter) {
 		return fmt.Errorf("connector certificate expired; provision a renewed certificate and trust bundle")
 	}
 
-	pki, err := startup.NewLocalPKIInitialiser(cert, key, string(bundle.Raw))
+	if err := identity.VerifyLocalKeyPair(cert, key); err != nil {
+		return fmt.Errorf("verify connector certificate/private key: %w", err)
+	}
+	if err := pki.VerifyConnectorCertificate(cert, bundle, pki.VerifyOptions{
+		ConnectorID: appConfig.Connector.ID,
+	}); err != nil {
+		return fmt.Errorf("verify connector certificate trust and identity: %w", err)
+	}
+
+	localPKI, err := startup.NewLocalPKIInitialiser(cert, key, string(bundle.Raw), appConfig.Gateway.ServerName)
+
 	if err != nil {
 		return fmt.Errorf("initialize local connector identity: %w", err)
 	}
@@ -55,12 +65,7 @@ func RunConnector(ctx context.Context, appConfig *config.Config, log *slog.Logge
 		})
 	}
 
-	//--------------------Mangement Receiver, HeartBeat, and Tunnel Loop ---------------------------//
-	sessionCtx, sessionCancel := context.WithCancel(ctx)
-	// errCh := make(chan error, 1)
-	defer sessionCancel()
-
-	client := tunnel.NewTunnel(sessionCtx, appConfig, pki.TLSConfig(), log, apps)
+	client := tunnel.NewTunnel(appConfig, localPKI.TLSConfig(), log, apps)
 	if err := client.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		log.Error("client exited with error", "err", err)
 		return err

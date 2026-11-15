@@ -55,19 +55,13 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 	// 8. Open a stream to the destination connector.
 	tunnel, ok := quicTunnel.GetConnectorTunnel(req.ConnectorId)
 	if !ok || tunnel == nil {
-		http.Error(w, "No Connectors", 400)
+		http.Error(w, "Connector is not connected", http.StatusServiceUnavailable)
 		return
 	}
 
-	// stream, err := tunnel.OpenStreamSync(streamCtx, req)
-	// if err != nil {
-	// 	http.Error(w, "Failed to open Stream", 400)
-	// 	return
-	// }
-
 	stream, err := tunnel.OpenStreamSync(streamCtx)
 	if err != nil {
-		http.Error(w, "Open Tunnel Stream", 400)
+		http.Error(w, "Open Tunnel Stream", http.StatusBadGateway)
 		return
 	}
 

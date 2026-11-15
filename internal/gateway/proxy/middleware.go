@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 
@@ -22,14 +23,19 @@ func AppAccessMiddleware(quicTunnel *tunnel.QuicTunnel, cfg *config.Config, logg
 				return
 			}
 
-			//Get the domain host name
-			host, _, _ := strings.Cut(r.Host, ":") //To remove port if any
+			host := r.Host
+			if parsedHost, _, err := net.SplitHostPort(r.Host); err == nil {
+				host = parsedHost
+			} else if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+				host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+			}
+			host = strings.TrimSuffix(strings.ToLower(host), ".")
 
 			//Get the Connector Registry by subdomain
 			connector, exists := quicTunnel.GetConnectorSessionBySubdomain(host)
 			if !exists {
 				logger.Error("Connection NOT FOUND")
-				http.Error(w, "No found", 400)
+				http.Error(w, "Application route not found", http.StatusNotFound)
 				return
 			}
 
@@ -42,7 +48,7 @@ func AppAccessMiddleware(quicTunnel *tunnel.QuicTunnel, cfg *config.Config, logg
 
 			//find the app,
 			for _, app := range cfg.Applications {
-				if host == app.Domain {
+				if host == strings.ToLower(app.Domain) {
 					foundApp = &app
 					break
 				}
@@ -50,7 +56,7 @@ func AppAccessMiddleware(quicTunnel *tunnel.QuicTunnel, cfg *config.Config, logg
 
 			if foundApp == nil {
 				logger.Error("No App", "host", host)
-				http.Error(w, "No found", 404)
+				http.Error(w, "Application route not found", http.StatusNotFound)
 				return
 			}
 

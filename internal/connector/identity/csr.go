@@ -42,14 +42,13 @@ func GenerateCSR(
 
 func CreateKeyAndCSR(
 	keyPath string,
-	csrPath string,
 	connectorID string,
 	outPath string,
 ) error {
-	if keyPath == "" || csrPath == "" {
+	if keyPath == "" {
 		return errors.New("key and CSR paths are required")
 	}
-	if keyPath == csrPath {
+	if keyPath == outPath {
 		return errors.New("key and CSR paths must differ")
 	}
 

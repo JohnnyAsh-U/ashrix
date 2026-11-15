@@ -57,13 +57,23 @@ func VerifyConnectorCertificate(
 		return errors.New("certificate and CA are required")
 	}
 
-	if opts.ConnectorID == "" {
-		return errors.New("connector ID is required")
+	if !connectorIDPattern.MatchString(opts.ConnectorID) {
+		return errors.New("invalid connector ID")
 	}
+	if cert.Subject.CommonName != opts.ConnectorID {
+		return fmt.Errorf("certificate common name %q does not match connector ID %q", cert.Subject.CommonName, opts.ConnectorID)
+	}
+	if len(cert.URIs) != 1 || cert.URIs[0].String() != ConnectorIdentityURI(opts.ConnectorID) {
+		return errors.New("certificate URI identity does not match connector ID")
+ 	}
 
 	now := opts.CurrentTime
 	if now.IsZero() {
 		now = time.Now()
+	}
+
+	if !ca.IsCA || ca.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return errors.New("configured certificate is not a signing CA")
 	}
 
 	if now.Before(ca.NotBefore) || now.After(ca.NotAfter) {
@@ -73,14 +83,8 @@ func VerifyConnectorCertificate(
 	roots := x509.NewCertPool()
 	roots.AddCert(ca)
 
-	intermediates := x509.NewCertPool()
-	for _, issuer := range cert.IssuingCertificateURL {
-		_ = issuer
-	}
-
 	_, err := cert.Verify(x509.VerifyOptions{
 		Roots:         roots,
-		Intermediates: intermediates,
 		CurrentTime:   now,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	})
@@ -95,11 +99,6 @@ func VerifyConnectorCertificate(
 	if cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
 		return errors.New("connector certificate lacks digital signature usage")
 	}
-
-	if len(cert.URIs) != 1 {
-		return errors.New("connector certificate must contain exactly one URI SAN")
-	}
-
 
 	if opts.ExpectedSerial != "" {
 		expectedSerial, err := NormalizeSerial(opts.ExpectedSerial)

@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/pki"
 )
 
 func InstallCertificate(
@@ -21,24 +23,25 @@ func InstallCertificate(
 
 	var certs []*x509.Certificate
 	rest := certificatePEM
-	for len(certificatePEM) > 0 {
-		var b *pem.Block
-		b, rest = pem.Decode(rest)
-		if b == nil {
-			break
+
+	for len(bytes.TrimSpace(rest)) > 0 {
+		block, next := pem.Decode(rest)
+		if block == nil {
+			return errors.New("invalid data in certificate bundle")
 		}
-		if b.Type != "CERTIFICATE" {
-			continue
+		rest = next
+		if block.Type != "CERTIFICATE" {
+			return fmt.Errorf("unexpected PEM block %q in certificate bundle", block.Type)
 		}
-		c, err := x509.ParseCertificate(b.Bytes)
+		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			return fmt.Errorf("parse certificate: %w", err)
 		}
-		certs = append(certs, c)
+		certs = append(certs, cert)
 	}
 
-	if len(certs) < 2 {
-		return fmt.Errorf("bundle must contain leaf + CA, got %d cert(s)", len(certs))
+	if len(certs) != 2 {
+		return fmt.Errorf("bundle must contain exactly a leaf and CA certificate, got %d cert(s)", len(certs))
 	}
 
 	leaf, caCert := certs[0], certs[1]
@@ -58,16 +61,13 @@ func InstallCertificate(
 	if now.Before(leaf.NotBefore) || now.After(leaf.NotAfter) {
 		return fmt.Errorf("leaf not valid now: %s - %s", leaf.NotBefore, leaf.NotAfter)
 	}
-	if now.After(caCert.NotAfter) {
-		return fmt.Errorf("CA expired: %s", caCert.NotAfter)
+	if !caCert.IsCA || caCert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return errors.New("bundle issuer is not a signing CA")
 	}
 
-	// ca, err := parseCertificate(caCert)
-	// 1. Parse bundle: first = leaf, rest = CA(s)
-	// bundle, err := os.ReadFile(string(certificatePEM))
-	// if err != nil {
-	// 	return fmt.Errorf("parse CA certificate: %w", err)
-	// }
+	if now.Before(caCert.NotBefore) || now.After(caCert.NotAfter) {
+		return fmt.Errorf("CA is not currently valid: %s - %s", caCert.NotBefore, caCert.NotAfter)
+	}
 
 	key, err := LoadPrivateKey(cfg.Connector.PrivateKey)
 	if err != nil {
@@ -126,8 +126,8 @@ func verifyCertificate(
 		return fmt.Errorf("verify certificate chain: %w", err)
 	}
 
-	if len(cert.URIs) != 1 {
-		return errors.New("certificate must contain exactly one URI SAN")
+	if len(cert.URIs) != 1 || cert.URIs[0].String() != pki.ConnectorIdentityURI(connectorID) {
+		return errors.New("certificate URI identity does not match connector ID")
 	}
 
 	pub, ok := cert.PublicKey.(*ecdsa.PublicKey)

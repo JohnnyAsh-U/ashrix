@@ -32,17 +32,36 @@ func WriteFrame(w io.Writer, payload proto.Message) error {
 	header := make([]byte, 4)
 	binary.BigEndian.PutUint32(header[0:], uint32(len(data)))
 
-	if _, err := w.Write(header); err != nil {
+	if err := writeFull(w, header); err != nil {
 		return fmt.Errorf("write frame header: %w", err)
 	}
 
-	if _, err := w.Write(data); err != nil {
+	if err := writeFull(w, data); err != nil {
 		return fmt.Errorf("write frame payload: %w", err)
 	}
 
 	return nil
 
 }
+
+
+// writeFull handles legal short writes from io.Writer implementations.
+func writeFull(w io.Writer, p []byte) error {
+	for len(p) > 0 {
+		n, err := w.Write(p)
+		if n > 0 {
+			p = p[n:]
+		}
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return io.ErrShortWrite
+		}
+	}
+	return nil
+}
+
 
 func ReadFrame(r io.Reader) ([]byte, error) {
 

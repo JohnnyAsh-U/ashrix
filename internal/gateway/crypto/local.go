@@ -12,6 +12,8 @@ import (
 )
 
 var ErrLocalCertExpired = fmt.Errorf("gateway certificate expired")
+const ALPN = "ashrix/1"
+
 
 type LocalGatewayPKI struct {
 	certificate *tls.Certificate
@@ -19,7 +21,14 @@ type LocalGatewayPKI struct {
 	certPool    *x509.CertPool
 }
 
-func NewLocalGatewayPKI(certPath, keyPath string, CACert *x509.Certificate) (*LocalGatewayPKI, error) {
+func NewLocalGatewayPKI(certPath, keyPath string, CACert *x509.Certificate, serverName string) (*LocalGatewayPKI, error) {
+	if CACert == nil || !CACert.IsCA || CACert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return nil, errors.New("configured certificate is not a signing CA")
+	}
+	if serverName == "" {
+		return nil, errors.New("gateway server name is required")
+	}
+
 	keyPem, err := os.ReadFile(keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", keyPath, err)
@@ -48,6 +57,10 @@ func NewLocalGatewayPKI(certPath, keyPath string, CACert *x509.Certificate) (*Lo
 		return nil, fmt.Errorf("Failed to load key : %w", err)
 	}
 
+	if cert.IsCA || cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
+		return nil, errors.New("gateway certificate must be a non-CA signing certificate")
+	}
+
 	// Verify the key and cert
 	//Verify public key
 	certPub, ok := cert.PublicKey.(*ecdsa.PublicKey)
@@ -74,7 +87,8 @@ func NewLocalGatewayPKI(certPath, keyPath string, CACert *x509.Certificate) (*Lo
 	_, err = cert.Verify(x509.VerifyOptions{
 		Roots:       pool,
 		CurrentTime: now,
-		KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		DNSName:     serverName,
+		KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	})
 
 	if err != nil {
@@ -100,12 +114,10 @@ func (g *LocalGatewayPKI) GetTLSConfig() *tls.Config {
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 			return g.certificate, nil
 		},
-		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return g.certificate, nil
-		},
 		RootCAs:    g.certPool,
 		ClientCAs:  g.certPool,
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		MinVersion: tls.VersionTLS13,
+		NextProtos: []string{ALPN},
 	}
 }

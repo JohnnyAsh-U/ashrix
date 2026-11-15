@@ -48,10 +48,13 @@ The gateway must not trust a connector merely because it supplies a connector ID
 
 ## 4. CA initialization
 
-Initialize the CA using the supported Ashrix PKI command.
++Initialize the CA and gateway server identity using the public name connectors will use to reach the gateway.
+
 ```shell
-ashrix-gateway init
+ashrix-gateway init --name gateway-01 --server-name gateway.example.com
 ```
+
+The gateway certificate includes this DNS name (or IP address) as its server identity. The connector's `gateway.server_name` must match it.
 
 The CA private key must be protected and should not be distributed to connectors.
 
@@ -69,7 +72,7 @@ Recommended principles:
 
 Generate the connector CSR using the supported Ashrix PKI command.
 ```bash
-ashrix-connector init
+ashrix-connector init --name office-01 --quic-addr gateway.example.com:8443 --server-name gateway.example.com --out office-01.csr
 ``` 
 
 The private key must never be transmitted to the gateway.
@@ -105,10 +108,11 @@ Issued connector certificate
 ## 6. Certificate issuance
 
 The operator submits the connector CSR to the PKI workflow.
+
 ```bash
-ashrix-gateway add-connector
-  --connector office-01 \
-  --csr connector.csr
+ashrix-gateway add-connector \
+  --csr office-01.csr \
+  --out office-01-signed.crt
 ```
 
 Before signing, the issuing process should validate:
@@ -122,7 +126,7 @@ Before signing, the issuing process should validate:
 
 The issuing authority should construct or validate the connector identity rather than blindly signing arbitrary CSR identity fields.
 
-Connector certificates must contain the appropriate client authentication extended key usage.
+Connector certificates must contain the appropriate client authentication extended key usage. Connector certificates are limited to 90 days; gateway server certificates have a separate server-authentication profile.
 
 The gateway must verify the certificate chain, validity, intended usage, and connector identity.
 

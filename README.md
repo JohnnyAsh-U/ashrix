@@ -50,12 +50,12 @@ This is the full flow from empty machines to a working app.
 ### 1. On the gateway: initialize the CA and gateway identity
 
 ```bash
-ashrix-gateway init --name gateway_name
+ashrix-gateway init --name gateway-01 --server-name gateway.example.com
 ```
 This generates:
 
 - Gateway config: `~/.ashrix/gateway.yaml`
-- Root CA certificate: `~/.ashrix/pki/ca_crt.crt`
+- Root CA certificate: `~/.ashrix/pki/ca_cert.crt`
 - Root CA private key: `~/.ashrix/pki/ca_key.key`
 - Gateway leaf certificate: `~/.ashrix/pki/gateway.crt`
 - Gateway leaf private key: `~/.ashrix/pki/gateway.key`
@@ -72,14 +72,14 @@ This shows the CA subject, serial, validity, and paths, so you can verify what y
 
 ### 2. On the connector: initialize the connector
 ```bash
-ashrix-connector init --name connector_name --quic-addr ipaddress:port
+ashrix-connector init --name office-01 --quic-addr gateway.example.com:8443 --server-name gateway.example.com --out ~/path/to/office-01.csr
 ```
 
 This generates:
 
 - Connector config: `~/.ashrix/connector/connector.yaml`
 - Connector private key: `~/.ashrix/connector/connector.key`
-- Connector certificate signing request: `~/.ashrix/connector/connector.csr`
+- Connector certificate signing request: the path supplied with `--out`
 
 The connector does not have a signed certificate yet. It only has a key and a CSR to be signed by the gateway CA.
 
@@ -89,14 +89,14 @@ The connector does not have a signed certificate yet. It only has a key and a CS
 Copy the CSR from the connector to the gateway, then run:
 
 ```bash
-ashrix-gateway add-connector --csr /path/to/connector.csr
+ashrix-gateway add-connector --csr /path/to/office-01.csr --out /path/to/office-01-signed.crt
 ```
 
 This does three things:
 
 1. Signs the CSR with the gateway CA.
 2. Adds the connector to the gateway configuration file (`~/.ashrix/gateway.yaml`).
-3. Creates the signed certificate bundle for that connector.
+3. Creates the signed certificate bundle for that connector at the path supplied with `--out`.
 
 The bundle contains the connector leaf certificate plus the root CA, so the connector can trust the gateway and prove its own identity.
 
@@ -114,7 +114,7 @@ This installs the root CA and the connector node certificate into the paths conf
 Edit `~/.ashrix/gateway.yaml` and add the application:
 ```yaml
 applications:
-    - name: grafana
+  - name: grafana
     domain: grafana.example.com
     connector: office-01
 ```
@@ -133,7 +133,7 @@ Edit `~/.ashrix/connector/connector.yaml` and add the same application name with
 
 ```yaml
 applications:
-    - name: grafana
+  - name: grafana
     target: 192.168.1.10:3000
 ```
 
@@ -226,6 +226,7 @@ Gateway config — `~/.ashrix/gateway.yaml` — matches `examples/gateway.yaml`:
 ```yaml
 gateway:
   id: gateway-01
+  server_name: gateway.example.com
   certificate: /etc/ashrix/certs/connector.crt
   private_key: /etc/ashrix/certs/connector.key
 
@@ -244,11 +245,11 @@ pki:
   ca_private_key: /etc/ashrix-gateway/pki/ca.key
 
 connectors:
-    - id: office-01
+  - id: office-01
     certificate_serial: "04A7B2C9"
 
 applications:
-    - name: grafana
+  - name: grafana
     domain: grafana.example.com
     connector: office-01
 
@@ -271,11 +272,12 @@ connector:
 
 gateway:
   address: gateway.example.com:443
+  server_name: gateway.example.com
 
 applications:
-    - name: grafana
+  - name: grafana
     target: 192.168.1.10:3000
-    - name: internal-api
+  - name: internal-api
     target: 192.168.1.20:8080
 
 logging:
@@ -290,7 +292,7 @@ logging:
 Gateway:
 ```yaml
 applications:
-    - name: grafana
+  - name: grafana
     domain: grafana.example.com
     connector: office-01
 ```
@@ -298,7 +300,7 @@ applications:
 ```yaml
 Connector:
 applications:
-    - name: grafana
+  - name: grafana
     target: 192.168.1.10:3000
 ```
 |Gateway app	|Gateway connector	|Connector exists?	|Connector has same app name?	|Result|
@@ -308,7 +310,7 @@ applications:
 `internal-api` / `api.example.com` | `office-01`	|	Yes	|Yes, `internal-api -> 192.168.1.20:8080`	| Routed
 `wiki` / `wiki.example.com` | `office-01`	|	Yes	|No, connector has no `wiki`	|Rejected, no such app on connector
 
-See [Configuration](docs/configuration.md) for full validation and reload rules.
+See [Configuration](docs/03-configuration.md) for configuration and validation rules.
 
 
 
@@ -328,14 +330,12 @@ Download the appropriate Linux binaries from https://github.com/ashrixlabs/ashri
 
 ## Documentation
 Document	Description
-[Architecture](docs/architecture.md)	How Ashrix works
-[Configuration](docs/configuration.md)	Gateway and connector YAML
-[PKI](docs/pki.md)	Certificate management
-[Security](docs/security.md)	Security model and limitations
-[Deployment](docs/deployment.md)	Installation and deployment
-[Operations](docs/operations.md)	Operating and maintaining Ashrix
-[Benchmarking](docs/benchmarking.md)	Performance testing methodology
-
+[System overview](docs/01-system-overview.md)	Product scope and components
+[Architecture](docs/02-architecture.md)	Gateway, connector, and tunnel architecture
+[Configuration](docs/03-configuration.md)	Gateway and connector YAML
+[PKI](docs/04-pki.md)	Certificate management
+[Security](docs/05-security.md)	Security model and limitations
+[Benchmarking](docs/06-benchmark.md)	Performance testing methodology
 
 ## Development
 
@@ -353,13 +353,15 @@ Race detection:
 ```
 go test -race ./...
 ```
-See [Development](docs/development.md) for contributor instructions.
+Run these commands with the Go version declared in `go.mod`
+
 
 ## Security
 
 Ashrix authenticates connectors using mTLS. It does not provide end-user authentication, SSO, or application-level authorization. Your applications remain responsible for their own access control.
 
-For security reports, see [SECURITY.md](SECURITY.md).
+For the security model and reporting guidance, see [Security](docs/05-security.md).
+
 
 ## Project status
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/config"
@@ -20,7 +22,7 @@ func init() {
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the Ashrix Connector",
-	Long:  `Start the Ashrix Gateway`,
+	Long:  `Start the Ashrix Connector and maintain its outbound QUIC tunnel.`,
 	RunE:  runStart,
 }
 
@@ -48,20 +50,19 @@ func runStart(cmd *cobra.Command, args []string) (err error) {
 		MaxBackups: 10,
 		Compress:   true,
 	}); err != nil {
-		fmt.Fprintf(os.Stderr, "FATAL: cannot init logging %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("cannot initialize logging: %w", err)
 	}
 
 	log := logger.LoggerApp
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	if err := connector.RunConnector(ctx, &appConfig, log); err != nil {
 		log.Error("Connector Error", slog.Any("err", err))
-		os.Exit(1)
+		return err
 	}
 
-	cancel()
 	return nil
 
 }

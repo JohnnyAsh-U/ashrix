@@ -27,6 +27,7 @@ Example structure — matches `examples/gateway.yaml`:
 ```yaml
 gateway:
   id: gateway-01
+  server_name: gateway.example.com
   certificate: /etc/ashrix/certs/connector.crt
   private_key: /etc/ashrix/certs/connector.key
 
@@ -68,7 +69,7 @@ The example is illustrative. Field names and supported options must match the ac
 
 ### Gateway configuration responsibilities
 
-- `gateway`: Defines the gateway identity (`id`) and its certificate / private key.
+- `gateway`: Defines the gateway identity (`id`), TLS server name (`server_name`), and gateway-to-connector certificate / private key.
 - `listeners.http`: Defines the public plain HTTP listener. No TLS.
 - `listeners.https`: Defines the public HTTPS listener, with its own certificate and private key. This is separate from `gateway.certificate`.
 - `listeners.quic`: Defines the  QUIC listener used by connectors. In the example this is `:8443`.
@@ -86,15 +87,13 @@ Example structure — matches `examples/connector.yaml`:
 ```yaml
 connector:
   id: office-01
+  certificate: /etc/ashrix/certs/connector.crt
+  private_key: /etc/ashrix/certs/connector.key
+  ca: /etc/ashrix/pki/ca.crt
 
 gateway:
   address: gateway.example.com:8443
   server_name: gateway.example.com
-
-identity:
-  certificate: /etc/ashrix/certs/connector.crt
-  private_key: /etc/ashrix/certs/connector.key
-  ca_certificate: /etc/ashrix/pki/ca.crt
 
 applications:
   - name: grafana
@@ -111,9 +110,9 @@ logging:
 - `connector.id`: Defines the connector's configured identity. The authenticated certificate identity must agree with the connector identity expected by the gateway.
 - `connector.certificate` / `connector.private_key`: Defines the connector certificate and private key presented to the gateway.
 - `connector.ca`: Defines the CA certificate used to verify the gateway.
-- `gateway.address`: Defines the gateway address the connector dials. In the example this is `gateway.example.com:443`.
++- `gateway.address`: Defines the gateway QUIC address the connector dials. In the example this is `gateway.example.com:8443`.
++- `gateway.server_name`: Defines the TLS server name used to verify the gateway certificate. It must match the gateway certificate's DNS or IP subject alternative name.
 - `applications`: Maps application names to local TCP destinations (`target`). This is the only place a real destination exists.
-- `metrics`: Defines the local observability listener. It is not exposed through the tunnel.
 - `logging`: Defines log output directory, level, and format.
 
 ## 4. Application routing
@@ -125,7 +124,7 @@ Gateway:
 
 ```yaml
 applications:
-    - name: grafana
+  - name: grafana
     domain: grafana.example.com
     connector: office-01
 ```
@@ -133,7 +132,7 @@ applications:
 Connector:
 ```yaml
 applications:
-    - name: grafana
+  - name: grafana
     target: 192.168.1.10:3000
 ```
 

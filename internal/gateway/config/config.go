@@ -12,6 +12,7 @@ type Config struct {
 
 type Gateway struct {
 	ID string `yaml:"id"`
+	ServerName  string `yaml:"server_name" mapstructure:"server_name"`
 	Certificate string `yaml:"certificate"`
 	PrivateKey string `yaml:"private_key" mapstructure:"private_key"`
 }
@@ -51,10 +52,6 @@ type Application struct {
 	Name       string `yaml:"name"`
 	Domain     string `yaml:"domain"`
 	Connector  string `yaml:"connector"`
-}
-
-type Admin struct {
-	Address string `yaml:"address"`
 }
 
 type Logging struct {

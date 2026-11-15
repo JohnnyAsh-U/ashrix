@@ -31,16 +31,16 @@ then run 'ashrix-connector start'.`,
 		defaultPath := filepath.Join(configDir, "connector.yaml")
 
 		if err := os.MkdirAll(configDir, 0o750); err != nil {
-			return fmt.Errorf("Failed to create- config direactory %q: %w", configDir, err)
+			return fmt.Errorf("Failed to create- config directory %q: %w", configDir, err)
 		}
 
 		if err := os.MkdirAll(logDir, 0o750); err != nil {
-			return fmt.Errorf("Failed to create- log direactory %q: %w", logDir, err)
+			return fmt.Errorf("Failed to create- log directory %q: %w", logDir, err)
 		}
 
 		if _, err := os.Stat(defaultPath); os.IsNotExist(err) {
 			if err := os.MkdirAll(configDir, 0o750); err != nil {
-				return fmt.Errorf("Failed to create- config direactory %q: %w", configDir, err)
+				return fmt.Errorf("Failed to create- config directory %q: %w", configDir, err)
 			}
 
 			defaultGatewayConfig := fmt.Sprintf(`connector:
@@ -51,6 +51,7 @@ then run 'ashrix-connector start'.`,
 
 gateway:
   address: 
+  server_name: 
 
 applications:
 

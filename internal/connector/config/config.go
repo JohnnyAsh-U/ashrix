@@ -17,6 +17,7 @@ type Connector struct {
 
 type Gateway struct {
     Address string `yaml:"address" mapstructure:"address"`
+    ServerName string `yaml:"server_name" mapstructure:"server_name"`
 }
 
 type Application struct {
