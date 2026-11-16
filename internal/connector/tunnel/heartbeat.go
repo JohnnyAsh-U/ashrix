@@ -62,7 +62,7 @@ func (c *TunnelClient) runHeartbeats(ctx context.Context, stream *quic.Stream) e
 			hb := proto.ControlMessage{MsgType: proto.MsgType_HEARTBEAT}
 			if err := encoder.Encode(&hb); err != nil {
 				return fmt.Errorf("send heartbeat: %w", err)
- 			}
+			}
 			c.log.Debug("heartbeat sent")
 		}
 	}

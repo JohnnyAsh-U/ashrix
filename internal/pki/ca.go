@@ -11,10 +11,11 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
 
 	// "path/filepath"
 	"time"
+
+	"github.com/JohnnyAsh-U/ashrix-api/internal/helpers"
 )
 
 type CA struct {
@@ -151,56 +152,15 @@ func SaveCA(ca *CA, certPath, keyPath string) error {
 
 	keyData := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 
-	if err := writeExclusive(certPath, certData, 0o644); err != nil {
+	if err := helpers.WriteExclusive(certPath, certData, 0o644); err != nil {
 		return fmt.Errorf("save CA certificate: %w", err)
 	}
 
-	if err := writeExclusive(keyPath, keyData, 0o600); err != nil {
+	if err := helpers.WriteExclusive(keyPath, keyData, 0o600); err != nil {
 		_ = os.Remove(certPath) // roll back the first file if the pair cannot be completed
 		return fmt.Errorf("save CA private key: %w", err)
 	}
 	return nil
-}
-
-// writeExclusive writes through a temporary file in the destination directory,
-// then links it into place. Unlike Rename, Link never replaces an existing key.
-func writeExclusive(path string, data []byte, mode os.FileMode) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-
-	tmp, err := os.CreateTemp(dir, ".ashrix-ca-*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
-	if err := tmp.Chmod(mode); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Link(tmpPath, path); err != nil {
-		return err
-	}
-	d, err := os.Open(dir)
-	if err != nil {
-		_ = os.Remove(path)
-		return err
-	}
-	defer d.Close()
-	return d.Sync()
 }
 
 func randomSerial() (*big.Int, error) {

@@ -24,7 +24,7 @@ const MaxGatewayCertificateValidity = 365 * 24 * time.Hour
 // ConnectorIdentityURI returns the canonical identity URI embedded in a
 // connector certificate. It is deliberately derived from the gateway-approved ID.
 func ConnectorIdentityURI(connectorID string) string {
-	return "spiffe://ashrix.io/connectors/" + connectorID
+	return "spiffe://ashrix/connectors/" + connectorID
 }
 
 func (ca *CA) IssueCertificate(

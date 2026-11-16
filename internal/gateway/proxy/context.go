@@ -11,8 +11,8 @@ import (
 type contextKey string
 
 var (
-	ConnectorID              contextKey = "ConnectorID"
-	AppID                    contextKey = "AppID"
+	ConnectorID contextKey = "ConnectorID"
+	AppID       contextKey = "AppID"
 )
 
 func ConnectorIDFromCtx(ctx context.Context) string {
@@ -24,5 +24,3 @@ func AppIDFromCtx(ctx context.Context) string {
 	id, _ := ctx.Value(AppID).(string)
 	return id
 }
-
-

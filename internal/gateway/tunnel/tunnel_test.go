@@ -17,7 +17,7 @@ func newTestTunnel() *QuicTunnel {
 		routing: map[string]string{
 			"app.example.test": "connector-a",
 		},
-		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 }
 
@@ -119,28 +119,6 @@ func TestDetachTunnelClearsCurrentSession(t *testing.T) {
 		t.Fatal("session remains marked attached")
 	}
 }
-
-// func TestUpdateLastSeenOnlyUpdatesCurrentConnection(t *testing.T) {
-// 	tunnel := newTestTunnel()
-// 	current := &quic.Conn{}
-// 	stale := &quic.Conn{}
-// 	entry := tunnel.connectors["connector-a"]
-// 	entry.Conn = current
-// 	original := time.Now().Add(-time.Minute)
-// 	entry.LastSeen = original
-
-// 	staleUpdate := time.Now()
-// 	tunnel.updateLastSeen("connector-a", stale, staleUpdate)
-// 	if !entry.LastSeen.Equal(original) {
-// 		t.Fatal("stale connection updated LastSeen")
-// 	}
-
-// 	currentUpdate := time.Now()
-// 	tunnel.updateLastSeen("connector-a", current, currentUpdate)
-// 	if !entry.LastSeen.Equal(currentUpdate) {
-// 		t.Fatal("current connection did not update LastSeen")
-// 	}
-// }
 
 func TestIsConnectorTunnelAttached(t *testing.T) {
 	tunnel := newTestTunnel()

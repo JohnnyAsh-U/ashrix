@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -15,21 +16,30 @@ import (
 
 // ProxyServer handles incoming user traffic and routes it to connectors.
 type ProxyServer struct {
-	http  *http.Server
-	https *http.Server
-	cfg   *config.Config
-	log   *slog.Logger
+	http          *http.Server
+	httpListener  net.Listener
+	https         *http.Server
+	httpsListener net.Listener
+	cfg           *config.Config
+	log           *slog.Logger
 }
 
 func NewProxyServers(
 	cfg *config.Config,
 	log *slog.Logger,
 	proxyHandler *ProxyHandler,
-) *ProxyServer {
+) (*ProxyServer, error) {
 
 	// HTTP server - no TLS, same router
+
+	httpListener, err := net.Listen("tcp", cfg.Listeners.HTTP.Address)
+
+	if err != nil {
+		return &ProxyServer{}, err
+	}
+
 	httpServer := &http.Server{
-		Addr:              cfg.Listeners.HTTP.Address,
+		Addr:              httpListener.Addr().String(),
 		Handler:           proxyHandler.r,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       10 * time.Second,
@@ -37,8 +47,14 @@ func NewProxyServers(
 	}
 
 	// HTTPS server TLS,
+	httpsListener, err := net.Listen("tcp", cfg.Listeners.HTTPS.Address)
+
+	if err != nil {
+		return &ProxyServer{}, err
+	}
+
 	httpsServer := &http.Server{
-		Addr:              cfg.Listeners.HTTPS.Address,
+		Addr:              httpsListener.Addr().String(),
 		Handler:           proxyHandler.r,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       10 * time.Second,
@@ -49,11 +65,13 @@ func NewProxyServers(
 	}
 
 	return &ProxyServer{
-		http:  httpServer,
-		https: httpsServer,
-		cfg:   cfg,
-		log:   log,
-	}
+		http:          httpServer,
+		httpListener:  httpListener,
+		https:         httpsServer,
+		httpsListener: httpsListener,
+		cfg:           cfg,
+		log:           log,
+	}, nil
 }
 
 // Start serves HTTP
@@ -61,8 +79,8 @@ func (s *ProxyServer) StartProxyServers() error {
 	s.log.Info("Gateway HTTP server starting", slog.String("addr", s.http.Addr))
 
 	go func() {
-		if err := s.http.ListenAndServe(); err != nil {
-			log.Fatal("HTTP: %w", err)
+		if err := s.http.Serve(s.httpListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("HTTP: %v", err)
 			return
 		}
 	}()
@@ -112,7 +130,7 @@ func (s *ProxyServer) startHTTPSIfConfigured() error {
 	// 4. Only now start it
 	s.log.Info("Gateway HTTPS server starting", "cert", certFile)
 	go func() {
-		if err := s.https.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+		if err := s.https.ServeTLS(s.httpsListener, certFile, keyFile); err != nil && err != http.ErrServerClosed {
 			s.log.Error("HTTPS server failed", "err", err)
 		}
 	}()

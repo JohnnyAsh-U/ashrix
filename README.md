@@ -71,8 +71,11 @@ This shows the CA subject, serial, validity, and paths, so you can verify what y
 
 
 ### 2. On the connector: initialize the connector
+
+NB: The default Quic Address Port for the gateway is `0.0.0.0:8444`, but can be modified in the gateway config file ~/.ashrix/gateway.yaml
+
 ```bash
-ashrix-connector init --name office-01 --quic-addr gateway.example.com:8443 --server-name gateway.example.com --out ~/path/to/office-01.csr
+ashrix-connector init --name office-01 --quic-addr gateway.example.com:8444 --server-name gateway.example.com --out ~/path/to/office-01.csr
 ```
 
 This generates:
@@ -142,6 +145,9 @@ The gateway never defines a TCP destination. Only the connector maps an applicat
 
 
 ### 7. Start both sides
+
+NB: The default HTTP Address for the gateway is `0.0.0.0:8080`, HTTPS Address is `0.0.0.0:8443`, but can be modified in the gateway config file ~/.ashrix/gateway.yaml
+
 
 On the gateway:
 ```bash
@@ -232,13 +238,13 @@ gateway:
 
 listeners:
   http:
-    address: "0.0.0.0:80"
+    address: "0.0.0.0:8080"
   https:
-    address: "0.0.0.0:443"
+    address: "0.0.0.0:8443"
     certificate: /etc/ashrix-gateway/certs/server.crt
     private_key: /etc/ashrix-gateway/certs/server.key
   quic:
-    address: "0.0.0.0:8443"
+    address: "0.0.0.0:8444"
 
 pki:
   ca_certificate: /etc/ashrix-gateway/pki/ca.crt

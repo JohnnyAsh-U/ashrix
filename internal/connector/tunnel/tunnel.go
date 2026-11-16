@@ -22,7 +22,7 @@ type TunnelClient struct {
 	log       *slog.Logger
 	startedAt time.Time
 	config    *config.Config
-	apps      []*pb.ConnectorApps
+	// apps      []*pb.ConnectorApps
 	tlsConfig *tls.Config
 }
 
@@ -35,13 +35,12 @@ type ConnectorTunnel struct {
 	apps []*pb.ConnectorApps
 }
 
-func NewTunnel(cfg *config.Config, tlsConfig *tls.Config, log *slog.Logger, apps []*pb.ConnectorApps) *TunnelClient {
+func NewTunnel(cfg *config.Config, tlsConfig *tls.Config, log *slog.Logger) *TunnelClient {
 	return &TunnelClient{
 		log:       log,
 		startedAt: time.Now(),
 		config:    cfg,
 		tlsConfig: tlsConfig,
-		apps:      apps,
 	}
 }
 
@@ -93,7 +92,7 @@ func (t *TunnelClient) Run(ctx context.Context) error {
 		t.log.Info("Session ended cleanly")
 		return true, nil
 	}
-	
+
 	notify := func(err error, next time.Duration) {
 		t.log.Warn("retrying", "err", err, "retry_in", next)
 	}
@@ -116,11 +115,20 @@ func (t *TunnelClient) handleSession(ctx context.Context, conn *quic.Conn) error
 	}
 	defer mgmtStream.Close()
 
+	apps := make([]*pb.ConnectorApps, 0, len(t.config.Applications))
+	for _, app := range t.config.Applications {
+		apps = append(apps, &pb.ConnectorApps{
+			Id:       app.Name,
+			Name:     app.Name,
+			Upstream: app.Target,
+		})
+	}
+
 	// Send registration payload
 	regMsg := proto.ControlMessage{
 		MsgType:       proto.MsgType_REGISTER,
 		ConnectorId:   t.config.Connector.ID,
-		ConnectorApps: t.apps,
+		ConnectorApps: apps,
 	}
 
 	if err := json.NewEncoder(mgmtStream).Encode(&regMsg); err != nil {
@@ -144,7 +152,7 @@ func (t *TunnelClient) handleSession(ctx context.Context, conn *quic.Conn) error
 			wg.Add(1)
 			go func(s *quic.Stream) {
 				defer wg.Done()
-				t.handleDataTunnel(sessionCtx, s)
+				_ = t.handleDataTunnel(sessionCtx, s)
 			}(stream)
 		}
 	}()

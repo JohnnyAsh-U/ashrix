@@ -48,8 +48,12 @@ func RunGateway(ctx context.Context, cfg *config.Config, log *slog.Logger) error
 	proxyHandler := proxy.NewProxyHandler(cfg, log, quicTunnel, accessLogger)
 
 	// //Proxy server - HTTP and HTTPS
-	proxyServers := proxy.NewProxyServers(cfg,log,proxyHandler)
+	proxyServers, err := proxy.NewProxyServers(cfg, log, proxyHandler)
 
+	if err != nil {
+		log.Error("err", slog.Any("err", err))
+		return err
+	}
 
 	if err := proxyServers.StartProxyServers(); err != nil {
 		log.Warn("Error starting http/https proxy servers", slog.Any("err", err))
@@ -71,7 +75,7 @@ func RunGateway(ctx context.Context, cfg *config.Config, log *slog.Logger) error
 
 	// Stop listeners gracefully.
 	if err := proxyServers.ShutdownProxyServers(ctx); err != nil {
-		log.Error("failed to stop HTTP/HTTPS server",slog.Any("err", err))
+		log.Error("failed to stop HTTP/HTTPS server", slog.Any("err", err))
 	}
 
 	return nil

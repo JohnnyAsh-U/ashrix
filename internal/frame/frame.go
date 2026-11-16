@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	MaxFrameSize          = 16 << 20 // 16 MiB control frame
+	MaxFrameSize = 16 << 20 // 16 MiB control frame
 )
 
-
+var FrameTooLarge = errors.New("frame too large")
 
 func WriteFrame(w io.Writer, payload proto.Message) error {
 
@@ -26,7 +26,7 @@ func WriteFrame(w io.Writer, payload proto.Message) error {
 	}
 
 	if len(data) > MaxFrameSize {
-		return errors.New("frame too large")
+		return FrameTooLarge
 	}
 
 	header := make([]byte, 4)
@@ -43,7 +43,6 @@ func WriteFrame(w io.Writer, payload proto.Message) error {
 	return nil
 
 }
-
 
 // writeFull handles legal short writes from io.Writer implementations.
 func writeFull(w io.Writer, p []byte) error {
@@ -62,7 +61,6 @@ func writeFull(w io.Writer, p []byte) error {
 	return nil
 }
 
-
 func ReadFrame(r io.Reader) ([]byte, error) {
 
 	var header [4]byte
@@ -73,7 +71,7 @@ func ReadFrame(r io.Reader) ([]byte, error) {
 
 	length := binary.BigEndian.Uint32(header[0:])
 	if length > MaxFrameSize {
-		return nil, errors.New("frame too large")
+		return nil, FrameTooLarge
 	}
 
 	payload := make([]byte, length)
@@ -93,7 +91,6 @@ func DecodeFrame(payload []byte, dst proto.Message) error {
 	return nil
 }
 
-
 // headersToProto converts standard Go HTTP headers into the Protobuf map type
 func HeadersToProto(h http.Header) map[string]*pb.HeaderList {
 	if h == nil {
@@ -111,4 +108,3 @@ func HeadersToProto(h http.Header) map[string]*pb.HeaderList {
 	}
 	return out
 }
-

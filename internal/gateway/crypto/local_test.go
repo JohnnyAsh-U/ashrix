@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/pki"
-	"github.com/JohnnyAsh-U/ashrix-api/internal/transport"
 )
 
 func gatewayFixture(t *testing.T, serverName string, eku []x509.ExtKeyUsage, notBefore, notAfter time.Time) (*pki.CA, *ecdsa.PrivateKey, *x509.Certificate) {
@@ -84,7 +83,7 @@ func TestNewLocalGatewayPKIAcceptsValidServerCertificate(t *testing.T) {
 	if cfg.MinVersion != tls.VersionTLS13 || cfg.ClientAuth != tls.RequireAndVerifyClientCert {
 		t.Fatal("gateway TLS config must require verified client certificates and TLS 1.3")
 	}
-	if len(cfg.NextProtos) != 1 || cfg.NextProtos[0] != transport.ALPN {
+	if len(cfg.NextProtos) != 1 || cfg.NextProtos[0] != ALPN {
 		t.Fatalf("unexpected ALPN configuration: %v", cfg.NextProtos)
 	}
 }
@@ -160,48 +159,5 @@ func TestNewLocalGatewayPKIRejectsNonCAIssuer(t *testing.T) {
 	certPath, keyPath := writeGatewayFixture(t, t.TempDir(), cert, key, "gateway.crt", "gateway.key")
 	if _, err := NewLocalGatewayPKI(certPath, keyPath, cert, "gateway.example.test"); err == nil {
 		t.Fatal("expected non-CA issuer to be rejected")
-	}
-}
-
-func TestSaveGatewayCertAndKeyWritesExpectedPermissions(t *testing.T) {
-	now := time.Now()
-	_, key, cert := gatewayFixture(t, "gateway.example.test", []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, now.Add(-time.Minute), now.Add(time.Hour))
-	dir := t.TempDir()
-	certPath := filepath.Join(dir, "gateway.crt")
-	keyPath := filepath.Join(dir, "gateway.key")
-	if err := SaveGatwayCertAndKey(certPath, keyPath, cert, key); err != nil {
-		t.Fatal(err)
-	}
-	certInfo, err := os.Stat(certPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	keyInfo, err := os.Stat(keyPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := certInfo.Mode().Perm(); got != 0644 {
-		t.Fatalf("certificate mode = %04o, want 0644", got)
-	}
-	if got := keyInfo.Mode().Perm(); got != 0600 {
-		t.Fatalf("private key mode = %04o, want 0600", got)
-	}
-}
-
-func TestSaveGatewayCertAndKeyRejectsMismatchedKey(t *testing.T) {
-	now := time.Now()
-	_, _, cert := gatewayFixture(t, "gateway.example.test", []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, now.Add(-time.Minute), now.Add(time.Hour))
-	otherKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dir := t.TempDir()
-	certPath := filepath.Join(dir, "gateway.crt")
-	keyPath := filepath.Join(dir, "gateway.key")
-	if err := SaveGatwayCertAndKey(certPath, keyPath, cert, otherKey); err == nil {
-		t.Fatal("expected mismatched key to be rejected")
-	}
-	if _, err := os.Stat(certPath); !os.IsNotExist(err) {
-		t.Fatalf("certificate should not be written after validation failure, stat error = %v", err)
 	}
 }

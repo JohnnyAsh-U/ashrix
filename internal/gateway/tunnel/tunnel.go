@@ -107,7 +107,7 @@ func (s *QuicTunnel) handleIncomingConnection(ctx context.Context, conn *quic.Co
 	var regMsg proto.ControlMessage
 	if err := json.NewDecoder(mgmtStream).Decode(&regMsg); err != nil || regMsg.MsgType != proto.MsgType_REGISTER {
 		conn.CloseWithError(quic.ApplicationErrorCode(ashrixerrors.CodeNoCert), "bad register")
-		return err
+		return fmt.Errorf("error:%v", err)
 	}
 
 	s.mu.RLock()
@@ -157,8 +157,14 @@ func (r *QuicTunnel) GetConnectorSessionBySubdomain(subdomain string) (*Connecto
 	if !ok {
 		return nil, false
 	}
-	entry := r.connectors[connectorID]
-	return entry, entry != nil
+	entry, ok := r.connectors[connectorID]
+
+	if !ok {
+		return nil, false
+	}
+
+	snapshot := *entry
+	return &snapshot, entry != nil
 }
 
 func (e *QuicTunnel) IsConnectorTunnelAttached(connectorID string) bool {

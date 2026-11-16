@@ -17,6 +17,7 @@ const (
 	CodeUnknownConnector Code = 0x103
 	CodeBadCertificate   Code = 0x104
 )
+
 type Error struct {
 	Code  Code
 	Msg   string
@@ -77,6 +78,3 @@ func UnknownConnector(id string) *Error {
 func BadCertificate(cause error) *Error {
 	return &Error{Code: CodeBadCertificate, Msg: "bad certificate", Cause: cause}
 }
-
-
-

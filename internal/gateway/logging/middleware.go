@@ -111,7 +111,6 @@ func AccessLogMiddleware(accessLogger *AccessLogger, gatewayID string, fallbackL
 			// ----------------------------------------------------
 
 			appID := accessCtx.AppID
-			
 
 			latency := time.Since(start)
 

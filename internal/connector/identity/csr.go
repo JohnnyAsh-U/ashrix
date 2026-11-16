@@ -1,4 +1,3 @@
-
 package identity
 
 import (

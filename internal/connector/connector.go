@@ -12,7 +12,7 @@ import (
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/startup"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/connector/tunnel"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/pki"
-	pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
+	// pb "github.com/JohnnyAsh-U/ashrix-api/proto/gen"
 )
 
 func RunConnector(ctx context.Context, appConfig *config.Config, log *slog.Logger) error {
@@ -56,16 +56,8 @@ func RunConnector(ctx context.Context, appConfig *config.Config, log *slog.Logge
 	if err != nil {
 		return fmt.Errorf("initialize local connector identity: %w", err)
 	}
-	apps := make([]*pb.ConnectorApps, 0, len(appConfig.Applications))
-	for _, app := range appConfig.Applications {
-		apps = append(apps, &pb.ConnectorApps{
-			Id:       app.Name,
-			Name:     app.Name,
-			Upstream: app.Target,
-		})
-	}
 
-	client := tunnel.NewTunnel(appConfig, localPKI.TLSConfig(), log, apps)
+	client := tunnel.NewTunnel(appConfig, localPKI.TLSConfig(), log)
 	if err := client.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		log.Error("client exited with error", "err", err)
 		return err

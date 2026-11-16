@@ -49,6 +49,17 @@ func TestWriteReadFrameRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMaxFrameSizeExceeded(t *testing.T) {
+	largeString := make([]byte, MaxFrameSize+10)
+	largeMsg := wrapperspb.String(string(largeString))
+
+	var buf bytes.Buffer
+
+	if err := WriteFrame(&buf, largeMsg); !errors.Is(err, FrameTooLarge) {
+		t.Fatalf("Error: Expected %v; Got: %v", FrameTooLarge, err)
+	}
+}
+
 func TestWriteFrameHandlesShortWrites(t *testing.T) {
 	w := &shortWriter{max: 2}
 	if err := WriteFrame(w, wrapperspb.String("short writes")); err != nil {

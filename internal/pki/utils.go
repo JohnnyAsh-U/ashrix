@@ -14,7 +14,7 @@ import (
 )
 
 func GenerateCSR(privKey *ecdsa.PrivateKey, ID, Component string) ([]byte, error) {
-	connectorURI, _ := url.Parse(fmt.Sprintf("ashrix://%s/%s",Component, ID))
+	connectorURI, _ := url.Parse(fmt.Sprintf("ashrix://%s/%s", Component, ID))
 
 	template := &x509.CertificateRequest{
 		Subject: pkix.Name{
@@ -35,8 +35,6 @@ func GenerateCSR(privKey *ecdsa.PrivateKey, ID, Component string) ([]byte, error
 		Bytes: csrDER,
 	}), nil
 }
-
-
 
 func ParseCSR(data []byte) (*x509.CertificateRequest, error) {
 	block, rest := pem.Decode(data)
@@ -69,7 +67,6 @@ func ParseCSR(data []byte) (*x509.CertificateRequest, error) {
 	return csr, nil
 }
 
-
 func ParseCert(data []byte) (*x509.Certificate, error) {
 	block, _ := pem.Decode(data)
 	if block == nil || block.Type != "CERTIFICATE" {
@@ -83,4 +80,3 @@ func ParseCert(data []byte) (*x509.Certificate, error) {
 
 	return cert, nil
 }
-

@@ -1,4 +1,3 @@
-
 package pki
 
 import (
@@ -102,7 +101,7 @@ func TestIssueAndVerifyConnectorCertificate(t *testing.T) {
 	certPEM, cert, err := ca.IssueCertificate(
 		"office-01",
 		csr,
-		30*24*time.Hour,
+		90*24*time.Hour,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -121,8 +120,8 @@ func TestIssueAndVerifyConnectorCertificate(t *testing.T) {
 		cert,
 		ca.Certificate,
 		VerifyOptions{
-			ConnectorID:       "office-01",
-			ExpectedSerial:    SerialString(cert.SerialNumber),
+			ConnectorID:    "office-01",
+			ExpectedSerial: SerialString(cert.SerialNumber),
 		},
 	)
 	if err != nil {
@@ -160,7 +159,7 @@ func TestCSRIdentityIsNotTrusted(t *testing.T) {
 	}
 
 	if cert.URIs[0].String() !=
-		"spiffe://ashrix.example/connectors/office-01" {
+		"spiffe://ashrix/connectors/office-01" {
 		t.Fatalf("unexpected URI SAN: %s", cert.URIs[0])
 	}
 }
@@ -228,7 +227,7 @@ func TestRejectWrongConnectorIdentity(t *testing.T) {
 		cert,
 		ca.Certificate,
 		VerifyOptions{
-			ConnectorID:       "office-02",
+			ConnectorID: "office-02",
 		},
 	)
 	if err == nil {
@@ -257,8 +256,8 @@ func TestRejectWrongSerial(t *testing.T) {
 		cert,
 		ca.Certificate,
 		VerifyOptions{
-			ConnectorID:       "office-01",
-			ExpectedSerial:    "123456",
+			ConnectorID:    "office-01",
+			ExpectedSerial: "123456",
 		},
 	)
 	if err == nil {
@@ -296,7 +295,7 @@ func TestRejectExcessiveValidity(t *testing.T) {
 	if _, _, err := ca.IssueCertificate(
 		"office-01",
 		csr,
-		31*24*time.Hour,
+		91*24*time.Hour,
 	); err == nil {
 		t.Fatal("expected excessive validity rejection")
 	}

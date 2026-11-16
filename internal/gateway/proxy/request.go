@@ -40,16 +40,16 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 	}
 
 	req := &proto.StreamFrame{
-		RequestId:  requestID,
+		RequestId:   requestID,
 		ConnectorId: ConnectorID,
-		AppId:      AppID,
-		Method:     r.Method,
-		Host:       r.Host,
-		Path:       r.URL.Path,
-		Query:      r.URL.RawQuery,
-		Headers:    frame.HeadersToProto(outboundHeaders),
-		BodyLength: r.ContentLength,
-		StreamType: streamType,
+		AppId:       AppID,
+		Method:      r.Method,
+		Host:        r.Host,
+		Path:        r.URL.Path,
+		Query:       r.URL.RawQuery,
+		Headers:     frame.HeadersToProto(outboundHeaders),
+		BodyLength:  r.ContentLength,
+		StreamType:  streamType,
 	}
 
 	// 8. Open a stream to the destination connector.
@@ -71,7 +71,6 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 		return
 	}
 
-
 	defer stream.Close()
 
 	if !isWebSocketRequest(r) {
@@ -86,7 +85,7 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 
 		resp, err := http.ReadResponse(br, r)
 		if err != nil {
-			http.Error(w, "", 500)
+			http.Error(w, "Error on Connector", 500)
 			return
 		}
 
@@ -105,7 +104,7 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 		}
 		clientConn, bufrw, err := hj.Hijack()
 		if err != nil {
-			http.Error(w,"", http.StatusInternalServerError)
+			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
 		defer clientConn.Close()
@@ -135,7 +134,16 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 	}
 }
 
-
 func isWebSocketRequest(r *http.Request) bool {
-	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		return false
+	}
+	connHeader := r.Header.Get("Connection")
+	for _, token := range strings.Split(connHeader, ",") {
+		if strings.EqualFold(strings.TrimSpace(token), "upgrade") {
+			return true
+		}
+	}
+	return false
+	// return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
 }

@@ -1,20 +1,19 @@
 package config
 
-
 type Config struct {
-	Gateway     Gateway       `yaml:"gateway"`
-	Listeners   Listeners     `yaml:"listeners"`
-	PKI         PKI           `yaml:"pki"`
-	Connectors  []Connector   `yaml:"connectors"`
+	Gateway      Gateway       `yaml:"gateway"`
+	Listeners    Listeners     `yaml:"listeners"`
+	PKI          PKI           `yaml:"pki"`
+	Connectors   []Connector   `yaml:"connectors"`
 	Applications []Application `yaml:"applications"`
-	Logging     Logging       `yaml:"logging"`
+	Logging      Logging       `yaml:"logging"`
 }
 
 type Gateway struct {
-	ID string `yaml:"id"`
+	ID          string `yaml:"id"`
 	ServerName  string `yaml:"server_name" mapstructure:"server_name"`
 	Certificate string `yaml:"certificate"`
-	PrivateKey string `yaml:"private_key" mapstructure:"private_key"`
+	PrivateKey  string `yaml:"private_key" mapstructure:"private_key"`
 }
 
 type Listeners struct {
@@ -38,24 +37,23 @@ type QUICListener struct {
 }
 
 type PKI struct {
-	CACertificate       string `yaml:"ca_certificate" mapstructure:"ca_certificate"`
-	CAPrivateKey        string `yaml:"ca_private_key" mapstructure:"ca_private_key"`
+	CACertificate string `yaml:"ca_certificate" mapstructure:"ca_certificate"`
+	CAPrivateKey  string `yaml:"ca_private_key" mapstructure:"ca_private_key"`
 }
 
 type Connector struct {
-	ID          string      `yaml:"id"`
+	ID                string `yaml:"id"`
 	CertificateSerial string `yaml:"certificate_serial" mapstructure:"certificate_serial"`
 }
 
-
 type Application struct {
-	Name       string `yaml:"name"`
-	Domain     string `yaml:"domain"`
-	Connector  string `yaml:"connector"`
+	Name      string `yaml:"name"`
+	Domain    string `yaml:"domain"`
+	Connector string `yaml:"connector"`
 }
 
 type Logging struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
-	Dir string `yaml:"dir"`
+	Dir    string `yaml:"dir"`
 }

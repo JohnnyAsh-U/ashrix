@@ -12,11 +12,10 @@ import (
 )
 
 type VerifyOptions struct {
-	ConnectorID       string
-	ExpectedSerial    string
-	CurrentTime       time.Time
+	ConnectorID    string
+	ExpectedSerial string
+	CurrentTime    time.Time
 }
-
 
 func NormalizeSerial(serial string) (string, error) {
 	serial = strings.ReplaceAll(serial, ":", "")
@@ -65,7 +64,7 @@ func VerifyConnectorCertificate(
 	}
 	if len(cert.URIs) != 1 || cert.URIs[0].String() != ConnectorIdentityURI(opts.ConnectorID) {
 		return errors.New("certificate URI identity does not match connector ID")
- 	}
+	}
 
 	now := opts.CurrentTime
 	if now.IsZero() {
@@ -84,9 +83,9 @@ func VerifyConnectorCertificate(
 	roots.AddCert(ca)
 
 	_, err := cert.Verify(x509.VerifyOptions{
-		Roots:         roots,
-		CurrentTime:   now,
-		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		Roots:       roots,
+		CurrentTime: now,
+		KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	})
 	if err != nil {
 		return fmt.Errorf("certificate chain verification failed: %w", err)
@@ -123,8 +122,6 @@ func VerifyConnectorCertificate(
 
 	return nil
 }
-
-
 
 func ParseCertificatePEM(data []byte) (*x509.Certificate, error) {
 	block, rest := pem.Decode(data)

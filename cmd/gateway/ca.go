@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/config"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/gateway/crypto"
+	"github.com/JohnnyAsh-U/ashrix-api/internal/helpers"
 	"github.com/JohnnyAsh-U/ashrix-api/internal/pki"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -104,13 +106,19 @@ var initCACmd = &cobra.Command{
 			}
 
 			//Sign it
-			_, gatewayCert, err := ca.IssueGatewayCertificate(gatewayID, gatewayServerName, csr, pki.MaxGatewayCertificateValidity)
+			gatewayPEM, _, err := ca.IssueGatewayCertificate(gatewayID, gatewayServerName, csr, pki.MaxGatewayCertificateValidity)
 			if err != nil {
 				return fmt.Errorf("Issuing cert: %w", err)
 			}
 
 			//Save Key and Cert
-			if err := crypto.SaveGatwayCertAndKey(appConfig.Gateway.Certificate, appConfig.Gateway.PrivateKey, gatewayCert, key); err != nil {
+			if err := helpers.WriteExclusive(appConfig.Gateway.Certificate, gatewayPEM, os.FileMode(0644)); err != nil {
+				return fmt.Errorf("Error Saving CA: %v\n", err)
+			}
+			keyDER, err := x509.MarshalECPrivateKey(key)
+			keydata := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+			if err := helpers.WriteExclusive(appConfig.Gateway.PrivateKey, keydata, os.FileMode(0644)); err != nil {
+				_ = os.Remove(appConfig.Gateway.Certificate) // roll back the first file if the pair cannot be completed
 				return fmt.Errorf("Error Saving CA: %v\n", err)
 			}
 			fmt.Println("Saving Done...")

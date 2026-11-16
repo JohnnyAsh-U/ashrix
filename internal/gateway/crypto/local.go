@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -12,8 +13,8 @@ import (
 )
 
 var ErrLocalCertExpired = fmt.Errorf("gateway certificate expired")
-const ALPN = "ashrix/1"
 
+const ALPN = "ashrix/1"
 
 type LocalGatewayPKI struct {
 	certificate *tls.Certificate
@@ -37,6 +38,7 @@ func NewLocalGatewayPKI(certPath, keyPath string, CACert *x509.Certificate, serv
 	if block == nil {
 		return nil, errors.New("failed to load key PEM")
 	}
+
 	key, err := x509.ParseECPrivateKey(block.Bytes)
 
 	if err != nil {
@@ -47,9 +49,12 @@ func NewLocalGatewayPKI(certPath, keyPath string, CACert *x509.Certificate, serv
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", certPath, err)
 	}
-	block, _ = pem.Decode(certPEM)
+	block, rest := pem.Decode(certPEM)
 	if block == nil {
 		return nil, fmt.Errorf("invalid cert PEM: %s", keyPath)
+	}
+	if len(bytes.TrimSpace(rest)) > 0 {
+		return nil, errors.New("Trailing byte found after parsing cert")
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 
@@ -84,6 +89,23 @@ func NewLocalGatewayPKI(certPath, keyPath string, CACert *x509.Certificate, serv
 		return nil, fmt.Errorf("gateway certificate expired %s", cert.NotBefore)
 
 	}
+
+	// Check the serverauth ext key usage
+	if len(cert.ExtKeyUsage) == 0 {
+		return nil, fmt.Errorf("No key Usage found")
+	}
+
+	var isValid = true
+	for _, usage := range cert.ExtKeyUsage {
+		if usage != x509.ExtKeyUsageServerAuth {
+			isValid = false
+		}
+	}
+
+	if !isValid {
+		return nil, fmt.Errorf("Cert has other ExtKeyUsage instead of only ServerAuth")
+	}
+
 	_, err = cert.Verify(x509.VerifyOptions{
 		Roots:       pool,
 		CurrentTime: now,
@@ -107,7 +129,6 @@ func NewLocalGatewayPKI(certPath, keyPath string, CACert *x509.Certificate, serv
 }
 
 func (g *LocalGatewayPKI) Cert() *x509.Certificate { return g.leaf }
-
 
 func (g *LocalGatewayPKI) GetTLSConfig() *tls.Config {
 	return &tls.Config{

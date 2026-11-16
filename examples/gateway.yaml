@@ -7,15 +7,15 @@ gateway:
 
 listeners:
   http:
-    address: "0.0.0.0:80"
+    address: "0.0.0.0:8080"
 
   https:
-    address: "0.0.0.0:443"
+    address: "0.0.0.0:8443"
     certificate: /etc/ashrix-gateway/certs/server.crt
     private_key: /etc/ashrix-gateway/certs/server.key
 
   quic:
-    address: "0.0.0.0:8443"
+    address: "0.0.0.0:8444"
 
 pki:
   ca_certificate: /etc/ashrix-gateway/pki/ca.crt

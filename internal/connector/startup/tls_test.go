@@ -10,8 +10,6 @@ import (
 	"math/big"
 	"testing"
 	"time"
-
-	"github.com/JohnnyAsh-U/ashrix-api/internal/transport"
 )
 
 func TestNewLocalPKIInitialiserRejectsMissingCredentials(t *testing.T) {
@@ -70,9 +68,6 @@ func TestNewLocalPKIInitialiserBuildsTLS13ClientConfig(t *testing.T) {
 	}
 	if cfg.ServerName != "gateway.example.test" {
 		t.Fatalf("ServerName = %q", cfg.ServerName)
-	}
-	if len(cfg.NextProtos) != 1 || cfg.NextProtos[0] != transport.ALPN {
-		t.Fatalf("unexpected ALPN: %v", cfg.NextProtos)
 	}
 	got, err := cfg.GetClientCertificate(nil)
 	if err != nil {

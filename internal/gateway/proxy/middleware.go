@@ -74,6 +74,5 @@ func AppAccessMiddleware(quicTunnel *tunnel.QuicTunnel, cfg *config.Config, logg
 }
 
 func isInternalPath(path string) bool {
-	return path == "/_ashrix/health" || path == "/_ashrix/logout" ||
-		strings.HasPrefix(path, "/_ashrix/auth/") || strings.HasPrefix(path, "/_ashrix/static/")
+	return strings.HasPrefix(path, "/_ashrix")
 }

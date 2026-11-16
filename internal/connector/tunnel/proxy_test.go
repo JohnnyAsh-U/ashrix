@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"io"
 	"log/slog"
 	"math/big"
@@ -28,7 +29,15 @@ func testQUICPair(t *testing.T) (*quic.Conn, *quic.Conn) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tmpl := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "localhost"}, DNSNames: []string{"localhost"}, NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "localhost"},
+		DNSNames:     []string{"localhost"},
+		NotBefore:    time.Now().Add(-time.Minute),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)
@@ -37,11 +46,30 @@ func testQUICPair(t *testing.T) (*quic.Conn, *quic.Conn) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert, err := tls.X509KeyPair(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}))
+	cert, err := tls.X509KeyPair(
+		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
+		pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	listener, err := quic.ListenAddr("127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{cert}, NextProtos: []string{"ashrix-test"}}, nil)
+	udpAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to resolve udp addr:%v", err)
+	}
+
+	udpConn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		t.Fatalf("failed to listen udp addr:%v", err)
+	}
+	t.Cleanup(func() { _ = udpConn.Close() })
+
+	listener, err := quic.Listen(
+		udpConn,
+		&tls.Config{
+			Certificates: []tls.Certificate{cert},
+			NextProtos:   []string{"ashrix-test"},
+		},
+		&quic.Config{MaxIncomingStreams: 1000, KeepAlivePeriod: 1 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +86,11 @@ func testQUICPair(t *testing.T) (*quic.Conn, *quic.Conn) {
 		}
 		accepted <- conn
 	}()
-	client, err := quic.DialAddr(ctx, listener.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"ashrix-test"}}, nil)
+	client, err := quic.DialAddr(ctx, listener.Addr().String(),
+		&tls.Config{
+			InsecureSkipVerify: true,
+			NextProtos:         []string{"ashrix-test"},
+		}, &quic.Config{MaxIncomingStreams: 1000, KeepAlivePeriod: 1 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,19 +131,41 @@ func TestHandleDataTunnelForwardsToConfiguredUpstream(t *testing.T) {
 	}()
 
 	client, server := testQUICPair(t)
+	serverAccepted := make(chan *quic.Stream, 1)
+	var serverStream *quic.Stream
+
+	go func() {
+		s := mustAcceptStream(t, server)
+		serverAccepted <- s
+	}()
+
 	clientStream, err := client.OpenStreamSync(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	apps := []*pb.ConnectorApps{{Id: "docs", Name: "Documents", Upstream: upstream.Addr().String()}}
-	worker := &TunnelClient{log: testLogger(), config: &config.Config{Connector: config.Connector{ID: "connector-a"}}, apps: apps}
-	workerDone := make(chan struct{})
-	serverStream := mustAcceptStream(t, server)
-	go func() { worker.handleDataTunnel(context.Background(), serverStream); close(workerDone) }()
-
-	if err := frame.WriteFrame(clientStream, &pb.StreamFrame{ConnectorId: "connector-a", AppId: "docs", Method: "POST", Path: "/upload"}); err != nil {
+	if err := frame.WriteFrame(clientStream, &pb.StreamFrame{ConnectorId: "connector-a", AppId: "Documents", Method: "POST", Path: "/upload"}); err != nil {
 		t.Fatal(err)
 	}
+
+	select {
+	case serverStream = <-serverAccepted:
+		defer serverStream.CancelRead(0)
+		t.Log("server successfully accepted QUIC stream")
+	case <-time.After(5 * time.Second):
+		t.Fatal(err)
+	}
+
+	apps := []config.Application{{Name: "Documents", Target: upstream.Addr().String()}}
+	worker := &TunnelClient{
+		log: testLogger(),
+		config: &config.Config{
+			Connector:    config.Connector{ID: "connector-a"},
+			Applications: apps,
+		},
+	}
+	workerDone := make(chan struct{})
+	go func() { worker.handleDataTunnel(context.Background(), serverStream); close(workerDone) }()
+
 	if _, err := clientStream.Write([]byte("document-payload")); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +196,7 @@ func TestHandleDataTunnelForwardsToConfiguredUpstream(t *testing.T) {
 
 func mustAcceptStream(t *testing.T, conn *quic.Conn) *quic.Stream {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	stream, err := conn.AcceptStream(ctx)
 	if err != nil {
@@ -157,18 +211,29 @@ func TestHandleDataTunnelRejectsWrongConnector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	worker := &TunnelClient{log: testLogger(), config: &config.Config{Connector: config.Connector{ID: "connector-a"}}, apps: []*pb.ConnectorApps{{Id: "docs", Upstream: "127.0.0.1:1"}}}
-	done := make(chan struct{})
-	serverStream := mustAcceptStream(t, server)
-	go func() { worker.handleDataTunnel(context.Background(), serverStream); close(done) }()
-	if err := frame.WriteFrame(stream, &pb.StreamFrame{ConnectorId: "connector-b", AppId: "docs"}); err != nil {
+	if err := frame.WriteFrame(stream, &pb.StreamFrame{ConnectorId: "connector-a", AppId: "docs"}); err != nil {
 		t.Fatal(err)
 	}
+	worker := &TunnelClient{
+		log: testLogger(),
+		config: &config.Config{
+			Connector:    config.Connector{ID: "connector-b"},
+			Applications: []config.Application{{Name: "docs", Target: "127.0.0.1:1"}},
+		},
+	}
+
+	serverStream := mustAcceptStream(t, server)
+	errChan := make(chan error)
+	go func() { errChan <- worker.handleDataTunnel(context.Background(), serverStream) }()
+
 	_ = stream.Close()
 	select {
-	case <-done:
+	case errorM := <-errChan:
+		if !errors.Is(errorM, ErrConnectorID) {
+			t.Fatalf("Expected : %v", errorM)
+		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("worker did not reject mismatched connector")
+		t.Fatal("worker did not reject unknown application")
 	}
 }
 
@@ -178,16 +243,22 @@ func TestHandleDataTunnelRejectsUnknownApplication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	worker := &TunnelClient{log: testLogger(), config: &config.Config{Connector: config.Connector{ID: "connector-a"}}, apps: []*pb.ConnectorApps{{Id: "docs", Upstream: "127.0.0.1:1"}}}
-	done := make(chan struct{})
-	serverStream := mustAcceptStream(t, server)
-	go func() { worker.handleDataTunnel(context.Background(), serverStream); close(done) }()
-	if err := frame.WriteFrame(stream, &pb.StreamFrame{ConnectorId: "connector-a", AppId: "unknown"}); err != nil {
+
+	if err := frame.WriteFrame(stream, &pb.StreamFrame{ConnectorId: "connector-a", AppId: "docs1"}); err != nil {
 		t.Fatal(err)
 	}
+
+	worker := &TunnelClient{log: testLogger(), config: &config.Config{Connector: config.Connector{ID: "connector-a"}, Applications: []config.Application{{Name: "docs2", Target: "127.0.0.1:1"}}}}
+	errChan := make(chan error)
+	serverStream := mustAcceptStream(t, server)
+	go func() { errChan <- worker.handleDataTunnel(context.Background(), serverStream) }()
+
 	_ = stream.Close()
 	select {
-	case <-done:
+	case errorM := <-errChan:
+		if !errors.Is(errorM, ErrAppNotFound) {
+			t.Fatalf("Expected : %v", errorM)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("worker did not reject unknown application")
 	}

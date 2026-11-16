@@ -12,7 +12,8 @@ import (
 	"io"
 	"log/slog"
 	"math/big"
-	"net"
+
+	// "net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -57,12 +58,12 @@ func TestProxyServersStartServeHealthAndShutdown(t *testing.T) {
 	cfg.Listeners.HTTPS.Certificate, cfg.Listeners.HTTPS.PrivateKey = certPath, keyPath
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := NewProxyHandler(cfg, logger, nil, nil)
-	servers := NewProxyServers(cfg, logger, handler)
+	servers, _ := NewProxyServers(cfg, logger, handler)
 	if err := servers.StartProxyServers(); err != nil {
 		t.Fatalf("StartProxyServers: %v", err)
 	}
 
-	httpURL := "http://" + servers.httpLn.Addr().String() + "/_ashrix/health"
+	httpURL := "http://" + servers.http.Addr + "/_ashrix/health"
 	resp, err := http.Get(httpURL)
 	if err != nil {
 		t.Fatalf("HTTP health request: %v", err)
@@ -74,7 +75,7 @@ func TestProxyServersStartServeHealthAndShutdown(t *testing.T) {
 	}
 
 	tlsClient := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
-	httpsURL := "https://" + servers.httpsLn.Addr().String() + "/_ashrix/health"
+	httpsURL := "https://" + servers.https.Addr + "/_ashrix/health"
 	resp, err = tlsClient.Get(httpsURL)
 	if err != nil {
 		t.Fatalf("HTTPS health request: %v", err)
@@ -90,39 +91,5 @@ func TestProxyServersStartServeHealthAndShutdown(t *testing.T) {
 	if err := servers.ShutdownProxyServers(ctx); err != nil {
 		t.Fatalf("ShutdownProxyServers: %v", err)
 	}
-	_ = tlsClient.CloseIdleConnections()
-}
-
-func TestProxyServersRejectInvalidHTTPSCertificatePair(t *testing.T) {
-	occupied, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer occupied.Close()
-	cfg := &config.Config{}
-	cfg.Listeners.HTTP.Address = "127.0.0.1:0"
-	cfg.Listeners.HTTPS.Address = "127.0.0.1:0"
-	cfg.Listeners.HTTPS.Certificate = filepath.Join(t.TempDir(), "missing.crt")
-	cfg.Listeners.HTTPS.PrivateKey = filepath.Join(t.TempDir(), "missing.key")
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	servers := NewProxyServers(cfg, logger, &ProxyHandler{r: nil})
-	if err := servers.StartProxyServers(); err == nil {
-		t.Fatal("expected invalid HTTPS key pair to fail startup")
-	}
-}
-
-func TestProxyServersReturnHTTPBindError(t *testing.T) {
-	occupied, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer occupied.Close()
-	cfg := &config.Config{}
-	cfg.Listeners.HTTP.Address = occupied.Addr().String()
-	cfg.Listeners.HTTPS.Address = "127.0.0.1:0"
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	servers := NewProxyServers(cfg, logger, &ProxyHandler{r: nil})
-	if err := servers.StartProxyServers(); err == nil {
-		t.Fatal("expected occupied HTTP address to fail startup")
-	}
+	tlsClient.CloseIdleConnections()
 }

@@ -14,8 +14,7 @@ func TestHandleSessionRegistersAndStopsOnContextCancellation(t *testing.T) {
 	client, server := testQUICPair(t)
 	worker := &TunnelClient{
 		log:    testLogger(),
-		config: &config.Config{Connector: config.Connector{ID: "connector-a"}},
-		apps:   []*pb.ConnectorApps{{Id: "docs", Name: "Documents"}},
+		config: &config.Config{Connector: config.Connector{ID: "connector-a"}, Applications: []config.Application{{Name: "docs"}}},
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
