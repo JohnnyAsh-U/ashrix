@@ -147,6 +147,7 @@ func (t *TunnelClient) handleSession(ctx context.Context, conn *quic.Conn) error
 			stream, err := conn.AcceptStream(sessionCtx)
 			if err != nil {
 				errChan <- err
+				return
 			}
 
 			wg.Add(1)

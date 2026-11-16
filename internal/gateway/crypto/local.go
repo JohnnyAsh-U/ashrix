@@ -135,7 +135,7 @@ func (g *LocalGatewayPKI) GetTLSConfig() *tls.Config {
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 			return g.certificate, nil
 		},
-		RootCAs:    g.certPool,
+		// RootCAs:    g.certPool,
 		ClientCAs:  g.certPool,
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		MinVersion: tls.VersionTLS13,

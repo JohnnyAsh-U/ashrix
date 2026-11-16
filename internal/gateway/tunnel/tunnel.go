@@ -274,6 +274,7 @@ func (r *QuicTunnel) VerifyConnectorConn(quicConn *quic.Conn, connectorID string
 	if len(leaf.URIs) != 1 || leaf.URIs[0].String() != pki.ConnectorIdentityURI(connectorID) {
 		err := ashrixerrors.IDMismatch("certificate URI identity", connectorID)
 		_ = quicConn.CloseWithError(quic.ApplicationErrorCode(err.Code), err.Msg)
+		return err
 	}
 
 	// serialNumberNormalized := pki.SerialString(leaf.SerialNumber)

@@ -41,13 +41,3 @@ go test -coverprofile=coverage.out ./...
 go tool cover -func=coverage.out
 go tool cover -html=coverage.out -o coverage.html
 ```
-
-## Boundaries
-
-These tests do not replace a deployment test that starts the compiled `ashrix-gateway` and `ashrix-connector` binaries as independent OS processes with real YAML files, installed certificate files, and operator-managed startup/shutdown. That is a separate deployment acceptance test. Performance/load benchmarks are also separate from correctness integration tests.
-
-On Linux, the suite also includes a process-level test that builds both CLI binaries, writes isolated YAML configurations and certificate files under temporary `HOME` directories, starts the gateway and connector as separate OS processes, verifies a real HTTP request through the tunnel, and terminates both processes with `SIGTERM`:
-
-```bash
-go test ./integration -run TestGatewayAndConnectorBinariesWorkTogetherFromYAML -v
-```
