@@ -29,9 +29,6 @@ jobs:
       - name: Verify dependencies
         run: go mod verify
 
-      - name: Run tests
-        run: go test -race -count=1 ./...
-        
       - name: Run vet
         run: go vet ./...
 

@@ -1,99 +1,379 @@
-<p align="center">
-  <img alt="GoReleaser Logo" src="https://avatars2.githubusercontent.com/u/24697112?v=3&s=200" height="200" />
-  <h3 align="center">GoReleaser</h3>
-  <p align="center">Release engineering, simplified.</p>
-  <p align="center">
-    <img height="30" src="https://cdn.simpleicons.org/go/555555/ffffff" alt="Go" />
-    <img height="30" src="https://cdn.simpleicons.org/rust/555555/ffffff" alt="Rust" />
-    <img height="30" src="https://cdn.simpleicons.org/zig/555555/ffffff" alt="Zig" />
-    <img height="30" src="https://cdn.simpleicons.org/typescript/555555/ffffff" alt="TypeScript" />
-    <img height="30" src="https://cdn.simpleicons.org/python/555555/ffffff" alt="Python" />
-  </p>
-</p>
+# Ashrix
 
----
+Expose private applications without opening inbound firewall ports.
 
-We handle the complexities of releasing so you can focus in building what really
-matters: **your software**.
+Ashrix is a lightweight, self-hosted application access gateway written in Go. It connects private applications to a public gateway through outbound QUIC tunnels secured with mutual TLS (mTLS).
 
-![](https://goreleaser.com/static/goreleaser.svg)
+No inbound tunnel connections. No centralized control plane. Just a gateway, connectors, YAML configuration, and certificates.
 
----
+## How it works
 
-## Get GoReleaser
+```
+External Client
 
-- [On your machine](https://goreleaser.com/install/);
-- [On CI/CD systems](https://goreleaser.com/ci/).
+HTTPS
+v
++--------------+
+|   Gateway    |
++--------------+
+
+QUIC + mTLS (outbound tunnel)
+v
++--------------+
+|  Connector   |
++--------------+
+
+TCP
+v
++--------------+
+| Private App  |
++--------------+
+```
+
+The connector initiates the tunnel from inside the private network. The gateway uses that connection to forward external application traffic to locally configured services.
+
+## Features
+
+- Outbound QUIC tunnels.
+- Mutual TLS connector authentication.
+- HTTP application routing.
+- TCP application forwarding.
+- YAML-based configuration.
+- Lightweight Go binaries.
+- Self-hosted deployment.
+- No centralized control plane.
+
+## Quick start
+
+This is the full flow from empty machines to a working app.
+
+### 1. On the gateway: initialize the CA and gateway identity
+
+```bash
+ashrix-gateway init --name gateway-01 --server-name gateway.example.com
+```
+This generates:
+
+- Gateway config: `~/.ashrix/gateway.yaml`
+- Root CA certificate: `~/.ashrix/pki/ca_cert.crt`
+- Root CA private key: `~/.ashrix/pki/ca_key.key`
+- Gateway leaf certificate: `~/.ashrix/pki/gateway.crt`
+- Gateway leaf private key: `~/.ashrix/pki/gateway.key`
+
+You do not need to hand-write the gateway YAML or generate certificates with `openssl`. `init` does it for you.
+
+To inspect the CA you just created:
+```
+ashrix-gateway show-ca
+```
+This shows the CA subject, serial, validity, and paths, so you can verify what you are about to trust.
+
+
+
+### 2. On the connector: initialize the connector
+
+NB: The default Quic Address Port for the gateway is `0.0.0.0:8444`, but can be modified in the gateway config file ~/.ashrix/gateway.yaml
+
+```bash
+ashrix-connector init --name office-01 --quic-addr gateway.example.com:8444 --server-name gateway.example.com --out ~/path/to/office-01.csr
+```
+
+This generates:
+
+- Connector config: `~/.ashrix/connector/connector.yaml`
+- Connector private key: `~/.ashrix/connector/connector.key`
+- Connector certificate signing request: the path supplied with `--out`
+
+The connector does not have a signed certificate yet. It only has a key and a CSR to be signed by the gateway CA.
+
+
+### 3. On the gateway: sign the connector and register it
+
+Copy the CSR from the connector to the gateway, then run:
+
+```bash
+ashrix-gateway add-connector --csr /path/to/office-01.csr --out /path/to/office-01-signed.crt
+```
+
+This does three things:
+
+1. Signs the CSR with the gateway CA.
+2. Adds the connector to the gateway configuration file (`~/.ashrix/gateway.yaml`).
+3. Creates the signed certificate bundle for that connector at the path supplied with `--out`.
+
+The bundle contains the connector leaf certificate plus the root CA, so the connector can trust the gateway and prove its own identity.
+
+
+### 4. On the connector: install the signed certificate
+
+Copy the signed certificate bundle back to the connector, then run:
+```bash
+ashrix-connector install --cert /path/to/connector-signed.crt
+```
+This installs the root CA and the connector node certificate into the paths configured in the connector YAML. After this step, the connector has everything it needs to authenticate to the gateway with mTLS.
+
+### 5. Add the application to the gateway config
+
+Edit `~/.ashrix/gateway.yaml` and add the application:
+```yaml
+applications:
+  - name: grafana
+    domain: grafana.example.com
+    connector: office-01
+```
+
+Rules for routing:
+
+1. The application must reference a connector that exists in the gateway config. `applications[].connector` must equal an `id` in `connectors[]`.
+2. The application name in the gateway must match the application name in the connector. Gateway `name: grafana` only routes if the connector also has `name: grafana`.
+
+If either rule fails, there is no route. The gateway will not fall back to another connector or a default target.
+
+
+### 6. Add the application to the connector config
+
+Edit `~/.ashrix/connector/connector.yaml` and add the same application name with its local destination:
+
+```yaml
+applications:
+  - name: grafana
+    target: 192.168.1.10:3000
+```
+
+The gateway never defines a TCP destination. Only the connector maps an application name to a local `target`. The connector must never accept an arbitrary destination from an external request.
+
+
+
+### 7. Start both sides
+
+NB: The default HTTP Address for the gateway is `0.0.0.0:8080`, HTTPS Address is `0.0.0.0:8443`, but can be modified in the gateway config file ~/.ashrix/gateway.yaml
+
+
+On the gateway:
+```bash
+ashrix-gateway start
+```
+On the connector:
+```bash
+ashrix-connector start
+```
+
+The connector dials out to the gateway over QUIC + mTLS. No inbound port needs to be opened on the connector network.
+
+
+### 8. Access your application
+
+Configure DNS:
+```yaml
+grafana.example.com -> YOUR_GATEWAY_PUBLIC_IP
+```
+Open:
+
+```
+https://grafana.example.com
+```
+
+The gateway forwards the request through the connector's established QUIC tunnel to the local Grafana service.
+
+
+### 9. For HTTPS On the gateway: provide the public HTTPS certificate
+
+`init` does *not* create your public HTTPS certificate. That certificate is what browsers validate when they open `https://grafana.example.com`.
+
+You must put the HTTPS certificate and private key in the exact paths configured in the gateway YAML under 
+
+`listeners.https`:
+```
+listeners:
+  https:
+    address: "0.0.0.0:443"
+    certificate: ~/.ashrix/server.crt
+    private_key: ~/.ashrix/server.key
+
+```
+
+In the example file `examples/gateway.yaml`, those paths are:
+
+certificate: /etc/ashrix-gateway/certs/server.crt
+
+private_key: /etc/ashrix-gateway/certs/server.key
+
+
+So for a user-directory install, place your files at:
+~/.ashrix/server.crt
+~/.ashrix/server.key
+
+For a system install, place them at the paths in your `gateway.yaml`.
+
+You can get them from any source you trust, for example Let's Encrypt, your company CA, or a self-signed cert for testing:
+
+```
+cp /path/to/your/fullchain.pem ~/.ashrix/server.crt
+cp /path/to/your/privkey.pem ~/.ashrix/server.key
+
+chmod 0640 ~/.ashrix/server.crt
+chmod 0600 ~/.ashrix/server.key
+```
+
+Rules:
+
+1. `certificate` must match `private_key`. If they do not pair, the HTTPS listener will fail to start.
+2. `certificate` must be valid for the public domain the client uses, e.g. `grafana.example.com`. The gateway leaf cert in `~/.ashrix/pki/gateway.crt` is *not* used for this. It is only for gateway-to-connector mTLS.
+3. If the files are missing or unreadable, HTTPS will not start. HTTP on `:80` and QUIC may still start depending on your config, but `https://<your-app>` will not work.
+4. If you change the paths in `gateway.yaml`, you must put the files at the new paths. The gateway only reads what is configured, it does not search for them.
+
+
+
+
+## Configuration
+
+Gateway config — `~/.ashrix/gateway.yaml` — matches `examples/gateway.yaml`:
+
+```yaml
+gateway:
+  id: gateway-01
+  server_name: gateway.example.com
+  certificate: /etc/ashrix/certs/connector.crt
+  private_key: /etc/ashrix/certs/connector.key
+
+listeners:
+  http:
+    address: "0.0.0.0:8080"
+  https:
+    address: "0.0.0.0:8443"
+    certificate: /etc/ashrix-gateway/certs/server.crt
+    private_key: /etc/ashrix-gateway/certs/server.key
+  quic:
+    address: "0.0.0.0:8444"
+
+pki:
+  ca_certificate: /etc/ashrix-gateway/pki/ca.crt
+  ca_private_key: /etc/ashrix-gateway/pki/ca.key
+
+connectors:
+  - id: office-01
+    certificate_serial: "04A7B2C9"
+
+applications:
+  - name: grafana
+    domain: grafana.example.com
+    connector: office-01
+
+logging:
+  dir: /etc/ashrix-gateway/pki
+  level: info
+  format: json
+```
+
+
+  
+Connector config — `~/.ashrix/connector/connector.yaml` — matches `examples/connector.yaml`:
+
+```yaml
+connector:
+  id: office-01
+  certificate: /etc/ashrix/certs/connector.crt
+  private_key: /etc/ashrix/certs/connector.key
+  ca: /etc/ashrix/certs/ca.crt
+
+gateway:
+  address: gateway.example.com:443
+  server_name: gateway.example.com
+
+applications:
+  - name: grafana
+    target: 192.168.1.10:3000
+  - name: internal-api
+    target: 192.168.1.20:8080
+
+logging:
+  dir: /etc/ashrix-gateway/pki
+  level: info
+  format: json
+```
+
+
+### Application routing
+
+Gateway:
+```yaml
+applications:
+  - name: grafana
+    domain: grafana.example.com
+    connector: office-01
+```
+
+```yaml
+Connector:
+applications:
+  - name: grafana
+    target: 192.168.1.10:3000
+```
+|Gateway app	|Gateway connector	|Connector exists?	|Connector has same app name?	|Result|
+|---|---|---|---|---|
+`grafana` / `grafana.example.com` | `office-01`	|	Yes	| Yes, `grafana -> 192.168.1.10:3000`|	Routed
+`grafana` / `grafana.example.com` | `office-99`	|	No |	N/A	 |Rejected, no such connector |
+`internal-api` / `api.example.com` | `office-01`	|	Yes	|Yes, `internal-api -> 192.168.1.20:8080`	| Routed
+`wiki` / `wiki.example.com` | `office-01`	|	Yes	|No, connector has no `wiki`	|Rejected, no such app on connector
+
+See [Configuration](docs/03-configuration.md) for configuration and validation rules.
+
+
+
+## Installation
+
+Download the appropriate Linux binaries from https://github.com/ashrixlabs/ashrix/releases. Verify the release checksums before installation.
+
+
+## Requirements
+
+- Linux gateway host.
+- Linux connector host.
+- Publicly reachable gateway.
+- Outbound UDP connectivity from connector to gateway.
+- Valid gateway and connector certificates.
+- DNS pointing application hostnames to the gateway.
 
 ## Documentation
+Document	Description
+[System overview](docs/01-system-overview.md)	Product scope and components
+[Architecture](docs/02-architecture.md)	Gateway, connector, and tunnel architecture
+[Configuration](docs/03-configuration.md)	Gateway and connector YAML
+[PKI](docs/04-pki.md)	Certificate management
+[Security](docs/05-security.md)	Security model and limitations
+[Benchmarking](docs/06-benchmark.md)	Performance testing methodology
 
-Documentation is hosted live at https://goreleaser.com
+## Development
 
-## Community
+Build:
+```
+go build ./...
+```
 
-You have questions, need support and or just want to talk about GoReleaser?
+Test:
+```
+go test ./...
+```
 
-Here are ways to get in touch with the GoReleaser community:
+Race detection:
+```
+go test -race ./...
+```
+Run these commands with the Go version declared in `go.mod`
 
-[![Follow on 𝕏](https://img.shields.io/badge/Follow_on_𝕏-000000?style=for-the-badge&logo=x&logoColor=white)](https://twitter.com/goreleaser)
-[![Follow Telegram Channel](https://img.shields.io/badge/Follow_on_Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=%23FFFFFF)](https://t.me/goreleasernews)
-[![GitHub Discussions](https://img.shields.io/badge/Discuss_on_GITHUB-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/goreleaser/goreleaser/discussions)
 
-You can find the links above and all others [here](https://goreleaser.com/links/).
+## Security
 
-### Code of Conduct
+Ashrix authenticates connectors using mTLS. It does not provide end-user authentication, SSO, or application-level authorization. Your applications remain responsible for their own access control.
 
-This project adheres to the Contributor Covenant [code of conduct](https://github.com/goreleaser/.github/blob/main/CODE_OF_CONDUCT.md).
-By participating, you are expected to uphold this code.
-We appreciate your contribution.
-Please refer to our [contributing guidelines](CONTRIBUTING.md) for further information.
+For the security model and reporting guidance, see [Security](docs/05-security.md).
 
-## Badges
 
-[![Release](https://img.shields.io/github/release/goreleaser/goreleaser.svg?style=for-the-badge)](https://github.com/goreleaser/goreleaser/releases/latest)
-[![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=for-the-badge)](/LICENSE.md)
-[![Build status](https://img.shields.io/github/actions/workflow/status/goreleaser/goreleaser/build.yml?style=for-the-badge&branch=main)](https://github.com/goreleaser/goreleaser/actions?workflow=build)
-[![Codecov branch](https://img.shields.io/codecov/c/github/goreleaser/goreleaser/main.svg?style=for-the-badge)](https://codecov.io/gh/goreleaser/goreleaser)
-[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/goreleaser&style=for-the-badge)](https://artifacthub.io/packages/search?repo=goreleaser)
-[![Go Doc](https://img.shields.io/badge/godoc-reference-blue.svg?style=for-the-badge)](http://godoc.org/github.com/goreleaser/goreleaser)
-[![Powered By: GoReleaser](https://img.shields.io/badge/powered%20by-goreleaser-green.svg?style=for-the-badge)](https://github.com/goreleaser)
-[![Backers on Open Collective](https://opencollective.com/goreleaser/backers/badge.svg?style=for-the-badge)](https://opencollective.com/goreleaser/backers/)
-[![Sponsors on Open Collective](https://opencollective.com/goreleaser/sponsors/badge.svg?style=for-the-badge)](https://opencollective.com/goreleaser/sponsors/)
-[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg?style=for-the-badge)](https://conventionalcommits.org)
-[![CII Best Practices](https://img.shields.io/cii/summary/5420?label=openssf%20best%20practices&style=for-the-badge)](https://bestpractices.coreinfrastructure.org/projects/5420)
-[![GoReportCard](https://goreportcard.com/badge/github.com/goreleaser/goreleaser?style=for-the-badge)](https://goreportcard.com/report/github.com/goreleaser/goreleaser)
+## Project status
 
-## Contributing
+Ashrix is an open-source infrastructure project under active development. The focus is reliable tunneling, secure application forwarding, predictable resource consumption, and straightforward deployment.
 
-This project exists thanks to all the people who contribute.
-[Contribution guide](CONTRIBUTING.md).
+## License
 
-## Sponsoring
+See [LICENSE](LICENSE).
 
-Does you or your company use GoReleaser?
-
-You can help keep the project bug-free and feature rich by sponsoring the
-project and its maintainers.
-
-You can sponsor GoReleaser via:
-
-- **[GitHub Sponsors](https://github.com/sponsors/caarlos0)**
-- **[OpenCollective](https://opencollective.com/goreleaser)**
-
-A big **thank you** to all current, past, and future sponsors!
-
----
-
-<!-- sponsors:begin -->
-<!-- this list is auto-generated by https://github.com/goreleaser/sponsors -->
-<div align="center">
-  <h2>Our Sponsors</h2>
-  <p align="center"><strong>Diamond</strong><br> <a href="https://serpapi.com/?utm_source=goreleaser&utm_medium=sponsor&utm_campaign=homepage&utm_content=github" target="_blank" rel="noopener sponsored" ><img src="https://github.com/serpapi.png" alt="SerpApi" width="128"/></a></p>
-  <p align="center"><strong>Gold</strong><br> <a href="https://opensource.mercedes-benz.com/?utm_source=goreleaser&utm_medium=sponsor&utm_campaign=homepage&utm_content=github" target="_blank" rel="noopener sponsored" ><img src="https://avatars.githubusercontent.com/u/34240465?s=96&v=4" alt="Mercedes-Benz Group" width="96"/></a> <a href="https://resources.github.com/github-secure-open-source-fund/?utm_source=goreleaser&utm_medium=sponsor&utm_campaign=homepage&utm_content=github" target="_blank" rel="noopener sponsored" ><img src="https://avatars.githubusercontent.com/u/199005812?s=96&v=4" alt="GitHub SecureOSS Fund " width="96"/></a></p>
-  <p align="center"><strong>Silver</strong><br> <a href="https://www.n-ix.com/?utm_source=goreleaser&utm_medium=sponsor&utm_campaign=homepage&utm_content=opencollective" target="_blank" rel="noopener sponsored" ><img src="https://images.opencollective.com/n-ix-ltd/575a7a5/logo.png?height=80" alt="N-iX Ltd" width="80"/></a></p>
-  <p align="center"><strong>Bronze</strong><br> <a href="https://www.conet.de?utm_source=goreleaser&utm_medium=sponsor&utm_campaign=homepage&utm_content=github" target="_blank" rel="noopener sponsored" ><img src="https://avatars.githubusercontent.com/u/35725664?s=64&v=4" alt="conet cloud" width="64"/></a> <a href="https://encore.dev?utm_source=goreleaser&utm_medium=sponsor&utm_campaign=homepage&utm_content=github" target="_blank" rel="noopener sponsored" ><img src="https://avatars.githubusercontent.com/u/50438175?s=64&v=4" alt="Encore" width="64"/></a> <a href="https://www.comet.com/site/?utm_source=goreleaser&utm_medium=sponsor&utm_campaign=homepage&utm_content=github" target="_blank" rel="noopener sponsored" ><img src="https://avatars.githubusercontent.com/u/31487821?s=64&v=4" alt="Comet" width="64"/></a> <a href="https://about.gitea.com/?utm_source=goreleaser&utm_medium=sponsor&utm_campaign=homepage&utm_content=opencollective" target="_blank" rel="noopener sponsored" ><img src="https://images.opencollective.com/gitea/bf35c2f/logo.png?height=64" alt="Gitea" width="64"/></a></p>
-  <h3>And many more!</h3>
-  <p>See the full list <a href="https://goreleaser.com/sponsors" target="_blank" rel="noopener sponsored">here</a>.</p>
-</div>
-
-<!-- sponsors:end -->
