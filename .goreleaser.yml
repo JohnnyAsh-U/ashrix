@@ -40,7 +40,7 @@ builds:
 
 archives:
   - id: gateway
-    builds:
+    ids:
       - gateway
     formats:
       - tar.gz
@@ -51,7 +51,7 @@ archives:
       ashrix-gateway_{{ .Version }}_{{ .Os }}_{{ .Arch }}
 
   - id: connector
-    builds:
+    ids:
       - connector
     formats:
       - tar.gz
