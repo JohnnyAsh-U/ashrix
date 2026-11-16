@@ -23,7 +23,7 @@ cd "$ROOT"
 if [[ "$MODE" == "direct" ]]; then
   BASE_URL="${DIRECT_URL:-http://127.0.0.1:8081}"
 else
-  BASE_URL="${ASHRIX_URL:-https://grafana.ashrix.io:8443}"
+  BASE_URL="${ASHRIX_URL:-http://grafana.ashrix.io:8080}"
 fi
 
 if ! command -v vegeta >/dev/null 2>&1; then

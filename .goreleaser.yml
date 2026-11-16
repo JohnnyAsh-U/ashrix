@@ -1,0 +1,74 @@
+version: 2
+
+project_name: ashrix
+
+before:
+  hooks:
+    - go mod verify
+
+builds:
+  - id: gateway
+    main: ./cmd/gateway
+    binary: ashrix-gateway
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+  - id: connector
+    main: ./cmd/connector
+    binary: ashrix-connector
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: gateway
+    builds:
+      - gateway
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats: zip
+    name_template: >-
+      ashrix-gateway_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+  - id: connector
+    builds:
+      - connector
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats: zip
+    name_template: >-
+      ashrix-connector_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
