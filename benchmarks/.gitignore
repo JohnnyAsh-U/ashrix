@@ -1,0 +1,4 @@
+results/*
+payloads/*
+!results/.gitkeep
+!payloads/.gitkeep

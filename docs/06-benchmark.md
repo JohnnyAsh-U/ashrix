@@ -412,4 +412,16 @@ The objective is not to claim that Ashrix is faster than every alternative.
 The objective is to understand its performance characteristics, identify bottlenecks, establish realistic operating limits, and make improvements that can be reproduced independently.
 
 
+## 16. Executable benchmark suite
+
+The repository includes an executable end-to-end HTTP benchmark suite under `benchmarks/`.
+
+See [`benchmarks/README.md`](../benchmarks/README.md) for setup and commands. It runs the same health, upload, download, and offered-load workloads against the direct test application and the Ashrix gateway, preserving raw Vegeta data and JSON/text reports. The suite includes warm-ups, repeated runs, environment metadata, and a deterministic local test application.
+
+The benchmark suite does not claim performance results. Results must be generated on the target host(s). The loopback baseline is a controlled software-path baseline; distributed tests are required before making WAN performance claims.
+
+For the complete executable workload and resilience procedures, see:
+
+- [`benchmarks/README.md`](../benchmarks/README.md) — automated direct-vs-Ashrix HTTP benchmark suite.
+- [`benchmarks/ADVANCED-TESTS.md`](../benchmarks/ADVANCED-TESTS.md) — separate-host tests, network impairment, connection establishment, failure recovery, and profiling.
 
