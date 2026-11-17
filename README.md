@@ -43,6 +43,28 @@ The connector initiates the tunnel from inside the private network. The gateway 
 - Self-hosted deployment.
 - No centralized control plane.
 
+## Installation
+
+Download the pre-compiled binaries for the Ashrix **Gateway** and **Connector** from the [Releases page](https://github.com/JohnnyAsh-U/ashrix/releases/tag/v0.1.0) (available for `amd64` and `arm64` on Linux and Windows).
+
+### Linux
+
+**Gateway:**
+```bash
+curl -LO https://github.com/JohnnyAsh-U/ashrix/releases/download/v0.1.0/ashrix-gateway_0.1.0_linux_amd64.tar.gz
+
+tar -xzf ashrix-gateway_0.1.0_linux_amd64.tar.gz
+```
+**Connector**
+```bash
+curl -LO https://github.com/JohnnyAsh-U/ashrix/releases/download/v0.1.0/ashrix-connector_0.1.0_linux_amd64.tar.gz
+
+tar -xzf ashrix-connector_0.1.0_linux_amd64.tar.gz
+```
+
+### Windows
+Download the respective .zip archive directly from the [Releases page](https://github.com/JohnnyAsh-U/ashrix/releases/tag/v0.1.0).
+
 ## Quick start
 
 This is the full flow from empty machines to a working app.
