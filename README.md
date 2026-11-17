@@ -168,9 +168,9 @@ Configure DNS:
 grafana.example.com -> YOUR_GATEWAY_PUBLIC_IP
 ```
 Open:
-
 ```
-https://grafana.example.com
+For HTTP :  http://grafana.example.com:8080
+For HTTPS:  https://grafana.example.com:8443
 ```
 
 The gateway forwards the request through the connector's established QUIC tunnel to the local Grafana service.
@@ -223,6 +223,8 @@ Rules:
 4. If you change the paths in `gateway.yaml`, you must put the files at the new paths. The gateway only reads what is configured, it does not search for them.
 
 
+### TLS Certificate Requirement
+The Ashrix Gateway requires a **wildcard TLS certificate** (e.g., `*.example.com`). Because the Gateway terminates TLS using a single certificate pair and routes incoming traffic to internal applications by subdomain (e.g., `app1.example.com`, `app2.example.com`), per-service certificates are not supported.
 
 
 ## Configuration
