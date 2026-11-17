@@ -182,7 +182,7 @@ The gateway forwards the request through the connector's established QUIC tunnel
 
 ### 9. For HTTPS On the gateway: provide the public HTTPS certificate
 
-`init` does *not* create your public HTTPS certificate. That certificate is what browsers validate when they open `https://grafana.example.com`.
+`init` does *not* create your public HTTPS certificate. That certificate is what browsers validate when they open `https://grafana.example.com:8443`.
 
 You must put the HTTPS certificate and private key in the exact paths configured in the gateway YAML under 
 
@@ -190,7 +190,7 @@ You must put the HTTPS certificate and private key in the exact paths configured
 ```
 listeners:
   https:
-    address: "0.0.0.0:443"
+    address: "0.0.0.0:8443"
     certificate: ~/.ashrix/server.crt
     private_key: ~/.ashrix/server.key
 
@@ -223,7 +223,7 @@ Rules:
 
 1. `certificate` must match `private_key`. If they do not pair, the HTTPS listener will fail to start.
 2. `certificate` must be valid for the public domain the client uses, e.g. `grafana.example.com`. The gateway leaf cert in `~/.ashrix/pki/gateway.crt` is *not* used for this. It is only for gateway-to-connector mTLS.
-3. If the files are missing or unreadable, HTTPS will not start. HTTP on `:80` and QUIC may still start depending on your config, but `https://<your-app>` will not work.
+3. If the files are missing or unreadable, HTTPS will not start. HTTP on `:8080` and QUIC may still start depending on your config, but `https://<your-app>` will not work.
 4. If you change the paths in `gateway.yaml`, you must put the files at the new paths. The gateway only reads what is configured, it does not search for them.
 
 
@@ -283,7 +283,7 @@ connector:
   ca: /etc/ashrix/certs/ca.crt
 
 gateway:
-  address: gateway.example.com:443
+  address: gateway.example.com:8444
   server_name: gateway.example.com
 
 applications:
@@ -328,7 +328,7 @@ See [Configuration](docs/03-configuration.md) for configuration and validation r
 
 ## Installation
 
-Download the appropriate Linux binaries from https://github.com/ashrixlabs/ashrix/releases. Verify the release checksums before installation.
+Download the appropriate Linux binaries from https://github.com/JohnnyAsh-U/ashrix/releases. Verify the release checksums before installation.
 
 
 ## Requirements

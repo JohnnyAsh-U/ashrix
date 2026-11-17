@@ -72,7 +72,7 @@ Recommended principles:
 
 Generate the connector CSR using the supported Ashrix PKI command.
 ```bash
-ashrix-connector init --name office-01 --quic-addr gateway.example.com:8443 --server-name gateway.example.com --out office-01.csr
+ashrix-connector init --name office-01 --quic-addr gateway.example.com:8444 --server-name gateway.example.com --out office-01.csr
 ``` 
 
 The private key must never be transmitted to the gateway.

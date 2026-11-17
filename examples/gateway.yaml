@@ -1,8 +1,8 @@
 gateway:
   id: gateway-01
   server_name: gateway.example.com
-  certificate: /etc/ashrix/certs/connector.crt
-  private_key: /etc/ashrix/certs/connector.key
+  certificate: /etc/ashrix/certs/gateway.crt
+  private_key: /etc/ashrix/certs/gateway.key
 
 
 listeners:

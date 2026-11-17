@@ -6,7 +6,7 @@ connector:
   ca: /etc/ashrix/certs/ca.crt
 
 gateway:
-  address: gateway.example.com:443
+  address: gateway.example.com:8444
     
 
 applications:
