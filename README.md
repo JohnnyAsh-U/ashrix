@@ -6,31 +6,13 @@ Ashrix is a lightweight, self-hosted application access gateway written in Go. I
 
 No inbound tunnel connections. No centralized control plane. Just a gateway, connectors, YAML configuration, and certificates.
 
-## How it works
-
-```
-External Client
-
-HTTPS
-v
-+--------------+
-|   Gateway    |
-+--------------+
-
-QUIC + mTLS (outbound tunnel)
-v
-+--------------+
-|  Connector   |
-+--------------+
-
-TCP
-v
-+--------------+
-| Private App  |
-+--------------+
-```
-
 The connector initiates the tunnel from inside the private network. The gateway uses that connection to forward external application traffic to locally configured services.
+
+![Ashrix Architecture Diagram](/docs/assets/arch4.jpg)
+![Ashrix Architecture Diagram](/docs/assets/arch3.jpg)
+
+
+
 
 ## Features
 
