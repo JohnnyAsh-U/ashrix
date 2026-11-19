@@ -15,7 +15,7 @@ All benchmark components ran on the same physical machine.
   |Kernel     |        7.2.7-200.fc44.x86_64|
  | Go      |           1.26.8-X (linux/amd64, nodwarf5)|
  | Vegeta       |      12.7.0|
- | Ashrix      |       Uncommitted working-tree version|
+ | Ashrix      |       24fb8a3 |
 
 ## Test Setup
 
