@@ -8,11 +8,10 @@ No inbound tunnel connections. No centralized control plane. Just a gateway, con
 
 The connector initiates the tunnel from inside the private network. The gateway uses that connection to forward external application traffic to locally configured services.
 
+
+## Architecture
 ![Ashrix Architecture Diagram](/docs/assets/arch4.jpg)
 ![Ashrix Architecture Diagram](/docs/assets/arch3.jpg)
-
-
-
 
 ## Features
 
@@ -24,6 +23,31 @@ The connector initiates the tunnel from inside the private network. The gateway 
 - Lightweight Go binaries.
 - Self-hosted deployment.
 - No centralized control plane.
+
+## Performance 
+Ashrix has been benchmarked against direct application access to evaluate the overhead introduced by its gateway and QUIC tunneling architecture.
+
+The benchmark covers:
+
+- Request latency (p50 and p95)
+- Throughput under different request rates
+- Upload and download performance
+- Request success rates
+- Gateway and connector memory usage
+
+### Initial Results
+
+In a single-machine benchmark:
+
+- Sustained up to 3,000 requests/second in the tested capacity workload.
+- Maintained approximately 100% request success across tested workloads.
+- Added between approximately 0.6 ms and 5.6 ms p50 latency in the capacity tests.
+- Gateway peak memory usage was approximately 35 MB.
+- Connector peak memory usage was approximately 28 MB.
+
+These are initial results from a local benchmark, not production performance guarantees. Results depend on hardware, workload, network conditions, and configuration.
+
+See [benchmarks/README.md](benchmarks/README.md) for the benchmark methodology, environment, detailed comparisons, and memory measurements.
 
 ## Installation
 

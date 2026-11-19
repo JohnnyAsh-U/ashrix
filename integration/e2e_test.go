@@ -42,13 +42,12 @@ import (
 const (
 	integrationConnectorID = "integration-connector"
 	integrationGatewayName = "gateway.integration.test"
- ALPN = "ashrix/1"
-
+	ALPN                   = "ashrix/1"
 )
 
 type integrationStack struct {
 	gateway       *gatewaytunnel.QuicTunnel
-	gatewayPKI *gatewaycrypto.LocalGatewayPKI
+	gatewayPKI    *gatewaycrypto.LocalGatewayPKI
 	gatewayCancel context.CancelFunc
 	gatewayDone   chan error
 	connectorStop context.CancelFunc
@@ -259,8 +258,6 @@ func startIntegrationStack(t *testing.T, targets map[string]string, startConnect
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	
 
 	quicAddress := reserveUDPAddress(t)
 	gatewayCfg := &gatewayconfig.Config{
@@ -552,14 +549,14 @@ func TestGatewayRejectsConnectorCertificateFromUntrustedCA(t *testing.T) {
 
 	if err != nil {
 		t.Logf("Client observed TLS rejection: %v", err)
-		return 
+		return
 	}
 	defer conn.CloseWithError(0, "test complete")
 
 	select {
 	case <-conn.Context().Done():
 		t.Log("Connection closed after server-side processing")
-	case <-time.After(2*time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatalf("connection remained open investigate server authentitcation")
 	}
 }

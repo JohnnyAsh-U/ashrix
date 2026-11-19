@@ -61,22 +61,31 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 
 	stream, err := tunnel.OpenStreamSync(streamCtx)
 	if err != nil {
+		log.Error("failed to open QUIC stream", "err", err)
 		http.Error(w, "Open Tunnel Stream", http.StatusBadGateway)
 		return
 	}
 
-	if err := frame.WriteFrame(stream, req); err != nil {
+	defer func() {
+		stream.CancelRead(0)
+		stream.CancelWrite(0)
 		stream.Close()
+	}()
+
+	if err := frame.WriteFrame(stream, req); err != nil {
+		log.Error("failed to write frame", "err", err)
+		stream.CancelRead(0)
+		stream.CancelWrite(0)
 		http.Error(w, "failed to write open request frame", 502)
 		return
 	}
-
-	defer stream.Close()
 
 	if !isWebSocketRequest(r) {
 
 		if err := outboundRequest.Write(stream); err != nil {
 			log.Error("failed to write request to stream", slog.Any("error", err))
+			stream.CancelRead(0)
+			stream.CancelWrite(0)
 			http.Error(w, "", 500)
 			return
 		}
@@ -85,6 +94,7 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 
 		resp, err := http.ReadResponse(br, r)
 		if err != nil {
+			log.Error("failed to read upstream response", "err", err)
 			http.Error(w, "Error on Connector", 500)
 			return
 		}
@@ -92,9 +102,13 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 		maps.Copy(w.Header(), resp.Header)
 		w.WriteHeader(resp.StatusCode)
 
-		io.Copy(w, resp.Body)
+		// io.Copy(w, resp.Body)
+		_, err = copyResponse(w, resp.Body)
+		if err != nil {
+			log.Error("failed to copy response body", slog.Any("error", err))
+		}
 		resp.Body.Close()
-
+		return
 	} else {
 
 		hj, ok := w.(http.Hijacker)
@@ -131,6 +145,7 @@ func ProxyRequest(w http.ResponseWriter, r *http.Request, quicTunnel *tunnel.Qui
 		}
 
 		io.Copy(clientConn, br)
+		return
 	}
 }
 
@@ -145,5 +160,4 @@ func isWebSocketRequest(r *http.Request) bool {
 		}
 	}
 	return false
-	// return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
 }

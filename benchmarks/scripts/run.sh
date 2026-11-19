@@ -17,7 +17,7 @@ cd "$ROOT"
 
 : "${DURATION:=20s}"
 : "${WARMUP:=5s}"
-: "${REPEATS:=3}"
+: "${REPEATS:=2}"
 : "${WORKERS:=100}"
 
 if [[ "$MODE" == "direct" ]]; then
@@ -90,7 +90,7 @@ for size in 1024 16384 262144 1048576 10485760; do
 done
 
 # Capacity curve: increasing offered request rate on the small health endpoint.
-for rate in 1 10 50 100 250 500; do
+for rate in 100 500 1000 1500 2000 2500 3000; do
   run_case "capacity-${rate}rps" GET /health "$rate"
 done
 

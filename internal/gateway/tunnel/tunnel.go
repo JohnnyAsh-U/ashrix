@@ -204,7 +204,6 @@ func (r *QuicTunnel) AttachTunnel(
 	entry.tunnelConnectedAt = time.Now()
 	entry.tunnelAttached = true
 	entry.Conn = quicConn
-	entry.tunnelAttached = true
 	entry.MgmtStream = mgmtStream
 	entry.LastSeen = entry.tunnelConnectedAt
 	snapshot := *entry

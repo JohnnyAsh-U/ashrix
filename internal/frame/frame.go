@@ -108,3 +108,21 @@ func HeadersToProto(h http.Header) map[string]*pb.HeaderList {
 	}
 	return out
 }
+
+// headersToProto converts standard Go HTTP headers into the Protobuf map type
+func HeadersToProtoNoCopy(h http.Header) map[string]*pb.HeaderList {
+	if h == nil {
+		return nil
+	}
+	out := make(map[string]*pb.HeaderList, len(h))
+	for k, values := range h {
+		// Copy the slice so the original request doesn't share memory with the proto message
+		// copied := make([]string, len(values))
+		// copy(copied, values)
+
+		out[k] = &pb.HeaderList{
+			Values: values,
+		}
+	}
+	return out
+}
